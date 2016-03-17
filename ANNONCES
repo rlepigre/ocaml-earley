@@ -1,0 +1,80 @@
+[Sujet: Alpha release of DeCaP (combinator library + extensible OCaml parser)]
+Dear Caml-list,
+
+We are proud to announce the release of a new parser combinator library called
+DeCaP. It has been used to implement a new extensible parser for OCaml called
+pa_ocaml, together with a syntax extension for writing parsers using a format
+similar to Backus-Naur Form (BNF). Through this syntax extension, parsers are
+compiled down to calls of DeCaP combinators. In this way, we manage to obtain
+a user-friendly syntax for writing parsers, while preserving the advantages of
+functional combinators. To give you an idea, we give bellow the example of a
+small calculator.
+
+## calc_prio.ml ##############################################################
+open Decap
+
+type calc_prio = Sum | Prod | Atom
+let expr, set_expr = grammar_family "expr" 
+
+let float_num =
+  let float_re = "[0-9]+\\([.][0-9]+\\)?\\([eE][-+]?[0-9]+\\)?" in
+  parser
+  | f:RE(float_re) -> float_of_string f
+
+let prod_sym =
+  parser
+  | CHR('*') -> ( *. )
+  | CHR('/') -> ( /. )
+
+let sum_sym =
+  parser
+  | CHR('+') -> ( +. )
+  | CHR('-') -> ( -. )
+
+let _ = set_expr (fun prio ->
+  parser
+  | f:float_num                    when prio = Atom -> f
+  | CHR('(') e:(expr Sum) CHR(')') when prio = Atom -> e
+  | CHR('-') e:(expr Atom)         when prio = Atom -> -. e
+  | CHR('+') e:(expr Atom)         when prio = Atom -> e
+  | e:(expr Atom) l:{fn:prod_sym e':(expr Atom)}*
+                                   when prio = Prod ->
+      List.fold_left (fun acc (fn, e') -> fn acc e') e l
+  | e:(expr Prod) l:{fn:sum_sym  e':(expr Prod)}*
+                                   when prio = Sum  ->
+      List.fold_left (fun acc (fn, e') -> fn acc e') e l)
+
+(* The main loop *)
+let _ =
+  let blank = blank_regexp (Str.regexp "[ \t]*") in
+  try while true do
+    Printf.printf ">> %!";
+    let l = input_line stdin in
+    let r = handle_exception (parse_string (expr Sum) blank) l in
+    Printf.printf "%f\n%!" r
+  done with End_of_file -> ()
+##############################################################################
+
+The tools to write syntax extensions are similar to those of Camlp4 (quotation
+and anti-quotation) but are not complete yet (quotation patterns are missing).
+The corresponding part of the documentation is also unfinished.
+
+On the side of performances, pa_ocaml is on average five times slower than the
+original OCaml parser (implemented using Ocamlyacc) and two times faster than
+Camlp4. The web-page of the project can be found here:
+
+http://lama.univ-savoie.fr/decap/
+
+As DeCaP and pa_ocaml are still under development, we would greatly
+appreciate feedback. We are particularly interested in bug in the
+OCaml parser. At the moment, the grammar is supposed to be complete
+from OCaml 3.12.1 to 4.01.0 while some of the extension of 4.02.0 are
+missing. Our target is to produce identical parse trees compare to
+those of the original ocamlyacc parser. On our test files, this is
+achieved up to positions and we are working on positions currently.
+
+Bug report on mantis: http://lama.univ-savoie.fr/mantis
+
+
+Rodolphe Lepigre & Christophe Raffalli
+LAMA, UMR 5127 CNRS - Université Savoie Mont Blanc
