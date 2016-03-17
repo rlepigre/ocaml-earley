@@ -93,7 +93,7 @@ let parse_channel = Decap.parse_channel any_decls blank
 let modname =
    match Array.length Sys.argv with
   | 1 -> fun id -> Printf.sprintf "(Lident \"%s\")" id
-  | 2 -> let s = Filename.chop_extension Sys.argv.(1) in
+  | 2 -> let s = Filename.chop_extension (Filename.basename Sys.argv.(1)) in
 	 assert (String.length s > 0);
 	 let f = s.[0] in
 	 if f >= 'a' && f <= 'z' then (

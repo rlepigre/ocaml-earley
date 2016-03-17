@@ -8,6 +8,7 @@ let t2 = <:type<int -> bool -> (float * bool option) list * (int, string) Hashtb
 let f1 x = <:expr<1 + $x$ + $x$ >>
 
 let f2 x y t = <:expr<3 * $x$ * (match $y$ with _ -> $y$ $t$ | _ -> $x$) + 2>>
+
 (*
 let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
 
