@@ -66,6 +66,8 @@ let quote_const : Location.t -> Longident.t -> expression list -> expression =
 let lexing s = Ldot(Lident "Lexing", s)
 let location s = Ldot(Lident "Location", s)
 let longident s = Ldot(Lident "Longident", s)
+let parsetree s = Ldot(Lident "Parsetree", s)
+let asttypes s = Ldot(Lident "Asttypes", s)
 
 let rec quote_longident : Location.t -> Longident.t -> expression =
   fun _loc l ->

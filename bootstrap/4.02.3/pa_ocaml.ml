@@ -5986,7 +5986,7 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Atom
                                                                     then
-                                                                    (Decap.fsequence
+                                                                    (Decap.fsequence_position
                                                                     (Decap.ignore_next_blank
                                                                     (Decap.char
                                                                     '$' '$'))
@@ -6016,7 +6016,19 @@ module Make(Initial:Extension) =
                                                                     "array")
                                                                     (Decap.string
                                                                     "array"
-                                                                    "array")])
+                                                                    "array");
+                                                                    Decap.apply
+                                                                    (fun _ 
+                                                                    -> "int")
+                                                                    (Decap.string
+                                                                    "int"
+                                                                    "int");
+                                                                    Decap.apply
+                                                                    (fun _ 
+                                                                    -> "lid")
+                                                                    (Decap.string
+                                                                    "lid"
+                                                                    "lid")])
                                                                     (Decap.char
                                                                     ':' ':')
                                                                     (fun t 
@@ -6033,17 +6045,68 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun t  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e =
                                                                     match t
                                                                     with
                                                                     | 
                                                                     "expr" ->
-                                                                    Quote.pexp_antiquotation
                                                                     e
+                                                                    | 
+                                                                    "int" ->
+                                                                    (Printf.eprintf
+                                                                    "coucou\n%!";
+                                                                    let open Quote in
+                                                                    (let e =
+                                                                    quote_const
+                                                                    _loc
+                                                                    (parsetree
+                                                                    "Pexp_constant")
+                                                                    [
+                                                                    quote_const
+                                                                    _loc
+                                                                    (asttypes
+                                                                    "Const_int")
+                                                                    [e]] in
+                                                                    quote_record
+                                                                    _loc
+                                                                    [
+                                                                    ((parsetree
+                                                                    "pexp_desc"),
+                                                                    e);
+                                                                    ((parsetree
+                                                                    "pexp_loc"),
+                                                                    (quote_location_t
+                                                                    _loc _loc));
+                                                                    ((parsetree
+                                                                    "pexp_attributes"),
+                                                                    (quote_attributes
+                                                                    _loc []))]))
                                                                     | 
                                                                     _ ->
                                                                     give_up
-                                                                    "bad antiquotation"))))
-                                                                    :: y
+                                                                    "bad antiquotation" in
+                                                                    Quote.pexp_antiquotation
+                                                                    e)))) ::
+                                                                    y
                                                                     else y in
                                                                   if
                                                                     lvl =

@@ -8,9 +8,8 @@ let f1 x = <:expr<1 + $x$ + $x$ >>
 
 let f2 x y t = <:expr<3 * $x$ * (match $y$ with _ -> $y$ $t$ | _ -> $x$) + 2>>
 
-let i =
-  let j = 42 + 2 in
-  <:expr<3 * $int:j+1$>>
+let f i j =
+  <:expr< $int:i$ + $int:j$ >>
 
 (*
 let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
