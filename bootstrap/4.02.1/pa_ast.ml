@@ -1,7 +1,30 @@
 open Asttypes
 open Parsetree
 open Longident
-open Pa_ocaml_prelude
+let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc }
+let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc }
+let const_string s = Const_string (s, None)
+let loc_expr ?(attributes= [])  _loc e =
+  { pexp_desc = e; pexp_loc = _loc; pexp_attributes = attributes }
+let loc_pat ?(attributes= [])  _loc pat =
+  { ppat_desc = pat; ppat_loc = _loc; ppat_attributes = attributes }
+let loc_pcl ?(attributes= [])  _loc desc =
+  { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes }
+let loc_typ ?(attributes= [])  _loc typ =
+  { ptyp_desc = typ; ptyp_loc = _loc; ptyp_attributes = attributes }
+let pctf_loc ?(attributes= [])  _loc desc =
+  { pctf_desc = desc; pctf_loc = _loc; pctf_attributes = attributes }
+let pcty_loc ?(attributes= [])  _loc desc =
+  { pcty_desc = desc; pcty_loc = _loc; pcty_attributes = attributes }
+let loc_pcf ?(attributes= [])  _loc desc =
+  { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
+let mexpr_loc ?(attributes= [])  _loc desc =
+  { pmod_desc = desc; pmod_loc = _loc; pmod_attributes = attributes }
+let mtyp_loc ?(attributes= [])  _loc desc =
+  { pmty_desc = desc; pmty_loc = _loc; pmty_attributes = attributes }
+let id_loc txt loc = { txt; loc }
+let pexp_construct (a,b) = Pexp_construct (a, b)
+let pexp_fun (label,opt,pat,expr) = Pexp_fun (label, opt, pat, expr)
 let exp_int _loc i = loc_expr _loc (Pexp_constant (Const_int i))
 let exp_char _loc c = loc_expr _loc (Pexp_constant (Const_char c))
 let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
@@ -10,9 +33,9 @@ let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Const_int32 i))
 let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Const_int64 i))
 let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Const_nativeint i))
 let exp_const _loc c es =
-  let c = id_loc (Lident c) _loc in loc_expr _loc (pexp_construct (c, None))
+  let c = id_loc c _loc in loc_expr _loc (pexp_construct (c, es))
 let exp_record _loc fs =
-  let f (l,e) = ((id_loc (Lident l) _loc), e) in
+  let f (l,e) = ((id_loc l _loc), e) in
   let fs = List.map f fs in loc_expr _loc (Pexp_record (fs, None))
 let exp_None _loc =
   let cnone = id_loc (Lident "None") _loc in

@@ -7458,8 +7458,7 @@ module Make(Initial:Extension) =
                                                        (fun x  ->
                                                           fun l  -> x :: l)
                                                        (Decap.fsequence_position
-                                                          (Decap.string "("
-                                                             "(")
+                                                          (Decap.char '(' '(')
                                                           (Decap.fsequence
                                                              (Decap.apply_position
                                                                 (fun x  ->
@@ -7483,15 +7482,15 @@ module Make(Initial:Extension) =
                                                                     (fun x 
                                                                     -> Some x)
                                                                     (Decap.sequence
-                                                                    (Decap.string
-                                                                    ":" ":")
+                                                                    (Decap.char
+                                                                    ':' ':')
                                                                     module_type
                                                                     (fun _ 
                                                                     ->
                                                                     fun mt 
                                                                     -> mt))))
-                                                                (Decap.string
-                                                                   ")" ")")
+                                                                (Decap.char
+                                                                   ')' ')')
                                                                 (fun mt  ->
                                                                    fun _  ->
                                                                     fun mn 

@@ -1790,10 +1790,10 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq))
                   -> (fun _loc -> loc_expr _loc (Pexp_let (r, l, e)))
 #ifversion >= 4.02
-             | module_kw mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" ->
+             | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' ->
 		     (id_loc mn _loc_mn, mt, _loc)}*
 #else
--             | module_kw mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
+             | module_kw mn:module_name l:{ '(' mn:module_name ':' mt:module_type ')' -> (id_loc mn _loc_mn, mt, _loc)}*
 #endif
                  mt:{STR":" mt:module_type }? STR"=" me:module_expr in_kw e:(expression_lvl (right_alm alm,Seq))  ->
                (let me = match mt with None -> me | Some mt -> mexpr_loc (merge2 _loc_mt _loc_me) (Pmod_constraint(me, mt)) in
@@ -1886,13 +1886,39 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 | "structure" '<' e:structure_item ">>" -> Quote.quote_structure  _loc_e e
 	 | "signature" '<' e:signature_item ">>" -> Quote.quote_signature  _loc_e e
 	 | "constructors"
-	               '<' e:constr_decl_list ">>" ->
+	     '<' e:constr_decl_list ">>" ->
+#ifversion < 4.02
+	   let quote_constructor_declaration _loc (s,t,t',l) =
+	     Quote.(quote_tuple _loc [
+	       ((quote_loc quote_string) _loc s) ;
+	       ((quote_list quote_core_type) _loc t) ;
+	       ((quote_option quote_core_type) _loc t') ;
+	       (quote_location_t _loc l) ; ])
+           in
+#endif
 	                   Quote.(quote_list quote_constructor_declaration _loc_e e)
 	 | "fields"    '<' e:field_decl_list ">>" ->
+#ifversion < 4.02
+	   let quote_label_declaration _loc (x1,x2,x3,x4) =
+	     Quote.(quote_tuple _loc [(quote_loc quote_string) _loc x1;quote_mutable_flag _loc x2;
+			       quote_core_type _loc x3;quote_location_t _loc x4;])
+	   in
+#endif
 	                   Quote.(quote_list quote_label_declaration _loc_e e)
 	 | "bindings"  '<' e:let_binding     ">>" ->
+#ifversion < 4.02
+	   let quote_value_binding _loc (x1,x2) =
+	     Quote.(quote_tuple _loc [quote_pattern _loc x1;quote_expression _loc x2;])
+	   in
+#endif
+
 	                   Quote.(quote_list quote_value_binding _loc_e e)
 	 | "cases"     '<' e:match_cases ">>" ->
+#ifversion < 4.02
+	   let quote_case _loc (x1,x2) =
+	     Quote.(quote_tuple _loc [quote_pattern _loc x1;quote_expression _loc x2;])
+	   in
+#endif
 	                   Quote.(quote_list quote_case _loc_e e)
 	 | "module"    '<' e:module_expr ">>" ->
 	                   Quote.quote_module_expr _loc_e e
@@ -1970,7 +1996,11 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl = App ->
      loc_expr _loc (match f.pexp_desc, l with
+#ifversion >= 4.02
      | Pexp_construct(c,None), ["", a] ->  Pexp_construct(c,Some a)
+#else
+     | Pexp_construct(c,None,b), ["", a] ->  Pexp_construct(c,Some a,b)
+#endif
      | Pexp_variant(c,None), ["", a] -> Pexp_variant(c,Some a)
      | _ -> Pexp_apply(f,l))
 

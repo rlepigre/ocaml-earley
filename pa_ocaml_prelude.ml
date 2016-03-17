@@ -367,15 +367,10 @@ let string_exp (b,lvl) =
   let pexp_function cases =
     Pexp_function (cases)
 #else
-#ifversion >= 4.00
+  let value_binding ?(attributes=[]) _loc pat expr = (pat, expr)
   type constructor_declaration = string Asttypes.loc * Parsetree.core_type list * Parsetree.core_type option * Location.t
   let constructor_declaration _loc name args res = (name, args, res, _loc)
   type label_declaration = string Asttypes.loc * Asttypes.mutable_flag * Parsetree.core_type * Location.t
-#else
-  type constructor_declaration = string * Parsetree.core_type list * Location.t
-  let constructor_declaration _loc name args res = (name, args, _loc)
-  type label_declaration = string * Asttypes.mutable_flag * Parsetree.core_type * Location.t
-#endif
   type case = pattern * expression
   let label_declaration _loc name mut ty =
     (name, mut, ty, _loc)
@@ -403,11 +398,8 @@ let string_exp (b,lvl) =
       ; pci_loc = _loc }
   let pstr_eval e = Pstr_eval(e)
   let psig_value ?(attributes=[]) _loc name ty prim =
-#ifversion >= 4.00
     Psig_value( name, { pval_type = ty ; pval_prim = prim ; pval_loc = _loc; } )
-#else
-    Psig_value( name, { pval_type = ty ; pval_prim = prim } )
-#endif
+
   let value_binding  ?(attributes=[]) _loc pat expr =
     ( pat, expr)
   let module_binding _loc name mt me =
@@ -418,9 +410,11 @@ let string_exp (b,lvl) =
   let pexp_constraint(a,b) = Pexp_constraint(a,Some b,None)
   let pexp_coerce(a,b,c) = Pexp_constraint(a,b,Some c)
   let pexp_assertfalse _loc = Pexp_assertfalse
-  let map_cases cases = List.map (fun (pat, expr, guard) ->
-			    match guard with None -> (pat, expr)
-					   | Some e -> (pat, loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when(e,expr)))) cases
+  let make_case = fun pat expr guard ->
+    match guard with None -> (pat, expr)
+    | Some e -> (pat, loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when(e,expr)))
+
+  let map_cases cases = List.map (fun (pat, expr, guard) ->make_case pat expr guard) cases
   let pexp_function(cases) =
     Pexp_function("", None, cases)
 #endif

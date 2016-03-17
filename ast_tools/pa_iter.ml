@@ -24,7 +24,9 @@ type item =
 type ast = item list
 
 (* Parser *)
-let parser lid = | ''[a-z][_a-z]*''
+let reserved = [ "bool"; "int32"; "int64"; "int"; "char"; "string"; "nativeint" ]
+
+let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Decap.give_up ""; s
 let parser uid = | ''[A-Z][_a-zA-Z0-9]*''
 let parser arg = | '\'' - RE("[a-z]+")
 
@@ -44,7 +46,7 @@ let parser base_type p_auth =
   | t:(base_type false) "loc"                     -> Loc t
   | t:(base_type false) "class_infos"             -> Class_infos t
   | t:(base_type false) "include_infos"           -> Include_infos t
-  | t:(base_type false) ts:{'*' (base_type false)}++ when p_auth -> Prod (t :: ts)
+  | t:(base_type false) ts:{'*' (base_type false)}+ when p_auth -> Prod (t :: ts)
   | a:arg                                         -> Var a
   | n:lid                                         -> Name n
   | '(' (base_type true) ')'

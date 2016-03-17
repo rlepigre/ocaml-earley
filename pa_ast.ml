@@ -73,6 +73,7 @@ let loc_expr ?(attributes=[]) _loc e = { pexp_desc = e; pexp_loc = _loc; }
 let loc_pat ?(attributes=[]) _loc pat = { ppat_desc = pat; ppat_loc = _loc; }
 let loc_pcl ?(attributes=[]) _loc desc = { pcl_desc = desc; pcl_loc = _loc }
 let loc_typ ?(attributes=[]) _loc typ = { ptyp_desc = typ; ptyp_loc = _loc; }
+let loc_pfield ?(attributes=[]) _loc field = { pfield_desc = field; pfield_loc = _loc; }
 #ifversion >= 4.00
 let pctf_loc ?(attributes=[]) _loc desc = { pctf_desc = desc; pctf_loc = _loc; }
 let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; }

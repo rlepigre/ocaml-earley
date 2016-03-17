@@ -2,12 +2,12 @@
 
 make pa_ocaml
 
-export OPATH=$PATH
 export MAKEOPTS="OCAMLFIND= OCAMLOPT=ocamlopt.opt OCAMLC=ocamlc.opt"
 export MAKE="make $MAKEOPTS"
 
 function build {
-    export PATH=/usr/local-$1/bin:$OPATH
+    opam switch $1
+    eval `opam config env`
     export OCAMLVERSION=$1
     echo ==========================================================
     echo $PATH
@@ -26,50 +26,20 @@ function build {
     $MAKE
     echo ==========================================================
     echo cd ast_tools
-    echo $MAKE distclean
-    echo $MAKE compare.ml
+    echo $MAKE distclean all
     echo ==========================================================
     cd ast_tools
-    $MAKE distclean
-    $MAKE compare.ml
+    $MAKE distclean all
     cd ..
-    echo ==========================================================
-    echo cp ast_tools/compare.ml bootstrap/$1/compare.ml
-    echo $MAKE
-    echo ==========================================================
-    cp ast_tools/compare.ml bootstrap/$1/compare.ml
-    $MAKE
     echo ==========================================================
     echo ./tests_pa_ocaml.sh
     echo ==========================================================
-    ./tests_pa_ocaml.sh
+    #./tests_pa_ocaml.sh
 }
 
-build 4.02.3
-cp -f pa_ocaml pa_ocaml-4.02.3
+for v in 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0; do
+    build $v
+    cp -f pa_ocaml pa_ocaml-$v
+done
 
-build 4.02.2
-cp -f pa_ocaml pa_ocaml-4.02.2
-
-build 4.02.1
-cp -f pa_ocaml pa_ocaml-4.02.1
-
-build 4.02.0
-cp -f pa_ocaml pa_ocaml-4.02.0
-
-build 4.01.0
-cp -f pa_ocaml pa_ocaml-4.01.0
-
-# starting to remove support for 3.12.1 and 4.00.1 that
-# can not print ast.
-#cp -f pa_ocaml-4.01.0 pa_ocaml
-#build 4.00.1
-#
-#cp -f pa_ocaml-4.01.0 pa_ocaml
-#build 3.12.1
-
-export PATH=$OPATH
-
-#make sure not to have a pa_ocaml which can not bootstrap
-cp -f pa_ocaml-`ocamlc -vnum` pa_ocaml
 $MAKE distclean

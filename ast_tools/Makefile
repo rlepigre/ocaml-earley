@@ -2,24 +2,25 @@ OCAMLVERSION=$(shell ocamlc -version)
 DECAP=..
 PA_OCAML=$(DECAP)/pa_ocaml
 
-ifeq ($(OCAMLVERSION),3.12.1)
-COMPILER_INC = -I +compiler-libs/parsing -I +compiler-libs/typing -I +compiler-libs/utils
-COMPILER_LIBS = misc.cmo config.cmo longident.cmo printast.cmo linenum.cmo warnings.cmo location.cmo
-COMPILER_PARSERS = syntaxerr.cmo lexer.cmo clflags.cmo parser.cmo parse.cmo
-COMPILER_TOP = toplevellib.cma
-else
 COMPILER_INC = -I +compiler-libs
 COMPILER_LIBS = ocamlcommon.cma
 COMPILER_PARSERS =
 COMPILER_TOP = ocamlbytecomp.cma ocamltoplevel.cma
-endif
-
 COMPILER_LIBO := $(COMPILER_LIBS:.cma=.cmxa)
 COMPILER_LIBO := $(COMPILER_LIBO:.cmo=.cmx)
 COMPILER_PARSERO := $(COMPILER_PARSERS:.cma=.cmxa)
 COMPILER_PARSERO := $(COMPILER_PARSERO:.cmo=.cmx)
 
-all: pa_eq pa_quote compare.cmx iter.cmx quote.cmx
+BOOTDIR := ../bootstrap/$(OCAMLVERSION)
+ASTDIR  := ./ast-$(OCAMLVERSION)
+
+all: pa_eq pa_quote $(BOOTDIR)/compare.ml $(BOOTDIR)/iter.ml $(BOOTDIR)/quote.ml
+
+tests: all compare.cmx iter.cmx quote.cmx
+
+debug:
+	echo $(ASTDIR)
+	echo $(BOOTDIR)
 
 pa_eq: pa_eq.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
 	ocamlopt -pp $(PA_OCAML) -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
@@ -30,59 +31,53 @@ pa_iter: pa_iter.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
 pa_quote: pa_quote.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
 	ocamlopt -pp $(PA_OCAML) -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
 
-asttypes.mli:
-	cp ast-$(OCAMLVERSION)/asttypes.mli .
-
-parsetree.mli:
-	cp ast-$(OCAMLVERSION)/parsetree.mli .
-
 # FIXME target construction does not fail if pa_eq fails...
-compare.ml: pa_eq generic_eq.ml parsetree.mli asttypes.mli
+$(BOOTDIR)/compare.ml: pa_eq generic_eq.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
 	cat generic_eq.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
-	./pa_eq asttypes.mli >> $@
+	./pa_eq $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@
 	@echo "(* parsetree.mli *)" >> $@
-	./pa_eq parsetree.mli >> $@
+	./pa_eq $(ASTDIR)/parsetree.mli >> $@
 
 # FIXME target construction does not fail if pa_eq fails...
-iter.ml: pa_iter generic_iter.ml parsetree.mli asttypes.mli
+$(BOOTDIR)/iter.ml: pa_iter generic_iter.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
 	cat generic_iter.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
-	./pa_iter asttypes.mli >> $@
+	./pa_iter $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@
 	@echo "(* parsetree.mli *)" >> $@
-	./pa_iter parsetree.mli >> $@
+	./pa_iter $(ASTDIR)/parsetree.mli >> $@
 
 # FIXME target construction does not fail if pa_quote fails...
-quote.ml: pa_quote generic_quote.ml parsetree.mli asttypes.mli
+$(BOOTDIR)/quote.ml: pa_quote generic_quote.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
 	cat generic_quote.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
-	./pa_quote asttypes.mli >> $@
+	./pa_quote $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@
 	@echo "(* parsetree.mli *)" >> $@
-	./pa_quote parsetree.mli >> $@
+	./pa_quote $(ASTDIR)/parsetree.mli >> $@
 
-compare.cmx: compare.ml
+compare.cmx: $(BOOTDIR)/compare.ml
 	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
-compare.cmo: compare.ml
+compare.cmo: $(BOOTDIR)/compare.ml
 	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
-iter.cmx: iter.ml
+iter.cmx: $(BOOTDIR)/iter.ml
 	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
-iter.cmo: iter.ml
+iter.cmo: $(BOOTDIR)/iter.ml
 	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
-quote.cmx: quote.ml
+quote.cmx: $(BOOTDIR)/quote.ml
 	ocamlopt -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
 
-quote.cmo: quote.ml
+quote.cmo: $(BOOTDIR)/quote.ml
 	ocamlopt -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 clean:
 	rm -f *.cmi *.cmx *.cmo *.cma *.cmxa *.o
 
 distclean: clean
-	rm -f pa_eq pa_quote compare.ml iter.ml quote.ml asttypes.mli parsetree.mli
+	rm -f pa_eq pa_quote pa_iter
