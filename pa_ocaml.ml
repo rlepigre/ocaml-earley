@@ -1945,14 +1945,24 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 with Not_found -> give_up "" (* FIXME *))
 
   | '$' - t:{t:{ "tuple" -> "tuple"
-		        | "list"  -> "list"
-	                | "array" -> "array" } CHR(':') }?["expr"] -
+		           | "list"  -> "list"
+	             | "array" -> "array"
+               | "int"   -> "int" 
+               | "lid"   -> "lid"} CHR(':') }?["expr"] -
        e:expression - '$' when lvl = Atom ->
-	 (match t with
-	   "expr" -> Quote.pexp_antiquotation e
+    begin
+      let e = Quote.pexp_antiquotation e in
+      match t with
+	    | "expr" -> e
+      | "int"  -> Quote.quote_const _loc (Quote.longident "Pexp_constant")
+                    [Quote.quote_const _loc (Quote.longident "Const_int")
+                    [e]]
+      (*
+                  Quote.quote_expression _loc (loc_expr _loc_t (Pexp_constant (Const_int e)))
+*)
 	 (*	 | "lid" -> loc_expr _loc (Pexp_ident (Lident)) *)
-	 | _ ->
-	    give_up "bad antiquotation")
+	    | _ -> give_up "bad antiquotation"
+    end
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+ e':(expression_lvl (right_alm alm, next_exp Tupl))
       when lvl = Tupl ->
