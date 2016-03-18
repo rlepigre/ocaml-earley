@@ -19,6 +19,10 @@ OCAMLVERSION=$(shell ocamlc -version)
 BOOTDIR=./bootstrap/$(OCAMLVERSION)
 export OCAMLFIND_IGNORE_DUPS_IN = $(BOOTDIR)
 
+MAJOR = 20160307
+MINOR = alpha
+VERSION = $(MAJOR).$(MINOR)
+
 COMPILER_INC = -I +compiler-libs
 COMPILER_LIBS = ocamlcommon.cma
 COMPILER_PARSERS =
@@ -218,6 +222,8 @@ boot:
 	./pa_ocaml --ascii pa_main.ml > $(BOOTDIR)/pa_main.ml ;\
 	./pa_ocaml --ascii pa_default.ml > $(BOOTDIR)/pa_default.ml
 
+opam: opam.tmpl
+	sed -e s/__VERSION__/$(VERSION)/g $< > $@
 
 install: uninstall $(INSTALLED)
 	install -m 755 -d $(DESTDIR)/$(LIBDIR)

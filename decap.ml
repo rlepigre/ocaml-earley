@@ -665,7 +665,7 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
     let buf', pos' = blank !buf !pos in
     let c,_,_ = Input.read buf' pos' in
     let c',_,_ = Input.read !buf !pos in
-    if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d, pos = %d, taille =%d, %C, %C\n%!"
+    if !debug_lvl > 0 then Printf.eprintf "final parse_id = %d, line = %d, pos = %d, taille =%d, %C, %C\n%!"
 	 parse_id (line_num !buf) !pos (taille_tables elements !forward) c c';
     prediction_production buf' pos' !buf !pos c c' elements;
     (* on regarde si on a parsé complètement la catégorie initiale *)
@@ -1067,6 +1067,9 @@ let accept_empty grammar =
 
 let change_layout : 'a grammar -> blank -> 'a grammar
   = fun l1 blank1 ->
+    (* compose with a test with a full_charset to pass the final charset test in
+       internal_parse_buffer *)
+    let l1 = sequence l1 (test full_charset (fun _ _ -> (), true)) (fun x _ -> x) in
     let fn buf pos =
       let (a,buf,pos) = internal_parse_buffer l1 blank1 buf pos in
       (a,buf,pos)
