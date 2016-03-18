@@ -11,6 +11,12 @@ let f2 x y t = <:expr<3 * $x$ * (match $y$ with _ -> $y$ $t$ | _ -> $x$) + 2>>
 let f i j =
   <:expr< $int:i$ + $int:j$ >>
 
+let f3 i j p e = <:expr< function $int:i$ -> $int:j$ | $p$ -> $e$ >>
+
+let f4 id = <:expr< fun $lid:id^"toto"$ -> $lid:id^"toto"$ >>
+
+let f5 id = <:expr< $longident:id$ >>
+
 (*
 let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
 

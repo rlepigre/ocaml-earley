@@ -196,8 +196,6 @@ let re_escaped = "[\\\\][ntbrs]"
 let char_dec     = "[\\\\][0-9][0-9][0-9]"
 let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
 
-exception Illegal_escape of string
-
 type string_litteral_type = Char | String | Re
 
 let semi_col = black_box
@@ -233,59 +231,7 @@ let single_quote = black_box
      give_up "" (* FIXME *))
   (Charset.singleton '\'') false ("'")
 
-let parser one_char slt =
-  | '\n' -> '\n'
-  | single_quote when slt = Re -> '\''
-  | c:RE(if slt = Re then re_escaped else char_escaped) ->
-      (match c.[1] with
-       | 'n' -> '\n'
-       | 't' -> '\t'
-       | 'b' -> '\b'
-       | 'r' -> '\r'
-       | 's' -> ' '
-       | c   -> c)
-  | c:RE(match slt with Char -> char_regular | String -> string_regular | Re -> re_regular)
-      -> c.[0]
-  | c:RE(char_dec)     -> (let str = String.sub c 1 3 in
-                           let i = Scanf.sscanf str "%i" (fun i -> i) in
-                           if i > 255 then
-                             raise (Illegal_escape str)
-                           else char_of_int i)
-  | c:RE(char_hex)     -> (let str = String.sub c 2 2 in
-                           let str' = String.concat "" ["0x"; str] in
-                           let i = Scanf.sscanf str' "%i" (fun i -> i) in
-                           char_of_int i)
-
-let parser in_char = c:(one_char Char) CHR('\'') -> c
-
-let _ = set_grammar char_litteral (
-  parser
-    {CHR('\'') - r:(change_layout in_char no_blank) -> r})
-(*  | dol:CHR('$') - STR("char") CHR(':') e:(expression_lvl App) - CHR('$') ->
-    Quote.make_antiquotation e*)
-
-
-(* Character litterals *)
-let char_regular = "[^\\']"
-let string_regular = "[^\\\"]"
-let re_regular = "[^']"
-let char_escaped = "[\\\\][\\\\\\\"\\\'ntbrs ]"
-let re_escaped = "[\\\\][ntbrs]"
-let char_dec     = "[\\\\][0-9][0-9][0-9]"
-let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
-
 exception Illegal_escape of string
-
-let single_quote = black_box
-  (fun str pos ->
-   let c,str',pos' = read str pos in
-   if c = '\'' then
-     let c',_,_ = read str' pos' in
-     if c' = '\'' then give_up "" (* FIXME *)
-     else (), str', pos'
-   else
-     give_up "" (* FIXME *))
-  (Charset.singleton '\'') false ("'")
 
 let parser one_char slt =
   | '\n' -> '\n'
@@ -1208,20 +1154,47 @@ let _ = set_pattern_lvl (fun lvl ->
 	  parse_string ~filename:("ENV:"^c) pattern blank str
       with Not_found -> give_up "" (* FIXME *))
 
-(*  | dol:CHR('$') - t:{t:{ STR("tuple") -> "tuple" |
-		    STR("list") -> "list" |
-		    STR("array") -> "array" } CHR(':') }?
-       e:(expression_lvl App) - CHR('$') ->
-	 (match t with
-	   None ->
-	   (AtomPat, push_pop_pattern (start_pos _loc_dol).Lexing.pos_cnum e)
-	 | Some str ->
-	    let l = push_pop_pattern_list (start_pos _loc_dol).Lexing.pos_cnum e in
-	    match str with
-	    | "tuple" -> (AtomPat, loc_pat _loc (Ppat_tuple l))
-	    | "array" -> (AtomPat, loc_pat _loc (Ppat_array l))
-	    | "list" -> (AtomPat, ppat_list _loc l)
-            | _ -> give_up "" (* FIXME *))*)
+  | '$' - t:{t:{ "tuple" -> "tuple"
+	       | "list"  -> "list"
+	       | "array" -> "array"
+               | "int"   -> "int"
+               | "lid"   -> "lid"} CHR(':') }?["expr"] -
+       e:expression - '$' when lvl = AtomPat ->
+    begin
+      let f =
+      match t with
+	    | "expr" -> (fun _ -> e)
+	    | "int"  ->
+	       Quote.(function
+	       | Quote_ppat ->
+		   let e = quote_const _loc (parsetree "Ppat_constant")
+                     [quote_const _loc (asttypes "Const_int")
+			 [e]]
+		   in
+		   quote_record _loc [
+		     (parsetree "ppat_desc", e) ;
+		     (parsetree "ppat_loc", quote_location_t _loc _loc) ;
+		     (parsetree "ppat_attributes", quote_attributes _loc []) ;
+		   ]
+	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	    | "lid"  ->
+	       Quote.(function Quote_ppat ->
+		 let e = quote_const _loc (parsetree "Ppat_var")
+		   [quote_record _loc [
+		     ((Ldot(Lident "Asttypes", "txt")), e) ;
+		     ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
+		   ]]
+		 in
+		 quote_record _loc [
+		   (parsetree "ppat_desc", e) ;
+		   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
+		   (parsetree "ppat_attributes", quote_attributes _loc []) ;
+		 ]
+	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	    | _ -> give_up "bad antiquotation"
+      in
+      Quote.ppat_antiquotation _loc f
+    end
 
   | p:(pattern_lvl AsPat) as_kw vn:value_name when lvl = AsPat ->
       loc_pat _loc (Ppat_alias(p, id_loc vn _loc_vn))
@@ -1880,7 +1853,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 #endif
       in loc_expr _loc desc
 
-| "<:" r:{ "expr"?     '<' e:expression     ">>" -> Quote.quote_expression _loc_e e
+| "<:" r:{ "expr"      '<' e:expression     ">>" -> Quote.quote_expression _loc_e e
 	 | "type"      '<' e:typexpr        ">>" -> Quote.quote_core_type  _loc_e e
 	 | "pat"       '<' e:pattern        ">>" -> Quote.quote_pattern    _loc_e e
 	 | "structure" '<' e:structure_item ">>" -> Quote.quote_structure  _loc_e e
@@ -1945,33 +1918,60 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 with Not_found -> give_up "" (* FIXME *))
 
   | '$' - t:{t:{ "tuple" -> "tuple"
-		           | "list"  -> "list"
-	             | "array" -> "array"
+	       | "list"  -> "list"
+	       | "array" -> "array"
                | "int"   -> "int"
-               | "lid"   -> "lid"} CHR(':') }?["expr"] -
+               | "lid"   -> "lid"
+	       | "longident" -> "longident" } CHR(':') }?["expr"] -
        e:expression - '$' when lvl = Atom ->
     begin
-      let e =
+      let f =
       match t with
-	    | "expr" -> e
-	    | "int"  -> Printf.eprintf "coucou\n%!";
-	      Quote.(
-		let e = quote_const _loc (parsetree "Pexp_constant")
-                  [quote_const _loc (asttypes "Const_int")
-                      [e]]
-		in
-		quote_record _loc [
-		  (parsetree "pexp_desc", e) ;
-		  (parsetree "pexp_loc", quote_location_t _loc _loc) ;
-		  (parsetree "pexp_attributes", quote_attributes _loc []) ;
-		])
-      (*
-                  Quote.quote_expression _loc (loc_expr _loc_t (Pexp_constant (Const_int e)))
-*)
-	 (*	 | "lid" -> loc_expr _loc (Pexp_ident (Lident)) *)
+	    | "expr" -> (fun _ -> e)
+	    | "int"  ->
+	       Quote.(function Quote_pexp ->
+		 let e = quote_const _loc (parsetree "Pexp_constant")
+                   [quote_const _loc (asttypes "Const_int")
+		       [e]]
+		 in
+		 quote_record _loc [
+		   (parsetree "pexp_desc", e) ;
+		   (parsetree "pexp_loc", quote_location_t _loc _loc) ;
+		   (parsetree "pexp_attributes", quote_attributes _loc []) ;
+		 ]
+	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	    | "longident"  ->
+	       Quote.(function Quote_pexp ->
+		 let e = quote_const _loc (parsetree "Pexp_ident")
+		   [quote_record _loc [
+		     ((Ldot(Lident "Asttypes", "txt")), e) ;
+		     ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
+		   ]]
+		 in
+		 quote_record _loc [
+		   (parsetree "pexp_desc", e) ;
+		   (parsetree "pexp_loc", quote_location_t _loc _loc) ;
+		   (parsetree "pexp_attributes", quote_attributes _loc []) ;
+		 ]
+	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	    | "lid"  ->
+	       Quote.(function Quote_pexp ->
+		 let id = quote_const _loc (longident "Lident") [e] in
+		 let e = quote_const _loc (parsetree "Pexp_ident")
+		   [quote_record _loc [
+		     ((Ldot(Lident "Asttypes", "txt")), id) ;
+		     ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
+		   ]]
+		 in
+		 quote_record _loc [
+		   (parsetree "pexp_desc", e) ;
+		   (parsetree "pexp_loc", quote_location_t _loc _loc) ;
+		   (parsetree "pexp_attributes", quote_attributes _loc []) ;
+		 ]
+	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
 	    | _ -> give_up "bad antiquotation"
       in
-      Quote.pexp_antiquotation e
+      Quote.pexp_antiquotation _loc f
     end
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+ e':(expression_lvl (right_alm alm, next_exp Tupl))

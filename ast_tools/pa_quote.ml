@@ -183,14 +183,14 @@ let print_type ch = function
      let prefix = match is_location with
 	 None -> ""
        | Some (desc,loc) ->
-	  Printf.sprintf "if is_antiquotation r.%s then loc_expr r.%s (Obj.magic r.%s) else "
-	    loc loc desc
+	  Printf.sprintf "try (Hashtbl.find anti_table r.%s) Quote_%s with Not_found ->\n"
+	    loc (try String.sub desc 0 (String.length desc - 5) with _ -> assert false)
      in
      let suffix = match is_location with
 	 None -> ""
        | Some (desc,loc) ->
 	  let name = String.sub desc 0 (String.length desc - 5) in
-	  Printf.sprintf "and %s_antiquotation e = loc_%s (anti_quotation_key e.pexp_loc) (Obj.magic e.pexp_desc)" name name
+	  Printf.sprintf "and %s_antiquotation loc f = Hashtbl.add anti_table loc f; loc_%s loc (Obj.magic (Some None))\n" name name
       in
       (match a with
        | None   -> fprintf ch "quote_%s _loc r = %s" n prefix

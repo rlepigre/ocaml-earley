@@ -3,12 +3,6 @@ open Parsetree
 open Longident
 open Pa_ast
 
-let anti_table = Hashtbl.create 101
-
-let anti_quotation_key loc = Hashtbl.add anti_table loc (); loc
-
-let is_antiquotation loc = Hashtbl.mem anti_table loc
-
 let loc_ptyp = loc_typ
 let loc_ppat = loc_pat
 let loc_pexp = loc_expr
@@ -18,6 +12,21 @@ let loc_pmty = mtyp_loc
 let loc_pmod = mexpr_loc
 let loc_psig = loc_sig
 let loc_pstr = loc_str
+
+type quotation =
+  | Quote_pexp
+  | Quote_ppat
+  | Quote_ptyp
+  | Quote_pcty
+  | Quote_pctf
+  | Quote_pcl
+  | Quote_pcf
+  | Quote_pmty
+  | Quote_psig
+  | Quote_pmod
+  | Quote_pstr
+
+let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
 
 (* Generic functions *)
 let quote_bool : Location.t -> bool -> expression =
