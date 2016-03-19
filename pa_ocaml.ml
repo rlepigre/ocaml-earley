@@ -1920,74 +1920,45 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | '$' aq:{''[a-z]+'' ':'}?["expr"] e:expression '$' when lvl = Atom ->
     let f =
       let open Quote in
+      let generic_antiquote _loc e =
+        function
+        | Quote_pexp ->
+            quote_record _loc
+              [ (parsetree "pexp_desc", e)
+              ; (parsetree "pexp_loc", quote_location_t _loc _loc)
+              ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
+        | _          ->
+            failwith "Bad antiquotation..." (* FIXME:add location *)
+      in
+      let quote_loc _loc e =
+        quote_record _loc
+          [ ((Ldot(Lident "Asttypes", "txt")), e)
+          ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]
+      in
       match aq with
       | "expr"      -> (fun _ -> e)
       | "int"       ->
-          begin
-            function
-            | Quote_pexp ->
-                let e = quote_const _loc (parsetree "Pexp_constant")
-                          [quote_const _loc (asttypes "Const_int") [e]]
-                in
-                quote_record _loc
-                  [ (parsetree "pexp_desc", e)
-                  ; (parsetree "pexp_loc", quote_location_t _loc _loc)
-                  ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
-            | _          ->
-                failwith "Bad antiquotation..." (* FIXME:add location *)
-          end
+          let e = quote_const _loc (parsetree "Pexp_constant")
+                    [quote_const _loc (asttypes "Const_int") [e]]
+          in
+          generic_antiquote _loc e
       | "string"    ->
-          begin
-            function
-            | Quote_pexp ->
-                let e = quote_const _loc (parsetree "Pexp_constant")
-                          [quote_const _loc (asttypes "Const_string")
+          let e = quote_const _loc (parsetree "Pexp_constant")
+                    [quote_const _loc (asttypes "Const_string")
 #ifversion < 4.02
-                            [e]
+                      [e]
 #else
-                            [e ; quote_const _loc (Lident "None") [] ]]
+                      [e ; quote_const _loc (Lident "None") [] ]]
 #endif
-                in
-                quote_record _loc
-                  [ (parsetree "pexp_desc", e)
-                  ; (parsetree "pexp_loc", quote_location_t _loc _loc)
-                  ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
-            | _          ->
-                failwith "Bad antiquotation..." (* FIXME:add location *)
-          end
+          in
+          generic_antiquote _loc e
       | "longident" ->
-          begin
-            function
-            | Quote_pexp ->
-                let e = quote_const _loc (parsetree "Pexp_ident")
-                  [quote_record _loc
-                    [ ((Ldot(Lident "Asttypes", "txt")), e)
-                    ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]]
-                in
-                quote_record _loc
-                  [ (parsetree "pexp_desc", e)
-                  ; (parsetree "pexp_loc", quote_location_t _loc _loc)
-                  ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
-            | _          ->
-                failwith "Bad antiquotation..." (* FIXME:add location *)
-          end
+          let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
+          generic_antiquote _loc e
       | "lid"       ->
-          begin
-            function
-            | Quote_pexp ->
-                let id = quote_const _loc (longident "Lident") [e] in
-                let e = quote_const _loc (parsetree "Pexp_ident")
-                  [quote_record _loc
-                    [ ((Ldot(Lident "Asttypes", "txt")), id)
-                    ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]]
-                in
-                quote_record _loc
-                  [ (parsetree "pexp_desc", e)
-                  ; (parsetree "pexp_loc", quote_location_t _loc _loc)
-                  ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
-            | _          ->
-                failwith "Bad antiquotation..." (* FIXME:add location *)
-          end
+          let id = quote_const _loc (longident "Lident") [e] in
+          let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc id] in
+          generic_antiquote _loc e
       | _      -> give_up (Printf.sprintf "Invalid antiquotation %s." aq)
     in Quote.pexp_antiquotation _loc f
 
