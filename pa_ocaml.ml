@@ -1935,23 +1935,20 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
           [ ((Ldot(Lident "Asttypes", "txt")), e)
           ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]
       in
+      let constant _loc const es =
+        quote_const _loc (parsetree "Pexp_constant")
+          [quote_const _loc (asttypes const) es]
+      in
       match aq with
       | "expr"      -> (fun _ -> e)
-      | "int"       ->
-          let e = quote_const _loc (parsetree "Pexp_constant")
-                    [quote_const _loc (asttypes "Const_int") [e]]
-          in
-          generic_antiquote _loc e
-      | "string"    ->
-          let e = quote_const _loc (parsetree "Pexp_constant")
-                    [quote_const _loc (asttypes "Const_string")
+      | "int"       -> generic_antiquote _loc (constant _loc "Const_int" [e])
+      | "string"    -> generic_antiquote _loc
 #ifversion < 4.02
-                      [e]
+                         (constant _loc "Const_string" [e])
 #else
-                      [e ; quote_const _loc (Lident "None") [] ]]
+                         (constant _loc "Const_string"
+                           [e; quote_const _loc (Lident "None") []])
 #endif
-          in
-          generic_antiquote _loc e
       | "longident" ->
           let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
           generic_antiquote _loc e
