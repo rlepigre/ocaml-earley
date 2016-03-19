@@ -17,6 +17,8 @@ let f4 id = <:expr< fun $lid:id^"toto"$ -> $lid:id^"toto"$ >>
 
 let f5 id = <:expr< $longident:id$ >>
 
+let f6 s = <:expr< "blabla" ^ $string:s$>>
+
 (*
 let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
 
