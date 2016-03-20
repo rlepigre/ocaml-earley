@@ -66,6 +66,12 @@ let quote_list : 'a. (Location.t -> 'a -> expression) -> Location.t -> 'a list -
 let quote_tuple : Location.t -> expression list -> expression =
   Pa_ast.exp_tuple
 
+let quote_apply : Location.t -> Longident.t -> expression list -> expression =
+  (fun _loc s l ->
+    match l with [] -> Pa_ast.exp_lident _loc s
+               | [x] -> Pa_ast.exp_apply1 _loc (Pa_ast.exp_lident _loc s) x
+	       | l -> Pa_ast.exp_apply _loc (Pa_ast.exp_lident _loc s) l)
+
 let quote_const : Location.t -> Longident.t -> expression list -> expression =
   (fun _loc s l ->
     match l with [] -> Pa_ast.exp_const _loc s None
@@ -77,6 +83,7 @@ let location s = Ldot(Lident "Location", s)
 let longident s = Ldot(Lident "Longident", s)
 let parsetree s = Ldot(Lident "Parsetree", s)
 let asttypes s = Ldot(Lident "Asttypes", s)
+let pa_ast s = Ldot(Lident "Pa_ast", s)
 
 let rec quote_longident : Location.t -> Longident.t -> expression =
   fun _loc l ->

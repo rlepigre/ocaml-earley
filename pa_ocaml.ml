@@ -1151,39 +1151,43 @@ let _ = set_pattern_lvl (fun lvl ->
 	       | "list"  -> "list"
 	       | "array" -> "array"
                | "int"   -> "int"
+               | "string"-> "string"
                | "lid"   -> "lid"} CHR(':') }?["expr"] -
        e:expression - '$' when lvl = AtomPat ->
-    begin
-      let f =
-      match t with
+     begin
+       let open Quote in
+       let locate _loc e =
+	 quote_record _loc [
+	   (parsetree "ppat_desc", e) ;
+	   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
+	   (parsetree "ppat_attributes", quote_attributes _loc []) ;
+	 ]
+       in
+       let generic_quote e = function
+	 | Quote_ppat -> e
+	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+       in
+       let f =
+	 match t with
 	    | "expr" -> (fun _ -> e)
 	    | "int"  ->
-	       Quote.(function
-	       | Quote_ppat ->
-		   let e = quote_const _loc (parsetree "Ppat_constant")
-                     [quote_const _loc (asttypes "Const_int")
-			 [e]]
-		   in
-		   quote_record _loc [
-		     (parsetree "ppat_desc", e) ;
-		     (parsetree "ppat_loc", quote_location_t _loc _loc) ;
-		     (parsetree "ppat_attributes", quote_attributes _loc []) ;
-		   ]
-	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	       let e = quote_const _loc (parsetree "Ppat_constant")
+		 [quote_apply _loc (pa_ast "const_int") [e]]
+	       in
+	       generic_quote (locate _loc e)
+	    | "string"  ->
+	       let e = quote_const _loc (parsetree "Ppat_constant")
+		 [quote_apply _loc (pa_ast "const_string") [e]]
+	       in
+	       generic_quote (locate _loc e)
 	    | "lid"  ->
-	       Quote.(function Quote_ppat ->
-		 let e = quote_const _loc (parsetree "Ppat_var")
-		   [quote_record _loc [
-		     ((Ldot(Lident "Asttypes", "txt")), e) ;
-		     ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
-		   ]]
-		 in
-		 quote_record _loc [
-		   (parsetree "ppat_desc", e) ;
-		   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
-		   (parsetree "ppat_attributes", quote_attributes _loc []) ;
-		 ]
-	       | _ -> failwith "invalid antiquotation type" (* FIXME: print location *))
+	       let e = quote_const _loc (parsetree "Ppat_var")
+		 [quote_record _loc [
+		   ((Ldot(Lident "Asttypes", "txt")), e) ;
+		   ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
+		 ]]
+	       in
+	       generic_quote (locate _loc e)
 	    | _ -> give_up "bad antiquotation"
       in
       Quote.ppat_antiquotation _loc f
@@ -1852,14 +1856,16 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | '$' aq:{''[a-z]+'' ':'}?["expr"] e:expression '$' when lvl = Atom ->
     let f =
       let open Quote in
-      let generic_antiquote _loc e =
-        function
-        | Quote_pexp ->
-            quote_record _loc
+      let locate _loc e =
+	quote_record _loc
               [ (parsetree "pexp_desc", e)
               ; (parsetree "pexp_loc", quote_location_t _loc _loc)
               ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
-        | _          ->
+      in
+      let generic_antiquote e =
+        function
+        | Quote_pexp -> e
+         | _          ->
             failwith "Bad antiquotation..." (* FIXME:add location *)
       in
       let quote_loc _loc e =
@@ -1867,27 +1873,19 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
           [ ((Ldot(Lident "Asttypes", "txt")), e)
           ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]
       in
-      let constant _loc const es =
-        quote_const _loc (parsetree "Pexp_constant")
-          [quote_const _loc (asttypes const) es]
-      in
       match aq with
       | "expr"      -> (fun _ -> e)
-      | "int"       -> generic_antiquote _loc (constant _loc "Const_int" [e])
-      | "string"    -> generic_antiquote _loc
-#ifversion < 4.02
-                         (constant _loc "Const_string" [e])
-#else
-                         (constant _loc "Const_string"
-                           [e; quote_const _loc (Lident "None") []])
-#endif
+      | "int"       -> generic_antiquote
+	                 (quote_apply _loc (pa_ast "exp_int") [quote_location_t _loc _loc; e])
+      | "string"    -> generic_antiquote
+                         (quote_apply _loc (pa_ast "exp_string") [quote_location_t _loc _loc; e])
       | "longident" ->
           let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
-          generic_antiquote _loc e
+          generic_antiquote (locate _loc e)
       | "lid"       ->
           let id = quote_const _loc (longident "Lident") [e] in
           let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc id] in
-          generic_antiquote _loc e
+          generic_antiquote (locate _loc e)
       | _      -> give_up (Printf.sprintf "Invalid antiquotation %s." aq)
     in Quote.pexp_antiquotation _loc f
 

@@ -171,6 +171,9 @@ let exp_list _loc l =
 let exp_ident _loc id =
   loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc ))
 
+let exp_lident _loc id =
+  loc_expr _loc (Pexp_ident (id_loc id _loc ))
+
 let pat_ident _loc id =
   loc_pat _loc (Ppat_var (id_loc id _loc))
 
@@ -186,6 +189,12 @@ let optional s = "?"^s
 
 let exp_apply _loc f l =
   loc_expr _loc (Pexp_apply(f, List.map (fun x -> nolabel, x) l))
+
+let exp_apply1 _loc f x =
+  loc_expr _loc (Pexp_apply(f, [nolabel, x]))
+
+let exp_apply2 _loc f x y =
+  loc_expr _loc (Pexp_apply(f, [nolabel, x; nolabel, y]))
 
 let exp_Some_fun _loc =
   loc_expr _loc (pexp_fun(nolabel, None, pat_ident _loc "x", (exp_Some _loc (exp_ident _loc "x"))))
