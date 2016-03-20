@@ -1,4 +1,4 @@
-OCAMLVERSION=$(shell ocamlc -version)
+export OCAMLVERSION=$(shell ocamlc -version)
 DECAP=..
 PA_OCAML=$(DECAP)/pa_ocaml
 
@@ -33,7 +33,7 @@ pa_quote: pa_quote.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
 
 # FIXME target construction does not fail if pa_eq fails...
 $(BOOTDIR)/compare.ml: pa_eq generic_eq.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	cat generic_eq.ml > $@
+	$(PA_OCAML) --ascii generic_eq.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
 	./pa_eq $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@
@@ -42,7 +42,7 @@ $(BOOTDIR)/compare.ml: pa_eq generic_eq.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/ast
 
 # FIXME target construction does not fail if pa_eq fails...
 $(BOOTDIR)/iter.ml: pa_iter generic_iter.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	cat generic_iter.ml > $@
+	$(PA_OCAML) --ascii generic_iter.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
 	./pa_iter $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@
@@ -51,7 +51,7 @@ $(BOOTDIR)/iter.ml: pa_iter generic_iter.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/as
 
 # FIXME target construction does not fail if pa_quote fails...
 $(BOOTDIR)/quote.ml: pa_quote generic_quote.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	cat generic_quote.ml > $@
+	$(PA_OCAML) --ascii generic_quote.ml > $@
 	@echo "(* asttypes.mli *)" >> $@
 	./pa_quote $(ASTDIR)/asttypes.mli >> $@
 	@echo "" >> $@

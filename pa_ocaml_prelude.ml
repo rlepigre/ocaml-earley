@@ -267,7 +267,10 @@ let string_exp (b,lvl) =
   let expression = expression_lvl (Match,Seq)
   let structure_item : structure_item list grammar = declare_grammar "structure_item"
   let signature_item : signature_item list grammar = declare_grammar "signature_item"
-  let (parameter : bool -> [`Arg of string * expression option * pattern
+#if version < 4.03
+  type arg_label = string
+#endif
+  let (parameter : bool -> [`Arg of arg_label * expression option * pattern
            | `Type of string ] grammar), set_parameter = grammar_family "parameter"
 
   let structure = structure_item
@@ -646,11 +649,11 @@ let int_pos_re = (union_re [int_hex_re; int_oct_re;int_bin_re;int_dec_re]) (* de
 let parser integer_litteral =
     i:RE(int_pos_re) -> let len = String.length i in
 			assert(len > 0);
-			match i.[len-1] with
-			| 'l' -> Const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
-			| 'L' -> Const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
-			| 'n' -> Const_nativeint (Nativeint.of_string (String.sub i 0 (len - 1)))
-			| _ -> Const_int (int_of_string i)
+			match i.[len-1] with (* FIXME: double conversion in 4.03 ...*)
+			| 'l' -> const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
+			| 'L' -> const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
+			| 'n' -> const_nativeint (Nativeint.of_string (String.sub i 0 (len - 1)))
+			| _ -> const_int (int_of_string i)
 (*  | dol:CHR('$') - STR("int") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
 
 let parser bool_lit =

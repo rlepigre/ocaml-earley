@@ -133,7 +133,7 @@ let rec build_action _loc occur_loc ids e =
     match find_locate (), visible with
     | Some(_), true ->
       loc_expr _loc (
-	pexp_fun("", None,
+	pexp_fun(nolabel, None,
 	  mkpatt _loc (id,x),
 	  loc_expr _loc (Pexp_let(Nonrecursive,
 	    [value_binding _loc (loc_pat _loc (Ppat_tuple([
@@ -142,7 +142,7 @@ let rec build_action _loc occur_loc ids e =
 	     (loc_expr _loc (Pexp_ident((id_loc (Lident id) _loc))))],
 	    e))))
     | _ ->
-      loc_expr _loc (pexp_fun("", None, mkpatt' _loc (id,x), e))
+      loc_expr _loc (pexp_fun(nolabel, None, mkpatt' _loc (id,x), e))
   ) e (List.rev ids)
 
 let apply_option _loc opt visible e =
@@ -227,7 +227,7 @@ struct
 			 | Some ty, Some _ ->
 			    let ptyp_ty = loc_typ _loc (Ptyp_poly ([], ty)) in
 			    loc_pat _loc (Ppat_constraint(pat_name,
-				  loc_typ _loc (Ptyp_arrow("",
+				  loc_typ _loc (Ptyp_arrow(nolabel,
 							   loc_typ _loc (Ptyp_var "'type_of_arg"),
 							   ptyp_ty))))
 		       in
@@ -236,10 +236,10 @@ struct
 			  let ddg = exp_glr_fun _loc "declare_grammar" in
 			  let strname = loc_expr _loc (Pexp_constant (const_string name)) in
 			  let name = loc_expr _loc (Pexp_ident(id_loc (Lident name) _loc)) in
-			  let e = loc_expr _loc (Pexp_apply(ddg, ["", strname])) in
+			  let e = loc_expr _loc (Pexp_apply(ddg, [nolabel, strname])) in
 			  let l = value_binding ~attributes:[] _loc pname e in
 			  let dsg = exp_glr_fun _loc "set_grammar" in
-			  let ev = loc_expr _loc (Pexp_apply(dsg, [("",name);("",r)])) in
+			  let ev = loc_expr _loc (Pexp_apply(dsg, [(nolabel,name);(nolabel,r)])) in
 			  (loc_str _loc (Pstr_value (Nonrecursive, [l])) :: str1),
 			  (loc_str _loc (pstr_eval ev) :: str2)
 			| Some arg ->
@@ -249,10 +249,10 @@ struct
 			  let sname = loc_expr _loc (Pexp_ident(id_loc (Lident set_name) _loc)) in
 			  let psname = loc_pat _loc (Ppat_var (id_loc set_name _loc)) in
 			  let ptuple = loc_pat _loc (Ppat_tuple [pname;psname]) in
-			  let e = loc_expr _loc (Pexp_apply(dgf, ["", strname])) in
+			  let e = loc_expr _loc (Pexp_apply(dgf, [nolabel, strname])) in
 			  let l = value_binding ~attributes:[] _loc ptuple e in
-			  let fam = loc_expr _loc (pexp_fun("",None,arg,r)) in
-			  let ev = loc_expr _loc (Pexp_apply(sname, [("",fam)])) in
+			  let fam = loc_expr _loc (pexp_fun(nolabel,None,arg,r)) in
+			  let ev = loc_expr _loc (Pexp_apply(sname, [(nolabel,fam)])) in
 			  (loc_str _loc (Pstr_value (Nonrecursive, [l])) :: str1),
 			  (loc_str _loc (pstr_eval ev) :: str2)
 (*			   <:structure< let $pname$, $lid:set_name$ = Decap.grammar_family $string:name$>> @ str1,
@@ -293,7 +293,7 @@ struct
        let o = match opt with None -> e | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "char") [e; o])
     | c:char_litteral opt:glr_opt_expr ->
-       let e = loc_expr _loc_c (Pexp_constant (Const_char c)) in
+       let e = exp_char _loc_c c in
        let o = match opt with None -> e | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "char") [e; o])
     | STR("STR") e:(expression_lvl (NoMatch, next_exp App)) opt:glr_opt_expr ->
@@ -303,7 +303,7 @@ struct
        (opt <> None,
         (if String.length s = 0 then
 	  Decap.give_up "Empty string litteral in rule.";
-	let e = loc_expr _loc_s (Pexp_constant (const_string s)) in
+	let e = exp_string _loc_s s in
 	let opt = match opt with None -> e | Some e -> e in
 	exp_apply _loc (exp_glr_fun _loc "string") [e; opt]))
     | STR("RE") e:(expression_lvl (NoMatch, next_exp App))  opt:glr_opt_expr ->
@@ -312,16 +312,12 @@ struct
 	 | Some e -> e
        in
        (match e.pexp_desc with
-#ifversion >= 4.00
 	  Pexp_ident { txt = Lident id } ->
-#else
-	  Pexp_ident (Lident id) ->
-#endif
 	  let id =
 	    let l = String.length id in
 	    if l > 3 && String.sub id (l - 3) 3 = "_re" then String.sub id 0 (l - 3) else id
 	  in
-	  (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") ["name", exp_string _loc id; "", e; "", exp_fun _loc "groupe" opt])
+	  (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc id; nolabel, e; nolabel, exp_fun _loc "groupe" opt])
 	| _ ->
 	  (true, exp_apply _loc (exp_glr_fun _loc "regexp") [e; exp_fun _loc "groupe" opt]))
 
@@ -330,9 +326,9 @@ struct
 	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
 	 | Some e -> e
        in
-       (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") ["name", exp_string _loc_s s;
-							  "", exp_string _loc_s s;
-							  "", exp_fun _loc_opt "groupe" opt])
+       (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc_s s;
+							  nolabel, exp_string _loc_s s;
+							  nolabel, exp_fun _loc_opt "groupe" opt])
 
     | id:value_path -> (true, loc_expr _loc (Pexp_ident(id_loc id _loc_id)))
 
@@ -341,13 +337,8 @@ struct
   let parser glr_ident =
     | p:(pattern_lvl ConstrPat) ':' ->
 	(match p.ppat_desc with
-#ifversion >= 4.00
 	 | Ppat_alias(p, { txt = id }) -> (Some true, (id, Some p))
 	 | Ppat_var { txt = id } -> (Some (id <> "_"), (id, None))
-#else
-	 | Ppat_alias(p, id ) -> (Some true, (id, Some p))
-	 | Ppat_var id -> (Some (id <> "_"), (id, None))
-#endif
          | Ppat_any -> (Some false, ("_", None))
 	 | _ -> (Some true, ("_", Some p)))
     | EMPTY -> (None, ("_", None))
@@ -404,11 +395,7 @@ struct
 	     | _ -> "apply"
 	   in
 	   (match action.pexp_desc with
-#ifversion >= 4.00
 		Pexp_ident({ txt = Lident id'}) when fst id = id' && f = "apply" -> e
-#else
-		Pexp_ident(Lident id') when fst id = id' && f = "apply" -> e
-#endif
 	   | _ ->
 	      exp_apply _loc (exp_glr_fun _loc f) [build_action _loc occur_loc ((id,occur_loc_id)::ids) action; e])
 

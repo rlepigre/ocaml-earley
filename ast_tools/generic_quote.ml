@@ -35,12 +35,6 @@ let quote_bool : Location.t -> bool -> expression =
 let quote_int : Location.t -> int -> expression =
   Pa_ast.exp_int
 
-let quote_char : Location.t -> char -> expression =
-  Pa_ast.exp_char
-
-let quote_string : Location.t -> string -> expression =
-  Pa_ast.exp_string
-
 let quote_int32 : Location.t -> int32 -> expression =
   Pa_ast.exp_int32
 
@@ -49,6 +43,12 @@ let quote_int64 : Location.t -> int64 -> expression =
 
 let quote_nativeint : Location.t -> nativeint -> expression =
   Pa_ast.exp_nativeint
+
+let quote_char : Location.t -> char -> expression =
+  Pa_ast.exp_char
+
+let quote_string : Location.t -> string -> expression =
+  Pa_ast.exp_string
 
 let quote_option : 'a. (Location.t -> 'a -> expression) -> Location.t -> 'a option -> expression =
   fun qe _loc eo ->

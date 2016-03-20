@@ -53,7 +53,11 @@ let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc; }
 let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc; }
 
 #ifversion >= 4.02
+#ifversion >= 4.03
+let const_string s = Pconst_string(s, None)
+#else
 let const_string s = Const_string(s, None)
+#endif
 let loc_expr ?(attributes=[]) _loc e = { pexp_desc = e; pexp_loc = _loc; pexp_attributes = attributes; }
 let loc_pat ?(attributes=[]) _loc pat = { ppat_desc = pat; ppat_loc = _loc; ppat_attributes = attributes; }
 let loc_pcl ?(attributes=[]) _loc desc = { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes; }
@@ -74,15 +78,9 @@ let loc_pat ?(attributes=[]) _loc pat = { ppat_desc = pat; ppat_loc = _loc; }
 let loc_pcl ?(attributes=[]) _loc desc = { pcl_desc = desc; pcl_loc = _loc }
 let loc_typ ?(attributes=[]) _loc typ = { ptyp_desc = typ; ptyp_loc = _loc; }
 let loc_pfield ?(attributes=[]) _loc field = { pfield_desc = field; pfield_loc = _loc; }
-#ifversion >= 4.00
 let pctf_loc ?(attributes=[]) _loc desc = { pctf_desc = desc; pctf_loc = _loc; }
 let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; }
 let id_loc txt loc = { txt; loc; }
-#else
-let pctf_loc ?(attributes=[]) _loc desc = desc
-let loc_pcf ?(attributes=[]) _loc desc = desc
-let id_loc txt loc = txt
-#endif
 let pcty_loc ?(attributes=[]) _loc desc = { pcty_desc = desc; pcty_loc = _loc; }
 let mexpr_loc ?(attributes=[]) _loc desc = { pmod_desc = desc; pmod_loc = _loc }
 let mtyp_loc ?(attributes=[]) _loc desc = { pmty_desc = desc; pmty_loc = _loc }
@@ -91,26 +89,35 @@ let pexp_fun(label, opt, pat, expr) =
   Pexp_function(label,opt,[pat,expr])
 #endif
 
-let exp_int _loc i =
-  loc_expr _loc (Pexp_constant (Const_int i))
+let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 
-let exp_char _loc c =
-  loc_expr _loc (Pexp_constant (Const_char c))
-
-let exp_string _loc s =
-  loc_expr _loc (Pexp_constant (const_string s))
-
-let exp_float _loc f =
-  loc_expr _loc (Pexp_constant (Const_float f))
-
-let exp_int32 _loc i =
-  loc_expr _loc (Pexp_constant (Const_int32 i))
-
-let exp_int64 _loc i =
-  loc_expr _loc (Pexp_constant (Const_int64 i))
-
-let exp_nativeint _loc i =
-  loc_expr _loc (Pexp_constant (Const_nativeint i))
+#ifversion >= 4.03
+let const_float s = Pconst_float(s,None)
+let const_char s = Pconst_char(s)
+let const_int s = Pconst_integer(string_of_int s,None)
+let const_int32 s = Pconst_integer(Int32.to_string s, Some 'l')
+let const_int64 s = Pconst_integer(Int64.to_string s, Some 'L')
+let const_nativeint s = Pconst_integer(Nativeint.to_string s, Some 'n')
+let exp_int _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (string_of_int i,None)))
+let exp_char _loc c = loc_expr _loc (Pexp_constant (Pconst_char c))
+let exp_float _loc f = loc_expr _loc (Pexp_constant (Pconst_float (f,None)))
+let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int32.to_string i,Some 'l')))
+let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int64.to_string i,Some 'L')))
+let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Pconst_integer(Nativeint.to_string i,Some 'n')))
+#else
+let const_float s = Const_float(s)
+let const_char s = Const_char(s)
+let const_int s = Const_int(s)
+let const_int32 s = Const_int32(s)
+let const_int64 s = Const_int64(s)
+let const_nativeint s = Const_nativeint(s)
+let exp_int _loc i = loc_expr _loc (Pexp_constant (Const_int i))
+let exp_char _loc c = loc_expr _loc (Pexp_constant (Const_char c))
+let exp_float _loc f = loc_expr _loc (Pexp_constant (Const_float f))
+let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Const_int32 i))
+let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Const_int64 i))
+let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Const_nativeint i))
+#endif
 
 let exp_const _loc c es =
   let c = id_loc c _loc in
@@ -167,17 +174,27 @@ let exp_ident _loc id =
 let pat_ident _loc id =
   loc_pat _loc (Ppat_var (id_loc id _loc))
 
+#ifversion >= 4.03
+let nolabel = Nolabel
+let labelled s = Labelled s
+let optional s = Optional s
+#else
+let nolabel = ""
+let labelled s = s
+let optional s = "?"^s
+#endif
+
 let exp_apply _loc f l =
-  loc_expr _loc (Pexp_apply(f, List.map (fun x -> "", x) l))
+  loc_expr _loc (Pexp_apply(f, List.map (fun x -> nolabel, x) l))
+
+let exp_Some_fun _loc =
+  loc_expr _loc (pexp_fun(nolabel, None, pat_ident _loc "x", (exp_Some _loc (exp_ident _loc "x"))))
+
+let exp_fun _loc id e =
+  loc_expr _loc (pexp_fun(nolabel, None, pat_ident _loc id, e))
 
 let exp_lab_apply _loc f l =
   loc_expr _loc (Pexp_apply(f, l))
-
-let exp_Some_fun _loc =
-  loc_expr _loc (pexp_fun("", None, pat_ident _loc "x", (exp_Some _loc (exp_ident _loc "x"))))
-
-let exp_fun _loc id e =
-  loc_expr _loc (pexp_fun("", None, pat_ident _loc id, e))
 
 let exp_app _loc =
   exp_fun _loc "x" (exp_fun _loc "y" (exp_apply _loc (exp_ident _loc "y") [exp_ident _loc "x"]))

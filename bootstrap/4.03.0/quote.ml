@@ -2,54 +2,58 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ast
-let loc_ptyp = loc_typ
-let loc_ppat = loc_pat
-let loc_pexp = loc_expr
-let loc_pcty = pcty_loc
-let loc_pctf = pctf_loc
-let loc_pmty = mtyp_loc
-let loc_pmod = mexpr_loc
-let loc_psig = loc_sig
-let loc_pstr = loc_str
+let loc_ptyp = loc_typ 
+let loc_ppat = loc_pat 
+let loc_pexp = loc_expr 
+let loc_pcty = pcty_loc 
+let loc_pctf = pctf_loc 
+let loc_pmty = mtyp_loc 
+let loc_pmod = mexpr_loc 
+let loc_psig = loc_sig 
+let loc_pstr = loc_str 
 type quotation =
-  | Quote_pexp
-  | Quote_ppat
-  | Quote_ptyp
-  | Quote_pcty
-  | Quote_pctf
-  | Quote_pcl
-  | Quote_pcf
-  | Quote_pmty
-  | Quote_psig
-  | Quote_pmod
-  | Quote_pstr
-let anti_table: (Location.t,quotation -> expression) Hashtbl.t =
-  Hashtbl.create 101
-let quote_bool: Location.t -> bool -> expression = Pa_ast.exp_bool
-let quote_int: Location.t -> int -> expression = Pa_ast.exp_int
-let quote_int32: Location.t -> int32 -> expression = Pa_ast.exp_int32
-let quote_int64: Location.t -> int64 -> expression = Pa_ast.exp_int64
-let quote_nativeint: Location.t -> nativeint -> expression =
-  Pa_ast.exp_nativeint
-let quote_char: Location.t -> char -> expression = Pa_ast.exp_char
-let quote_string: Location.t -> string -> expression = Pa_ast.exp_string
+  | Quote_pexp 
+  | Quote_ppat 
+  | Quote_ptyp 
+  | Quote_pcty 
+  | Quote_pctf 
+  | Quote_pcl 
+  | Quote_pcf 
+  | Quote_pmty 
+  | Quote_psig 
+  | Quote_pmod 
+  | Quote_pstr 
+let anti_table : (Location.t,quotation -> expression) Hashtbl.t =
+  Hashtbl.create 101 
+let quote_bool : Location.t -> bool -> expression = Pa_ast.exp_bool 
+let quote_int : Location.t -> int -> expression = Pa_ast.exp_int 
+let quote_int32 : Location.t -> int32 -> expression = Pa_ast.exp_int32 
+let quote_int64 : Location.t -> int64 -> expression = Pa_ast.exp_int64 
+let quote_nativeint : Location.t -> nativeint -> expression =
+  Pa_ast.exp_nativeint 
+let quote_char : Location.t -> char -> expression = Pa_ast.exp_char 
+let quote_string : Location.t -> string -> expression = Pa_ast.exp_string 
 let quote_option :
   'a .
     (Location.t -> 'a -> expression) -> Location.t -> 'a option -> expression=
   fun qe  ->
     fun _loc  ->
       fun eo  ->
-        let e = match eo with | None  -> None | Some e -> Some (qe _loc e) in
+        let e = match eo with | None  -> None | Some e -> Some (qe _loc e)
+           in
         Pa_ast.exp_option _loc e
+  
 let quote_list :
   'a .
     (Location.t -> 'a -> expression) -> Location.t -> 'a list -> expression=
   fun qe  ->
     fun _loc  ->
-      fun el  -> let el = List.map (qe _loc) el in Pa_ast.exp_list _loc el
-let quote_tuple: Location.t -> expression list -> expression =
-  Pa_ast.exp_tuple
-let quote_const: Location.t -> Longident.t -> expression list -> expression =
+      fun el  -> let el = List.map (qe _loc) el  in Pa_ast.exp_list _loc el
+  
+let quote_tuple : Location.t -> expression list -> expression =
+  Pa_ast.exp_tuple 
+let quote_const : Location.t -> Longident.t -> expression list -> expression
+  =
   fun _loc  ->
     fun s  ->
       fun l  ->
@@ -57,56 +61,60 @@ let quote_const: Location.t -> Longident.t -> expression list -> expression =
         | [] -> Pa_ast.exp_const _loc s None
         | x::[] -> Pa_ast.exp_const _loc s (Some x)
         | l -> Pa_ast.exp_const _loc s (Some (Pa_ast.exp_tuple _loc l))
-let lexing s = Ldot ((Lident "Lexing"), s)
-let location s = Ldot ((Lident "Location"), s)
-let longident s = Ldot ((Lident "Longident"), s)
-let parsetree s = Ldot ((Lident "Parsetree"), s)
-let asttypes s = Ldot ((Lident "Asttypes"), s)
-let rec quote_longident: Location.t -> Longident.t -> expression =
+  
+let lexing s = Ldot ((Lident "Lexing"), s) 
+let location s = Ldot ((Lident "Location"), s) 
+let longident s = Ldot ((Lident "Longident"), s) 
+let parsetree s = Ldot ((Lident "Parsetree"), s) 
+let asttypes s = Ldot ((Lident "Asttypes"), s) 
+let rec quote_longident : Location.t -> Longident.t -> expression =
   fun _loc  ->
     fun l  ->
       match l with
       | Lident s ->
-          let s = quote_string _loc s in
+          let s = quote_string _loc s  in
           quote_const _loc (longident "Lident") [s]
       | Ldot (l,s) ->
-          let l = quote_longident _loc l in
-          let s = quote_string _loc s in
+          let l = quote_longident _loc l  in
+          let s = quote_string _loc s  in
           quote_const _loc (longident "Ldot") [l; s]
       | Lapply (l,l') ->
-          let l = quote_longident _loc l in
-          let l' = quote_longident _loc l' in
+          let l = quote_longident _loc l  in
+          let l' = quote_longident _loc l'  in
           quote_const _loc (longident "Lapply") [l; l']
-let quote_record: Location.t -> (Longident.t* expression) list -> expression
-  = Pa_ast.exp_record
-let quote_position: Location.t -> Lexing.position -> expression =
+  
+let quote_record : Location.t -> (Longident.t* expression) list -> expression
+  = Pa_ast.exp_record 
+let quote_position : Location.t -> Lexing.position -> expression =
   fun _loc  ->
     fun
       { Lexing.pos_fname = pfn; Lexing.pos_lnum = ln; Lexing.pos_bol = bl;
         Lexing.pos_cnum = pcn }
        ->
-      let pfn = quote_string _loc pfn in
-      let ln = quote_int _loc ln in
-      let bl = quote_int _loc bl in
-      let pcn = quote_int _loc pcn in
+      let pfn = quote_string _loc pfn  in
+      let ln = quote_int _loc ln  in
+      let bl = quote_int _loc bl  in
+      let pcn = quote_int _loc pcn  in
       quote_record _loc
         [((lexing "pos_fname"), pfn);
         ((lexing "pos_lnum"), ln);
         ((lexing "pos_bol"), bl);
         ((lexing "pos_cnum"), pcn)]
-let quote_location_t: Location.t -> Location.t -> expression =
+  
+let quote_location_t : Location.t -> Location.t -> expression =
   fun _loc  ->
     fun
       { Location.loc_start = ls; Location.loc_end = le;
         Location.loc_ghost = g }
        ->
-      let ls = quote_position _loc ls in
-      let le = quote_position _loc le in
-      let g = quote_bool _loc g in
+      let ls = quote_position _loc ls  in
+      let le = quote_position _loc le  in
+      let g = quote_bool _loc g  in
       quote_record _loc
         [((location "loc_start"), ls);
         ((location "loc_end"), le);
         ((location "loc_ghost"), g)]
+  
 (* asttypes.mli *)
 let quote_constant _loc x = match x with
   | Const_int(x) -> quote_const _loc (Ldot(Lident "Asttypes", "Const_int")) [quote_int _loc x]
@@ -146,6 +154,11 @@ let quote_closed_flag _loc x = match x with
   | Open -> quote_const _loc (Ldot(Lident "Asttypes", "Open")) []
 
 let quote_label _loc x =  quote_string _loc x
+let quote_arg_label _loc x = match x with
+  | Nolabel -> quote_const _loc (Ldot(Lident "Asttypes", "Nolabel")) []
+  | Labelled(x) -> quote_const _loc (Ldot(Lident "Asttypes", "Labelled")) [quote_string _loc x]
+  | Optional(x) -> quote_const _loc (Ldot(Lident "Asttypes", "Optional")) [quote_string _loc x]
+
 let quote_loc : 'a. (Location.t -> 'a -> expression) -> Location.t -> 'a loc -> expression =
   fun quote_a _loc r -> 
     quote_record _loc [
@@ -160,11 +173,18 @@ let quote_variance _loc x = match x with
 
 
 (* parsetree.mli *)
+let quote_constant _loc x = match x with
+  | Pconst_integer(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pconst_integer")) [ quote_string _loc x1; (quote_option quote_char) _loc x2;]
+  | Pconst_char(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pconst_char")) [quote_char _loc x]
+  | Pconst_string(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pconst_string")) [ quote_string _loc x1; (quote_option quote_string) _loc x2;]
+  | Pconst_float(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pconst_float")) [ quote_string _loc x1; (quote_option quote_char) _loc x2;]
+
 let rec quote_attribute _loc x =  (fun _loc (x1,x2) -> quote_tuple _loc [(quote_loc quote_string) _loc x1;quote_payload _loc x2;]) _loc x
 and quote_extension _loc x =  (fun _loc (x1,x2) -> quote_tuple _loc [(quote_loc quote_string) _loc x1;quote_payload _loc x2;]) _loc x
 and quote_attributes _loc x =  (quote_list quote_attribute) _loc x
 and quote_payload _loc x = match x with
   | PStr(x) -> quote_const _loc (Ldot(Lident "Parsetree", "PStr")) [quote_structure _loc x]
+  | PSig(x) -> quote_const _loc (Ldot(Lident "Parsetree", "PSig")) [quote_signature _loc x]
   | PTyp(x) -> quote_const _loc (Ldot(Lident "Parsetree", "PTyp")) [quote_core_type _loc x]
   | PPat(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "PPat")) [ quote_pattern _loc x1; (quote_option quote_expression) _loc x2;]
 
@@ -179,7 +199,7 @@ and ptyp_antiquotation loc f = Hashtbl.add anti_table loc f; loc_ptyp loc (Obj.m
 and quote_core_type_desc _loc x = match x with
   | Ptyp_any -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_any")) []
   | Ptyp_var(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_var")) [quote_string _loc x]
-  | Ptyp_arrow(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_arrow")) [ quote_label _loc x1; quote_core_type _loc x2; quote_core_type _loc x3;]
+  | Ptyp_arrow(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_arrow")) [ quote_arg_label _loc x1; quote_core_type _loc x2; quote_core_type _loc x3;]
   | Ptyp_tuple(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_tuple")) [(quote_list quote_core_type) _loc x]
   | Ptyp_constr(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_constr")) [ (quote_loc quote_longident) _loc x1; (quote_list quote_core_type) _loc x2;]
   | Ptyp_object(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_object")) [ (quote_list (fun _loc (x1,x2,x3) -> quote_tuple _loc [quote_string _loc x1;quote_attributes _loc x2;quote_core_type _loc x3;])) _loc x1; quote_closed_flag _loc x2;]
@@ -235,8 +255,8 @@ and quote_expression_desc _loc x = match x with
   | Pexp_constant(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_constant")) [quote_constant _loc x]
   | Pexp_let(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_let")) [ quote_rec_flag _loc x1; (quote_list quote_value_binding) _loc x2; quote_expression _loc x3;]
   | Pexp_function(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_function")) [(quote_list quote_case) _loc x]
-  | Pexp_fun(x1,x2,x3,x4) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_fun")) [ quote_label _loc x1; (quote_option quote_expression) _loc x2; quote_pattern _loc x3; quote_expression _loc x4;]
-  | Pexp_apply(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_apply")) [ quote_expression _loc x1; (quote_list (fun _loc (x1,x2) -> quote_tuple _loc [quote_label _loc x1;quote_expression _loc x2;])) _loc x2;]
+  | Pexp_fun(x1,x2,x3,x4) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_fun")) [ quote_arg_label _loc x1; (quote_option quote_expression) _loc x2; quote_pattern _loc x3; quote_expression _loc x4;]
+  | Pexp_apply(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_apply")) [ quote_expression _loc x1; (quote_list (fun _loc (x1,x2) -> quote_tuple _loc [quote_arg_label _loc x1;quote_expression _loc x2;])) _loc x2;]
   | Pexp_match(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_match")) [ quote_expression _loc x1; (quote_list quote_case) _loc x2;]
   | Pexp_try(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_try")) [ quote_expression _loc x1; (quote_list quote_case) _loc x2;]
   | Pexp_tuple(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_tuple")) [(quote_list quote_expression) _loc x]
@@ -265,6 +285,7 @@ and quote_expression_desc _loc x = match x with
   | Pexp_pack(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_pack")) [quote_module_expr _loc x]
   | Pexp_open(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_open")) [ quote_override_flag _loc x1; (quote_loc quote_longident) _loc x2; quote_expression _loc x3;]
   | Pexp_extension(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_extension")) [quote_extension _loc x]
+  | Pexp_unreachable -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_unreachable")) []
 
 and quote_case _loc r =   quote_record _loc [
    ((Ldot(Lident "Parsetree", "pc_lhs")), quote_pattern _loc r.pc_lhs) ;
@@ -307,11 +328,15 @@ and quote_label_declaration _loc r =   quote_record _loc [
 
 and quote_constructor_declaration _loc r =   quote_record _loc [
    ((Ldot(Lident "Parsetree", "pcd_name")), (quote_loc quote_string) _loc r.pcd_name) ;
-   ((Ldot(Lident "Parsetree", "pcd_args")), (quote_list quote_core_type) _loc r.pcd_args) ;
+   ((Ldot(Lident "Parsetree", "pcd_args")), quote_constructor_arguments _loc r.pcd_args) ;
    ((Ldot(Lident "Parsetree", "pcd_res")), (quote_option quote_core_type) _loc r.pcd_res) ;
    ((Ldot(Lident "Parsetree", "pcd_loc")), quote_location_t _loc r.pcd_loc) ;
    ((Ldot(Lident "Parsetree", "pcd_attributes")), quote_attributes _loc r.pcd_attributes) ;
   ]
+
+and quote_constructor_arguments _loc x = match x with
+  | Pcstr_tuple(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcstr_tuple")) [(quote_list quote_core_type) _loc x]
+  | Pcstr_record(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcstr_record")) [(quote_list quote_label_declaration) _loc x]
 
 and quote_type_extension _loc r =   quote_record _loc [
    ((Ldot(Lident "Parsetree", "ptyext_path")), (quote_loc quote_longident) _loc r.ptyext_path) ;
@@ -329,7 +354,7 @@ and quote_extension_constructor _loc r =   quote_record _loc [
   ]
 
 and quote_extension_constructor_kind _loc x = match x with
-  | Pext_decl(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pext_decl")) [ (quote_list quote_core_type) _loc x1; (quote_option quote_core_type) _loc x2;]
+  | Pext_decl(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pext_decl")) [ quote_constructor_arguments _loc x1; (quote_option quote_core_type) _loc x2;]
   | Pext_rebind(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pext_rebind")) [(quote_loc quote_longident) _loc x]
 
 and quote_class_type _loc r = try (Hashtbl.find anti_table r.pcty_loc) Quote_pcty with Not_found ->
@@ -343,7 +368,7 @@ and pcty_antiquotation loc f = Hashtbl.add anti_table loc f; loc_pcty loc (Obj.m
 and quote_class_type_desc _loc x = match x with
   | Pcty_constr(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_constr")) [ (quote_loc quote_longident) _loc x1; (quote_list quote_core_type) _loc x2;]
   | Pcty_signature(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_signature")) [quote_class_signature _loc x]
-  | Pcty_arrow(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_arrow")) [ quote_label _loc x1; quote_core_type _loc x2; quote_class_type _loc x3;]
+  | Pcty_arrow(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_arrow")) [ quote_arg_label _loc x1; quote_core_type _loc x2; quote_class_type _loc x3;]
   | Pcty_extension(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_extension")) [quote_extension _loc x]
 
 and quote_class_signature _loc r =   quote_record _loc [
@@ -391,8 +416,8 @@ and pcl_antiquotation loc f = Hashtbl.add anti_table loc f; loc_pcl loc (Obj.mag
 and quote_class_expr_desc _loc x = match x with
   | Pcl_constr(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_constr")) [ (quote_loc quote_longident) _loc x1; (quote_list quote_core_type) _loc x2;]
   | Pcl_structure(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_structure")) [quote_class_structure _loc x]
-  | Pcl_fun(x1,x2,x3,x4) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_fun")) [ quote_label _loc x1; (quote_option quote_expression) _loc x2; quote_pattern _loc x3; quote_class_expr _loc x4;]
-  | Pcl_apply(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_apply")) [ quote_class_expr _loc x1; (quote_list (fun _loc (x1,x2) -> quote_tuple _loc [quote_label _loc x1;quote_expression _loc x2;])) _loc x2;]
+  | Pcl_fun(x1,x2,x3,x4) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_fun")) [ quote_arg_label _loc x1; (quote_option quote_expression) _loc x2; quote_pattern _loc x3; quote_class_expr _loc x4;]
+  | Pcl_apply(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_apply")) [ quote_class_expr _loc x1; (quote_list (fun _loc (x1,x2) -> quote_tuple _loc [quote_arg_label _loc x1;quote_expression _loc x2;])) _loc x2;]
   | Pcl_let(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_let")) [ quote_rec_flag _loc x1; (quote_list quote_value_binding) _loc x2; quote_class_expr _loc x3;]
   | Pcl_constraint(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_constraint")) [ quote_class_expr _loc x1; quote_class_type _loc x2;]
   | Pcl_extension(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_extension")) [quote_extension _loc x]
@@ -451,7 +476,7 @@ and psig_antiquotation loc f = Hashtbl.add anti_table loc f; loc_psig loc (Obj.m
 
 and quote_signature_item_desc _loc x = match x with
   | Psig_value(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_value")) [quote_value_description _loc x]
-  | Psig_type(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_type")) [(quote_list quote_type_declaration) _loc x]
+  | Psig_type(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_type")) [ quote_rec_flag _loc x1; (quote_list quote_type_declaration) _loc x2;]
   | Psig_typext(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_typext")) [quote_type_extension _loc x]
   | Psig_exception(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_exception")) [quote_extension_constructor _loc x]
   | Psig_module(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_module")) [quote_module_declaration _loc x]
@@ -530,7 +555,7 @@ and quote_structure_item_desc _loc x = match x with
   | Pstr_eval(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_eval")) [ quote_expression _loc x1; quote_attributes _loc x2;]
   | Pstr_value(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_value")) [ quote_rec_flag _loc x1; (quote_list quote_value_binding) _loc x2;]
   | Pstr_primitive(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_primitive")) [quote_value_description _loc x]
-  | Pstr_type(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_type")) [(quote_list quote_type_declaration) _loc x]
+  | Pstr_type(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_type")) [ quote_rec_flag _loc x1; (quote_list quote_type_declaration) _loc x2;]
   | Pstr_typext(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_typext")) [quote_type_extension _loc x]
   | Pstr_exception(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_exception")) [quote_extension_constructor _loc x]
   | Pstr_module(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_module")) [quote_module_binding _loc x]
@@ -564,7 +589,7 @@ let rec quote_toplevel_phrase _loc x = match x with
 and quote_directive_argument _loc x = match x with
   | Pdir_none -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_none")) []
   | Pdir_string(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_string")) [quote_string _loc x]
-  | Pdir_int(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_int")) [quote_int _loc x]
+  | Pdir_int(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_int")) [ quote_string _loc x1; (quote_option quote_char) _loc x2;]
   | Pdir_ident(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_ident")) [quote_longident _loc x]
   | Pdir_bool(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pdir_bool")) [quote_bool _loc x]
 
