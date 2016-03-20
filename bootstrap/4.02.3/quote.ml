@@ -49,6 +49,14 @@ let quote_list :
       fun el  -> let el = List.map (qe _loc) el in Pa_ast.exp_list _loc el
 let quote_tuple: Location.t -> expression list -> expression =
   Pa_ast.exp_tuple
+let quote_apply: Location.t -> Longident.t -> expression list -> expression =
+  fun _loc  ->
+    fun s  ->
+      fun l  ->
+        match l with
+        | [] -> Pa_ast.exp_lident _loc s
+        | x::[] -> Pa_ast.exp_apply1 _loc (Pa_ast.exp_lident _loc s) x
+        | l -> Pa_ast.exp_apply _loc (Pa_ast.exp_lident _loc s) l
 let quote_const: Location.t -> Longident.t -> expression list -> expression =
   fun _loc  ->
     fun s  ->
@@ -62,6 +70,7 @@ let location s = Ldot ((Lident "Location"), s)
 let longident s = Ldot ((Lident "Longident"), s)
 let parsetree s = Ldot ((Lident "Parsetree"), s)
 let asttypes s = Ldot ((Lident "Asttypes"), s)
+let pa_ast s = Ldot ((Lident "Pa_ast"), s)
 let rec quote_longident: Location.t -> Longident.t -> expression =
   fun _loc  ->
     fun l  ->

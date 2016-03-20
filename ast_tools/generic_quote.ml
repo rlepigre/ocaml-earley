@@ -25,7 +25,9 @@ type quotation =
   | Quote_psig
   | Quote_pmod
   | Quote_pstr
-
+#ifversion <= 4.01
+  | Quote_pfield (* for 4.01.0 *)
+#endif
 let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
 
 (* Generic functions *)

@@ -1160,7 +1160,9 @@ let _ = set_pattern_lvl (fun lvl ->
 	 quote_record _loc [
 	   (parsetree "ppat_desc", e) ;
 	   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
-	   (parsetree "ppat_attributes", quote_attributes _loc []) ;
+#ifversion >= 4.02
+           (parsetree "pexp_attributes", quote_attributes _loc [])
+#endif
 	 ]
        in
        let generic_quote e = function
@@ -1860,7 +1862,10 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	quote_record _loc
               [ (parsetree "pexp_desc", e)
               ; (parsetree "pexp_loc", quote_location_t _loc _loc)
-              ; (parsetree "pexp_attributes", quote_attributes _loc []) ]
+#ifversion >= 4.02
+              ; (parsetree "pexp_attributes", quote_attributes _loc [])
+#endif
+	      ]
       in
       let generic_antiquote e =
         function

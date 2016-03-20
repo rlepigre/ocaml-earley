@@ -214,9 +214,10 @@ module Initial =
       declare_grammar "structure_item"
     let signature_item: signature_item list grammar =
       declare_grammar "signature_item"
+    type arg_label = string
     let ((parameter :
            bool ->
-             [ `Arg of (string* expression option* pattern) 
+             [ `Arg of (arg_label* expression option* pattern) 
              | `Type of string ] grammar),set_parameter)
       = grammar_family "parameter"
     let structure = structure_item
@@ -748,13 +749,13 @@ module Initial =
               assert (len > 0);
               (match i.[len - 1] with
                | 'l' ->
-                   Const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
+                   const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
                | 'L' ->
-                   Const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
+                   const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
                | 'n' ->
-                   Const_nativeint
+                   const_nativeint
                      (Nativeint.of_string (String.sub i 0 (len - 1)))
-               | _ -> Const_int (int_of_string i)))
+               | _ -> const_int (int_of_string i)))
            (Decap.regexp ~name:"int_pos" int_pos_re (fun groupe  -> groupe 0)))
     let bool_lit = Decap.declare_grammar "bool_lit"
     let _ =

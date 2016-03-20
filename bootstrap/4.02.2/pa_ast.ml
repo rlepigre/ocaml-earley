@@ -25,9 +25,15 @@ let mtyp_loc ?(attributes= [])  _loc desc =
 let id_loc txt loc = { txt; loc }
 let pexp_construct (a,b) = Pexp_construct (a, b)
 let pexp_fun (label,opt,pat,expr) = Pexp_fun (label, opt, pat, expr)
+let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
+let const_float s = Const_float s
+let const_char s = Const_char s
+let const_int s = Const_int s
+let const_int32 s = Const_int32 s
+let const_int64 s = Const_int64 s
+let const_nativeint s = Const_nativeint s
 let exp_int _loc i = loc_expr _loc (Pexp_constant (Const_int i))
 let exp_char _loc c = loc_expr _loc (Pexp_constant (Const_char c))
-let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 let exp_float _loc f = loc_expr _loc (Pexp_constant (Const_float f))
 let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Const_int32 i))
 let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Const_int64 i))
@@ -65,16 +71,24 @@ let exp_Cons _loc a l =
        ((id_loc (Lident "::") _loc), (Some (exp_tuple _loc [a; l]))))
 let exp_list _loc l = List.fold_right (exp_Cons _loc) l (exp_Nil _loc)
 let exp_ident _loc id = loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc))
+let exp_lident _loc id = loc_expr _loc (Pexp_ident (id_loc id _loc))
 let pat_ident _loc id = loc_pat _loc (Ppat_var (id_loc id _loc))
+let nolabel = ""
+let labelled s = s
+let optional s = "?" ^ s
 let exp_apply _loc f l =
-  loc_expr _loc (Pexp_apply (f, (List.map (fun x  -> ("", x)) l)))
-let exp_lab_apply _loc f l = loc_expr _loc (Pexp_apply (f, l))
+  loc_expr _loc (Pexp_apply (f, (List.map (fun x  -> (nolabel, x)) l)))
+let exp_apply1 _loc f x = loc_expr _loc (Pexp_apply (f, [(nolabel, x)]))
+let exp_apply2 _loc f x y =
+  loc_expr _loc (Pexp_apply (f, [(nolabel, x); (nolabel, y)]))
 let exp_Some_fun _loc =
   loc_expr _loc
     (pexp_fun
-       ("", None, (pat_ident _loc "x"), (exp_Some _loc (exp_ident _loc "x"))))
+       (nolabel, None, (pat_ident _loc "x"),
+         (exp_Some _loc (exp_ident _loc "x"))))
 let exp_fun _loc id e =
-  loc_expr _loc (pexp_fun ("", None, (pat_ident _loc id), e))
+  loc_expr _loc (pexp_fun (nolabel, None, (pat_ident _loc id), e))
+let exp_lab_apply _loc f l = loc_expr _loc (Pexp_apply (f, l))
 let exp_app _loc =
   exp_fun _loc "x"
     (exp_fun _loc "y"

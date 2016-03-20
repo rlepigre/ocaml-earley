@@ -78,7 +78,7 @@ let rec build_action _loc occur_loc ids e =
          | (Some _,true ) ->
              loc_expr _loc
                (pexp_fun
-                  ("", None, (mkpatt _loc (id, x)),
+                  (nolabel, None, (mkpatt _loc (id, x)),
                     (loc_expr _loc
                        (Pexp_let
                           (Nonrecursive,
@@ -93,8 +93,9 @@ let rec build_action _loc occur_loc ids e =
                                   (Pexp_ident (id_loc (Lident id) _loc)))],
                             e)))))
          | _ ->
-             loc_expr _loc (pexp_fun ("", None, (mkpatt' _loc (id, x)), e)))
-    e (List.rev ids)
+             loc_expr _loc
+               (pexp_fun (nolabel, None, (mkpatt' _loc (id, x)), e))) e
+    (List.rev ids)
 let apply_option _loc opt visible e =
   filter _loc visible
     (match opt with
@@ -236,7 +237,7 @@ module Ext(In:Extension) =
                                               (pat_name,
                                                 (loc_typ _loc
                                                    (Ptyp_arrow
-                                                      ("",
+                                                      (nolabel,
                                                         (loc_typ _loc
                                                            (Ptyp_var
                                                               "'type_of_arg")),
@@ -256,7 +257,7 @@ module Ext(In:Extension) =
                                         let e =
                                           loc_expr _loc
                                             (Pexp_apply
-                                               (ddg, [("", strname)])) in
+                                               (ddg, [(nolabel, strname)])) in
                                         let l =
                                           value_binding ~attributes:[] _loc
                                             pname e in
@@ -265,7 +266,9 @@ module Ext(In:Extension) =
                                         let ev =
                                           loc_expr _loc
                                             (Pexp_apply
-                                               (dsg, [("", name); ("", r)])) in
+                                               (dsg,
+                                                 [(nolabel, name);
+                                                 (nolabel, r)])) in
                                         (((loc_str _loc
                                              (Pstr_value (Nonrecursive, [l])))
                                           :: str1),
@@ -293,16 +296,17 @@ module Ext(In:Extension) =
                                         let e =
                                           loc_expr _loc
                                             (Pexp_apply
-                                               (dgf, [("", strname)])) in
+                                               (dgf, [(nolabel, strname)])) in
                                         let l =
                                           value_binding ~attributes:[] _loc
                                             ptuple e in
                                         let fam =
                                           loc_expr _loc
-                                            (pexp_fun ("", None, arg, r)) in
+                                            (pexp_fun (nolabel, None, arg, r)) in
                                         let ev =
                                           loc_expr _loc
-                                            (Pexp_apply (sname, [("", fam)])) in
+                                            (Pexp_apply
+                                               (sname, [(nolabel, fam)])) in
                                         (((loc_str _loc
                                              (Pstr_value (Nonrecursive, [l])))
                                           :: str1),
@@ -444,8 +448,7 @@ module Ext(In:Extension) =
                           let _loc =
                             locate __loc__start__buf __loc__start__pos
                               __loc__end__buf __loc__end__pos in
-                          let e =
-                            loc_expr _loc_c (Pexp_constant (Const_char c)) in
+                          let e = exp_char _loc_c c in
                           let o = match opt with | None  -> e | Some e -> e in
                           ((opt <> None),
                             (exp_apply _loc (exp_glr_fun _loc "char") [e; o])));
@@ -489,9 +492,7 @@ module Ext(In:Extension) =
                             (if (String.length s) = 0
                              then
                                Decap.give_up "Empty string litteral in rule.";
-                             (let e =
-                                loc_expr _loc_s
-                                  (Pexp_constant (const_string s)) in
+                             (let e = exp_string _loc_s s in
                               let opt =
                                 match opt with | None  -> e | Some e -> e in
                               exp_apply _loc (exp_glr_fun _loc "string")
@@ -527,9 +528,11 @@ module Ext(In:Extension) =
                                    (true,
                                      (exp_lab_apply _loc
                                         (exp_glr_fun _loc "regexp")
-                                        [("name", (exp_string _loc id));
-                                        ("", e);
-                                        ("", (exp_fun _loc "groupe" opt))]))
+                                        [((labelled "name"),
+                                           (exp_string _loc id));
+                                        (nolabel, e);
+                                        (nolabel,
+                                          (exp_fun _loc "groupe" opt))]))
                                | _ ->
                                    (true,
                                      (exp_apply _loc
@@ -569,9 +572,9 @@ module Ext(In:Extension) =
                             | Some e -> e in
                           (true,
                             (exp_lab_apply _loc (exp_glr_fun _loc "regexp")
-                               [("name", (exp_string _loc_s s));
-                               ("", (exp_string _loc_s s));
-                               ("", (exp_fun _loc_opt "groupe" opt))])));
+                               [((labelled "name"), (exp_string _loc_s s));
+                               (nolabel, (exp_string _loc_s s));
+                               (nolabel, (exp_fun _loc_opt "groupe" opt))])));
            Decap.apply_position
              (fun id  ->
                 let (_loc_id,id) = id in
