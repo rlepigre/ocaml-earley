@@ -2063,11 +2063,13 @@ let _ = set_grammar module_type (
 
 let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
-      (match l with
+     (match l with
+#ifversion < 4.03
 #ifversion >= 4.02
        | [{pvb_pat = {ppat_desc = Ppat_any}; pvb_expr = e}] -> pstr_eval e
 #else
        | [({ppat_desc = Ppat_any; ppat_loc = _}, e)] -> pstr_eval e
+#endif
 #endif
        | _                                           -> Pstr_value (r, l))
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* ->

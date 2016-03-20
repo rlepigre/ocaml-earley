@@ -759,14 +759,10 @@ module Initial =
               let len = String.length i  in
               assert (len > 0);
               (match i.[len - 1] with
-               | 'l' ->
-                   const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
-               | 'L' ->
-                   const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
-               | 'n' ->
-                   const_nativeint
-                     (Nativeint.of_string (String.sub i 0 (len - 1)))
-               | _ -> const_int (int_of_string i)))
+               | 'l'|'L'|'n' ->
+                   Pconst_integer
+                     ((String.sub i 0 (len - 1)), (Some (i.[len - 1])))
+               | _ -> Pconst_integer (i, None)))
            (Decap.regexp ~name:"int_pos" int_pos_re (fun groupe  -> groupe 0)))
     let bool_lit = Decap.declare_grammar "bool_lit" 
     ;;Decap.set_grammar bool_lit

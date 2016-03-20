@@ -186,11 +186,13 @@ module Make(Initial:Extension) =
               if slt = Re
               then (Decap.apply (fun _default_0  -> '\'') single_quote) :: y
               else y)))
-    ;;set_grammar char_litteral
+    let _ =
+      set_grammar char_litteral
         (Decap.sequence (Decap.ignore_next_blank (Decap.char '\'' '\''))
            (change_layout
               (Decap.sequence (one_char Char) (Decap.char '\'' '\'')
                  (fun c  -> fun _  -> c)) no_blank) (fun _  -> fun r  -> r))
+      
     let interspace = "[ \t]*" 
     let char_list_to_string lc =
       let len = List.length lc  in
@@ -228,11 +230,14 @@ module Make(Initial:Extension) =
               (fun lcs  ->
                  fun _  ->
                    fun lc  -> char_list_to_string (List.flatten (lc :: lcs)))))
-    ;;set_grammar string_litteral
+    let _ =
+      set_grammar string_litteral
         (Decap.sequence (Decap.ignore_next_blank (Decap.char '"' '"'))
            (change_layout in_string no_blank)
            (fun _  -> fun r  -> let r = r  in r))
-    ;;set_grammar regexp_litteral
+      
+    let _ =
+      set_grammar regexp_litteral
         (Decap.sequence (Decap.ignore_next_blank (Decap.string "''" "''"))
            (change_layout
               (Decap.fsequence
@@ -262,6 +267,7 @@ module Make(Initial:Extension) =
                          fun lc  ->
                            char_list_to_string (List.flatten (lc :: lcs)))))
               no_blank) (fun _  -> fun r  -> r))
+      
     type tree =
       | Node of tree* tree 
       | Leaf of string 
@@ -358,20 +364,25 @@ module Make(Initial:Extension) =
                          fun _  -> fun _  -> fun a  -> Lapply (a, m'))))
                 :: y
               else y))
-    ;;set_module_path_suit
+    let _ =
+      set_module_path_suit
         (fun allow_app  ->
            Decap.alternatives
              [Decap.sequence (module_path_suit_aux allow_app)
                 (module_path_suit allow_app)
                 (fun f  -> fun g  -> fun acc  -> g (f acc));
              Decap.apply (fun _  -> fun acc  -> acc) (Decap.empty ())])
-    ;;set_module_path_gen
+      
+    let _ =
+      set_module_path_gen
         (fun allow_app  ->
            Decap.sequence module_name (module_path_suit allow_app)
              (fun m  -> fun s  -> s (Lident m)))
+      
     let module_path = module_path_gen false 
     let extended_module_path = module_path_gen true 
-    ;;set_grammar value_path
+    let _ =
+      set_grammar value_path
         (Decap.sequence
            (Decap.option None
               (Decap.apply (fun x  -> Some x)
@@ -380,6 +391,7 @@ module Make(Initial:Extension) =
            (fun mp  ->
               fun vn  ->
                 match mp with | None  -> Lident vn | Some p -> Ldot (p, vn)))
+      
     let constr = Decap.declare_grammar "constr" 
     ;;Decap.set_grammar constr
         (Decap.sequence
@@ -835,7 +847,8 @@ module Make(Initial:Extension) =
       
     let extra_types_grammar lvl =
       alternatives (List.map (fun g  -> g lvl) extra_types) 
-    ;;set_typexpr_lvl
+    let _ =
+      set_typexpr_lvl
         (fun lvl  ->
            Decap.alternatives ((extra_types_grammar lvl) ::
              (let y =
@@ -1522,6 +1535,7 @@ module Make(Initial:Extension) =
               if lvl < AtomType
               then (typexpr_lvl (next_type_prio lvl)) :: y
               else y)))
+      
     let type_param = Decap.declare_grammar "type_param" 
     ;;Decap.set_grammar type_param
         (Decap.alternatives
@@ -1682,7 +1696,8 @@ module Make(Initial:Extension) =
     let all_constr_decl = Decap.declare_grammar "all_constr_decl" 
     ;;Decap.set_grammar all_constr_decl
         (Decap.apply (fun cd  -> [cd]) constr_decl)
-    ;;set_grammar constr_decl_list
+    let _ =
+      set_grammar constr_decl_list
         (Decap.alternatives
            [Decap.fsequence
               (Decap.option None
@@ -1696,6 +1711,7 @@ module Make(Initial:Extension) =
                  (fun cd  ->
                     fun cds  -> fun _default_0  -> List.flatten (cd :: cds)));
            Decap.apply (fun _  -> []) (Decap.empty ())])
+      
     let field_decl_aux = Decap.declare_grammar "field_decl_aux" 
     ;;Decap.set_grammar field_decl_aux
         (Decap.alternatives
@@ -1703,11 +1719,13 @@ module Make(Initial:Extension) =
            Decap.fsequence field_decl_aux
              (Decap.sequence field_decl semi_col
                 (fun fd  -> fun _default_0  -> fun fs  -> fd :: fs))])
-    ;;set_grammar field_decl_list
+    let _ =
+      set_grammar field_decl_list
         (Decap.alternatives
            [Decap.apply (fun fs  -> List.rev fs) field_decl_aux;
            Decap.sequence field_decl_aux field_decl
              (fun fs  -> fun fd  -> List.rev (fd :: fs))])
+      
     let type_representation = Decap.declare_grammar "type_representation" 
     ;;Decap.set_grammar type_representation
         (Decap.alternatives
@@ -1897,7 +1915,8 @@ module Make(Initial:Extension) =
               (fun v  -> fun p  -> (v, p));
            Decap.sequence private_kw virtual_kw
              (fun _default_1  -> fun _default_0  -> (Virtual, Private))])
-    ;;set_grammar class_field_spec
+    let _ =
+      set_grammar class_field_spec
         (Decap.alternatives
            [Decap.sequence_position inherit_kw class_body_type
               (fun _default_0  ->
@@ -1968,7 +1987,9 @@ module Make(Initial:Extension) =
                                         __loc__end__pos
                                        in
                                     pctf_loc _loc (Pctf_constraint (te, te')))))])
-    ;;set_grammar class_body_type
+      
+    let _ =
+      set_grammar class_body_type
         (Decap.alternatives
            [Decap.fsequence_position object_kw
               (Decap.fsequence
@@ -2045,6 +2066,7 @@ module Make(Initial:Extension) =
                              in
                           let ctp = id_loc ctp _loc_ctp  in
                           pcty_loc _loc (Pcty_constr (ctp, tes)))])
+      
     let class_type =
       Decap.sequence_position
         (Decap.apply_position
@@ -2242,7 +2264,8 @@ module Make(Initial:Extension) =
       Decap.grammar_family "extra_patterns_grammar" 
     ;;extra_patterns_grammar__set__grammar
         (fun lvl  -> alternatives (List.map (fun g  -> g lvl) extra_patterns))
-    ;;set_pattern_lvl
+    let _ =
+      set_pattern_lvl
         (fun lvl  ->
            Decap.alternatives ((extra_patterns_grammar lvl) ::
              (let y =
@@ -2621,7 +2644,7 @@ module Make(Initial:Extension) =
                                                                     (quote_location_t
                                                                     _loc _loc));
                                                                     ((parsetree
-                                                                    "ppat_attributes"),
+                                                                    "pexp_attributes"),
                                                                     (quote_attributes
                                                                     _loc []))]
                                                                      in
@@ -3649,6 +3672,7 @@ module Make(Initial:Extension) =
               if lvl < AtomPat
               then (pattern_lvl (next_pat_prio lvl)) :: y
               else y)))
+      
     let let_re = "\\(let\\)\\|\\(val\\)\\b" 
     type assoc =
       | NoAssoc 
@@ -3773,7 +3797,8 @@ module Make(Initial:Extension) =
         Decap.apply (fun e  -> (nolabel, e))
           (expression_lvl (NoMatch, (next_exp App)))]
       
-    ;;set_parameter
+    let _ =
+      set_parameter
         (fun allow_new_type  ->
            Decap.alternatives
              ((Decap.apply (fun pat  -> `Arg (nolabel, None, pat))
@@ -3962,6 +3987,7 @@ module Make(Initial:Extension) =
                             fun _  -> fun _default_0  -> fun _  -> `Type name))))
                 :: y
               else y)))
+      
     let apply_params params e =
       let f acc =
         function
@@ -4020,7 +4046,8 @@ module Make(Initial:Extension) =
       
     let simple_right_member =
       Decap.sequence (Decap.char '=' '=') expression (fun _  -> fun e  -> e) 
-    ;;set_grammar let_binding
+    let _ =
+      set_grammar let_binding
         (Decap.alternatives
            [Decap.fsequence
               (Decap.apply_position
@@ -4163,6 +4190,7 @@ module Make(Initial:Extension) =
                                                  (merge2 _loc_vn _loc_e) pat
                                                  e)
                                                 :: l)))))])
+      
     let (match_case,match_case__set__grammar) =
       Decap.grammar_family "match_case" 
     ;;match_case__set__grammar
@@ -4176,7 +4204,8 @@ module Make(Initial:Extension) =
                 (Decap.sequence arrow_re (expression_lvl c)
                    (fun _default_0  ->
                       fun e  -> fun w  -> fun pat  -> make_case pat e w))))
-    ;;set_grammar match_cases
+    let _ =
+      set_grammar match_cases
         (Decap.alternatives
            [Decap.fsequence
               (Decap.option None
@@ -4191,6 +4220,7 @@ module Make(Initial:Extension) =
                  (match_case (Match, Seq))
                  (fun l  -> fun x  -> fun _default_0  -> l @ [x]));
            Decap.apply (fun _  -> []) (Decap.empty ())])
+      
     let type_coercion = Decap.declare_grammar "type_coercion" 
     ;;Decap.set_grammar type_coercion
         (Decap.alternatives
@@ -4288,7 +4318,8 @@ module Make(Initial:Extension) =
                        fun str'  ->
                          fun pos'  -> ((locate str pos str' pos'), x))
                 lowercase_ident)])
-    ;;set_grammar record_list
+    let _ =
+      set_grammar record_list
         (Decap.alternatives
            [Decap.fsequence
               (Decap.apply List.rev
@@ -4300,6 +4331,7 @@ module Make(Initial:Extension) =
                  (Decap.option None (Decap.apply (fun x  -> Some x) semi_col))
                  (fun it  -> fun _default_0  -> fun l  -> l @ [it]));
            Decap.apply (fun _  -> []) (Decap.empty ())])
+      
     let obj_item =
       Decap.fsequence
         (Decap.apply_position
@@ -4457,7 +4489,8 @@ module Make(Initial:Extension) =
                                in
                             loc_pcl _loc (Pcl_structure cb)))]
       
-    ;;set_grammar class_expr
+    let _ =
+      set_grammar class_expr
         (Decap.sequence_position class_expr_base
            (Decap.option None
               (Decap.apply (fun x  -> Some x)
@@ -4477,6 +4510,7 @@ module Make(Initial:Extension) =
                         match args with
                         | None  -> ce
                         | Some l -> loc_pcl _loc (Pcl_apply (ce, l))))
+      
     let class_field =
       Decap.alternatives
         [Decap.fsequence_position inherit_kw
@@ -4894,7 +4928,8 @@ module Make(Initial:Extension) =
                           in
                        loc_pcf _loc (Pcf_initializer e))]
       
-    ;;set_grammar class_body
+    let _ =
+      set_grammar class_body
         (Decap.sequence
            (Decap.apply_position
               (fun x  ->
@@ -4914,6 +4949,7 @@ module Make(Initial:Extension) =
                   | None  -> loc_pat _loc_p Ppat_any
                   | Some p -> p  in
                 { pcstr_self = p; pcstr_fields = f }))
+      
     let class_binding =
       Decap.fsequence_position virtual_flag
         (Decap.fsequence
@@ -5248,7 +5284,8 @@ module Make(Initial:Extension) =
                                               in
                                            loc_expr _loc
                                              (Pexp_ifthenelse (c, e, None))))))])
-    ;;set_expression_lvl
+    let _ =
+      set_expression_lvl
         (fun ((alm,lvl) as c)  ->
            Decap.alternatives ((extra_expressions_grammar c) ::
              (let y =
@@ -8218,6 +8255,7 @@ module Make(Initial:Extension) =
               if lvl < Atom
               then (expression_lvl ((left_alm alm), (next_exp lvl))) :: y
               else y)))
+      
     let module_expr_base =
       Decap.alternatives
         [Decap.apply_position
@@ -8350,7 +8388,8 @@ module Make(Initial:Extension) =
                                          in
                                       mexpr_loc _loc e))))]
       
-    ;;set_grammar module_expr
+    let _ =
+      set_grammar module_expr
         (Decap.sequence
            (Decap.apply_position
               (fun x  ->
@@ -8385,6 +8424,7 @@ module Make(Initial:Extension) =
                      fun (_loc_n,n)  ->
                        mexpr_loc (merge2 _loc_m _loc_n) (Pmod_apply (acc, n)))
                   m l))
+      
     let module_type_base =
       Decap.alternatives
         [Decap.apply_position
@@ -8569,7 +8609,8 @@ module Make(Initial:Extension) =
                          Pwith_modsubst
                            ((id_loc mn _loc_mn), (id_loc emp _loc_emp)))))]
       
-    ;;set_grammar module_type
+    let _ =
+      set_grammar module_type
         (Decap.sequence_position module_type_base
            (Decap.option None
               (Decap.apply (fun x  -> Some x)
@@ -8594,6 +8635,7 @@ module Make(Initial:Extension) =
                         match l with
                         | None  -> m
                         | Some l -> mtyp_loc _loc (Pmty_with (m, l))))
+      
     let structure_item_base = Decap.declare_grammar "structure_item_base" 
     ;;Decap.set_grammar structure_item_base
         (Decap.alternatives
@@ -8603,10 +8645,7 @@ module Make(Initial:Extension) =
                  (fun r  ->
                     fun l  ->
                       fun _default_0  ->
-                        match l with
-                        | { pvb_pat = { ppat_desc = Ppat_any  }; pvb_expr = e
-                            }::[] -> pstr_eval e
-                        | _ -> Pstr_value (r, l)));
+                        match l with | _ -> Pstr_value (r, l)));
            Decap.fsequence_position external_kw
              (Decap.fsequence
                 (Decap.apply_position
@@ -8997,9 +9036,11 @@ module Make(Initial:Extension) =
                    fun e  ->
                      let (_loc_e,e) = e  in
                      fun s1  -> (loc_str _loc_e (pstr_eval e)) :: s1))])
-    ;;set_grammar structure_item
+    let _ =
+      set_grammar structure_item
         (Decap.sequence structure_item_aux (Decap.option () double_semi_col)
            (fun l  -> fun _default_0  -> List.rev l))
+      
     let signature_item_base = Decap.declare_grammar "signature_item_base" 
     ;;Decap.set_grammar signature_item_base
         (Decap.alternatives
@@ -9324,7 +9365,8 @@ module Make(Initial:Extension) =
                    classtype_definition;
                 Decap.apply (fun cs  -> Psig_class cs) class_specification])
              (fun _default_0  -> fun r  -> r)])
-    ;;set_grammar signature_item
+    let _ =
+      set_grammar signature_item
         (Decap.alternatives
            [alternatives extra_signature;
            Decap.sequence_position signature_item_base
@@ -9340,6 +9382,7 @@ module Make(Initial:Extension) =
                               __loc__end__buf __loc__end__pos
                              in
                           [loc_sig _loc s])])
+      
     exception Top_Exit 
     let top_phrase = Decap.declare_grammar "top_phrase" 
     ;;Decap.set_grammar top_phrase

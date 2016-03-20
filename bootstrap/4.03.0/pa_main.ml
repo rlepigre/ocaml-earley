@@ -11,9 +11,11 @@ module type Final  =
 module Start(Main:Final) =
   struct
     let anon_fun s = file := (Some s) 
-    ;;Arg.parse (!spec) anon_fun
+    let _ =
+      Arg.parse (!spec) anon_fun
         (Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)))
-    ;;Main.before_parse_hook ()
+      
+    let _ = Main.before_parse_hook () 
     let entry =
       match ((!entry), (!file)) with
       | (FromExt ,Some s) ->
@@ -39,7 +41,8 @@ module Start(Main:Final) =
             `Struct (parse_channel ~filename g blank ch)
         | Interface (g,blank) -> `Sig (parse_channel ~filename g blank ch)
       with | Decap.Parse_error _ as e -> (Decap.print_exception e; exit 1) 
-    ;;if !ascii
+    let _ =
+      if !ascii
       then
         ((match ast with
           | `Struct ast -> Pprintast.structure Format.std_formatter ast
@@ -57,4 +60,5 @@ module Start(Main:Final) =
           | `Struct ast -> output_value stdout ast
           | `Sig ast -> output_value stdout ast);
          close_out stdout)
+      
   end

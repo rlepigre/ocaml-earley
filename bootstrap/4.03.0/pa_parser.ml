@@ -182,7 +182,8 @@ module Ext(In:Extension) =
                                   in
                                exp_apply _loc (exp_glr_fun _loc "lists") [p]))])
     let glr_binding = Decap.declare_grammar "glr_binding" 
-    ;;Decap.set_grammar glr_binding
+    let _ =
+      Decap.set_grammar glr_binding
         (Decap.fsequence lowercase_ident
            (Decap.fsequence
               (Decap.option None
@@ -203,6 +204,7 @@ module Ext(In:Extension) =
                               fun ty  ->
                                 fun arg  ->
                                   fun name  -> (name, arg, ty, r) :: l))))))
+      
     let glr_struct_item = Decap.declare_grammar "glr_struct_item" 
     ;;Decap.set_grammar glr_struct_item
         (Decap.fsequence_position let_kw
@@ -341,7 +343,7 @@ module Ext(In:Extension) =
                              let (str1,str2) = fn l  in str1 @ str2)))
     let extra_prefix_expressions = glr_parser :: extra_prefix_expressions 
     let extra_structure = glr_struct_item :: extra_structure 
-    ;;add_reserved_id "parser"
+    let _ = add_reserved_id "parser" 
     let glr_opt_expr = Decap.declare_grammar "glr_opt_expr" 
     ;;Decap.set_grammar glr_opt_expr
         (Decap.option None
@@ -690,7 +692,8 @@ module Ext(In:Extension) =
                        Decap.apply (fun _default_0  -> `Ignore) dash]))))
            (fun i  -> fun l  -> i :: l))
     let glr_let = Decap.declare_grammar "glr_let" 
-    ;;Decap.set_grammar glr_let
+    let _ =
+      Decap.set_grammar glr_let
         (Decap.alternatives
            [Decap.fsequence_position let_kw
               (Decap.fsequence rec_flag
@@ -714,6 +717,7 @@ module Ext(In:Extension) =
                                             loc_expr _loc
                                               (Pexp_let (r, lbs, (l x)))))));
            Decap.apply (fun _  -> fun x  -> x) (Decap.empty ())])
+      
     let glr_cond = Decap.declare_grammar "glr_cond" 
     ;;Decap.set_grammar glr_cond
         (Decap.alternatives
@@ -802,7 +806,8 @@ module Ext(In:Extension) =
                (if alm then expression else expression_lvl (Let, Seq))
                (fun _default_0  -> fun action  -> Normal action);
              Decap.apply (fun _  -> Default) (Decap.empty ())])
-    ;;set_glr_rule
+    let _ =
+      set_glr_rule
         (fun alm  ->
            Decap.fsequence_position glr_let
              (Decap.fsequence glr_left_member
@@ -853,6 +858,7 @@ module Ext(In:Extension) =
                                     let occur_loc = occur "_loc" action  in
                                     (_loc, occur_loc, def, l, condition,
                                       action)))))
+      
     let apply_def_cond _loc arg =
       let (def,cond,e) = build_rule arg  in
       match cond with
@@ -894,7 +900,8 @@ module Ext(In:Extension) =
              in
           exp_apply _loc (exp_glr_fun _loc comb) [l]
       
-    ;;Decap.set_grammar glr_rules
+    let _ =
+      Decap.set_grammar glr_rules
         (Decap.fsequence_position
            (Decap.option None
               (Decap.apply (fun x  -> Some x) (Decap.char '|' '|')))
@@ -917,4 +924,5 @@ module Ext(In:Extension) =
                                 in
                              build_alternatives _loc "alternatives"
                                (rs @ [r]))))
+      
   end
