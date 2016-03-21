@@ -201,6 +201,14 @@ let parser float_litteral =
     Quote.make_antiquotation e*)
 
 (* Character litterals *)
+let char_regular = "[^\\']"
+let string_regular = "[^\\\"]"
+let re_regular = "[^']"
+let char_escaped = "[\\\\][\\\\\\\"\\\'ntbrs ]"
+let re_escaped = "[\\\\][ntbrs]"
+let char_dec     = "[\\\\][0-9][0-9][0-9]"
+let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
+
 type string_litteral_type = Char | String | Re
 
 let semi_col = black_box
@@ -249,38 +257,34 @@ let double_quote = black_box
 
 exception Illegal_escape of string
 
-let char_regular = "[^\\']"
-let string_regular = "[^\\\"]"
-let re_regular = "[^']"
-let char_escaped = "[\\\\\\\"\\\'ntbrs ]"
-let re_escaped = "\\\'ntbrs]"
-let char_dec     = "[0-9][0-9][0-9]"
-let char_hex     = "[x][0-9a-fA-F][0-9a-fA-F]"
-
 let parser one_char slt =
+  | '\n' -> '\n'
+  | single_quote when slt = Re -> '\''
+  | c:RE(if slt = Re then re_escaped else char_escaped) ->
+      (match c.[1] with
+       | 'n' -> '\n'
+       | 't' -> '\t'
+       | 'b' -> '\b'
+       | 'r' -> '\r'
+       | 's' -> ' '
+       | c   -> c)
   | c:RE(match slt with Char -> char_regular | String -> string_regular | Re -> re_regular)
       -> c.[0]
-  | '\\' - c:(parser
-    | c:RE(if slt = Re then re_escaped else char_escaped) ->
-        (match c.[0] with
-         | 'n' -> '\n'
-         | 't' -> '\t'
-         | 'b' -> '\b'
-         | 'r' -> '\r'
-         | 's' -> ' '
-         | '\'' -> '\''
-         | c   -> c)
-    | str:RE(char_dec)   -> (let i = Scanf.sscanf str "%i" (fun i -> i) in
-                             if i > 255 then raise (Illegal_escape str);
-                             char_of_int i)
-    | c:RE(char_hex)     -> (let str = String.sub c 1 2 in
-                             let str' = String.concat "" ["0x"; str] in
-                             let i = Scanf.sscanf str' "%i" (fun i -> i) in
-                             if i > 255 then raise (Illegal_escape str);
-                             char_of_int i))
+  | c:RE(char_dec)     -> (let str = String.sub c 1 3 in
+                           let i = Scanf.sscanf str "%i" (fun i -> i) in
+                           if i > 255 then
+                             raise (Illegal_escape str)
+                           else char_of_int i)
+  | c:RE(char_hex)     -> (let str = String.sub c 2 2 in
+                           let str' = String.concat "" ["0x"; str] in
+                           let i = Scanf.sscanf str' "%i" (fun i -> i) in
+                           char_of_int i)
 
-let _ = set_grammar char_litteral
-  (parser _:single_quote - c:(one_char Char) - '\'')
+let _ = set_grammar char_litteral (
+  parser
+    CHR('\'') - r:(change_layout (
+      parser c:(one_char Char) CHR('\'') -> c
+    ) no_blank) -> r)
 (*  | dol:CHR('$') - STR("char") CHR(':') e:(expression_lvl App) - CHR('$') ->
     Quote.make_antiquotation e*)
 
@@ -1887,6 +1891,8 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       in
       match aq with
       | "expr"      -> (fun _ -> e)
+      | "bool"      -> generic_antiquote
+	                 (quote_apply _loc (pa_ast "exp_bool") [quote_location_t _loc _loc; e])
       | "int"       -> generic_antiquote
 	                 (quote_apply _loc (pa_ast "exp_int") [quote_location_t _loc _loc; e])
       | "string"    -> generic_antiquote
