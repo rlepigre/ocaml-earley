@@ -6087,19 +6087,21 @@ module Make(Initial:Extension) =
                                                                     Atom
                                                                     then
                                                                     (Decap.fsequence_position
+                                                                    (Decap.ignore_next_blank
                                                                     (Decap.char
-                                                                    '$' '$')
+                                                                    '$' '$'))
                                                                     (Decap.fsequence
                                                                     (Decap.option
                                                                     "expr"
                                                                     (Decap.sequence
+                                                                    (Decap.ignore_next_blank
                                                                     (Decap.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
-                                                                    groupe 0))
+                                                                    groupe 0)))
                                                                     (Decap.char
                                                                     ':' ':')
                                                                     (fun
@@ -6108,7 +6110,8 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     _default_0)))
                                                                     (Decap.sequence
-                                                                    expression
+                                                                    (Decap.ignore_next_blank
+                                                                    expression)
                                                                     (Decap.char
                                                                     '$' '$')
                                                                     (fun e 

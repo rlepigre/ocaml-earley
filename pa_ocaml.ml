@@ -1855,7 +1855,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	     parse_string ~filename:("ENV:"^c) expression blank str
 	 with Not_found -> give_up "" (* FIXME *))
 
-  | '$' aq:{''[a-z]+'' ':'}?["expr"] e:expression '$' when lvl = Atom ->
+  | '$' - aq:{''[a-z]+'' - ':'}?["expr"] e:expression - '$' when lvl = Atom ->
     let f =
       let open Quote in
       let locate _loc e =

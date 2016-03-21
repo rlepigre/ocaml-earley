@@ -28,6 +28,19 @@ type quotation =
 #ifversion <= 4.01
   | Quote_pfield (* for 4.01.0 *)
 #endif
+
+let make_antiquotation loc =
+  let open Lexing in
+  let open Location in
+  let f pos = { pos with pos_fname = "$"^pos.pos_fname^"$" } in
+  { loc with loc_start = f loc.loc_start; loc_end = f loc.loc_end }
+
+let is_antiquotation loc =
+  let open Lexing in
+  let open Location in
+  let s = loc.loc_start.pos_fname in
+  String.length s > 0 && s.[0] = '$'
+
 let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
 
 (* Generic functions *)
