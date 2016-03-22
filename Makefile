@@ -58,10 +58,10 @@ decap.cmxa: charset.cmx input.cmx ahash.cmx fixpoint.cmx decap.cmx
 decap.cma: charset.cmo input.cmo ahash.cmo fixpoint.cmo decap.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
-decap_ocaml.cmxa: pa_ast.cmx $(BOOTDIR)/compare.cmx $(BOOTDIR)/iter.cmx $(BOOTDIR)/quote.cmx pa_ocaml_prelude.cmx pa_parser.cmx pa_ocaml.cmx pa_main.cmx
+decap_ocaml.cmxa: pa_lexing.cmx pa_ast.cmx $(BOOTDIR)/compare.cmx $(BOOTDIR)/iter.cmx $(BOOTDIR)/quote.cmx pa_ocaml_prelude.cmx pa_parser.cmx pa_ocaml.cmx pa_main.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
-decap_ocaml.cma: pa_ast.cmo $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo pa_ocaml_prelude.cmo pa_parser.cmo pa_ocaml.cmo pa_main.cmo
+decap_ocaml.cma: pa_lexing.cmo pa_ast.cmo $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo pa_ocaml_prelude.cmo pa_parser.cmo pa_ocaml.cmo pa_main.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
 decap.a: decap.cmxa;
@@ -89,7 +89,13 @@ $(BOOTDIR)/quote.cmo: $(BOOTDIR)/quote.ml pa_ast.cmi
 $(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml pa_ast.cmx pa_ast.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
 
-pa_ocaml_prelude.cmo: pa_ocaml_prelude.ml charset.cmi input.cmi decap.cmi pa_ast.cmi
+pa_lexing.cmo: pa_lexing.ml input.cmi
+	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+
+pa_lexing.cmx: pa_lexing.ml input.cmi
+	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+
+pa_ocaml_prelude.cmo: pa_ocaml_prelude.ml charset.cmi input.cmi decap.cmi pa_ast.cmi pa_lexing.cmi
 	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
 
 pa_ast.cmi pa_ast.cmo: pa_ast.ml
@@ -107,7 +113,7 @@ pa_parser.cmo: pa_parser.ml pa_ast.cmo pa_ocaml_prelude.cmo  $(BOOTDIR)/compare.
 pa_main.cmo: pa_main.ml input.cmi pa_ocaml.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
 
-pa_ocaml_prelude.cmx: pa_ocaml_prelude.ml charset.cmx input.cmx decap.cmx pa_ast.cmx
+pa_ocaml_prelude.cmx: pa_ocaml_prelude.ml charset.cmx input.cmx decap.cmx pa_ast.cmx pa_lexing.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
 
 pa_ocaml.cmx: pa_ocaml.ml $(BOOTDIR)/quote.cmx pa_ocaml_prelude.cmx decap.cmxa

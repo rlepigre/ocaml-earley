@@ -55,6 +55,7 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ast
+open Pa_lexing
 include Pa_ocaml_prelude
 
 #define LOCATE locate
@@ -360,7 +361,7 @@ let (string_of_tree:tree->string) t =
   Buffer.contents b
 
 (* Naming labels *)
-let label_name = lowercase_ident
+let label_name = lident
 
 let no_colon = black_box (fun str pos ->
   let (c,_,_) = Input.read str pos in
@@ -374,10 +375,10 @@ let parser opt_label =
   | '?' - ln:label_name - no_colon -> ln (* no constructor, we add it later in this case *)
 
 let parser ty_label =
-  | '~' - s:RE(lident_re^"[:]") -> labelled (String.sub s 0 (String.length s - 1))
+  | '~' - s:lident - ':' -> labelled s
 
 let parser ty_opt_label =
-  | '?' - s:RE(lident_re^"[:]") -> optional (String.sub s 0 (String.length s - 1))
+  | '?' - s:lident - ':' -> optional s
 
 let parser maybe_opt_label =
   | o:STR("?")? ln:label_name ->
@@ -394,22 +395,22 @@ let parser operator_name =
   | op:(alternatives (List.map prefix_symbol prefix_prios)) -> op
 
 let parser value_name =
-    id:lowercase_ident -> id
+    id:lident -> id
   | '(' op:operator_name ')' -> op
 
-let constr_name     = capitalized_ident
+let constr_name     = uident
 let parser tag_name = STR("`") c:ident -> c
 
-let typeconstr_name = lowercase_ident
-let field_name      = parser lowercase_ident
+let typeconstr_name = lident
+let field_name      = lident
 (*  | dol:CHR('$') - STR("lid") CHR(':') e:(expression_lvl App) - CHR('$') ->
     Quote.make_antiquotation e*)
 
-let module_name     = capitalized_ident
+let module_name     = uident
 let modtype_name    = ident
-let class_name      = lowercase_ident
-let inst_var_name   = lowercase_ident
-let method_name     = lowercase_ident
+let class_name      = lident
+let inst_var_name   = lident
+let method_name     = lident
 
 let module_path_gen, set_module_path_gen  = grammar_family "module_path_gen"
 let module_path_suit, set_module_path_suit  = grammar_family "module_path_suit"
@@ -501,7 +502,7 @@ let parser override_flag =
  ****************************************************************************)
 
 let parser attr_id =
-  | id:RE(ident_re) l:{ CHR('.') id:RE(ident_re)}* ->
+  | id:ident l:{ '.' id:ident}* ->
       id_loc (String.concat "." (id::l)) _loc
 
 #ifversion < 4.02
@@ -1153,9 +1154,9 @@ let _ = set_pattern_lvl (fun lvl ->
                              Ppat_constraint (loc_pat _loc_mn unpack, pt)
       in
       loc_pat _loc pat
-  | CHR('$') - c:capitalized_ident when lvl = AtomPat ->
+  | CHR('$') - c:uident when lvl = AtomPat ->
      (try let str = Sys.getenv c in
-	  parse_string ~filename:("ENV:"^c) pattern blank str
+	  parse_string ~filename:("ENV:"^c) pattern ocaml_blank str
       with Not_found -> give_up "" (* FIXME *))
 
   | '$' - t:{t:{ "tuple" -> "tuple"
@@ -1295,7 +1296,7 @@ let bigarray_set loc arr arg newval =
 
 let constructor =
   parser
-  | m:{ m:module_path STR"." }? id:{id:capitalized_ident -> id | b:bool_lit -> b } ->
+  | m:{ m:module_path STR"." }? id:{id:uident -> id | b:bool_lit -> b } ->
       match m with
       | None   -> Lident id
       | Some m -> Ldot(m, id)
@@ -1311,7 +1312,7 @@ let argument =
 let _ = set_parameter (fun allow_new_type ->
   parser
   | pat:(pattern_lvl AtomPat) -> `Arg (nolabel, None, pat)
-  | '~' '(' id:lowercase_ident t:{ STR":" t:typexpr }? STR")" -> (
+  | '~' '(' id:lident t:{ STR":" t:typexpr }? STR")" -> (
       let pat =  loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
       | None   -> pat
@@ -1320,7 +1321,7 @@ let _ = set_parameter (fun allow_new_type ->
       `Arg (labelled id, None, pat))
   | id:ty_label pat:pattern -> `Arg (id, None, pat)
   | '~' id:ident -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
-  | '?' '(' id:lowercase_ident t:{ ':' t:typexpr -> t }? e:{'=' e:expression -> e}? ')' -> (
+  | '?' '(' id:lident t:{ ':' t:typexpr -> t }? e:{'=' e:expression -> e}? ')' -> (
       let pat = loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
                 | None -> pat
@@ -1407,11 +1408,11 @@ let parser expression_list =
 
 let parser record_item =
   | f:field CHR('=') e:(expression_lvl (NoMatch, next_exp Seq)) -> (id_loc f _loc_f,e)
-  | f:lowercase_ident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
+  | f:lident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
 
 let parser last_record_item =
   | f:field CHR('=') e:(expression_lvl (Match, next_exp Seq)) -> (id_loc f _loc_f,e)
-  | f:lowercase_ident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
+  | f:lident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
 
 let _ = set_grammar record_list (
   parser
@@ -1460,7 +1461,7 @@ let _ = set_grammar class_expr (
 
 let class_field =
   parser
-  | inherit_kw o:override_flag ce:class_expr id:{_:as_kw lowercase_ident}? ->
+  | inherit_kw o:override_flag ce:class_expr id:{_:as_kw lident}? ->
 #ifversion >= 4.02
       loc_pcf _loc (Pcf_inherit (o, ce, id))
 #else
@@ -1783,7 +1784,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | for_kw id:pattern CHR('=') e:expression d:downto_flag e':expression do_kw e'':expression done_kw when lvl = Atom ->
       loc_expr _loc (Pexp_for(id, e, e', d, e''))
 #else
-  | for_kw id:lowercase_ident CHR('=') e:expression d:downto_flag e':expression do_kw e'':expression done_kw when lvl = Atom ->
+  | for_kw id:lident CHR('=') e:expression d:downto_flag e':expression do_kw e'':expression done_kw when lvl = Atom ->
       loc_expr _loc (Pexp_for(id_loc id _loc_id, e, e', d, e''))
 #endif
 
@@ -1855,7 +1856,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 } when lvl = Atom
 	-> r
 
-  | CHR('$') - c:capitalized_ident when lvl = Atom ->
+  | CHR('$') - c:uident when lvl = Atom ->
      (match c with
      | "FILE" ->
 	 exp_string _loc ((start_pos _loc).Lexing.pos_fname)
@@ -1863,7 +1864,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 exp_int _loc ((start_pos _loc).Lexing.pos_lnum)
       | _ ->
 	 try let str = Sys.getenv c in
-	     parse_string ~filename:("ENV:"^c) expression blank str
+	     parse_string ~filename:("ENV:"^c) expression ocaml_blank str
 	 with Not_found -> give_up "" (* FIXME *))
 
   | '$' - aq:{''[a-z]+'' - ':'}?["expr"] e:expression - '$' when lvl = Atom ->
@@ -2248,8 +2249,8 @@ let parser top_phrase =
 let _ =
     let (ae,set) = Decap.grammar_info structure_item in
     Charset.(Printf.eprintf "structure_item: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info lowercase_ident in
-    Charset.(Printf.eprintf "lowercase_ident: (%b,%a)\n%!" ae print_charset set);
+    let (ae,set) = Decap.grammar_info lident in
+    Charset.(Printf.eprintf "lident: (%b,%a)\n%!" ae print_charset set);
     let (ae,set) = Decap.grammar_info expression in
     Charset.(Printf.eprintf "expression: (%b,%a)\n%!" ae print_charset set);
     let (ae,set) = Decap.grammar_info typexpr in

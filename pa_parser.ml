@@ -50,6 +50,7 @@ open Parsetree
 open Longident
 open Pa_ocaml_prelude
 open Pa_ast
+open Pa_lexing
 
 #define LOCATE locate
 
@@ -209,7 +210,7 @@ struct
   let glr_binding = Decap.declare_grammar "glr_binding"
   let _ = Decap.set_grammar glr_binding (
     parser
-      name:lowercase_ident arg:(pattern_lvl AsPat)? ty:{':' typexpr}? '=' r:glr_rules l:{_:and_kw glr_binding}?[[]] ->
+      name:lident arg:(pattern_lvl AsPat)? ty:{':' typexpr}? '=' r:glr_rules l:{_:and_kw glr_binding}?[[]] ->
     (name,arg,ty,r)::l)
 
   let parser glr_struct_item =

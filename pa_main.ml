@@ -49,6 +49,7 @@ open Pa_ocaml_prelude
 open Pa_ocaml
 open Decap
 open Format
+open Pa_lexing
 
 module type Final = sig
   include Extension
@@ -71,9 +72,9 @@ module Start = functor (Main : Final) -> struct
         | [] -> eprintf "Don't know what to do with file %s\n%!" s; exit 1
       in
       fn !Main.entry_points
-    | FromExt, None -> Implementation (Main.structure, blank)
-    | Intf, _       -> Interface (Main.signature, blank)
-    | Impl, _       -> Implementation (Main.structure, blank)
+    | FromExt, None -> Implementation (Main.structure, ocaml_blank)
+    | Intf, _       -> Interface      (Main.signature, ocaml_blank)
+    | Impl, _       -> Implementation (Main.structure, ocaml_blank)
 
   let ast =
     (* read the whole file with a buffer ...
@@ -88,8 +89,8 @@ module Start = functor (Main : Final) -> struct
     in
     try
       match entry with
-        Implementation (g, blank) -> `Struct (parse_channel ~filename g blank ch)
-      | Interface (g, blank) -> `Sig (parse_channel ~filename g blank ch)
+      | Implementation (g, blank) -> `Struct (parse_channel ~filename g blank ch)
+      | Interface      (g, blank) -> `Sig    (parse_channel ~filename g blank ch)
     with
     | Decap.Parse_error _ as e ->
        Decap.print_exception e;

@@ -52,6 +52,7 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ast
+open Pa_lexing
 
 let fast = ref false
 let file : string option ref = ref None
@@ -120,75 +121,6 @@ let before_parse_hook () = ()
 let char_litteral : char grammar = declare_grammar "char_litteral"
 let string_litteral : string grammar = declare_grammar "string_litteral"
 let regexp_litteral : string grammar = declare_grammar "regexp_litteral"
-
-(****************************************************************************
- * Things that have to do with comments and things to be ignored            *
- ****************************************************************************)
-
-exception Unclosed_comment of int * int
-
-(*
- * Characters to be ignored are:
- *   - ' ', '\t', '\r', '\n',
- *   - everything between "(*" and "*)" (ocaml-like comments).
- * Remarks on what is allowed inside an ocaml-like comment:
- *   - nested comments,
- *   - single-line string litterals including those containing the substrings
- *     "(*" and or "*)",
- *   - single '"' character.
- *)
-
-let blank str pos =
-  let rec fn lvl state prev (str, pos as cur) =
-    let c,str',pos' = read str pos in
-    let next =str', pos' in
-    (*          Printf.eprintf "%d:%d -> lvl:%d char:%c\n%!" (line_num str) pos lvl c;*)
-    match state, c with
-    | _, '\255' when lvl > 0      -> raise (Unclosed_comment (line_num str, pos))
-    | `Esc , _                    -> fn lvl `Str cur next
-    | `Str , '"'                  -> fn lvl `Ini cur next
-    | `Chr , _                    -> fn lvl `Ini cur next
-    | `Str , '\\'                 -> fn lvl `Esc cur next
-    | `Str , _                    -> fn lvl `Str cur next
-
-    | `StrO(l)    , 'a'..'z'      -> fn lvl (`StrO(c::l)) cur next
-    | `StrO(l)    , '|'           -> fn lvl (`StrI(List.rev l)) cur next
-    | `StrO(_)    , _             -> fn lvl `Ini cur next
-    | `StrI(l)    , '|'           -> fn lvl (`StrC(l,l)) cur next
-    | `StrC(l',(a::l)) , a' when a = a'-> fn lvl (`StrC(l',l)) cur next
-    | `StrC(_,[])   , '}'         -> fn lvl `Ini cur next
-    | `StrC(l',_)    , _          -> fn lvl (`StrI(l')) cur next
-
-    | _    , '"' when lvl > 0     -> fn lvl `Str cur next
-    | _    , '\'' when lvl > 0    -> fn lvl `Chr cur next
-    | _    , '{' when lvl > 0     -> fn lvl (`StrO []) cur next
-
-    | `Ini , '('                  -> fn lvl `Opn cur next
-    (*#if version >= 4.02.2*)
-(*    | `Opn , '*' when lvl = 0     -> fn (lvl + 1) `Doc cur next
-    | `Opn , '*'                  -> fn (lvl + 1) `Ini cur next
-    | `Doc , '*'                  -> fn lvl `Doc2 cur next
-    | `Doc , _                    -> fn lvl `Ini cur next
-    | `Doc2, '*'                  -> fn lvl `Cls cur next
-    | `Doc2, ')'                  -> fn (lvl - 1) `Ini cur next
-      | `Doc2, _                    -> ...*)
-    (*#else*)
-    | `Opn , '*'                  -> fn (lvl + 1) `Ini cur next
-    (*#endif*)
-    | `Opn , _   when lvl = 0     -> prev
-    | `Opn , _                    -> fn lvl `Ini cur next
-    | `Ini , '*' when lvl = 0     -> cur
-    | `Ini , '*'                  -> fn lvl `Cls cur next
-    | `Cls , '*'                  -> fn lvl `Cls cur next
-    | `Cls , ')'                  -> fn (lvl - 1) `Ini cur next
-    | `Cls , _                    -> fn lvl `Ini cur next
-
-    | _    , (' '|'\t'|'\r'|'\n') -> fn lvl `Ini cur next
-    | _    , _ when lvl > 0       -> fn lvl `Ini cur next
-    | _    , _                    -> cur
-  in fn 0 `Ini (str, pos) (str, pos)
-
-(****************************************************************************)
 
 type expression_prio =
   | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append
@@ -452,7 +384,7 @@ let loc_none =
 
 let parse_string' g e' =
   try
-    parse_string g blank e'
+    parse_string g ocaml_blank e'
   with
     e ->
       Printf.eprintf "Error in quotation: %s\n%!" e';
@@ -461,51 +393,11 @@ let parse_string' g e' =
 (****************************************************************************
  * Basic syntactic elements (identifiers and litterals)                      *
  ****************************************************************************)
-let par_re s = "\\(" ^ s ^ "\\)"
 let union_re l =
-  let l = List.map (fun s -> par_re s ) l in
+  let l = List.map (fun s -> "\\(" ^ s ^ "\\)") l in
   String.concat "\\|" l
 
-(* Identifiers *)
-(* NOTE "_" is not a valid identifier, we handle it separately *)
-let lident_re = "\\(\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)\\)"
-let cident_re = "[A-Z][a-zA-Z0-9_']*"
-let ident_re = "[A-Za-z_][a-zA-Z0-9_']*"
-
-let make_reserved l =
-  let reserved = ref (List.sort (fun s s' -> - compare s s') l) in
-  let re_from_list l = Str.regexp (String.concat "\\|" (List.map (fun s -> "\\(" ^ Str.quote s ^ "\\)") l)) in
-  let re = ref (re_from_list !reserved) in
-  (fun s -> Str.string_match !re s 0 && Str.match_end () = String.length s),
-  (fun s -> reserved := List.sort (fun s s' -> - compare s s') (s ::! reserved); re := re_from_list !reserved)
-
-let is_reserved_id, add_reserved_id =
-  make_reserved [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ; "do"
-			   ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ; "false"
-			   ; "for" ; "function" ; "functor" ; "fun" ; "if" ; "in" ; "include"
-			   ; "inherit" ; "initializer" ; "land" ; "lazy" ; "let" ; "lor" ; "lsl"
-			   ; "lsr" ; "lxor" ; "match" ; "method" ; "mod" ; "module" ; "mutable" ; "new"
-			   ; "object" ; "of" ; "open" ; "or" ; "private" ; "rec" ; "sig" ; "struct"
-			   ; "then" ; "to" ; "true" ; "try" ; "type" ; "val" ; "virtual" ; "when"
-			   ; "while" ; "with" ]
-
-let ident : string grammar = regexp ~name:"ident" ident_re (fun fn -> let id = fn 0 in if is_reserved_id id then give_up (id^" is a keyword..."); id)
-(*  | dol:CHR('$') - STR("ident") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-let capitalized_ident : string grammar = regexp ~name:"capitalized_ident" cident_re (fun fn -> fn 0)
-(*  | dol:CHR('$') - STR("uid") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-let lowercase_ident : string grammar = regexp ~name:"lowercase_ident" lident_re (fun fn -> let id = fn 0 in if is_reserved_id id then give_up (id^" is a keyword..."); id)
-(*  | dol:CHR('$') - STR("lid") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-(* Prefix and infix symbols *)
-let is_reserved_symb, add_reserved_symb = make_reserved  [ "#" ; "'" ; "(" ; ")" ; "," ; "->" ; "." ; ".." ; ":" ; ":>" ; ";" ; ";;" ; "<-"
-  ; ">]" ; ">}" ; "?" ; "[" ; "[<" ; "[>" ; "[|" ; "]" ; "_" ; "`" ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~" ]
-
 let parser arrow_re = ''\(->\)\|\(→\)''
-
-let not_special =
-  not_in_charset (List.fold_left add Charset.empty_charset ['!';'$';'%';'&';'*';'+';'.';'/';':';'<';'=';'>';'?';'@';'^';'|';'~';'-'])
 
 let infix_symb_re prio =
   match prio with
@@ -547,97 +439,28 @@ let parser prefix_symbol prio =
     sym:RE(prefix_symb_re prio) - not_special -> (if is_reserved_symb sym || sym = "!=" then give_up ("The prefix symbol "^sym^"is reserved..."); sym)
 
 (****************************************************************************
- * Several shortcuts for flags and keywords                                 *
+ * Several flags                                                            *
  ****************************************************************************)
-let key_word s =
-   let len_s = String.length s in
-   assert(len_s > 0);
-   black_box
-     (fun str pos ->
-      let str' = ref str in
-      let pos' = ref pos in
-      for i = 0 to len_s - 1 do
-	let c, _str', _pos' = read !str' !pos' in
-	if c <> s.[i] then give_up ("The keyword "^s^" was expected...");
-	str' := _str'; pos' := _pos'
-      done;
-      let str' = !str' and pos' = !pos' in
-      let c,_,_ = read str' pos' in
-      match c with
-	'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> give_up ("The keyword "^s^" was expected...")
-	| _ -> (), str', pos')
-     (Charset.singleton s.[0]) false s
 
-let mutable_kw = key_word "mutable"
 let parser mutable_flag =
   | mutable_kw -> Mutable
   | EMPTY      -> Immutable
 
-let private_kw = key_word "private"
 let parser private_flag =
   | private_kw -> Private
   | EMPTY      -> Public
 
-let virtual_kw = key_word "virtual"
 let parser virtual_flag =
   | virtual_kw -> Virtual
   | EMPTY      -> Concrete
 
-let rec_kw = key_word "rec"
 let parser rec_flag =
   | rec_kw -> Recursive
   | EMPTY  -> Nonrecursive
 
-let to_kw = key_word "to"
-let downto_kw = key_word "downto"
 let parser downto_flag =
   | to_kw     -> Upto
   | downto_kw -> Downto
-
-let joker_kw = key_word "_"
-let method_kw = key_word "method"
-let object_kw = key_word "object"
-let class_kw = key_word "class"
-let inherit_kw = key_word "inherit"
-let as_kw = key_word "as"
-let of_kw = key_word "of"
-let module_kw = key_word "module"
-let open_kw = key_word "open"
-let include_kw = key_word "include"
-let type_kw = key_word "type"
-let val_kw = key_word "val"
-let external_kw = key_word "external"
-let constraint_kw = key_word "constraint"
-let begin_kw = key_word "begin"
-let end_kw = key_word "end"
-let and_kw = key_word "and"
-let true_kw = key_word "true"
-let false_kw = key_word "false"
-let exception_kw = key_word "exception"
-let when_kw = key_word "when"
-let fun_kw = key_word "fun"
-let function_kw = key_word "function"
-let let_kw = key_word "let"
-let in_kw = key_word "in"
-let initializer_kw = key_word "initializer"
-let with_kw = key_word "with"
-let while_kw = key_word "while"
-let for_kw = key_word "for"
-let do_kw = key_word "do"
-let done_kw = key_word "done"
-let new_kw = key_word "new"
-let assert_kw = key_word "assert"
-let if_kw = key_word "if"
-let then_kw = key_word "then"
-let else_kw = key_word "else"
-let try_kw = key_word "try"
-let match_kw = key_word "match"
-let struct_kw = key_word "struct"
-let functor_kw = key_word "functor"
-let sig_kw = key_word "sig"
-let lazy_kw = key_word "lazy"
-let parser_kw = key_word "parser"
-let cached_kw = key_word "cached"
 
 (* Integer litterals *)
 let int_dec_re = "[0-9][0-9_]*[lLn]?"
@@ -662,13 +485,9 @@ let parser integer_litteral =
 #endif
 (*  | dol:CHR('$') - STR("int") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
 
-let parser bool_lit =
-  | false_kw -> "false"
-  | true_kw -> "true"
-(*  | dol:CHR('$') - STR("bool") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e *)
-
 let entry_points : (string * entry_point) list ref
-   = ref [ ".mli", Interface (signature, blank) ;  ".ml", Implementation (structure, blank) ]
+   = ref [ ".mli", Interface (signature, ocaml_blank)
+         ;  ".ml", Implementation (structure, ocaml_blank) ]
 
 end
 
