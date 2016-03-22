@@ -323,7 +323,32 @@ let float_litteral : (string * char option) Decap.grammar =
 
 (* Char litteral. *)
 
-(* TODO *)
+let char_litteral : char Decap.grammar =
+  let char_reg = "[^\\\\\\\']" in
+  let char_dec = "[0-9][0-9][0-9]" in
+  let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
+  let char_esc = "[\\\\\\\"\\\'ntbrs ]" in
+  let escaped =
+    parser
+      | e:RE(char_dec) -> char_of_int (int_of_string e)
+      | e:RE(char_hex) -> char_of_int (int_of_string ("0" ^ e))
+      | e:RE(char_esc) ->
+          begin
+            match e.[0] with
+            | 'n' -> '\n'
+            | 't' -> '\t'
+            | 'b' -> '\b'
+            | 'r' -> '\r'
+            | 's' -> ' '
+            | c   -> c
+          end
+  in
+  let single_char =
+    parser
+      | c:RE(char_reg) -> c.[0]
+      | '\\' e:escaped -> e
+  in
+  parser _:single_quote c:single_char '\''
 
 (* String litteral. *)
 
