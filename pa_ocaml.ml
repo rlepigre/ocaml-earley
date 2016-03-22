@@ -212,50 +212,6 @@ let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
 
 type string_litteral_type = Char | String | Re
 
-let semi_col = black_box
-  (fun str pos ->
-   let c,str',pos' = read str pos in
-   if c = ';' then
-     let c',_,_ = read str' pos' in
-     if c' = ';' then give_up "" (* FIXME *)
-     else (), str', pos'
-   else
-     give_up "" (* FIXME *))
-  (Charset.singleton ';') false (";")
-
-let double_semi_col = black_box
-  (fun str pos ->
-   let c,str',pos' = read str pos in
-   if c = ';' then
-     let c',str',pos' = read str' pos' in
-     if c' <> ';' then give_up "" (* FIXME *)
-     else (), str', pos'
-   else
-     give_up "" (* FIXME *))
-  (Charset.singleton ';') false (";;")
-
-let single_quote = black_box
-  (fun str pos ->
-   let c,str',pos' = read str pos in
-   if c = '\'' then
-     let c',_,_ = read str' pos' in
-     if c' = '\'' then give_up "" (* FIXME *)
-     else (), str', pos'
-   else
-     give_up "" (* FIXME *))
-  (Charset.singleton '\'') false ("'")
-
-let double_quote = black_box
-  (fun str pos ->
-   let c,str',pos' = read str pos in
-   if c = '\'' then
-     let c',str',pos' = read str' pos' in
-     if c' <> '\'' then give_up "" (* FIXME *)
-     else (), str', pos'
-   else
-     give_up "" (* FIXME *))
-  (Charset.singleton '\'') false ("''")
-
 exception Illegal_escape of string
 
 let parser one_char slt =
