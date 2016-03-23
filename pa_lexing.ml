@@ -261,6 +261,9 @@ let parser uident = ''[A-Z][a-zA-Z0-9_']*''
 
 let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
 
+let cs_to_string cs =
+  String.concat "" (List.map (fun c -> String.make 1 c) cs)
+
 let single_char c =
   let s = String.make 1 c in
   let f str pos =
@@ -352,7 +355,7 @@ let char_litteral : char Decap.grammar =
 
 (* String litteral. *)
 
-let quoted_string =
+let quoted_string : (string * string option) Decap.grammar =
   let f buf pos =
     let rec fn st str buf pos =
       let (c, buf', pos') = Input.read buf pos in
@@ -364,7 +367,7 @@ let quoted_string =
       | (`Cnt(l)       , '|'     ) -> fn (`Cls(l,[],l)) str buf' pos'
       | (`Cnt(l)       , '\255'  ) -> Decap.give_up ""
       | (`Cnt(_)       , _       ) -> fn st (c::str) buf' pos'
-      | (`Cls([]  ,_,_), '}'     ) -> (str, buf', pos') (* Success. *)
+      | (`Cls([]  ,_,l), '}'     ) -> (str, l, buf', pos') (* Success. *)
       | (`Cls([]  ,_,_), '\255'  ) -> Decap.give_up ""
       | (`Cls([]  ,b,l), _       ) -> fn (`Cnt(l)) (List.append b str) buf' pos'
       | (`Cls(_::_,_,_), '\255'  ) -> Decap.give_up ""
@@ -373,13 +376,20 @@ let quoted_string =
           else fn (`Cnt(l)) (List.append b str) buf' pos'
       | (_           , _       ) -> Decap.give_up ""
     in
-    let (cs, buf, pos) = fn `Ini [] buf pos in
-    let s = String.concat "" (List.map (fun c -> String.make 1 c) cs) in
-    (s, buf, pos)
+    let (cs, id, buf, pos) = fn `Ini [] buf pos in
+    let r = (cs_to_string cs, Some (cs_to_string id)) in
+    (r, buf, pos)
   in
-  Decap.black_box f (Charset.singleton '{') false
+  Decap.black_box f (Charset.singleton '{') false "quoted_string"
 
-(* TODO *)
+let normal_string : string Decap.grammar =
+  parser
+    | '"' - '"' -> assert false (* TODO *)
+
+let string_litteral : (string * string option) Decap.grammar =
+  parser
+    | s:normal_string -> (s, None)
+    | quoted_string
 
 (* Regexp litteral. *)
 
