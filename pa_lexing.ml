@@ -345,12 +345,39 @@ let char_litteral : char Decap.grammar =
   in
   let single_char =
     parser
-      | c:RE(char_reg) -> c.[0]
-      | '\\' e:escaped -> e
+      | c:RE(char_reg)   -> c.[0]
+      | '\\' - e:escaped -> e
   in
-  parser _:single_quote c:single_char '\''
+  parser _:single_quote - c:single_char - '\''
 
 (* String litteral. *)
+
+let quoted_string =
+  let f buf pos =
+    let rec fn st str buf pos =
+      let (c, buf', pos') = Input.read buf pos in
+      match (st, c) with
+      | (`Ini          , '{'     ) -> fn (`Opn([])) str buf' pos'
+      | (`Opn(l)       , 'a'..'z')
+      | (`Opn(l)       , '_'     ) -> fn (`Opn(c::l)) str buf' pos'
+      | (`Opn(l)       , '|'     ) -> fn (`Cnt(List.rev l)) str buf' pos'
+      | (`Cnt(l)       , '|'     ) -> fn (`Cls(l,[],l)) str buf' pos'
+      | (`Cnt(l)       , '\255'  ) -> Decap.give_up ""
+      | (`Cnt(_)       , _       ) -> fn st (c::str) buf' pos'
+      | (`Cls([]  ,_,_), '}'     ) -> (str, buf', pos') (* Success. *)
+      | (`Cls([]  ,_,_), '\255'  ) -> Decap.give_up ""
+      | (`Cls([]  ,b,l), _       ) -> fn (`Cnt(l)) (List.append b str) buf' pos'
+      | (`Cls(_::_,_,_), '\255'  ) -> Decap.give_up ""
+      | (`Cls(x::y,b,l), _       ) ->
+          if x = c then fn (`Cls(y,x::b,l)) str buf' pos'
+          else fn (`Cnt(l)) (List.append b str) buf' pos'
+      | (_           , _       ) -> Decap.give_up ""
+    in
+    let (cs, buf, pos) = fn `Ini [] buf pos in
+    let s = String.concat "" (List.map (fun c -> String.make 1 c) cs) in
+    (s, buf, pos)
+  in
+  Decap.black_box f (Charset.singleton '{') false
 
 (* TODO *)
 
@@ -395,14 +422,6 @@ let parser one_char slt =
                            let str' = String.concat "" ["0x"; str] in
                            let i = Scanf.sscanf str' "%i" (fun i -> i) in
                            char_of_int i)
-
-let _ = set_grammar char_litteral (
-  parser
-    CHR('\'') - r:(change_layout (
-      parser c:(one_char Char) CHR('\'') -> c
-    ) no_blank) -> r)
-(*  | dol:CHR('$') - STR("char") CHR(':') e:(expression_lvl App) - CHR('$') ->
-    Quote.make_antiquotation e*)
 
 (* String litterals *)
 let interspace = "[ \t]*"
