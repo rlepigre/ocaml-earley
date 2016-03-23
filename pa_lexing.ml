@@ -326,30 +326,30 @@ let float_litteral : (string * char option) Decap.grammar =
 
 (* Char litteral. *)
 
-let char_litteral : char Decap.grammar =
-  let char_reg = "[^\\\\\\\']" in
+let escaped_char : char Decap.grammar =
   let char_dec = "[0-9][0-9][0-9]" in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
   let char_esc = "[\\\\\\\"\\\'ntbrs ]" in
-  let escaped =
-    parser
-      | e:RE(char_dec) -> char_of_int (int_of_string e)
-      | e:RE(char_hex) -> char_of_int (int_of_string ("0" ^ e))
-      | e:RE(char_esc) ->
-          begin
-            match e.[0] with
-            | 'n' -> '\n'
-            | 't' -> '\t'
-            | 'b' -> '\b'
-            | 'r' -> '\r'
-            | 's' -> ' '
-            | c   -> c
-          end
-  in
+  parser
+    | e:RE(char_dec) -> char_of_int (int_of_string e)
+    | e:RE(char_hex) -> char_of_int (int_of_string ("0" ^ e))
+    | e:RE(char_esc) ->
+        begin
+          match e.[0] with
+          | 'n' -> '\n'
+          | 't' -> '\t'
+          | 'b' -> '\b'
+          | 'r' -> '\r'
+          | 's' -> ' '
+          | c   -> c
+        end
+
+let char_litteral : char Decap.grammar =
+  let char_reg = "[^\\\\\\\']" in
   let single_char =
     parser
-      | c:RE(char_reg)   -> c.[0]
-      | '\\' - e:escaped -> e
+      | c:RE(char_reg)        -> c.[0]
+      | '\\' - e:escaped_char -> e
   in
   parser _:single_quote - c:single_char - '\''
 
@@ -383,8 +383,16 @@ let quoted_string : (string * string option) Decap.grammar =
   Decap.black_box f (Charset.singleton '{') false "quoted_string"
 
 let normal_string : string Decap.grammar =
-  parser
-    | '"' - '"' -> assert false (* TODO *)
+  let char_reg = "[^\\\\\\\"]" in
+  let single_char = parser
+    | c:RE(char_reg)        -> c.[0]
+    | '\\' - e:{'\n' -> Decap.give_up "" | e:escaped_char} -> e
+  in
+  let internal = parser
+    cs:single_char* css:{_:RE("[\\][\n][ \t]*") single_char*}* ->
+      cs_to_string (List.flatten (cs :: css))
+  in
+  parser '"' - (Decap.change_layout internal Decap.no_blank) - '"'
 
 let string_litteral : (string * string option) Decap.grammar =
   parser
@@ -393,103 +401,21 @@ let string_litteral : (string * string option) Decap.grammar =
 
 (* Regexp litteral. *)
 
-(* TODO *)
-
-
-
-(*
-let char_regular = "[^\\']"
-let string_regular = "[^\\\"]"
-let re_regular = "[^']"
-let char_escaped = "[\\\\][\\\\\\\"\\\'ntbrs ]"
-let re_escaped = "[\\\\][ntbrs]"
-let char_dec     = "[\\\\][0-9][0-9][0-9]"
-let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
-
-type string_litteral_type = Char | String | Re
-
-exception Illegal_escape of string
-
-let parser one_char slt =
-  | '\n' -> '\n'
-  | single_quote when slt = Re -> '\''
-  | c:RE(if slt = Re then re_escaped else char_escaped) ->
-      (match c.[1] with
-       | 'n' -> '\n'
-       | 't' -> '\t'
-       | 'b' -> '\b'
-       | 'r' -> '\r'
-       | 's' -> ' '
-       | c   -> c)
-  | c:RE(match slt with Char -> char_regular | String -> string_regular | Re -> re_regular)
-      -> c.[0]
-  | c:RE(char_dec)     -> (let str = String.sub c 1 3 in
-                           let i = Scanf.sscanf str "%i" (fun i -> i) in
-                           if i > 255 then
-                             raise (Illegal_escape str)
-                           else char_of_int i)
-  | c:RE(char_hex)     -> (let str = String.sub c 2 2 in
-                           let str' = String.concat "" ["0x"; str] in
-                           let i = Scanf.sscanf str' "%i" (fun i -> i) in
-                           char_of_int i)
-
-(* String litterals *)
-let interspace = "[ \t]*"
-
-  let char_list_to_string lc =
-    let len = List.length lc in
-#ifversion >= 4.02
-    let str = Bytes.create len in
-#else
-    let str = String.create len in
-#endif
-    let ptr = ref lc in
-    for i = 0 to len - 1 do
-      match !ptr with
-	[] -> assert false
-      | x::l ->
-#ifversion >= 4.02
-	 Bytes.unsafe_set str i x;
-#else
-	 String.unsafe_set str i x;
-#endif
-	 ptr := l
-    done;
-#ifversion >= 4.02
-    Bytes.unsafe_to_string str
-#else
-    str
-#endif
-
-let parser in_string =
-      lc:(one_char String)*
-        lcs:(parser '\\' '\n' RE(interspace) lc:(one_char String)* -> lc)*
-        '"' -> char_list_to_string (List.flatten (lc::lcs))
-
-let _ = set_grammar string_litteral (
-  parser
-  | '"' - r:(change_layout in_string no_blank) -> let r = r in r)
-
-(*  | CHR('{') - r:(change_layout (
-	parser id:RE("[a-z]*") CHR('|') =>>
-	  let string_litteral_suit = declare_grammar "string_litteral_suit" in
-	  let _ = set_grammar string_litteral_suit (
-	    parser
-	    | CHR('|') STR(id) CHR('}') -> []
-	    | c:ANY r:string_litteral_suit -> c::r)
-	  in
-    r:(string_litteral_suit) -> char_list_to_string r) no_blank) -> r) FIXME .... *)
-
-(*  | dol:CHR('$') - STR("string") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-
-let _ = set_grammar regexp_litteral (
-  parser
-  | double_quote - r:(change_layout (
-    parser
-      lc:(one_char Re)*
-        lcs:(parser '\\' '\n' RE(interspace) lc:(one_char Re)* -> lc)*
-        "''" -> char_list_to_string (List.flatten (lc::lcs))
-    ) no_blank) -> r)
-
-*)
+let regexp_litteral : string Decap.grammar =
+  let char_reg = "[^']" in
+  let char_esc = "[ntbrs]" in
+  let single_char = parser
+    | c:RE(char_reg)      -> c.[0]
+    | '\\' e:RE(char_esc) ->
+        begin
+          match e.[0] with
+          | 'n' -> '\n'
+          | 't' -> '\t'
+          | 'b' -> '\b'
+          | 'r' -> '\r'
+          | 's' -> ' '
+          | c   -> c
+        end
+  in
+  let internal = parser cs:single_char* -> cs_to_string cs in
+  parser _:double_quote - (Decap.change_layout internal Decap.no_blank) - "''"
