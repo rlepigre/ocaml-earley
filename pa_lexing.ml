@@ -146,7 +146,7 @@ let test_end_kw =
   Decap.test ~name:"test_end_kw" Charset.full_charset f
 
 let key_word s =
-  if String.length s <= 0 then 
+  if String.length s <= 0 then
     invalid_arg "Pa_lexing.key_word (empty keyword)";
   parser STR(s) - test_end_kw -> ()
 
@@ -313,7 +313,7 @@ let int_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)?
+  parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)? _:relax
 
 (* Float litteral. *)
 let float_litteral : (string * char option) Decap.grammar =
@@ -322,7 +322,7 @@ let float_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)?
+  parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)? _:relax
 
 (* Char litteral. *)
 

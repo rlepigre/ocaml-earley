@@ -844,6 +844,9 @@ let not_in_charset : ?name:string -> charset -> unit grammar
     in
     test ~name (Charset.complement cs) fn
 
+let relax : unit grammar =
+  test Charset.full_charset (fun _ _ -> (),true)
+
 let any : char grammar
   = let fn buf pos =
       let c', buf', pos' = read buf pos in

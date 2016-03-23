@@ -89,10 +89,10 @@ $(BOOTDIR)/quote.cmo: $(BOOTDIR)/quote.ml pa_ast.cmi
 $(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml pa_ast.cmx pa_ast.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
 
-pa_lexing.cmo: pa_lexing.ml input.cmi
+pa_lexing.cmo: pa_lexing.ml input.cmi decap.cmi
 	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
 
-pa_lexing.cmx: pa_lexing.ml input.cmi
+pa_lexing.cmx: pa_lexing.ml input.cmi decap.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
 
 pa_ocaml_prelude.cmo: pa_ocaml_prelude.ml charset.cmi input.cmi decap.cmi pa_ast.cmi pa_lexing.cmi

@@ -311,6 +311,10 @@ val position : 'a grammar -> (string * int * int * int * int * 'a) grammar
 
 val test : ?name:string -> Charset.t -> (buffer -> int -> ('a * bool)) -> 'a grammar
 
+(* an always succesful test. Useful to recover blank parsing in a rule like
+   x - y? which does not parse blank after the rule is y parses nothing.
+   x - y? relax works as expected *)
+val relax : unit grammar
 
 (* [lists g] lists all the possible parse-trees produced by grammar [g].
   The parse-trees do not need to correspond to the same initial segment of
