@@ -394,6 +394,7 @@ val blank_grammar : unit grammar -> blank -> buffer -> int -> buffer * int
 
 (* developper only *)
 val debug_lvl : int ref
+
 val expected : string -> 'a
 type info = bool * Charset.t
 val grammar_info : 'a grammar -> info

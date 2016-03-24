@@ -3,6 +3,7 @@ open Parsetree
 open Longident
 open Pa_ocaml_prelude
 open Pa_ast
+open Pa_lexing
 type action =
   | Default
   | Normal of expression
@@ -177,7 +178,7 @@ module Ext(In:Extension) =
     let glr_binding = Decap.declare_grammar "glr_binding"
     let _ =
       Decap.set_grammar glr_binding
-        (Decap.fsequence lowercase_ident
+        (Decap.fsequence lident
            (Decap.fsequence
               (Decap.option None
                  (Decap.apply (fun x  -> Some x) (pattern_lvl AsPat)))

@@ -65,7 +65,6 @@ decap.cmi: charset.cmi input.cmi ahash.cmi fixpoint.cmi
 decap.cmo: charset.cmi input.cmi ahash.cmi fixpoint.cmi
 
 decap.cmx: charset.cmx charset.cmi input.cmx input.cmi ahash.cmi ahash.cmx fixpoint.cmx
-decap.cmx: OCAMLFLAGS=-noassert
 
 decap.cmxa: charset.cmx input.cmx ahash.cmx fixpoint.cmx decap.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^

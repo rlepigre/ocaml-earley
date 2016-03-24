@@ -2,6 +2,7 @@ open Pa_ocaml_prelude
 open Pa_ocaml
 open Decap
 open Format
+open Pa_lexing
 module type Final  =
   sig
     include Extension
@@ -25,9 +26,9 @@ module Start(Main:Final) =
             | [] ->
                 (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
           fn (!Main.entry_points)
-      | (FromExt ,None ) -> Implementation (Main.structure, blank)
-      | (Intf ,_) -> Interface (Main.signature, blank)
-      | (Impl ,_) -> Implementation (Main.structure, blank)
+      | (FromExt ,None ) -> Implementation (Main.structure, ocaml_blank)
+      | (Intf ,_) -> Interface (Main.signature, ocaml_blank)
+      | (Impl ,_) -> Implementation (Main.structure, ocaml_blank)
     let ast =
       let (filename,ch) =
         match !file with

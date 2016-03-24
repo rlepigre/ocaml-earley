@@ -90,40 +90,43 @@ let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
 
 let eq_closure : type a b. a -> b -> bool =
   fun f g ->
-  let open Obj in
+    let open Obj in
+    let adone = ref [] in
     let rec fneq f g =
       f == g ||
 	match is_int f, is_int g with
 	| true, true -> f = g
 	| false, true | true, false -> false
 	| false, false ->
+	   if !debug_lvl > 10 then Printf.eprintf "*%!";
 	   let ft = tag f and gt = tag g in
-	   if ft = forward_tag then
-	     fneq (field f 0) g
-	   else if gt = forward_tag then
-	     fneq f (field g 0)
+	   if ft = forward_tag then (
+	     if !debug_lvl > 10 then Printf.eprintf "#%!";
+	     fneq (field f 0) g)
+	   else if gt = forward_tag then (
+	     if !debug_lvl > 10 then Printf.eprintf "#%!";
+	     fneq f (field g 0))
 	   else if ft = custom_tag || gt = custom_tag then f = g
 	   else if ft <> gt then false
-	   else (*Printf.eprintf " %d %!" ft;*)
+	   else (if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;
 	   if ft = string_tag || ft = double_tag || ft = double_array_tag then f = g
-	   else if ft = abstract_tag || ft = out_of_heap_tag || ft = unaligned_tag then f == g
+	   else if ft = abstract_tag || ft = out_of_heap_tag || ft = no_scan_tag then f == g
 	   else if ft =  infix_tag then (
 	     Printf.eprintf "INFIX TAG\n%!"; (* FIXME *)
-	     size f == size g &&
-	       let rec gn i =
-		 if i < 0 then true
-		 else fneq (field f i) (field g i) && gn (i - 1)
-	       in gn (size f - 1))
+	     assert false;)
 	   else
 	       size f == size g &&
 	       let rec gn i =
 		 if i < 0 then true
 		 else fneq (field f i) (field g i) && gn (i - 1)
-	       in gn (size f - 1)
-    in fneq (repr f) (repr g)
+	       in
+	       List.exists (fun (f',g') -> f == f' && g == g') !adone ||
+		(List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
+		 (adone := (f,g)::!adone;
+		  let r = gn (size f - 1) in
+		  r)))
 
-let (====) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
-  if eq_closure r1 r2 then Obj.magic Eq else Neq
+    in fneq (repr f) (repr g)
 
 let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
 
@@ -132,9 +135,7 @@ let eq_pos (buf,pos) (buf',pos') = eq_buf buf buf' && pos = pos'
 let eq_D (D {debut; rest; full; ignb; stack})
          (D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'}) =
   eq_pos debut d' && eq rest r' && eq full fu' && ignb=ignb' && (assert (eq stack stack'); true)
-let strong_eq_D (D {debut; rest; full; ignb; stack; acts})
-         (D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'; acts=acts'}) =
-  eq_pos debut d' && eq rest r' && eq full fu' && ignb=ignb' && (assert (eq stack stack'); eq_closure acts acts')
+
 let eq_C c1 c2 = eq c1 c2 ||
   match c1, c2 with
     (C {debut; rest; full; ignb; stack; acts},
@@ -301,7 +302,7 @@ let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -
   fun r dlr f ->
     try match find r dlr with
       P(r',ptr,g) ->
-	match r ==== r' with
+	match r === r' with
 	| Eq -> g := (let g = !g in (fun el -> f el; g el)); List.iter f !ptr;
 	| _ -> assert false
     with Not_found ->
@@ -311,7 +312,7 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
   fun r el dlr ->
     try match find r dlr with
       P(r',ptr,g) ->
-	match r ==== r' with
+	match r === r' with
 	| Eq ->
 	   if not (List.exists (eq_C el) !ptr) then (
 	     if !debug_lvl > 3 then
@@ -327,7 +328,7 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
     try match find r dlr with
       P(r',ptr,g) ->
-	match r ==== r' with
+	match r === r' with
 	| Eq -> ptr
 	| _ -> assert false
     with Not_found ->
@@ -389,7 +390,7 @@ let add : string -> 'a final -> 'a pos_tbl -> bool =
 	 (match
            eq_pos debut d', rest === r', full === fu', ignb=ignb', acts, acts' with
            | true, Eq, Eq, true, act, acts' ->
-	      assert(stack == stack');
+	      assert(stack == stack' || (Printf.eprintf "add %s assert failure %a %a \n%!" info print_final element print_final e; false));
 	   let acts0 = merge_acts acts acts' in
 	   if not (acts0 == acts) then (
 	     if true || !debug_lvl > 1 then
@@ -494,7 +495,7 @@ let pop_final : type a. a dep_pair_tbl -> a final -> a action -> unit =
        match rule with
        | Next(_,_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest,_) ->
 	  let is_eq = eq rule full in
-	 (match rest, is_eq with
+	 (match rest, true || is_eq with
 	 | Empty (g,_), false ->
 	    if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
 	    iter_rules (fun r ->
@@ -661,13 +662,6 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
 	  List.iter (fun s -> ignore (add "L" s elements)) l;
 	end
     done;
-    (* one may need a last prediction_production to reduce the final rule in the stack *)
-    let buf', pos' = blank !buf !pos in
-    let c,_,_ = Input.read buf' pos' in
-    let c',_,_ = Input.read !buf !pos in
-    if !debug_lvl > 0 then Printf.eprintf "final parse_id = %d, line = %d, pos = %d, taille =%d, %C, %C\n%!"
-	 parse_id (line_num !buf) !pos (taille_tables elements !forward) c c';
-    prediction_production buf' pos' !buf !pos c c' elements;
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let rec fn : type a.a list -> a final list -> a list = fun acc -> function
       | [] -> acc

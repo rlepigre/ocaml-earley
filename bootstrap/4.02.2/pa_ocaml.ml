@@ -6,6 +6,7 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ast
+open Pa_lexing
 include Pa_ocaml_prelude
 module Make(Initial:Extension) =
   struct
@@ -109,36 +110,6 @@ module Make(Initial:Extension) =
       | Char
       | String
       | Re
-    let semi_col =
-      black_box
-        (fun str  ->
-           fun pos  ->
-             let (c,str',pos') = read str pos in
-             if c = ';'
-             then
-               let (c',_,_) = read str' pos' in
-               (if c' = ';' then give_up "" else ((), str', pos'))
-             else give_up "") (Charset.singleton ';') false ";"
-    let double_semi_col =
-      black_box
-        (fun str  ->
-           fun pos  ->
-             let (c,str',pos') = read str pos in
-             if c = ';'
-             then
-               let (c',str',pos') = read str' pos' in
-               (if c' <> ';' then give_up "" else ((), str', pos'))
-             else give_up "") (Charset.singleton ';') false ";;"
-    let single_quote =
-      black_box
-        (fun str  ->
-           fun pos  ->
-             let (c,str',pos') = read str pos in
-             if c = '\''
-             then
-               let (c',_,_) = read str' pos' in
-               (if c' = '\'' then give_up "" else ((), str', pos'))
-             else give_up "") (Charset.singleton '\'') false "'"
     exception Illegal_escape of string
     let (one_char,one_char__set__grammar) = Decap.grammar_family "one_char"
     let _ =
@@ -236,7 +207,7 @@ module Make(Initial:Extension) =
            (fun _  -> fun r  -> let r = r in r))
     let _ =
       set_grammar regexp_litteral
-        (Decap.sequence (Decap.ignore_next_blank (Decap.string "''" "''"))
+        (Decap.sequence (Decap.ignore_next_blank double_quote)
            (change_layout
               (Decap.fsequence
                  (Decap.apply List.rev
@@ -264,7 +235,7 @@ module Make(Initial:Extension) =
                        fun _  ->
                          fun lc  ->
                            char_list_to_string (List.flatten (lc :: lcs)))))
-              no_blank) (fun _  -> fun r  -> r))
+              no_blank) (fun _default_0  -> fun r  -> r))
     type tree =
       | Node of tree* tree
       | Leaf of string
@@ -276,7 +247,7 @@ module Make(Initial:Extension) =
           | Leaf s -> Buffer.add_string b s
           | Node (a,b) -> (fn a; fn b) in
         fn t; Buffer.contents b
-    let label_name = lowercase_ident
+    let label_name = lident
     let no_colon =
       black_box
         (fun str  ->
@@ -299,17 +270,15 @@ module Make(Initial:Extension) =
     let ty_label = Decap.declare_grammar "ty_label"
     let _ =
       Decap.set_grammar ty_label
-        (Decap.sequence (Decap.ignore_next_blank (Decap.char '~' '~'))
-           (Decap.regexp (lident_re ^ "[:]") (fun groupe  -> groupe 0))
-           (fun _  ->
-              fun s  -> labelled (String.sub s 0 ((String.length s) - 1))))
+        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '~' '~'))
+           (Decap.sequence (Decap.ignore_next_blank lident)
+              (Decap.char ':' ':') (fun s  -> fun _  -> fun _  -> labelled s)))
     let ty_opt_label = Decap.declare_grammar "ty_opt_label"
     let _ =
       Decap.set_grammar ty_opt_label
-        (Decap.sequence (Decap.ignore_next_blank (Decap.char '?' '?'))
-           (Decap.regexp (lident_re ^ "[:]") (fun groupe  -> groupe 0))
-           (fun _  ->
-              fun s  -> optional (String.sub s 0 ((String.length s) - 1))))
+        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '?' '?'))
+           (Decap.sequence (Decap.ignore_next_blank lident)
+              (Decap.char ':' ':') (fun s  -> fun _  -> fun _  -> optional s)))
     let maybe_opt_label = Decap.declare_grammar "maybe_opt_label"
     let _ =
       Decap.set_grammar maybe_opt_label
@@ -329,22 +298,22 @@ module Make(Initial:Extension) =
     let _ =
       Decap.set_grammar value_name
         (Decap.alternatives
-           [lowercase_ident;
+           [lident;
            Decap.fsequence (Decap.char '(' '(')
              (Decap.sequence operator_name (Decap.char ')' ')')
                 (fun op  -> fun _  -> fun _  -> op))])
-    let constr_name = capitalized_ident
+    let constr_name = uident
     let tag_name = Decap.declare_grammar "tag_name"
     let _ =
       Decap.set_grammar tag_name
         (Decap.sequence (Decap.string "`" "`") ident (fun _  -> fun c  -> c))
-    let typeconstr_name = lowercase_ident
-    let field_name = lowercase_ident
-    let module_name = capitalized_ident
+    let typeconstr_name = lident
+    let field_name = lident
+    let module_name = uident
     let modtype_name = ident
-    let class_name = lowercase_ident
-    let inst_var_name = lowercase_ident
-    let method_name = lowercase_ident
+    let class_name = lident
+    let inst_var_name = lident
+    let method_name = lident
     let (module_path_gen,set_module_path_gen) =
       grammar_family "module_path_gen"
     let (module_path_suit,set_module_path_suit) =
@@ -480,14 +449,11 @@ module Make(Initial:Extension) =
     let attr_id = Decap.declare_grammar "attr_id"
     let _ =
       Decap.set_grammar attr_id
-        (Decap.sequence_position
-           (Decap.regexp ~name:"ident" ident_re (fun groupe  -> groupe 0))
+        (Decap.sequence_position ident
            (Decap.apply List.rev
               (Decap.fixpoint []
                  (Decap.apply (fun x  -> fun l  -> x :: l)
-                    (Decap.sequence (Decap.char '.' '.')
-                       (Decap.regexp ~name:"ident" ident_re
-                          (fun groupe  -> groupe 0))
+                    (Decap.sequence (Decap.char '.' '.') ident
                        (fun _  -> fun id  -> id)))))
            (fun id  ->
               fun l  ->
@@ -2717,7 +2683,7 @@ module Make(Initial:Extension) =
                                                                (Decap.ignore_next_blank
                                                                   (Decap.char
                                                                     '$' '$'))
-                                                               capitalized_ident
+                                                               uident
                                                                (fun _  ->
                                                                   fun c  ->
                                                                     try
@@ -2729,7 +2695,8 @@ module Make(Initial:Extension) =
                                                                     "ENV:" ^
                                                                     c)
                                                                     pattern
-                                                                    blank str
+                                                                    ocaml_blank
+                                                                    str
                                                                     with
                                                                     | 
                                                                     Not_found
@@ -3701,7 +3668,7 @@ module Make(Initial:Extension) =
            (Decap.apply (fun x  -> Some x)
               (Decap.sequence module_path (Decap.string "." ".")
                  (fun m  -> fun _  -> m))))
-        (Decap.alternatives [capitalized_ident; bool_lit])
+        (Decap.alternatives [uident; bool_lit])
         (fun m  ->
            fun id  ->
              match m with | None  -> Lident id | Some m -> Ldot (m, id))
@@ -3753,8 +3720,7 @@ module Make(Initial:Extension) =
                               fun pos  ->
                                 fun str'  ->
                                   fun pos'  ->
-                                    ((locate str pos str' pos'), x))
-                         lowercase_ident)
+                                    ((locate str pos str' pos'), x)) lident)
                       (Decap.sequence
                          (Decap.option None
                             (Decap.apply (fun x  -> Some x)
@@ -3813,8 +3779,7 @@ module Make(Initial:Extension) =
                               fun pos  ->
                                 fun str'  ->
                                   fun pos'  ->
-                                    ((locate str pos str' pos'), x))
-                         lowercase_ident)
+                                    ((locate str pos str' pos'), x)) lident)
                       (Decap.fsequence
                          (Decap.apply_position
                             (fun x  ->
@@ -4216,8 +4181,7 @@ module Make(Initial:Extension) =
                    fun str  ->
                      fun pos  ->
                        fun str'  ->
-                         fun pos'  -> ((locate str pos str' pos'), x))
-                lowercase_ident)])
+                         fun pos'  -> ((locate str pos str' pos'), x)) lident)])
     let last_record_item = Decap.declare_grammar "last_record_item"
     let _ =
       Decap.set_grammar last_record_item
@@ -4244,8 +4208,7 @@ module Make(Initial:Extension) =
                    fun str  ->
                      fun pos  ->
                        fun str'  ->
-                         fun pos'  -> ((locate str pos str' pos'), x))
-                lowercase_ident)])
+                         fun pos'  -> ((locate str pos str' pos'), x)) lident)])
     let _ =
       set_grammar record_list
         (Decap.alternatives
@@ -4434,7 +4397,7 @@ module Make(Initial:Extension) =
               (Decap.sequence class_expr
                  (Decap.option None
                     (Decap.apply (fun x  -> Some x)
-                       (Decap.sequence as_kw lowercase_ident
+                       (Decap.sequence as_kw lident
                           (fun _  -> fun _default_0  -> _default_0))))
                  (fun ce  ->
                     fun id  ->
@@ -6190,6 +6153,17 @@ module Make(Initial:Extension) =
                                                                     (fun _ 
                                                                     -> e)
                                                                     | 
+                                                                    "bool" ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_bool")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
                                                                     "int" ->
                                                                     generic_antiquote
                                                                     (quote_apply
@@ -6264,7 +6238,7 @@ module Make(Initial:Extension) =
                                                                     (Decap.ignore_next_blank
                                                                     (Decap.char
                                                                     '$' '$'))
-                                                                    capitalized_ident
+                                                                    uident
                                                                     (fun _ 
                                                                     ->
                                                                     fun c  ->
@@ -6312,7 +6286,8 @@ module Make(Initial:Extension) =
                                                                     "ENV:" ^
                                                                     c)
                                                                     expression
-                                                                    blank str
+                                                                    ocaml_blank
+                                                                    str
                                                                     with
                                                                     | 
                                                                     Not_found

@@ -85,7 +85,7 @@ let parser any_rec_decl =
 
 let parser any_decls = | any_rec_decl*
 
-let blank = Pa_ocaml_prelude.blank
+let blank = Pa_lexing.ocaml_blank
 let parse_file = Decap.parse_file any_decls blank
 let parse_channel = Decap.parse_channel any_decls blank
 
