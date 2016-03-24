@@ -1,6 +1,6 @@
 OCAMLFIND = ocamlfind
 OCAMLC = $(OCAMLFIND) ocamlc
-OCAMLOPT = $(OCAMLFIND) ocamlopt
+OCAMLOPT = $(OCAMLFIND) ocamlopt -intf-suffix .cmi
 BINDIR = /usr/local/bin
 LIBDIR = $(shell ocamlc -where)/decap
 
@@ -12,12 +12,23 @@ LIBDIR = $(shell ocamlc -where)/decap
 
 INSTALLED = ahash.cmi ahash.cmo ahash.mli ahash.cmx decap.cmi decap.cmo decap.mli decap.cmx charset.cmi charset.cmo charset.mli charset.cmx input.cmi input.cmo input.mli input.cmx decap.cma decap.cmxa decap.a pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx pa_parser.cmi pa_parser.cmx pa_parser.cmo pa_main.cmi pa_main.cmx pa_main.cmo decap_ocaml.cmxa decap_ocaml.cma decap.a decap_ocaml.a pa_ast.cmx pa_ast.cmo pa_ast.cmi
 
-all: pa_ocaml
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
-
 OCAMLVERSION=$(shell ocamlc -version)
 BOOTDIR=./bootstrap/$(OCAMLVERSION)
 export OCAMLFIND_IGNORE_DUPS_IN = $(BOOTDIR)
+
+ifeq ($(HAS_PA_OCAML),1)
+B=.
+IB=-I $(B) -I $(BOOTDIR)
+PA_OCAML=./pa_ocaml
+PP= -pp $(PA_OCAML)
+all: pa_ocaml decap.cmxa $(B)/decap.cma $(B)/decap_ocaml.cmxa $(B)/decap_ocaml.cma
+else
+B=$(BOOTDIR)
+IB=-I $(B)
+PP=
+all: pa_ocaml decap.cmxa $(B)/decap_ocaml.cmxa
+endif
 
 MAJOR = 20160307
 MINOR = alpha
@@ -32,18 +43,22 @@ COMPILER_LIBO := $(COMPILER_LIBO:.cmo=.cmx)
 COMPILER_PARSERO := $(COMPILER_PARSERS:.cma=.cmxa)
 COMPILER_PARSERO := $(COMPILER_PARSERO:.cmo=.cmx)
 
-%.cmi: %.mli
-	$(OCAMLC) -c $<
+ASTTOOLSI=$(BOOTDIR)/compare.cmi $(BOOTDIR)/iter.cmi $(BOOTDIR)/quote.cmi
+ASTTOOLSO=$(ASTTOOLSI:.cmi=.cmo)
+ASTTOOLSX=$(ASTTOOLSI:.cmi=.cmx)
+ASTTOOLSIO=$(ASTTOOLSI) $(ASTTOOLSO)
+ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 
-%.cmo: %.ml %.cmi
+%.cmi: %.mli
 	$(OCAMLC) $(OCAMLFLAGS) -c $<
+
+%.cmo %.cmi: %.ml
+	$(OCAMLC) $(OCAMLFLAGS) -c $<
+
+%.cmx: %.cmo
 
 %.cmx: %.ml %.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) -c $<
-
-fixpoint.cmi: fixpoint.mli
-
-fixpoint.cmx fixpoint.cmo: fixpoint.ml
 
 decap.cmi: charset.cmi input.cmi ahash.cmi fixpoint.cmi
 
@@ -58,161 +73,85 @@ decap.cmxa: charset.cmx input.cmx ahash.cmx fixpoint.cmx decap.cmx
 decap.cma: charset.cmo input.cmo ahash.cmo fixpoint.cmo decap.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
-decap_ocaml.cmxa: pa_lexing.cmx pa_ast.cmx $(BOOTDIR)/compare.cmx $(BOOTDIR)/iter.cmx $(BOOTDIR)/quote.cmx pa_ocaml_prelude.cmx pa_parser.cmx pa_ocaml.cmx pa_main.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
-
-decap_ocaml.cma: pa_lexing.cmo pa_ast.cmo $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo pa_ocaml_prelude.cmo pa_parser.cmo pa_ocaml.cmo pa_main.cmo
+$(B)/decap_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
+
+$(B)/decap_ocaml.cmxa: $(B)/pa_lexing.cmx $(B)/pa_ast.cmx $(ASTTOOLSX) $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
+	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
 decap.a: decap.cmxa;
 decap_ocaml.a: decap_ocaml.cmxa;
 
-ifeq ($(HAS_PA_OCAML),1)
+$(BOOTDIR)/compare.cmo $(BOOTDIR)/compare.cmi: $(BOOTDIR)/compare.ml
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-all: decap.cmxa decap.cma decap_ocaml.cmxa decap_ocaml.cma
+$(BOOTDIR)/compare.cmx: $(BOOTDIR)/compare.ml $(BOOTDIR)/compare.cmi
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/compare.cmo: $(BOOTDIR)/compare.ml
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(BOOTDIR)/iter.cmo $(BOOTDIR)/iter.cmi: $(BOOTDIR)/iter.ml
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/compare.cmx: $(BOOTDIR)/compare.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(BOOTDIR)/iter.cmx: $(BOOTDIR)/iter.ml $(BOOTDIR)/iter.cmi
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/iter.cmo: $(BOOTDIR)/iter.ml
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(BOOTDIR)/quote.cmo $(BOOTDIR)/quote.cmi: $(BOOTDIR)/quote.ml $(B)/pa_ast.cmi
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/iter.cmx: $(BOOTDIR)/iter.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml $(BOOTDIR)/quote.cmi $(B)/pa_ast.cmx
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/quote.cmo: $(BOOTDIR)/quote.ml pa_ast.cmi
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(B)/pa_lexing.cmo $(B)/pa_lexing.cmi: $(B)/pa_lexing.ml input.cmi decap.cma
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml pa_ast.cmx pa_ast.cmi
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $<
+$(B)/pa_lexing.cmx: $(B)/pa_lexing.ml $(B)/pa_lexing.cmi input.cmx decap.cmxa
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_lexing.cmo: pa_lexing.ml input.cmi decap.cmi
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_ocaml_prelude.cmo $(B)/pa_ocaml_prelude.cmi: $(B)/pa_ocaml_prelude.ml charset.cmi input.cmi decap.cma $(B)/pa_ast.cmi $(B)/pa_lexing.cmi
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_lexing.cmx: pa_lexing.ml input.cmi decap.cmi
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_ocaml_prelude.cmx: $(B)/pa_ocaml_prelude.ml $(B)/pa_ocaml_prelude.cmi charset.cmx input.cmx decap.cmxa $(B)/pa_ast.cmx $(B)/pa_lexing.cmx
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml_prelude.cmo: pa_ocaml_prelude.ml charset.cmi input.cmi decap.cmi pa_ast.cmi pa_lexing.cmi
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_ast.cmo $(B)/pa_ast.cmi: $(B)/pa_ast.ml
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ast.cmi pa_ast.cmo: pa_ast.ml
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
+$(B)/pa_ast.cmx: $(B)/pa_ast.ml $(B)/pa_ast.cmi
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ast.cmx: pa_ast.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
+$(B)/pa_parser.cmo $(B)/pa_parser.cmi: $(B)/pa_parser.ml $(B)/pa_ast.cmo $(B)/pa_ocaml_prelude.cmo $(ASTTOOLSI) decap.cma
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml.cmo: pa_ocaml.ml $(BOOTDIR)/quote.cmi pa_ocaml_prelude.cmo decap.cma
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_parser.cmx: $(B)/pa_parser.ml $(B)/pa_parser.cmi $(B)/pa_ast.cmx $(B)/pa_ocaml_prelude.cmx $(ASTTOOLSIX) decap.cmxa
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_parser.cmo: pa_parser.ml pa_ast.cmo pa_ocaml_prelude.cmo  $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo decap.cma
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_ocaml.cmo $(B)/pa_ocaml.cmi: $(B)/pa_ocaml.ml $(ASTTOOLSI) $(B)/pa_ocaml_prelude.cmo decap.cma
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_main.cmo: pa_main.ml input.cmi pa_ocaml.cmo
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
+$(B)/pa_ocaml.cmx: $(B)/pa_ocaml.ml $(B)/pa_ocaml.cmi $(ASTTOOLSIX) $(B)/pa_ocaml_prelude.cmx decap.cmxa
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml_prelude.cmx: pa_ocaml_prelude.ml charset.cmx input.cmx decap.cmx pa_ast.cmx pa_lexing.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_main.cmo $(B)/pa_main.cmi: $(B)/pa_main.ml input.cmi $(B)/pa_ocaml.cmo
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml.cmx: pa_ocaml.ml $(BOOTDIR)/quote.cmx pa_ocaml_prelude.cmx decap.cmxa
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_main.cmx: $(B)/pa_main.ml $(B)/pa_main.cmi input.cmx $(B)/pa_ocaml.cmx
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_parser.cmx: pa_parser.ml pa_ast.cmx pa_ocaml_prelude.cmx decap.cmxa $(BOOTDIR)/compare.cmx $(BOOTDIR)/iter.cmx $(BOOTDIR)/quote.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml -I $(BOOTDIR) $(COMPILER_INC) -c $<
+$(B)/pa_default.cmo $(B)/pa_default.cmi: $(B)/pa_default.ml $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
+	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_opt_main.ml: pa_main.ml
-	cp pa_main.ml pa_opt_main.ml
+$(B)/pa_default.cmx: $(B)/pa_default.ml $(B)/pa_default.cmi $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
+	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_main.cmx: pa_main.ml input.cmi input.cmx pa_ocaml.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
+pa_ocaml: decap.cmxa $(B)/decap_ocaml.cmxa $(B)/pa_default.cmx
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cmxa str.cmxa $(COMPILER_LIBO) $^
 
-pa_default.cmo: pa_default.ml pa_ocaml_prelude.cmo pa_parser.cmo pa_ocaml.cmo pa_main.cmo
-	$(OCAMLC) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
+pa_ocaml.byt: decap.cma $(B)/decap_ocaml.cma $(B)/pa_default.cmo
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cma str.cma $(COMPILER_LIBS) $^
 
-pa_default.cmx: pa_default.ml pa_ocaml_prelude.cmx pa_parser.cmx pa_ocaml.cmx pa_main.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -pp ./pa_ocaml $(COMPILER_INC) -c $<
-
-pa_ocaml: decap.cmxa decap_ocaml.cmxa pa_default.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -linkall -o $@ unix.cmxa str.cmxa $(COMPILER_LIBO) $^
-
-pa_ocaml.byt: decap.cma decap_ocaml.cma pa_default.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -linkall -o $@ unix.cma str.cma $(COMPILER_LIBS) $^
-
-test_parsers: decap.cmxa decap_ocaml.cmxa test_parsers.ml
+test_parsers: decap.cmxa $(B)/decap_ocaml.cmxa test_parsers.ml
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I +camlp4 -I +camlp4/Camlp4Parsers -o $@ dynlink.cmxa unix.cmxa str.cmxa camlp4lib.cmxa Camlp4OCamlRevisedParser.cmx Camlp4OCamlParser.cmx	$(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
 
-else
-
-$(BOOTDIR)/compare.cmo: $(BOOTDIR)/compare.ml
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/compare.cmx: $(BOOTDIR)/compare.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/iter.cmo: $(BOOTDIR)/iter.ml $(BOOTDIR)/pa_ocaml_prelude.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/iter.cmx: $(BOOTDIR)/iter.ml $(BOOTDIR)/pa_ocaml_prelude.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/quote.cmo: $(BOOTDIR)/quote.ml $(BOOTDIR)/pa_ast.cmo $(BOOTDIR)/pa_ast.cmi
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml $(BOOTDIR)/pa_ast.cmx $(BOOTDIR)/pa_ast.cmi
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_ocaml_prelude.cmo: $(BOOTDIR)/pa_ocaml_prelude.ml $(BOOTDIR)/pa_ast.cmi charset.cmi input.cmi decap.cmi
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/pa_ocaml.cmo: $(BOOTDIR)/pa_ocaml.ml $(BOOTDIR)/pa_ocaml_prelude.cmo decap.cma
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/pa_parser.cmo: $(BOOTDIR)/pa_parser.ml $(BOOTDIR)/pa_ast.cmo $(BOOTDIR)/pa_ocaml_prelude.cmo  $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo decap.cma
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-$(BOOTDIR)/pa_main.cmo: $(BOOTDIR)/pa_main.ml input.cmi $(BOOTDIR)/pa_ocaml.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c -I $(BOOTDIR) $<
-
-pa_ocaml.byt: decap.cma $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/quote.cmo $(BOOTDIR)/pa_ocaml_prelude.cmo $(BOOTDIR)/pa_ast.cmo $(BOOTDIR)/pa_parser.cmo $(BOOTDIR)/pa_ocaml.cmo $(BOOTDIR)/pa_main.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ unix.cma str.cma  $(COMPILER_LIBS) $(COMPILER_TOP) $^
-
-$(BOOTDIR)/pa_ocaml_prelude.cmx: $(BOOTDIR)/pa_ocaml_prelude.ml $(BOOTDIR)/pa_ast.cmx charset.cmx input.cmx decap.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_ocaml.cmx: $(BOOTDIR)/pa_ocaml.ml $(BOOTDIR)/pa_ocaml_prelude.cmx decap.cmxa
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_parser.cmx: $(BOOTDIR)/pa_parser.ml $(BOOTDIR)/pa_ocaml_prelude.cmx $(BOOTDIR)/pa_ast.cmx  $(BOOTDIR)/compare.cmx decap.cmxa $(BOOTDIR)/iter.cmx $(BOOTDIR)/quote.cmx decap.cmxa
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_main.cmx: $(BOOTDIR)/pa_main.ml input.cmi input.cmx $(BOOTDIR)/pa_ocaml.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/decap_ocaml.cmxa: $(BOOTDIR)/compare.cmx $(BOOTDIR)/iter.cmx $(BOOTDIR)/pa_ast.cmx $(BOOTDIR)/quote.cmx $(BOOTDIR)/pa_ocaml_prelude.cmx $(BOOTDIR)/pa_parser.cmx $(BOOTDIR)/pa_ocaml.cmx $(BOOTDIR)/pa_main.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
-
-$(BOOTDIR)/decap_ocaml.cma: $(BOOTDIR)/compare.cmo $(BOOTDIR)/iter.cmo $(BOOTDIR)/pa_ast.cmo $(BOOTDIR)/quote.cmo $(BOOTDIR)/pa_ocaml_prelude.cmo $(BOOTDIR)/pa_parser.cmo $(BOOTDIR)/pa_ocaml.cmo $(BOOTDIR)/pa_main.cmo
-	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
-
-$(BOOTDIR)/pa_default.cmo: $(BOOTDIR)/pa_default.ml $(BOOTDIR)/pa_ocaml_prelude.cmo $(BOOTDIR)/pa_parser.cmo $(BOOTDIR)/pa_ocaml.cmo $(BOOTDIR)/pa_main.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_default.cmx: $(BOOTDIR)/pa_default.ml $(BOOTDIR)/pa_ocaml_prelude.cmx $(BOOTDIR)/pa_parser.cmx $(BOOTDIR)/pa_ocaml.cmx $(BOOTDIR)/pa_main.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_ast.cmi $(BOOTDIR)/pa_ast.cmo: $(BOOTDIR)/pa_ast.ml
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-$(BOOTDIR)/pa_ast.cmx: $(BOOTDIR)/pa_ast.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -I $(BOOTDIR) -c $<
-
-pa_ocaml: decap.cmxa $(BOOTDIR)/decap_ocaml.cmxa $(BOOTDIR)/pa_default.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC)  -I $(BOOTDIR) -o $@ unix.cmxa str.cmxa $(COMPILER_LIBO) $^
-
-endif
-
+#BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
 boot:
 	- if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
@@ -221,6 +160,7 @@ boot:
 	     cp $(BOOTDIR)/*.ml $(BACKUP) ; \
 	fi
 	export OCAMLVERSION=$(OCAMLVERSION); \
+	./pa_ocaml --ascii pa_lexing.ml > $(BOOTDIR)/pa_lexing.ml ;\
 	./pa_ocaml --ascii pa_ocaml_prelude.ml > $(BOOTDIR)/pa_ocaml_prelude.ml ;\
 	./pa_ocaml --ascii pa_parser.ml > $(BOOTDIR)/pa_parser.ml ;\
 	./pa_ocaml --ascii pa_ocaml.ml > $(BOOTDIR)/pa_ocaml.ml ;\

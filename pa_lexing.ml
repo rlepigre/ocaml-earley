@@ -313,6 +313,7 @@ let int_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
+  let open Decap in
   parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)? _:relax
 
 (* Float litteral. *)
@@ -322,6 +323,7 @@ let float_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
+  let open Decap in
   parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)? _:relax
 
 (* Char litteral. *)
