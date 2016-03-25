@@ -313,8 +313,7 @@ let int_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  let open Decap in
-  parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)? _:relax
+  parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)? _:Decap.relax
 
 (* Float litteral. *)
 let float_litteral : (string * char option) Decap.grammar =
@@ -323,8 +322,7 @@ let float_litteral : (string * char option) Decap.grammar =
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  let open Decap in
-  parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)? _:relax
+  parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)? _:Decap.relax
 
 (* Char litteral. *)
 
@@ -387,11 +385,11 @@ let quoted_string : (string * string option) Decap.grammar =
 let normal_string : string Decap.grammar =
   let char_reg = "[^\\\\\\\"]" in
   let single_char = parser
-    | c:RE(char_reg)        -> c.[0]
+    | c:RE(char_reg)                                       -> c.[0]
     | '\\' - e:{'\n' -> Decap.give_up "" | e:escaped_char} -> e
   in
   let internal = parser
-    cs:single_char* css:{_:RE("[\\][\n][ \t]*") single_char*}* ->
+    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*") single_char*}* ->
       cs_to_string (List.flatten (cs :: css))
   in
   parser '"' - (Decap.change_layout internal Decap.no_blank) - '"'
@@ -404,8 +402,8 @@ let string_litteral : (string * string option) Decap.grammar =
 (* Regexp litteral. *)
 
 let regexp_litteral : string Decap.grammar =
-  let char_reg = "[^']" in
-  let char_esc = "[ntbrs]" in
+  let char_reg = "[^\\\\']" in
+  let char_esc = "[ntbrs\\\\']" in
   let single_char = parser
     | c:RE(char_reg)      -> c.[0]
     | '\\' e:RE(char_esc) ->
