@@ -316,13 +316,6 @@ val test : ?name:string -> Charset.t -> (buffer -> int -> ('a * bool)) -> 'a gra
    x - y? relax works as expected *)
 val relax : unit grammar
 
-(* [lists g] lists all the possible parse-trees produced by grammar [g].
-  The parse-trees do not need to correspond to the same initial segment of
-  the input. *)
-val lists : 'a grammar -> 'a list grammar
-
-val merge : ('a -> 'b) -> ('b -> 'b -> 'b) -> 'a grammar -> 'b grammar
-
 (** {2 Support for recursive grammars} *)
 
 (** [declare_grammar name] returns a new grammar that can be used in the
@@ -398,5 +391,3 @@ val debug_lvl : int ref
 val expected : string -> 'a
 type info = bool * Charset.t
 val grammar_info : 'a grammar -> info
-
-val include_grammar : 'a grammar -> 'a grammar
