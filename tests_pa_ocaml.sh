@@ -35,8 +35,8 @@ make $MAKEOPTS test_parsers
 ./test_parsers $files
 
 for f in $files; do
-  echo "File: $f"
-  /usr/bin/time --format="%C: %U,%S,%E" ./pa_ocaml $f > /dev/null
+  echo -n "File: $f"
+  /usr/bin/time --format=": %U,%S,%E" ./pa_ocaml $f > /dev/null
 #  /usr/bin/time --format="%C: %U,%S,%E" camlp4o.opt $f > /dev/null
 
   ocamlc -rectypes -c -dparsetree -o /tmp/foo.cmo -pp ./pa_ocaml  $f 2> $diff/$(basename $f).pa_ocaml.full
@@ -48,9 +48,12 @@ for f in $files; do
   cat $diff/$(basename $f).ocamlc.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).ocamlc
   diff $diff/$(basename $f).pa_ocaml  $diff/$(basename $f).ocamlc > $diff/$(basename $f).diff
   diff $diff/$(basename $f).pa_ocaml.full $diff/$(basename $f).ocamlc.full > $diff/$(basename $f).fulldiff
-  echo diff size: $(wc $diff/$(basename $f).diff)
-  echo diff size with pos: $(wc $diff/$(basename $f).fulldiff)
-  echo
+  if [ -s $diff/$(basename $f).diff ]; then
+      echo -e "\e[31m"diff size: $(wc $diff/$(basename $f).diff) "\e[0m"
+  fi
+  if [ -s $diff/$(basename $f).fulldiff ]; then
+      echo -e "\e[93m"diff size with pos: $(wc $diff/$(basename $f).fulldiff) "\e[0m"
+  fi
 done
 
 echo "test of the extensions to the syntax"

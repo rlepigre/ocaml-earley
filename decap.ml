@@ -403,7 +403,7 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            | true, Eq, Eq, true, act, acts' ->
 	      assert(stack == stack');
 	   if not (eq_closure acts acts') && !warn_merge then
-	     Printf.eprintf "merging %s %a %d %d\n%!" info print_final element (elt_pos pos element) (char_pos pos);
+	     Printf.eprintf "\027[31mmerging %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos);
 	   false
 	  | _ ->
 	    fn (e::acc) es))
