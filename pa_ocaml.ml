@@ -843,7 +843,7 @@ let parser exception_definition =
 #endif
   | (name,ed,_loc'):exception_declaration ->
 #ifversion >= 4.02
-      (Str.exception_ ~loc:_loc (Te.decl ~loc:_loc' ~args:ed name)).pstr_desc
+      (Str.exception_ ~loc:_loc (Te.decl ~loc:_loc ~args:ed name)).pstr_desc
 #else
       Pstr_exception (name, ed)
 #endif
@@ -1003,13 +1003,13 @@ let next_pat_prio = function
   | AtomPat -> AtomPat
 
 let ppat_list _loc l =
-  let nil = id_loc (Lident "[]") _loc in
+  let nil = id_loc (Lident "[]") (ghost _loc) in
   let cons x xs =
-    let c = id_loc (Lident "::") _loc in
-    let cons = ppat_construct (c, Some (loc_pat _loc (Ppat_tuple [x;xs]))) in
+    let c = id_loc (Lident "::") (ghost _loc) in
+    let cons = ppat_construct (c, Some (loc_pat (ghost _loc) (Ppat_tuple [x;xs]))) in
     loc_pat _loc cons
   in
-  List.fold_right cons l (loc_pat _loc (ppat_construct (nil, None)))
+  List.fold_right cons l (loc_pat (ghost _loc) (ppat_construct (nil, None)))
 
 let parser extra_patterns_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_patterns))
@@ -1039,9 +1039,9 @@ let _ = set_pattern_lvl (fun lvl ->
 #endifx
   | c:{c:constant | c:neg_constant} when lvl = AtomPat ->
       loc_pat _loc (Ppat_constant c)
-  | STR("(") p:pattern  ty:{_:':' typexpr}? STR(")") when lvl = AtomPat ->
+  | '(' p:pattern  ty:{_:':' typexpr}? ')' when lvl = AtomPat ->
      let p = match ty with
-	 None -> p
+	 None -> loc_pat _loc p.ppat_desc
        | Some ty ->loc_pat _loc (Ppat_constraint(p, ty))
      in
      p
@@ -1066,11 +1066,11 @@ let _ = set_pattern_lvl (fun lvl ->
       loc_pat _loc (Ppat_variant (c, Some p))
   | c:tag_name when lvl = AtomPat ->
       loc_pat _loc (Ppat_variant (c, None))
-  | s:STR("#") t:typeconstr when lvl = AtomPat ->
+  | s:'#' t:typeconstr when lvl = AtomPat ->
       loc_pat _loc (Ppat_type(id_loc t _loc_t))
-  | s:STR("{") f:field p:{CHR('=') p:pattern}? fps:{semi_col f:field
+  | s:'{' f:field p:{'=' p:pattern}? fps:{semi_col f:field
     p:{CHR('=') p:pattern}? -> (id_loc f _loc_f, p)}*
-    clsd:{semi_col joker_kw -> ()}? semi_col? STR("}") when lvl = AtomPat ->
+    clsd:{semi_col joker_kw -> ()}? semi_col? '}' when lvl = AtomPat ->
       let all = (id_loc f _loc_f, p)::fps in
       let f (lab, pat) =
         match pat with
@@ -1175,7 +1175,7 @@ let _ = set_pattern_lvl (fun lvl ->
 
   | p:(pattern_lvl (next_pat_prio ConsPat)) c:"::" p':(pattern_lvl ConsPat) when lvl = ConsPat ->
        let cons = id_loc (Lident "::") _loc_c in
-       let args = loc_pat _loc (Ppat_tuple [p; p']) in
+       let args = loc_pat (ghost _loc) (Ppat_tuple [p; p']) in
        loc_pat _loc (ppat_construct(cons, Some args)))
 
 (****************************************************************************
@@ -1292,13 +1292,15 @@ let _ = set_parameter (fun allow_new_type ->
   | id:opt_label -> `Arg (optional id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
   | '(' type_kw name:typeconstr_name ')' when allow_new_type -> `Type(name))
 
-let apply_params params e =
+let apply_params ?(gh=false) params e =
   let f acc = function
     | `Arg (lbl,opt,pat), _loc' ->
-      loc_expr (merge2 _loc' e.pexp_loc) (pexp_fun (lbl, opt, pat, acc))
-    | `Type name, _loc' -> loc_expr (merge2 _loc' e.pexp_loc) (Pexp_newtype(name,acc))
+       loc_expr (ghost (merge2 _loc' e.pexp_loc)) (pexp_fun (lbl, opt, pat, acc))
+    | `Type name, _loc' ->
+       loc_expr (ghost (merge2 _loc' e.pexp_loc)) (Pexp_newtype(name,acc))
   in
-  List.fold_left f e (List.rev params)
+  let e = List.fold_left f e (List.rev params) in
+  if gh then e else de_ghost e
 
 let apply_params_cls _loc params e =
   let f acc = function
@@ -1313,9 +1315,9 @@ let right_member =
   | l:{lb:(parameter true) -> lb, _loc_lb}* ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
       let e = match ty with
 	None -> e
-      | Some ty -> loc_expr _loc (pexp_constraint(e, ty))
+      | Some ty -> loc_expr (ghost _loc) (pexp_constraint(e, ty))
       in
-      apply_params l e
+      apply_params ~gh:true l e
 
 let simple_right_member =
   parser
@@ -1358,8 +1360,8 @@ let parser type_coercion =
   | STR(":>") t':typexpr -> (None, Some t')
 
 let parser expression_list =
-  | l:{ e:(expression_lvl (Let, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) semi_col?
-      -> l @ [e,_loc_e]
+  | l:{ e:(expression_lvl (Let, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) s:semi_col?
+      -> l @ [e,merge2 _loc_e _loc_s]
   | EMPTY -> []
 
 let parser record_item =
@@ -1393,7 +1395,7 @@ let class_expr_base =
   | cp:class_path ->
       let cp = id_loc cp _loc_cp in
       loc_pcl _loc (Pcl_constr (cp, []))
-  | CHR('[') te:typexpr tes:{STR(",") te:typexpr}* CHR(']') cp:class_path ->
+  | '[' te:typexpr tes:{',' te:typexpr}* ']' cp:class_path ->
       let cp = id_loc cp _loc_cp in
       loc_pcl _loc (Pcl_constr (cp, te :: tes))
   | STR("(") ce:class_expr STR(")") ->
@@ -1546,10 +1548,10 @@ let pexp_list _loc ?loc_cl l =
   if l = [] then
     loc_expr _loc (pexp_construct(id_loc (Lident "[]") _loc, None))
   else
-    let loc_cl = match loc_cl with None -> _loc | Some pos -> pos in
+    let loc_cl = ghost (match loc_cl with None -> _loc | Some pos -> pos) in
     List.fold_right (fun (x,pos) acc ->
-		     let _loc = merge2 pos loc_cl in
-		     loc_expr _loc (pexp_construct(id_loc (Lident "::") _loc, Some (loc_expr _loc (Pexp_tuple [x;acc])))))
+		     let _loc = ghost (merge2 pos loc_cl) in
+		     loc_expr _loc (pexp_construct(id_loc (Lident "::") (ghost _loc), Some (loc_expr _loc (Pexp_tuple [x;acc])))))
 		    l (loc_expr loc_cl (pexp_construct(id_loc (Lident "[]") loc_cl, None)))
 
 
@@ -1696,7 +1698,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | '(' e:expression? ')' when lvl = Atom ->
        (match e with
-       | Some(e) -> e
+       | Some(e) -> loc_expr _loc e.pexp_desc
        | None ->
 	  let cunit = id_loc (Lident "()") _loc in
 	  loc_expr _loc (pexp_construct(cunit, None)))
@@ -1724,10 +1726,10 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | l:tag_name  when lvl = Atom ->
      loc_expr _loc (Pexp_variant(l, None))
 
-  | STR("[|") l:expression_list STR("|]") when lvl = Atom ->
+  | "[|" l:expression_list "|]" when lvl = Atom ->
      loc_expr _loc (Pexp_array (List.map fst l))
 
-  | STR("[") l:expression_list cl:STR("]") when lvl = Atom ->
+  | '[' l:expression_list cl:']' when lvl = Atom ->
      loc_expr _loc (pexp_list _loc ~loc_cl:_loc_cl l).pexp_desc
 
   | STR("{") e:{expression _:with_kw}? l:record_list STR("}") when lvl = Atom ->
@@ -1876,22 +1878,22 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
       r:{ STR("(") f:expression STR(")") STR("<-") e:(expression_lvl (right_alm alm,next_exp Aff)) when lvl = Aff ->
-	   fun e' _loc -> exp_apply _loc (array_function (merge2 e'.pexp_loc _loc) "Array" "set") [e';f;e]
+	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "Array" "set") [e';f;e]
 
         | STR("(") f:expression STR(")") when lvl = Dot ->
-	   fun e' _loc -> exp_apply _loc (array_function (merge2 e'.pexp_loc _loc) "Array" "get") [e';f]
+	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "Array" "get") [e';f]
 
 	| STR("[") f:expression STR("]") STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
-	   fun e' _loc -> exp_apply _loc (array_function (merge2 e'.pexp_loc _loc) "String" "set") [e';f;e]
+	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "String" "set") [e';f;e]
 
 	| STR("[") f:expression STR("]")  when lvl = Dot ->
-	   fun e' _loc -> exp_apply _loc (array_function (merge2 e'.pexp_loc _loc) "String" "get") [e';f]
+	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "String" "get") [e';f]
 
 	| STR("{") f:expression STR("}") STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
-	   fun e' _loc -> bigarray_set (merge2 e'.pexp_loc _loc) e' f e
+	   fun e' _loc -> bigarray_set (ghost (merge2 e'.pexp_loc _loc)) e' f e
 
 	| STR("{") f:expression STR("}") when lvl = Dot ->
-	   fun e' _loc -> bigarray_get (merge2 e'.pexp_loc _loc) e' f
+	   fun e' _loc -> bigarray_get (ghost (merge2 e'.pexp_loc _loc)) e' f
 
 	| f:field STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
 	   fun e' _loc ->
@@ -1901,7 +1903,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	   fun e' _loc ->
 	     let f = id_loc f _loc_f in loc_expr _loc (Pexp_field(e',f)) } when lvl = Dot || lvl = Aff -> r e' _loc
 
-  | e':(expression_lvl (NoMatch, Dash)) STR("#") f:method_name when lvl = Dash ->
+  | e':(expression_lvl (NoMatch, Dash)) '#' f:method_name when lvl = Dash ->
      loc_expr _loc (Pexp_send(e',f))
 
   | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl = App ->
@@ -1934,7 +1936,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	   op:(infix_symbol lvl0) e:(expression_lvl (right_alm alm,right)) when lvl = lvl0 ->
        (loc_expr _loc
           (if op = "::" then
-            pexp_construct(id_loc (Lident "::") _loc_op, Some (loc_expr _loc (Pexp_tuple [e';e])))
+            pexp_construct(id_loc (Lident "::") _loc_op, Some (loc_expr (ghost _loc) (Pexp_tuple [e';e])))
           else
             Pexp_apply(loc_expr _loc_op (Pexp_ident(id_loc (Lident op) _loc_op)),
                        [(nolabel, e') ; (nolabel, e)])))) infix_prios)))

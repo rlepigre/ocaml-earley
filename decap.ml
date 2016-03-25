@@ -77,6 +77,7 @@ type ('a,'b,'c,'r) cell = {
 and (_,_) element =
   | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
   | B : ('a -> 'b) pos -> ('a,'b) element
+  | A : ('a, 'a) element
 
 and _ final   = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
 
@@ -272,7 +273,7 @@ let print_final ch (D {rest; full}) =
   let (ae,set) = force (rule_info rest) in
   Printf.fprintf ch "(%a %b)" print_charset set ae
 
-let print_element ch el =
+let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
     match pre_rule rule with
@@ -287,6 +288,9 @@ let print_element ch el =
      Printf.fprintf ch "(%a %b)" print_charset set ae
   | B _ ->
     Printf.fprintf ch "B"
+  | A ->
+    Printf.fprintf ch "A
+"
 
 type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) ref -> 'b dep_pair
 
@@ -360,15 +364,18 @@ let next : type a b c. ?ignb:bool -> a grammar -> (a -> b) pos -> (b -> c) rule 
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 let debut_ab pos = function D { debut } -> match debut with None -> pos | Some (_,p) -> p
-let debut' pos = function  B _ -> pos | C { debut } -> match debut with None -> pos | Some (p,_) -> p
-let debut_ab' pos = function B _ -> pos | C { debut } -> match debut with None -> pos | Some (_,p) -> p
+let debut' : type a b.position -> (a,b) element -> position = fun pos -> function A -> pos | B _ -> pos
+  | C { debut } -> match debut with None -> pos | Some (p,_) -> p
+let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> function A -> pos | B _ -> pos
+  | C { debut } -> match debut with None -> pos | Some (_,p) -> p
 let is_term = function D { rest= (Next(_,_,_,Term _,_,_),_) } -> true | _ -> false
 
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
 let find_pos_tbl t (buf,pos) = Hashtbl.find t (buf_ident buf, pos)
 let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buf_ident buf, pos) v
-let char_pos pos el = let (buf,pos) = debut pos el in line_beginning buf + pos
+let char_pos (buf,pos) = line_beginning buf + pos
+let elt_pos pos el = char_pos (debut pos el)
 
 let merge_acts o n =
   let rec fnacts acc = function
@@ -383,8 +390,8 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
     let oldl = try find_pos_tbl old debut with Not_found -> [] in
     let rec fn acc = function
       | [] ->
-	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d \n%!" info print_final element
-	   (char_pos pos element);
+	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
+	   (elt_pos pos element) (char_pos pos);
 	add_pos_tbl old debut (element :: oldl); true
       | e::es ->
 	 (match e, element with
@@ -396,7 +403,7 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            | true, Eq, Eq, true, act, acts' ->
 	      assert(stack == stack');
 	   if not (eq_closure acts acts') && !warn_merge then
-	     Printf.eprintf "merging %s %a %d\n%!" info print_final element (char_pos pos element);
+	     Printf.eprintf "merging %s %a %d %d\n%!" info print_final element (elt_pos pos element) (char_pos pos);
 	   false
 	  | _ ->
 	    fn (e::acc) es))
@@ -412,7 +419,7 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
 	adone := el :: !adone;
 	match el with
 	| C {stack} -> fn (cast_elements !stack)
-	| B _       -> ()
+	| A -> () | B _   -> ()
       end) els
   in
   match el with D {stack} -> fn (cast_elements !stack); !res
@@ -491,7 +498,8 @@ let pop_final : type a. a dep_pair_tbl -> a final -> a action -> unit =
  		     ignore(add_assq r c dlr)
 		| B acts' ->
 		     let c = B (combine2 acts acts' g f) in
-		     ignore (add_assq r c dlr))
+		     ignore (add_assq r c dlr)
+		| _ -> assert false)
 	      in
 	      assert (!stack <> []);
 	      if debut=None then memo_assq full dlr complete
@@ -557,7 +565,7 @@ let rec one_prediction_production
 	       if good (if ignb then c' else c) (rule_info rest) then begin
 		 if !debug_lvl > 1 then
 		   Printf.eprintf "action for completion bis of %a =>" print_final element0;
-		 let k' = debut_ab' pos_ab element in
+		 let k' = debut_ab pos_ab element0 in
 		 let x =
 		   try apply_pos acts k' pos x
 	           with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
@@ -567,6 +575,7 @@ let rec one_prediction_production
 		 if b then one_prediction_production nouveau elements dlr pos pos_ab c c'
 	       end
 	    | B _ -> ()
+	    | _ -> assert false
 	  in
 	  let complete = protect complete in
 	  if i = None then memo_assq full dlr complete
@@ -582,7 +591,7 @@ let rec one_prediction_production
      | Next(_,_,ignb,Test(s,f),g,rest) ->
 	(try
 	  let j = if ignb0 then pos else pos_ab in
-          if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (char_pos pos element);
+          if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element);
 	  let (a,b) = f (fst j) (snd j) in
 	  if b then begin
 	    if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
@@ -661,6 +670,7 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
 	   | B (ls)::l ->
 	      apply_pos ls (buf0, pos0) (!buf, !pos) x
 	   | C _:: l -> gn l
+	   | _::l -> assert false
 	   | [] -> fn els
 	 in
 	 gn !s1

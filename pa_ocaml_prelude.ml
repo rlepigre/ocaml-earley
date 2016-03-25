@@ -76,6 +76,12 @@ let extend_cl_args l =
 let ghost loc =
   Location.({loc with loc_ghost = true})
 
+let no_ghost loc =
+  Location.({loc with loc_ghost = false})
+
+let de_ghost e =
+  loc_expr (no_ghost e.pexp_loc) e.pexp_desc
+
 let start_pos loc =
   loc.Location.loc_start
 

@@ -65,7 +65,7 @@ let collect_tree t =
       Empty -> acc, acc'
     | Message t -> if List.mem t acc then acc, acc' else (t::acc), acc'
     | Expected t -> if List.mem t acc' then acc, acc' else acc, (t::acc')
-    | Node(t1,t2) -> 
+    | Node(t1,t2) ->
        let acc, acc' = fn acc acc' t1 in
        fn acc acc' t2
   in
@@ -215,8 +215,8 @@ let apply : ('a -> 'b) -> 'a grammar -> 'b grammar
       accept_empty = lazy (accept_empty l);
       parse =
         fun grouped str pos next g ->
-        l.parse grouped str pos next 
-	   (fun l c l' c' l'' c'' x -> 
+        l.parse grouped str pos next
+	   (fun l c l' c' l'' c'' x ->
 	    let r = try f x with Give_up msg -> parse_error grouped (~!msg) l' c' in
 	    g l c l' c' l'' c'' r);
     }
@@ -289,7 +289,7 @@ let apply_position : ('a -> buffer -> int -> buffer -> int -> 'b) -> 'a grammar 
       parse =
         fun grouped str pos next g ->
           l.parse grouped str pos next
-                  (fun l c l' c' l'' c'' x -> 
+                  (fun l c l' c' l'' c'' x ->
 		   let r = try f x l c l' c' with Give_up msg -> parse_error grouped (~!msg) l' c' in
 		   g l c l' c' l'' c'' r)
     }
@@ -489,8 +489,8 @@ let sequence3 : 'a grammar -> 'b grammar -> 'c grammar -> ('a -> 'b -> 'c -> 'd)
   = fun l1 l2 l3 g ->
     sequence (sequence l1 l2 (fun x y z -> g x y z)) l3 (fun f -> f)
 
-let all_next = 
-  { accepted_char = full_charset; 
+let all_next =
+  { accepted_char = full_charset;
     first_syms = Empty }
 
 let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
@@ -795,14 +795,14 @@ let parse_file grammar blank filename  =
 
 let print_exception = function
   | Parse_error(fname,l,n,msg, expected) ->
-     let expected = 
-       if expected = [] then "" else 
+     let expected =
+       if expected = [] then "" else
 	 Printf.sprintf "'%s' expected" (String.concat "|" expected)
      in
      let msg = if msg = [] then "" else (String.concat "," msg)
      in
      let sep = if msg <> "" && expected <> "" then ", " else "" in
-     Printf.eprintf "%s: parse error after %d:%d, %s%s%s\n%!" fname l n msg sep expected 
+     Printf.eprintf "%s: parse error after %d:%d, %s%s%s\n%!" fname l n msg sep expected
   | _ -> assert false
 
 let handle_exception f a =
