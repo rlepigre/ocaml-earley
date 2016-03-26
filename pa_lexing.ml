@@ -412,16 +412,16 @@ let quoted_string : (string * string option) Decap.grammar =
   Decap.black_box f (Charset.singleton '{') false "quoted_string"
 
 let normal_string : string Decap.grammar =
-  let char_reg = "[^\\\\\\\"]" in
+  let char_reg = "[^\\\"\\\\]" in
   let single_char = parser
-    | c:RE(char_reg)                                       -> c.[0]
-    | '\\' - e:{'\n' -> Decap.give_up "" | e:escaped_char} -> e
+    | c:RE(char_reg)        -> c.[0]
+    | '\\' - e:escaped_char -> e
   in
   let internal = parser
     cs:single_char* css:{_:"\\\n" _:RE("[ \t]*") single_char*}* ->
       cs_to_string (List.flatten (cs :: css))
   in
-  parser '"' - (Decap.change_layout internal Decap.no_blank) - '"'
+  parser '"' - (Decap.change_layout internal Decap.no_blank)?[""] - '"'
 
 let string_litteral : (string * string option) Decap.grammar =
   parser
