@@ -595,9 +595,8 @@ let rec one_prediction_production
 	  let (a,b) = f (fst j) (snd j) in
 	  if b then begin
 	    if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-	    let i0 = debut_ab pos_ab element in
 	    let nouveau = D {debut=i; stack; rest; full;ignb;
-	                     acts = let x = apply_pos g i0 i0 a in fun h -> acts (h x)} in
+	                     acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
 	    let b = add "D" pos nouveau elements in
 	    if b then one_prediction_production nouveau elements dlr  pos pos_ab c c'
 	  end

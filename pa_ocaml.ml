@@ -1276,7 +1276,7 @@ let _ = set_parameter (fun allow_new_type ->
       in
       `Arg (labelled id, None, pat))
   | id:ty_label pat:pattern -> `Arg (id, None, pat)
-  | '~' id:ident -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
+  | '~' id:ident no_colon -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
   | '?' '(' id:lident t:{ ':' t:typexpr -> t }? e:{'=' e:expression -> e}? ')' -> (
       let pat = loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
@@ -1351,7 +1351,7 @@ let parser match_case c =
 
 let _ = set_grammar match_cases (
   parser
-  | '|'? l:{(match_case (Let, Seq)) '|'}* x:(match_case (Match, Seq)) -> l @ [x]
+  | '|'? l:{(match_case (Let, Seq)) '|'}* x:(match_case (Match, Seq)) no_semi -> l @ [x]
   | EMPTY -> []
   )
 
@@ -1360,12 +1360,12 @@ let parser type_coercion =
   | STR(":>") t':typexpr -> (None, Some t')
 
 let parser expression_list =
-  | l:{ e:(expression_lvl (Let, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) s:semi_col?
-      -> l @ [e,merge2 _loc_e _loc_s]
+  | l:{ e:(expression_lvl (LetRight, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) semi_col?
+      -> l @ [e,_loc_e]
   | EMPTY -> []
 
 let parser record_item =
-  | f:field CHR('=') e:(expression_lvl (NoMatch, next_exp Seq)) -> (id_loc f _loc_f,e)
+  | f:field CHR('=') e:(expression_lvl (LetRight, next_exp Seq)) -> (id_loc f _loc_f,e)
   | f:lident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
 
 let parser last_record_item =
@@ -1581,72 +1581,6 @@ let parser prefix_expression c =
 
   | try_kw e:expression with_kw l:match_cases -> loc_expr _loc (Pexp_try(e, l))
 
-let no_dot =
-  test full_charset (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> '.' then ((), true) else ((), false))
-
-let no_else =
-  let lidentchar =
-    List.fold_left Charset.union Charset.empty_charset
-      [Charset.range 'a' 'z'; Charset.range 'A' 'Z'; Charset.range '0' '9';
-       Charset.singleton '_'; Charset.singleton '\'']
-  in
-  test full_charset (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'e' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'l' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 's' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'e' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if Charset.mem lidentchar c then ((), true) else ((), false))
-
-
-let no_false =
-  let lidentchar =
-    List.fold_left Charset.union Charset.empty_charset
-      [Charset.range 'a' 'z'; Charset.range 'A' 'Z'; Charset.range '0' '9';
-       Charset.singleton '_'; Charset.singleton '\'']
-  in
-  test full_charset (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'f' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'a' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'l' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 's' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'e' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if Charset.mem lidentchar c then ((), true) else ((), false))
-
-let no_parser =
-  let lidentchar =
-    List.fold_left Charset.union Charset.empty_charset
-      [Charset.range 'a' 'z'; Charset.range 'A' 'Z'; Charset.range '0' '9';
-       Charset.singleton '_'; Charset.singleton '\'']
-  in
-  test full_charset (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'p' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'a' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'r' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 's' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'e' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c <> 'r' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if Charset.mem lidentchar c then ((), true) else ((), false))
-
 let parser if_expression (alm,lvl) =
   | if_kw c:expression then_kw e:(expression_lvl(Match, next_exp Seq)) else_kw e':(expression_lvl (alm, next_exp Seq)) ->
      loc_expr _loc (Pexp_ifthenelse(c,e,Some e'))
@@ -1658,7 +1592,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | e:(extra_expressions_grammar c) -> e
 
-  | e:((expression_lvl (left_alm alm, next_exp lvl))) when lvl < Atom -> e
+  | e:((expression_lvl (left_alm alm, next_exp lvl))) when lvl < Atom && lvl != Seq -> e
 
   | v:inst_var_name STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
       loc_expr _loc (Pexp_setinstvar(id_loc v _loc_v, e))
@@ -1672,12 +1606,12 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       loc_expr _loc (Pexp_open (Fresh, mp, e))
   | e:(prefix_expression c) when allow_match alm && lvl < App -> e
 
-  | e:(if_expression c) when (allow_let alm && lvl < App) || (lvl = If && alm <> MatchRight && alm <> LetRight) -> e
+  | e:(if_expression c) when (allow_let alm && lvl < App) || (lvl = If && alm <> MatchRight) -> e
 
-  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) when allow_let alm && lvl < App ->
+  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) no_semi when allow_let alm && lvl < App ->
      loc_expr _loc (apply_params l e).pexp_desc
 
-  | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq))
+  | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi when allow_let alm && lvl < App
                   -> (fun _loc -> loc_expr _loc (Pexp_let (r, l, e)))
 #ifversion >= 4.02
              | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' ->
@@ -1870,11 +1804,9 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       when lvl = Tupl ->
        loc_expr _loc (Pexp_tuple (l@[e']))
 
-  | ls:{(expression_lvl (NoMatch, next_exp Seq)) _:semi_col}+
-      e':(expression_lvl (right_alm alm, next_exp Seq))? when lvl = Seq ->
-    (match e' with
-       Some e' -> mk_seq (ls@[e'])
-     | None    -> mk_seq ls)
+  | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
+      e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
+	mk_seq (ls@[e'])
 
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
       r:{ STR("(") f:expression STR(")") STR("<-") e:(expression_lvl (right_alm alm,next_exp Aff)) when lvl = Aff ->
@@ -1954,16 +1886,16 @@ let module_expr_base =
   | struct_kw ms:structure end_kw ->
       mexpr_loc _loc (Pmod_structure(ms))
 #ifversion >= 4.02
-  | functor_kw STR("(") mn:module_name mt:{STR(":") mt:module_type}? STR(")")
+  | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
 #else
-  | functor_kw STR("(") mn:module_name STR(":") mt:module_type STR(")")
+  | functor_kw '(' mn:module_name ':' mt:module_type ')'
 #endif
     arrow_re me:module_expr -> mexpr_loc _loc (Pmod_functor(id_loc mn _loc_mn, mt, me))
-  | STR("(") me:module_expr mt:{STR(":") mt:module_type}? STR(")") ->
+  | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
       (match mt with
        | None    -> me
        | Some mt -> mexpr_loc _loc (Pmod_constraint (me, mt)))
-  | STR("(") val_kw e:expression pt:{STR(":") pt:package_type}? STR(")") ->
+  | '(' val_kw e:expression pt:{STR(":") pt:package_type}? ')' ->
       let e = match pt with
               | None    -> Pmod_unpack e
               | Some pt -> let pt = loc_typ _loc_pt pt in
@@ -1986,11 +1918,11 @@ let module_type_base =
   | sig_kw ms:signature end_kw ->
      mtyp_loc _loc (Pmty_signature(ms))
 #ifversion >= 4.02
-  | functor_kw STR("(") mn:module_name mt:{STR(":") mt:module_type}? STR(")")
+  | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
 #else
-  | functor_kw STR("(") mn:module_name STR(":") mt:module_type STR(")")
+  | functor_kw '(' mn:module_name ':' mt:module_type ')'
 #endif
-     arrow_re me:module_type -> mtyp_loc _loc (Pmty_functor(id_loc mn _loc_mn, mt, me))
+     arrow_re me:module_type no_with -> mtyp_loc _loc (Pmty_functor(id_loc mn _loc_mn, mt, me))
   | STR("(") mt:module_type STR(")") -> mt
   | module_kw type_kw of_kw me:module_expr -> mtyp_loc _loc (Pmty_typeof me)
 (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_type (start_pos _loc_dol).Lexing.pos_cnum e*)

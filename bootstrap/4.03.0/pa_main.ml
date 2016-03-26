@@ -3,7 +3,7 @@ open Pa_ocaml
 open Decap
 open Format
 open Pa_lexing
-module type Final =
+module type Final  =
   sig
     include Extension
     exception Top_Exit

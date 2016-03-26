@@ -10,10 +10,10 @@ let fast = ref false
 let file: string option ref = ref None
 let ascii = ref false
 let in_ocamldep = ref false
-type entry =  
+type entry =
   | FromExt
   | Impl
-  | Intf 
+  | Intf
 let entry = ref FromExt
 let spec =
   ref
@@ -29,6 +29,8 @@ let spec =
     ("--debug", (Arg.Set_int Decap.debug_lvl), "set decap debug_lvl")]
 let extend_cl_args l = spec := ((!spec) @ l)
 let ghost loc = let open Location in { loc with loc_ghost = true }
+let no_ghost loc = let open Location in { loc with loc_ghost = false }
+let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
 let start_pos loc = loc.Location.loc_start
 let end_pos loc = loc.Location.loc_end
 let locate str pos str' pos' =
@@ -62,16 +64,16 @@ let merge2 l1 l2 =
       loc_end = (l2.loc_end);
       loc_ghost = (l1.loc_ghost && l2.loc_ghost)
     }
-type entry_point =  
+type entry_point =
   | Implementation of Parsetree.structure_item list Decap.grammar* blank
-  | Interface of Parsetree.signature_item list Decap.grammar* blank 
+  | Interface of Parsetree.signature_item list Decap.grammar* blank
 module Initial =
   struct
     let before_parse_hook () = ()
     let char_litteral: char grammar = declare_grammar "char_litteral"
     let string_litteral: string grammar = declare_grammar "string_litteral"
     let regexp_litteral: string grammar = declare_grammar "regexp_litteral"
-    type expression_prio =  
+    type expression_prio =
       | Seq
       | If
       | Aff
@@ -89,7 +91,7 @@ module Initial =
       | Dash
       | Dot
       | Prefix
-      | Atom 
+      | Atom
     let expression_prios =
       [Seq;
       Aff;
@@ -128,12 +130,12 @@ module Initial =
       | Dot  -> Prefix
       | Prefix  -> Atom
       | Atom  -> Atom
-    type alm =  
+    type alm =
       | NoMatch
       | Match
       | MatchRight
       | Let
-      | LetRight 
+      | LetRight
     let right_alm =
       function
       | Match |MatchRight  -> Match
@@ -181,8 +183,8 @@ module Initial =
       declare_grammar "signature_item"
     let ((parameter :
            bool ->
-             [ `Arg of (arg_label* expression option* pattern)
-             | `Type of string] grammar),set_parameter)
+             [ `Arg of (arg_label* expression option* pattern) 
+             | `Type of string ] grammar),set_parameter)
       = grammar_family "parameter"
     let structure = structure_item
     let signature = Decap.declare_grammar "signature"
@@ -191,15 +193,15 @@ module Initial =
         (Decap.apply (fun l  -> List.flatten l)
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  l  -> x :: l) signature_item))))
-    type type_prio =  
+                 (Decap.apply (fun x  -> fun l  -> x :: l) signature_item))))
+    type type_prio =
       | TopType
       | As
       | Arr
       | ProdType
       | DashType
       | AppType
-      | AtomType 
+      | AtomType
     let type_prios =
       [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
     let type_prio_to_string =
@@ -223,14 +225,14 @@ module Initial =
     let ((typexpr_lvl : type_prio -> core_type grammar),set_typexpr_lvl) =
       grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl"
     let typexpr = typexpr_lvl TopType
-    type pattern_prio =  
+    type pattern_prio =
       | TopPat
       | AsPat
       | AltPat
       | TupPat
       | ConsPat
       | ConstrPat
-      | AtomPat 
+      | AtomPat
     let next_pat_prio =
       function
       | TopPat  -> AsPat
@@ -334,7 +336,7 @@ module Initial =
     let make_case pat expr guard =
       { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
     let pexp_function cases = Pexp_function cases
-    type record_field = (Longident.t Asttypes.loc* Parsetree.expression) 
+    type record_field = (Longident.t Asttypes.loc* Parsetree.expression)
     let constr_decl_list: constructor_declaration list grammar =
       declare_grammar "constr_decl_list"
     let field_decl_list: label_declaration list grammar =
@@ -427,12 +429,13 @@ module Initial =
                      (Decap.ignore_next_blank
                         (Decap.regexp (infix_symb_re prio)
                            (fun groupe  -> groupe 0))) not_special
-                     (fun sym  _default_0  ->
-                        if is_reserved_symb sym
-                        then
-                          give_up
-                            ("The infix symbol " ^ (sym ^ "is reserved..."));
-                        sym))
+                     (fun sym  ->
+                        fun _default_0  ->
+                          if is_reserved_symb sym
+                          then
+                            give_up
+                              ("The infix symbol " ^ (sym ^ "is reserved..."));
+                          sym))
                   :: y
                 else y in
               if prio = Cons
@@ -448,11 +451,12 @@ module Initial =
              (Decap.ignore_next_blank
                 (Decap.regexp (prefix_symb_re prio) (fun groupe  -> groupe 0)))
              not_special
-             (fun sym  _default_0  ->
-                if (is_reserved_symb sym) || (sym = "!=")
-                then
-                  give_up ("The prefix symbol " ^ (sym ^ "is reserved..."));
-                sym))
+             (fun sym  ->
+                fun _default_0  ->
+                  if (is_reserved_symb sym) || (sym = "!=")
+                  then
+                    give_up ("The prefix symbol " ^ (sym ^ "is reserved..."));
+                  sym))
     let mutable_flag = Decap.declare_grammar "mutable_flag"
     let _ =
       Decap.set_grammar mutable_flag
@@ -507,6 +511,6 @@ module Initial =
         [(".mli", (Interface (signature, ocaml_blank)));
         (".ml", (Implementation (structure, ocaml_blank)))]
   end
-module type Extension = module type of Initial
-module type FExt = functor (E : Extension) -> Extension
+module type Extension  = module type of Initial
+module type FExt  = functor (E : Extension) -> Extension
 include Initial

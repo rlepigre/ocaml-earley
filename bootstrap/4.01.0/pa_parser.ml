@@ -760,9 +760,12 @@ module Ext(In:Extension) =
                 (glr_rule alm)
                 (fun _default_0  ->
                    fun r  -> let (a,b,c) = build_rule r in DepSeq (a, b, c));
-             Decap.sequence (Decap.regexp "[-=]>" (fun groupe  -> groupe 0))
-               (if alm then expression else expression_lvl (Let, Seq))
-               (fun _default_0  -> fun action  -> Normal action);
+             Decap.fsequence (Decap.regexp "[-=]>" (fun groupe  -> groupe 0))
+               (Decap.sequence
+                  (if alm then expression else expression_lvl (Let, Seq))
+                  no_semi
+                  (fun action  ->
+                     fun _default_0  -> fun _default_1  -> Normal action));
              Decap.apply (fun _  -> Default) (Decap.empty ())])
     let _ =
       set_glr_rule

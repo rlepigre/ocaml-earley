@@ -29,6 +29,8 @@ let spec =
     ("--debug", (Arg.Set_int Decap.debug_lvl), "set decap debug_lvl")]
 let extend_cl_args l = spec := ((!spec) @ l)
 let ghost loc = let open Location in { loc with loc_ghost = true }
+let no_ghost loc = let open Location in { loc with loc_ghost = false }
+let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
 let start_pos loc = loc.Location.loc_start
 let end_pos loc = loc.Location.loc_end
 let locate str pos str' pos' =

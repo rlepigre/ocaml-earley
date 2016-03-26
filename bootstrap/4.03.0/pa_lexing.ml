@@ -1,12 +1,12 @@
-exception Unclosed_comment of bool*Input.buffer*int
+exception Unclosed_comment of bool* Input.buffer* int
 let unclosed_comment : 'a . (Input.buffer* int) -> 'a= fun (type a) ->
   (fun (buf,pos)  -> raise (Unclosed_comment (false, buf, pos)) : (Input.buffer*
                                                                     int) -> 
-                                                                    a )
+                                                                    a)
 let unclosed_comment_string : 'a . (Input.buffer* int) -> 'a= fun (type a) ->
   (fun (buf,pos)  -> raise (Unclosed_comment (true, buf, pos)) : (Input.buffer*
                                                                    int) -> 
-                                                                   a )
+                                                                   a)
 let ocaml_blank buf pos =
   let rec fn state stack prev curr =
     let (buf,pos) = curr in
@@ -31,7 +31,7 @@ let ocaml_blank buf pos =
     | (`Str _,[],_) -> assert false
     | (`Esc _,[],_) -> assert false
     | (`Ini,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
-    | (`SOp (l,p),_::_,('a'..'z'))|(`SOp (l,p),_::_,'_') ->
+    | (`SOp (l,p),_::_,'a'..'z')|(`SOp (l,p),_::_,'_') ->
         fn (`SOp ((c :: l), p)) stack curr next
     | (`SOp (_,_),p::_,'\255') -> unclosed_comment p
     | (`SOp (l,p),_::_,'|') -> fn (`SIn ((List.rev l), p)) stack curr next
@@ -57,18 +57,16 @@ let ocaml_blank buf pos =
     | (`Ini,p::_,'\255') -> unclosed_comment p
     | (`Ini,_::_,_) -> fn `Ini stack curr next in
   fn `Ini [] (buf, pos) (buf, pos)
+let no_ident_char c =
+  match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> false | _ -> true
 let test_end_kw =
-  let f buf pos =
-    let (c,_,_) = Input.read buf pos in
-    match c with
-    | 'a'|'b'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> ((), false)
-    | _ -> ((), true) in
+  let f buf pos = let (c,_,_) = Input.read buf pos in ((), (no_ident_char c)) in
   Decap.test ~name:"test_end_kw" Charset.full_charset f
 let key_word s =
   if (String.length s) <= 0
   then invalid_arg "Pa_lexing.key_word (empty keyword)";
   Decap.sequence (Decap.ignore_next_blank (Decap.string s s)) test_end_kw
-    (fun _  _default_0  -> ())
+    (fun _  -> fun _default_0  -> ())
 let mutable_kw = key_word "mutable"
 let private_kw = key_word "private"
 let virtual_kw = key_word "virtual"
@@ -119,6 +117,34 @@ let sig_kw = key_word "sig"
 let lazy_kw = key_word "lazy"
 let parser_kw = key_word "parser"
 let cached_kw = key_word "cached"
+let no_keyword s =
+  let len = String.length s in
+  let rec fn i buf pos =
+    let (c,buf,pos) = Input.read buf pos in
+    if i >= len
+    then ((), (not (no_ident_char c)))
+    else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos in
+  Decap.test Charset.full_charset (fn 0)
+let no_else = no_keyword "else"
+let no_false = no_keyword "false"
+let no_parser = no_keyword "parser"
+let no_with = no_keyword "with"
+let no_dot =
+  Decap.test Charset.full_charset
+    (fun buf  ->
+       fun pos  ->
+         let (c,buf,pos) = Input.read buf pos in
+         if c <> '.' then ((), true) else ((), false))
+let no_semi =
+  Decap.test Charset.full_charset
+    (fun buf  ->
+       fun pos  ->
+         let (c,buf,pos) = Input.read buf pos in
+         if c <> ';'
+         then ((), true)
+         else
+           (let (c,buf,pos) = Input.read buf pos in
+            if c = ';' then ((), true) else ((), false)))
 let make_reserved l =
   let cmp s1 s2 = String.compare s2 s1 in
   let re_from_list l =
@@ -291,28 +317,26 @@ let int_litteral: (string* char option) Decap.grammar =
       "[0][bB][01][01_]*";
       "[0-9][0-9_]*"] in
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
-  let open Decap in
-    Decap.fsequence
-      (Decap.ignore_next_blank
-         (Decap.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
-      (Decap.sequence
-         (Decap.option None
-            (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
-         relax (fun s  _  i  -> (i, s)))
+  Decap.fsequence
+    (Decap.ignore_next_blank
+       (Decap.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
+    (Decap.sequence
+       (Decap.option None
+          (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
+       Decap.relax (fun s  -> fun _  -> fun i  -> (i, s)))
 let float_litteral: (string* char option) Decap.grammar =
   let float_re =
     union_re
       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
-  let open Decap in
-    Decap.fsequence
-      (Decap.ignore_next_blank
-         (Decap.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
-      (Decap.sequence
-         (Decap.option None
-            (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
-         relax (fun s  _  f  -> (f, s)))
+  Decap.fsequence
+    (Decap.ignore_next_blank
+       (Decap.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
+    (Decap.sequence
+       (Decap.option None
+          (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
+       Decap.relax (fun s  -> fun _  -> fun f  -> (f, s)))
 let escaped_char: char Decap.grammar =
   let char_dec = "[0-9][0-9][0-9]" in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
@@ -339,17 +363,17 @@ let char_litteral: char Decap.grammar =
       [Decap.apply (fun c  -> c.[0])
          (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
       Decap.sequence (Decap.ignore_next_blank (Decap.char '\\' '\\'))
-        escaped_char (fun _  e  -> e)] in
+        escaped_char (fun _  -> fun e  -> e)] in
   Decap.fsequence (Decap.ignore_next_blank single_quote)
     (Decap.sequence (Decap.ignore_next_blank single_char)
-       (Decap.char '\'' '\'') (fun c  _  _  -> c))
+       (Decap.char '\'' '\'') (fun c  -> fun _  -> fun _  -> c))
 let quoted_string: (string* string option) Decap.grammar =
   let f buf pos =
     let rec fn st str buf pos =
       let (c,buf',pos') = Input.read buf pos in
       match (st, c) with
       | (`Ini,'{') -> fn (`Opn []) str buf' pos'
-      | (`Opn l,('a'..'z'))|(`Opn l,'_') -> fn (`Opn (c :: l)) str buf' pos'
+      | (`Opn l,'a'..'z')|(`Opn l,'_') -> fn (`Opn (c :: l)) str buf' pos'
       | (`Opn l,'|') -> fn (`Cnt (List.rev l)) str buf' pos'
       | (`Cnt l,'|') -> fn (`Cls (l, [], l)) str buf' pos'
       | (`Cnt l,'\255') -> Decap.give_up ""
@@ -375,50 +399,57 @@ let normal_string: string Decap.grammar =
       Decap.sequence (Decap.ignore_next_blank (Decap.char '\\' '\\'))
         (Decap.alternatives
            [Decap.apply (fun _  -> Decap.give_up "") (Decap.char '\n' '\n');
-           escaped_char]) (fun _  e  -> e)] in
+           escaped_char]) (fun _  -> fun e  -> e)] in
   let internal =
     Decap.sequence
       (Decap.apply List.rev
-         (Decap.fixpoint [] (Decap.apply (fun x  l  -> x :: l) single_char)))
+         (Decap.fixpoint []
+            (Decap.apply (fun x  -> fun l  -> x :: l) single_char)))
       (Decap.apply List.rev
          (Decap.fixpoint []
-            (Decap.apply (fun x  l  -> x :: l)
-               (Decap.sequence
-                  (Decap.regexp "[\\][\n][ \t]*" (fun groupe  -> groupe 0))
-                  (Decap.apply List.rev
-                     (Decap.fixpoint []
-                        (Decap.apply (fun x  l  -> x :: l) single_char)))
-                  (fun _  _default_0  -> _default_0)))))
-      (fun cs  css  -> cs_to_string (List.flatten (cs :: css))) in
+            (Decap.apply (fun x  -> fun l  -> x :: l)
+               (Decap.fsequence (Decap.string "\\\n" "\\\n")
+                  (Decap.sequence
+                     (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0))
+                     (Decap.apply List.rev
+                        (Decap.fixpoint []
+                           (Decap.apply (fun x  -> fun l  -> x :: l)
+                              single_char)))
+                     (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
+      (fun cs  -> fun css  -> cs_to_string (List.flatten (cs :: css))) in
   Decap.fsequence (Decap.ignore_next_blank (Decap.char '"' '"'))
     (Decap.sequence
        (Decap.ignore_next_blank (Decap.change_layout internal Decap.no_blank))
-       (Decap.char '"' '"') (fun _default_0  _  _  -> _default_0))
+       (Decap.char '"' '"')
+       (fun _default_0  -> fun _  -> fun _  -> _default_0))
 let string_litteral: (string* string option) Decap.grammar =
   Decap.alternatives
     [Decap.apply (fun s  -> (s, None)) normal_string; quoted_string]
 let regexp_litteral: string Decap.grammar =
-  let char_reg = "[^']" in
-  let char_esc = "[ntbrs]" in
+  let char_reg = "[^\\\\']" in
+  let char_esc = "[ntbrs\\\\']" in
   let single_char =
     Decap.alternatives
       [Decap.apply (fun c  -> c.[0])
          (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
       Decap.sequence (Decap.char '\\' '\\')
         (Decap.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
-        (fun _  e  ->
-           match e.[0] with
-           | 'n' -> '\n'
-           | 't' -> '\t'
-           | 'b' -> '\b'
-           | 'r' -> '\r'
-           | 's' -> ' '
-           | c -> c)] in
+        (fun _  ->
+           fun e  ->
+             match e.[0] with
+             | 'n' -> '\n'
+             | 't' -> '\t'
+             | 'b' -> '\b'
+             | 'r' -> '\r'
+             | 's' -> ' '
+             | c -> c)] in
   let internal =
     Decap.apply (fun cs  -> cs_to_string cs)
       (Decap.apply List.rev
-         (Decap.fixpoint [] (Decap.apply (fun x  l  -> x :: l) single_char))) in
+         (Decap.fixpoint []
+            (Decap.apply (fun x  -> fun l  -> x :: l) single_char))) in
   Decap.fsequence (Decap.ignore_next_blank double_quote)
     (Decap.sequence
        (Decap.ignore_next_blank (Decap.change_layout internal Decap.no_blank))
-       (Decap.string "''" "''") (fun _default_0  _  _  -> _default_0))
+       (Decap.string "''" "''")
+       (fun _default_0  -> fun _  -> fun _  -> _default_0))

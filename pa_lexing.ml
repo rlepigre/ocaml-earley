@@ -136,12 +136,15 @@ let ocaml_blank buf pos =
  * Keywords management.                                                     *
  ****************************************************************************)
 
+let no_ident_char c =
+  match c with
+  | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> false
+  | _ -> true
+
 let test_end_kw =
   let f buf pos =
     let (c,_,_) = Input.read buf pos in
-    match c with
-    | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> ((), false)
-    | _                                           -> ((), true )
+    ((), no_ident_char c)
   in
   Decap.test ~name:"test_end_kw" Charset.full_charset f
 
@@ -200,6 +203,32 @@ let sig_kw         = key_word "sig"
 let lazy_kw        = key_word "lazy"
 let parser_kw      = key_word "parser"
 let cached_kw      = key_word "cached"
+
+let no_keyword s =
+  let len = String.length s in
+  let rec fn i buf pos =
+    let c,buf,pos = Input.read buf pos in
+    if i >= len then ((), not (no_ident_char c)) else
+      if c <> s.[i] then ((), true) else fn (i+1) buf pos
+  in
+  Decap.test Charset.full_charset (fn 0)
+
+let no_else = no_keyword "else"
+let no_false = no_keyword "false"
+let no_parser = no_keyword "parser"
+let no_with = no_keyword "with"
+
+let no_dot =
+  Decap.test Charset.full_charset (fun buf pos ->
+    let c,buf,pos = Input.read buf pos in
+    if c <> '.' then ((), true) else ((), false))
+
+let no_semi =
+  Decap.test Charset.full_charset (fun buf pos ->
+    let c,buf,pos = Input.read buf pos in
+    if c <> ';' then ((), true) else
+    let c,buf,pos = Input.read buf pos in
+    if c = ';' then ((), true) else ((), false))
 
 (****************************************************************************
  * Identifiers.                                                             *
