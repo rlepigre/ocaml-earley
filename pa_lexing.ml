@@ -334,6 +334,16 @@ let parser bool_lit : string Decap.grammar =
 
 (* Int litteral. *)
 
+let num_suffix =
+  let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
+  let no_suffix_cs = Decap.test Charset.full_charset
+    (fun buf pos ->
+      let c,_,_ = Input.read buf pos in
+      ((), not (Charset.mem suffix_cs c))) in
+  parser
+  | s:(Decap.in_charset suffix_cs) -> Some s
+  | no_suffix_cs -> None
+
 let int_litteral : (string * char option) Decap.grammar =
   let int_re = union_re
     [ "[0][xX][0-9a-fA-F][0-9a-fA-F_]*" (* Hexadecimal *)
@@ -341,8 +351,7 @@ let int_litteral : (string * char option) Decap.grammar =
     ; "[0][bB][01][01_]*"               (* Binary *)
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
-  let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  parser i:RE(int_re) - s:(Decap.in_charset suffix_cs)? _:Decap.relax
+  parser i:RE(int_re) - num_suffix _:Decap.relax
 
 (* Float litteral. *)
 let float_litteral : (string * char option) Decap.grammar =
@@ -350,8 +359,7 @@ let float_litteral : (string * char option) Decap.grammar =
     [ "[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*"
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
-  let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  parser f:RE(float_re) - s:(Decap.in_charset suffix_cs)? _:Decap.relax
+  parser f:RE(float_re) - num_suffix _:Decap.relax
 
 (* Char litteral. *)
 
@@ -416,12 +424,13 @@ let normal_string : string Decap.grammar =
   let single_char = parser
     | c:RE(char_reg)        -> c.[0]
     | '\\' - e:escaped_char -> e
+    | c:'\n'                -> c
   in
   let internal = parser
-    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*") single_char*}* ->
+    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*") single_char*}* '"' ->
       cs_to_string (List.flatten (cs :: css))
   in
-  parser '"' - (Decap.change_layout internal Decap.no_blank)?[""] - '"'
+  parser '"' - (Decap.change_layout internal Decap.no_blank)
 
 let string_litteral : (string * string option) Decap.grammar =
   parser
