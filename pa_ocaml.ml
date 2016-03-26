@@ -192,118 +192,12 @@ let wrap_type_annotation _loc newtypes core_type body =
   (exp, loc_typ _loc (Ptyp_poly(newtypes,varify_constructors newtypes core_type)))
 
 (* Floating-point litterals *)
-let float_lit_dec    = "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"
-let float_lit_no_dec = "[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*"
-let float_re = union_re [float_lit_no_dec; float_lit_dec]
-
-let parser float_litteral =
-    f:RE(float_re)   -> f
-(*  | dol:CHR('$') - STR("float") CHR(':') e:(expression_lvl App) - CHR('$') ->
-    Quote.make_antiquotation e*)
+let float_litteral = Decap.apply fst Pa_lexing.float_litteral
 
 (* Character litterals *)
-let char_regular = "[^\\']"
-let string_regular = "[^\\\"]"
-let re_regular = "[^']"
-let char_escaped = "[\\\\][\\\\\\\"\\\'ntbrs ]"
-let re_escaped = "[\\\\][ntbrs]"
-let char_dec     = "[\\\\][0-9][0-9][0-9]"
-let char_hex     = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
-
-type string_litteral_type = Char | String | Re
-
-exception Illegal_escape of string
-
-let parser one_char slt =
-  | '\n' -> '\n'
-  | single_quote when slt = Re -> '\''
-  | c:RE(if slt = Re then re_escaped else char_escaped) ->
-      (match c.[1] with
-       | 'n' -> '\n'
-       | 't' -> '\t'
-       | 'b' -> '\b'
-       | 'r' -> '\r'
-       | 's' -> ' '
-       | c   -> c)
-  | c:RE(match slt with Char -> char_regular | String -> string_regular | Re -> re_regular)
-      -> c.[0]
-  | c:RE(char_dec)     -> (let str = String.sub c 1 3 in
-                           let i = Scanf.sscanf str "%i" (fun i -> i) in
-                           if i > 255 then
-                             raise (Illegal_escape str)
-                           else char_of_int i)
-  | c:RE(char_hex)     -> (let str = String.sub c 2 2 in
-                           let str' = String.concat "" ["0x"; str] in
-                           let i = Scanf.sscanf str' "%i" (fun i -> i) in
-                           char_of_int i)
-
-let _ = set_grammar char_litteral (
-  parser
-    CHR('\'') - r:(change_layout (
-      parser c:(one_char Char) CHR('\'') -> c
-    ) no_blank) -> r)
-(*  | dol:CHR('$') - STR("char") CHR(':') e:(expression_lvl App) - CHR('$') ->
-    Quote.make_antiquotation e*)
-
-(* String litterals *)
-let interspace = "[ \t]*"
-
-  let char_list_to_string lc =
-    let len = List.length lc in
-#ifversion >= 4.02
-    let str = Bytes.create len in
-#else
-    let str = String.create len in
-#endif
-    let ptr = ref lc in
-    for i = 0 to len - 1 do
-      match !ptr with
-	[] -> assert false
-      | x::l ->
-#ifversion >= 4.02
-	 Bytes.unsafe_set str i x;
-#else
-	 String.unsafe_set str i x;
-#endif
-	 ptr := l
-    done;
-#ifversion >= 4.02
-    Bytes.unsafe_to_string str
-#else
-    str
-#endif
-
-let parser in_string =
-      lc:(one_char String)*
-        lcs:(parser '\\' '\n' RE(interspace) lc:(one_char String)* -> lc)*
-        '"' -> char_list_to_string (List.flatten (lc::lcs))
-
-let _ = set_grammar string_litteral (
-  parser
-  | '"' - r:(change_layout in_string no_blank) -> let r = r in r)
-
-(*  | CHR('{') - r:(change_layout (
-	parser id:RE("[a-z]*") CHR('|') =>>
-	  let string_litteral_suit = declare_grammar "string_litteral_suit" in
-	  let _ = set_grammar string_litteral_suit (
-	    parser
-	    | CHR('|') STR(id) CHR('}') -> []
-	    | c:ANY r:string_litteral_suit -> c::r)
-	  in
-    r:(string_litteral_suit) -> char_list_to_string r) no_blank) -> r) FIXME .... *)
-
-(*  | dol:CHR('$') - STR("string") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-
-let _ = set_grammar regexp_litteral (
-  parser
-  | double_quote - r:(change_layout (
-    parser
-      lc:(one_char Re)*
-        lcs:(parser '\\' '\n' RE(interspace) lc:(one_char Re)* -> lc)*
-        "''" -> char_list_to_string (List.flatten (lc::lcs))
-    ) no_blank) -> r)
-
+let _ = set_grammar char_litteral Pa_lexing.char_litteral
+let _ = set_grammar string_litteral (Decap.apply fst Pa_lexing.string_litteral)
+let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
 
 type tree = Node of tree * tree | Leaf of string
 
@@ -964,6 +858,18 @@ let classtype_definition =
 (****************************************************************************
  * Constants and Patterns                                                   *
  ****************************************************************************)
+let parser integer_litteral = (s,co):int_litteral ->
+#ifversion >= 4.03
+  Pconst_integer(s,co)
+#else
+  match co with
+  | None     -> const_int (int_of_string s)
+  | Some 'l' -> const_int32 (Int32.of_string s)
+  | Some 'L' -> const_int64 (Int64.of_string s)
+  | Some 'n' -> const_nativeint (Nativeint.of_string s)
+  | Some _   -> Decap.give_up "Invalid integer litteral suffix..."
+#endif
+
 (* Constants *)
 let constant =
   parser

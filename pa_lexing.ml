@@ -431,10 +431,11 @@ let string_litteral : (string * string option) Decap.grammar =
 (* Regexp litteral. *)
 
 let regexp_litteral : string Decap.grammar =
-  let char_reg = "[^\\\\']" in
-  let char_esc = "[ntbrs\\\\']" in
+  let char_reg = "[^']" in
+  let char_esc = "[ntbrs]" in
   let single_char = parser
     | c:RE(char_reg)      -> c.[0]
+    | _:single_quote      -> '\''
     | '\\' e:RE(char_esc) ->
         begin
           match e.[0] with

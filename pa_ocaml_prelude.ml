@@ -468,29 +468,6 @@ let parser downto_flag =
   | to_kw     -> Upto
   | downto_kw -> Downto
 
-(* Integer litterals *)
-let int_dec_re = "[0-9][0-9_]*[lLn]?"
-let int_hex_re = "[0][xX][0-9a-fA-F][0-9a-fA-F_]*[lLn]?"
-let int_oct_re = "[0][oO][0-7][0-7_]*[lLn]?"
-let int_bin_re = "[0][bB][01][01_]*[lLn]?"
-let int_pos_re = (union_re [int_hex_re; int_oct_re;int_bin_re;int_dec_re]) (* decimal à la fin sinon ça ne marche pas !!! *)
-
-let parser integer_litteral =
-    i:RE(int_pos_re) -> let len = String.length i in
-			assert(len > 0);
-#ifversion >= 4.03
-			match i.[len-1] with
-			| 'l' | 'L' | 'n' -> Pconst_integer (String.sub i 0 (len - 1), Some i.[len-1])
-			| _ -> Pconst_integer(i, None)
-#else
-			match i.[len-1] with (* FIXME: double conversion in 4.03 ...*)
-			| 'l' -> const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
-			| 'L' -> const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
-			| 'n' -> const_nativeint (Nativeint.of_string (String.sub i 0 (len - 1)))
-			| _ -> const_int (int_of_string i)
-#endif
-(*  | dol:CHR('$') - STR("int") CHR(':') e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
 let entry_points : (string * entry_point) list ref
    = ref [ ".mli", Interface (signature, ocaml_blank)
          ;  ".ml", Implementation (structure, ocaml_blank) ]
