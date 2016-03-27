@@ -10,7 +10,7 @@ files="$local/bibi.ml $local/UTF16.ml $local/test_offset.ml $local/image*.ml $lo
        $local/pa_byt_main.ml $local/pa_ocaml_prelude.ml $local/pa_parser.ml \
        $local/test.ml $local/objects.ml $local/variants.ml $local/prefix.ml\
        $local/mixin2.ml $local/mixev.ml $local/mixev2.ml $local/mixmod.ml $local/mixmod5.ml $local/mixobj.ml \
-       $ocaml/pervasives.ml $ocaml/pervasives.mli $ocaml/list.ml $ocaml/list.mli \
+       $ocaml/pervasives.ml $ocaml/pervasives.mli $ocaml/list.ml $ocaml/list.mli $ocaml/stack.ml $ocaml/stack.mli\
        $ocaml/set.ml $ocaml/set.mli $ocaml/map.ml $ocaml/map.mli $local/bigarray.ml $ocaml/bigarray.mli \
        $ocaml/string.ml $ocaml/string.mli $ocaml/array.ml $ocaml/array.mli $ocaml/char.ml $ocaml/char.mli \
        $ocaml/arg.ml $ocaml/arg.mli $ocaml/arrayLabels.ml $ocaml/arrayLabels.mli $ocaml/buffer.ml \

@@ -263,13 +263,15 @@ module Initial =
     type constructor_declaration =
       (string Asttypes.loc* Parsetree.core_type list* Parsetree.core_type
         option* Location.t)
-    let constructor_declaration _loc name args res = (name, args, res, _loc)
+    let constructor_declaration ?(attributes= [])  _loc name args res =
+      (name, args, res, _loc)
     type label_declaration =
       (string Asttypes.loc* Asttypes.mutable_flag* Parsetree.core_type*
         Location.t)
     type case = (pattern* expression)
     let label_declaration _loc name mut ty = (name, mut, ty, _loc)
-    let type_declaration _loc name params cstrs kind priv manifest =
+    let type_declaration ?(attributes= [])  _loc name params cstrs kind priv
+      manifest =
       let (params,variance) = List.split params in
       {
         ptype_params = params;
@@ -280,7 +282,8 @@ module Initial =
         ptype_manifest = manifest;
         ptype_loc = _loc
       }
-    let class_type_declaration _loc' _loc name params virt expr =
+    let class_type_declaration ?(attributes= [])  _loc' _loc name params virt
+      expr =
       let (params,variance) = List.split params in
       let params =
         List.map (function | None  -> id_loc "" _loc' | Some x -> x) params in
@@ -298,7 +301,7 @@ module Initial =
         (name, { pval_type = ty; pval_prim = prim; pval_loc = _loc })
     let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
     let module_binding _loc name mt me = (name, mt, me)
-    let module_declaration _loc name mt = (name, mt)
+    let module_declaration ?(attributes= [])  _loc name mt = (name, mt)
     let ppat_construct (a,b) = Ppat_construct (a, b, false)
     let pexp_constraint (a,b) = Pexp_constraint (a, (Some b), None)
     let pexp_coerce (a,b,c) = Pexp_constraint (a, b, (Some c))
@@ -347,6 +350,12 @@ module Initial =
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)
+    let attach_attrib ?(delta= 1)  loc acc = acc
+    let attach_gen build loc = []
+    let attach_sig =
+      attach_gen (fun loc  -> fun a  -> loc_sig loc (Psig_attribute a))
+    let attach_str =
+      attach_gen (fun loc  -> fun a  -> loc_str loc (Pstr_attribute a))
     let union_re l =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l in
       String.concat "\\|" l
@@ -463,29 +472,6 @@ module Initial =
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Upto) to_kw;
            Decap.apply (fun _default_0  -> Downto) downto_kw])
-    let int_dec_re = "[0-9][0-9_]*[lLn]?"
-    let int_hex_re = "[0][xX][0-9a-fA-F][0-9a-fA-F_]*[lLn]?"
-    let int_oct_re = "[0][oO][0-7][0-7_]*[lLn]?"
-    let int_bin_re = "[0][bB][01][01_]*[lLn]?"
-    let int_pos_re =
-      union_re [int_hex_re; int_oct_re; int_bin_re; int_dec_re]
-    let integer_litteral = Decap.declare_grammar "integer_litteral"
-    let _ =
-      Decap.set_grammar integer_litteral
-        (Decap.apply
-           (fun i  ->
-              let len = String.length i in
-              assert (len > 0);
-              (match i.[len - 1] with
-               | 'l' ->
-                   const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
-               | 'L' ->
-                   const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
-               | 'n' ->
-                   const_nativeint
-                     (Nativeint.of_string (String.sub i 0 (len - 1)))
-               | _ -> const_int (int_of_string i)))
-           (Decap.regexp ~name:"int_pos" int_pos_re (fun groupe  -> groupe 0)))
     let entry_points: (string* entry_point) list ref =
       ref
         [(".mli", (Interface (signature, ocaml_blank)));

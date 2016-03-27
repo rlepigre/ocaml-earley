@@ -7,55 +7,76 @@ let unclosed_comment_string : 'a . (Input.buffer* int) -> 'a= fun (type a) ->
   (fun (buf,pos)  -> raise (Unclosed_comment (true, buf, pos)) : (Input.buffer*
                                                                    int) -> 
                                                                    a)
+let ocamldoc_comments = ref []
 let ocaml_blank buf pos =
+  let ocamldoc = ref false in
+  let ocamldoc_buf = Buffer.create 1024 in
   let rec fn state stack prev curr =
     let (buf,pos) = curr in
     let (c,buf',pos') = Input.read buf pos in
-    let next = (buf', pos') in
-    match (state, stack, c) with
-    | (`Ini,[],' ')|(`Ini,[],'\t')|(`Ini,[],'\r')|(`Ini,[],'\n') ->
-        fn `Ini stack curr next
-    | (`Ini,_,'(') -> fn (`Opn curr) stack curr next
-    | (`Ini,[],_) -> curr
-    | (`Opn p,_,'*') -> fn `Ini (p :: stack) curr next
-    | (`Opn _,_::_,'"') -> fn (`Str curr) stack curr next
-    | (`Opn _,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
-    | (`Opn _,[],_) -> prev
-    | (`Opn _,_,_) -> fn `Ini stack curr next
-    | (`Ini,_::_,'"') -> fn (`Str curr) stack curr next
-    | (`Str _,_::_,'"') -> fn `Ini stack curr next
-    | (`Str p,_::_,'\\') -> fn (`Esc p) stack curr next
-    | (`Esc p,_::_,_) -> fn (`Str p) stack curr next
-    | (`Str p,_::_,'\255') -> unclosed_comment_string p
-    | (`Str _,_::_,_) -> fn state stack curr next
-    | (`Str _,[],_) -> assert false
-    | (`Esc _,[],_) -> assert false
-    | (`Ini,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
-    | (`SOp (l,p),_::_,'a'..'z')|(`SOp (l,p),_::_,'_') ->
-        fn (`SOp ((c :: l), p)) stack curr next
-    | (`SOp (_,_),p::_,'\255') -> unclosed_comment p
-    | (`SOp (l,p),_::_,'|') -> fn (`SIn ((List.rev l), p)) stack curr next
-    | (`SOp (_,_),_::_,_) -> fn `Ini stack curr next
-    | (`SIn (l,p),_::_,'|') -> fn (`SCl (l, (l, p))) stack curr next
-    | (`SIn (_,p),_::_,'\255') -> unclosed_comment_string p
-    | (`SIn (_,_),_::_,_) -> fn state stack curr next
-    | (`SCl ([],b),_::_,'}') -> fn `Ini stack curr next
-    | (`SCl ([],b),_::_,'\255') -> unclosed_comment_string (snd b)
-    | (`SCl ([],b),_::_,_) -> fn (`SIn b) stack curr next
-    | (`SCl (l,b),_::_,c) ->
-        if c = (List.hd l)
-        then let l = List.tl l in fn (`SCl (l, b)) stack curr next
-        else fn (`SIn b) stack curr next
-    | (`SOp (_,_),[],_) -> assert false
-    | (`SIn (_,_),[],_) -> assert false
-    | (`SCl (_,_),[],_) -> assert false
-    | (`Ini,_::_,'*') -> fn `Cls stack curr next
-    | (`Cls,_::_,'*') -> fn `Cls stack curr next
-    | (`Cls,_::s,')') -> fn `Ini s curr next
-    | (`Cls,_::_,_) -> fn `Ini stack curr next
-    | (`Cls,[],_) -> assert false
-    | (`Ini,p::_,'\255') -> unclosed_comment p
-    | (`Ini,_::_,_) -> fn `Ini stack curr next in
+    if !ocamldoc then Buffer.add_char ocamldoc_buf c;
+    (let next = (buf', pos') in
+     match (state, stack, c) with
+     | (`Ini,[],' ')|(`Ini,[],'\t')|(`Ini,[],'\r')|(`Ini,[],'\n') ->
+         fn `Ini stack curr next
+     | (`Ini,_,'(') -> fn (`Opn curr) stack curr next
+     | (`Ini,[],_) -> curr
+     | (`Opn p,_,'*') ->
+         if stack = []
+         then
+           let (c,buf',pos') = Input.read buf' pos' in
+           let (c',_,_) = Input.read buf' pos' in
+           (if (c = '*') && (c' <> '*')
+            then (ocamldoc := true; fn `Ini (p :: stack) curr (buf', pos'))
+            else fn `Ini (p :: stack) curr next)
+         else fn `Ini (p :: stack) curr next
+     | (`Opn _,_::_,'"') -> fn (`Str curr) stack curr next
+     | (`Opn _,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
+     | (`Opn _,[],_) -> prev
+     | (`Opn _,_,_) -> fn `Ini stack curr next
+     | (`Ini,_::_,'"') -> fn (`Str curr) stack curr next
+     | (`Str _,_::_,'"') -> fn `Ini stack curr next
+     | (`Str p,_::_,'\\') -> fn (`Esc p) stack curr next
+     | (`Esc p,_::_,_) -> fn (`Str p) stack curr next
+     | (`Str p,_::_,'\255') -> unclosed_comment_string p
+     | (`Str _,_::_,_) -> fn state stack curr next
+     | (`Str _,[],_) -> assert false
+     | (`Esc _,[],_) -> assert false
+     | (`Ini,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
+     | (`SOp (l,p),_::_,'a'..'z')|(`SOp (l,p),_::_,'_') ->
+         fn (`SOp ((c :: l), p)) stack curr next
+     | (`SOp (_,_),p::_,'\255') -> unclosed_comment p
+     | (`SOp (l,p),_::_,'|') -> fn (`SIn ((List.rev l), p)) stack curr next
+     | (`SOp (_,_),_::_,_) -> fn `Ini stack curr next
+     | (`SIn (l,p),_::_,'|') -> fn (`SCl (l, (l, p))) stack curr next
+     | (`SIn (_,p),_::_,'\255') -> unclosed_comment_string p
+     | (`SIn (_,_),_::_,_) -> fn state stack curr next
+     | (`SCl ([],b),_::_,'}') -> fn `Ini stack curr next
+     | (`SCl ([],b),_::_,'\255') -> unclosed_comment_string (snd b)
+     | (`SCl ([],b),_::_,_) -> fn (`SIn b) stack curr next
+     | (`SCl (l,b),_::_,c) ->
+         if c = (List.hd l)
+         then let l = List.tl l in fn (`SCl (l, b)) stack curr next
+         else fn (`SIn b) stack curr next
+     | (`SOp (_,_),[],_) -> assert false
+     | (`SIn (_,_),[],_) -> assert false
+     | (`SCl (_,_),[],_) -> assert false
+     | (`Ini,_::_,'*') -> fn `Cls stack curr next
+     | (`Cls,_::_,'*') -> fn `Cls stack curr next
+     | (`Cls,p::s,')') ->
+         (if (!ocamldoc) && (s = [])
+          then
+            (let comment =
+               Buffer.sub ocamldoc_buf 0 ((Buffer.length ocamldoc_buf) - 2) in
+             Buffer.clear ocamldoc_buf;
+             ocamldoc_comments := ((p, next, comment) ::
+               (!ocamldoc_comments));
+             ocamldoc := false);
+          fn `Ini s curr next)
+     | (`Cls,_::_,_) -> fn `Ini stack curr next
+     | (`Cls,[],_) -> assert false
+     | (`Ini,p::_,'\255') -> unclosed_comment p
+     | (`Ini,_::_,_) -> fn `Ini stack curr next) in
   fn `Ini [] (buf, pos) (buf, pos)
 let no_ident_char c =
   match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> false | _ -> true
@@ -309,6 +330,17 @@ let _ =
     (Decap.alternatives
        [Decap.apply (fun _default_0  -> "false") false_kw;
        Decap.apply (fun _default_0  -> "true") true_kw])
+let num_suffix =
+  let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
+  let no_suffix_cs =
+    Decap.test Charset.full_charset
+      (fun buf  ->
+         fun pos  ->
+           let (c,_,_) = Input.read buf pos in
+           ((), (not (Charset.mem suffix_cs c)))) in
+  Decap.alternatives
+    [Decap.apply (fun s  -> Some s) (Decap.in_charset suffix_cs);
+    Decap.apply (fun _default_0  -> None) no_suffix_cs]
 let int_litteral: (string* char option) Decap.grammar =
   let int_re =
     union_re
@@ -316,27 +348,21 @@ let int_litteral: (string* char option) Decap.grammar =
       "[0][oO][0-7][0-7_]*";
       "[0][bB][01][01_]*";
       "[0-9][0-9_]*"] in
-  let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
   Decap.fsequence
     (Decap.ignore_next_blank
        (Decap.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
-    (Decap.sequence
-       (Decap.option None
-          (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
-       Decap.relax (fun s  -> fun _  -> fun i  -> (i, s)))
+    (Decap.sequence num_suffix Decap.relax
+       (fun _default_0  -> fun _  -> fun i  -> (i, _default_0)))
 let float_litteral: (string* char option) Decap.grammar =
   let float_re =
     union_re
       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
-  let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
   Decap.fsequence
     (Decap.ignore_next_blank
        (Decap.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
-    (Decap.sequence
-       (Decap.option None
-          (Decap.apply (fun x  -> Some x) (Decap.in_charset suffix_cs)))
-       Decap.relax (fun s  -> fun _  -> fun f  -> (f, s)))
+    (Decap.sequence num_suffix Decap.relax
+       (fun _default_0  -> fun _  -> fun f  -> (f, _default_0)))
 let escaped_char: char Decap.grammar =
   let char_dec = "[0-9][0-9][0-9]" in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
@@ -391,47 +417,48 @@ let quoted_string: (string* string option) Decap.grammar =
     let r = ((cs_to_string cs), (Some (cs_to_string id))) in (r, buf, pos) in
   Decap.black_box f (Charset.singleton '{') false "quoted_string"
 let normal_string: string Decap.grammar =
-  let char_reg = "[^\\\\\\\"]" in
+  let char_reg = "[^\\\"\\\\]" in
   let single_char =
     Decap.alternatives
       [Decap.apply (fun c  -> c.[0])
          (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
       Decap.sequence (Decap.ignore_next_blank (Decap.char '\\' '\\'))
-        (Decap.alternatives
-           [Decap.apply (fun _  -> Decap.give_up "") (Decap.char '\n' '\n');
-           escaped_char]) (fun _  -> fun e  -> e)] in
+        escaped_char (fun _  -> fun e  -> e);
+      Decap.char '\n' '\n'] in
   let internal =
-    Decap.sequence
+    Decap.fsequence
       (Decap.apply List.rev
          (Decap.fixpoint []
             (Decap.apply (fun x  -> fun l  -> x :: l) single_char)))
-      (Decap.apply List.rev
-         (Decap.fixpoint []
-            (Decap.apply (fun x  -> fun l  -> x :: l)
-               (Decap.fsequence (Decap.string "\\\n" "\\\n")
-                  (Decap.sequence
-                     (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0))
-                     (Decap.apply List.rev
-                        (Decap.fixpoint []
-                           (Decap.apply (fun x  -> fun l  -> x :: l)
-                              single_char)))
-                     (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
-      (fun cs  -> fun css  -> cs_to_string (List.flatten (cs :: css))) in
-  Decap.fsequence (Decap.ignore_next_blank (Decap.char '"' '"'))
-    (Decap.sequence
-       (Decap.ignore_next_blank (Decap.change_layout internal Decap.no_blank))
-       (Decap.char '"' '"')
-       (fun _default_0  -> fun _  -> fun _  -> _default_0))
+      (Decap.sequence
+         (Decap.apply List.rev
+            (Decap.fixpoint []
+               (Decap.apply (fun x  -> fun l  -> x :: l)
+                  (Decap.fsequence (Decap.string "\\\n" "\\\n")
+                     (Decap.sequence
+                        (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0))
+                        (Decap.apply List.rev
+                           (Decap.fixpoint []
+                              (Decap.apply (fun x  -> fun l  -> x :: l)
+                                 single_char)))
+                        (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
+         (Decap.char '"' '"')
+         (fun css  ->
+            fun _  -> fun cs  -> cs_to_string (List.flatten (cs :: css)))) in
+  Decap.sequence (Decap.ignore_next_blank (Decap.char '"' '"'))
+    (Decap.change_layout internal Decap.no_blank)
+    (fun _  -> fun _default_0  -> _default_0)
 let string_litteral: (string* string option) Decap.grammar =
   Decap.alternatives
     [Decap.apply (fun s  -> (s, None)) normal_string; quoted_string]
 let regexp_litteral: string Decap.grammar =
-  let char_reg = "[^\\\\']" in
-  let char_esc = "[ntbrs\\\\']" in
+  let char_reg = "[^']" in
+  let char_esc = "[ntbrs]" in
   let single_char =
     Decap.alternatives
       [Decap.apply (fun c  -> c.[0])
          (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
+      Decap.apply (fun _  -> '\'') single_quote;
       Decap.sequence (Decap.char '\\' '\\')
         (Decap.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
         (fun _  ->

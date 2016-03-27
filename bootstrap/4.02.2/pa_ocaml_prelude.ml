@@ -258,12 +258,12 @@ module Initial =
     let extra_patterns: (pattern_prio -> pattern grammar) list = []
     let extra_structure: structure_item list grammar list = []
     let extra_signature: signature_item list grammar list = []
-    let constructor_declaration _loc name args res =
+    let constructor_declaration ?(attributes= [])  _loc name args res =
       {
         pcd_name = name;
         pcd_args = args;
         pcd_res = res;
-        pcd_attributes = [];
+        pcd_attributes = attributes;
         pcd_loc = _loc
       }
     let label_declaration _loc name mut ty =
@@ -280,7 +280,8 @@ module Initial =
         | None  -> ((loc_typ _loc Ptyp_any), var)
         | Some name -> ((loc_typ name.loc (Ptyp_var (name.txt))), var) in
       List.map fn params
-    let type_declaration _loc name params cstrs kind priv manifest =
+    let type_declaration ?(attributes= [])  _loc name params cstrs kind priv
+      manifest =
       let params = params_map _loc params in
       {
         ptype_name = name;
@@ -289,17 +290,18 @@ module Initial =
         ptype_kind = kind;
         ptype_private = priv;
         ptype_manifest = manifest;
-        ptype_attributes = [];
+        ptype_attributes = attributes;
         ptype_loc = _loc
       }
-    let class_type_declaration _loc' _loc name params virt expr =
+    let class_type_declaration ?(attributes= [])  _loc' _loc name params virt
+      expr =
       let params = params_map _loc' params in
       {
         pci_params = params;
         pci_virt = virt;
         pci_name = name;
         pci_expr = expr;
-        pci_attributes = [];
+        pci_attributes = attributes;
         pci_loc = _loc
       }
     let pstr_eval e = Pstr_eval (e, [])
@@ -325,8 +327,13 @@ module Initial =
         | None  -> me
         | Some mt -> mexpr_loc _loc (Pmod_constraint (me, mt)) in
       { pmb_name = name; pmb_expr = me; pmb_attributes = []; pmb_loc = _loc }
-    let module_declaration _loc name mt =
-      { pmd_name = name; pmd_type = mt; pmd_attributes = []; pmd_loc = _loc }
+    let module_declaration ?(attributes= [])  _loc name mt =
+      {
+        pmd_name = name;
+        pmd_type = mt;
+        pmd_attributes = attributes;
+        pmd_loc = _loc
+      }
     let ppat_construct (a,b) = Ppat_construct (a, b)
     let pexp_constraint (a,b) = Pexp_constraint (a, b)
     let pexp_coerce (a,b,c) = Pexp_coerce (a, b, c)
@@ -372,6 +379,70 @@ module Initial =
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)
+    let mk_attrib loc s contents =
+      ((id_loc s Location.none),
+        (PStr [loc_str loc (Pstr_eval ((exp_string loc contents), []))]))
+    let attach_attrib =
+      let tbl = Hashtbl.create 31 in
+      fun ?(delta= 1)  ->
+        fun loc  ->
+          fun acc  ->
+            let open Location in
+              let open Lexing in
+                let rec fn acc res =
+                  function
+                  | [] -> (ocamldoc_comments := (List.rev acc); res)
+                  | ((start,end_,contents) as c)::rest ->
+                      let start' = loc.loc_start in
+                      let end' = loc.loc_end in
+                      let loc =
+                        locate (fst start) (snd start) (fst end_) (snd end_) in
+                      if
+                        (start'.pos_lnum >= (line_num (fst end_))) &&
+                          ((start'.pos_lnum - (line_num (fst end_))) <= delta)
+                      then
+                        fn acc ((mk_attrib loc "ocaml.doc" contents) :: res)
+                          rest
+                      else
+                        if
+                          ((line_num (fst start)) >= end'.pos_lnum) &&
+                            (((line_num (fst start)) - end'.pos_lnum) <=
+                               delta)
+                        then
+                          fn acc (res @ [mk_attrib loc "ocaml.doc" contents])
+                            rest
+                        else fn (c :: acc) res rest in
+                try Hashtbl.find tbl loc
+                with
+                | Not_found  ->
+                    let res = fn [] acc (!ocamldoc_comments) in
+                    (Hashtbl.add tbl loc res; res)
+    let attach_gen build =
+      let tbl = Hashtbl.create 31 in
+      fun loc  ->
+        let open Location in
+          let open Lexing in
+            let rec fn acc res =
+              function
+              | [] -> (ocamldoc_comments := (List.rev acc); res)
+              | ((start,end_,contents) as c)::rest ->
+                  let start' = loc.loc_start in
+                  let loc =
+                    locate (fst start) (snd start) (fst end_) (snd end_) in
+                  if (line_num (fst end_)) < start'.pos_lnum
+                  then
+                    fn acc ((build loc (mk_attrib loc "ocaml.text" contents))
+                      :: res) rest
+                  else fn (c :: acc) res rest in
+            try Hashtbl.find tbl loc.loc_start
+            with
+            | Not_found  ->
+                let res = fn [] [] (!ocamldoc_comments) in
+                (Hashtbl.add tbl loc.loc_start res; res)
+    let attach_sig =
+      attach_gen (fun loc  -> fun a  -> loc_sig loc (Psig_attribute a))
+    let attach_str =
+      attach_gen (fun loc  -> fun a  -> loc_str loc (Pstr_attribute a))
     let union_re l =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l in
       String.concat "\\|" l
@@ -488,29 +559,6 @@ module Initial =
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Upto) to_kw;
            Decap.apply (fun _default_0  -> Downto) downto_kw])
-    let int_dec_re = "[0-9][0-9_]*[lLn]?"
-    let int_hex_re = "[0][xX][0-9a-fA-F][0-9a-fA-F_]*[lLn]?"
-    let int_oct_re = "[0][oO][0-7][0-7_]*[lLn]?"
-    let int_bin_re = "[0][bB][01][01_]*[lLn]?"
-    let int_pos_re =
-      union_re [int_hex_re; int_oct_re; int_bin_re; int_dec_re]
-    let integer_litteral = Decap.declare_grammar "integer_litteral"
-    let _ =
-      Decap.set_grammar integer_litteral
-        (Decap.apply
-           (fun i  ->
-              let len = String.length i in
-              assert (len > 0);
-              (match i.[len - 1] with
-               | 'l' ->
-                   const_int32 (Int32.of_string (String.sub i 0 (len - 1)))
-               | 'L' ->
-                   const_int64 (Int64.of_string (String.sub i 0 (len - 1)))
-               | 'n' ->
-                   const_nativeint
-                     (Nativeint.of_string (String.sub i 0 (len - 1)))
-               | _ -> const_int (int_of_string i)))
-           (Decap.regexp ~name:"int_pos" int_pos_re (fun groupe  -> groupe 0)))
     let entry_points: (string* entry_point) list ref =
       ref
         [(".mli", (Interface (signature, ocaml_blank)));

@@ -212,6 +212,7 @@ let string_exp (b,lvl) =
            | `Type of string ] grammar), set_parameter = grammar_family "parameter"
 
   let structure = structure_item
+
   let parser signature =
       l : {s:signature_item}* -> List.flatten l
 
@@ -259,8 +260,8 @@ let string_exp (b,lvl) =
   let extra_structure = ([] : structure_item list grammar list)
   let extra_signature = ([] : signature_item list grammar list)
 #ifversion >= 4.02
-  let constructor_declaration _loc name args res =
-    { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = []; pcd_loc = _loc }
+  let constructor_declaration ?(attributes=[]) _loc name args res =
+    { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
   let label_declaration _loc name mut ty =
     { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = []; pld_loc = _loc }
   let params_map _loc params =
@@ -270,7 +271,7 @@ let string_exp (b,lvl) =
       | Some name -> (loc_typ name.loc (Ptyp_var name.txt), var)
     in
     List.map fn params
-  let type_declaration _loc name params cstrs kind priv manifest =
+  let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
     let params = params_map _loc params in
     {
      ptype_name = name;
@@ -279,16 +280,16 @@ let string_exp (b,lvl) =
      ptype_kind = kind;
      ptype_private = priv;
      ptype_manifest = manifest;
-     ptype_attributes = [];
+     ptype_attributes = attributes;
      ptype_loc = _loc;
     }
-  let class_type_declaration _loc' _loc name params virt expr =
+  let class_type_declaration ?(attributes=[]) _loc' _loc name params virt expr =
     let params = params_map _loc' params in
       { pci_params = params
       ; pci_virt = virt
       ; pci_name = name
       ; pci_expr = expr
-      ; pci_attributes = []
+      ; pci_attributes = attributes
       ; pci_loc = _loc }
   let pstr_eval e = Pstr_eval(e, [])
   let psig_value ?(attributes=[]) _loc name ty prim =
@@ -298,8 +299,8 @@ let string_exp (b,lvl) =
   let module_binding _loc name mt me =
     let me = match mt with None -> me | Some mt -> mexpr_loc _loc (Pmod_constraint(me,mt)) in
     { pmb_name = name; pmb_expr = me; pmb_attributes = []; pmb_loc = _loc }
-  let module_declaration _loc name mt =
-    { pmd_name = name; pmd_type = mt; pmd_attributes = []; pmd_loc = _loc }
+  let module_declaration ?(attributes=[]) _loc name mt =
+    { pmd_name = name; pmd_type = mt; pmd_attributes = attributes; pmd_loc = _loc }
   let ppat_construct(a,b) = Ppat_construct(a,b)
   let pexp_constraint(a,b) = Pexp_constraint(a,b)
   let pexp_coerce(a,b,c) = Pexp_coerce(a,b,c)
@@ -310,12 +311,12 @@ let string_exp (b,lvl) =
 #else
   let value_binding ?(attributes=[]) _loc pat expr = (pat, expr)
   type constructor_declaration = string Asttypes.loc * Parsetree.core_type list * Parsetree.core_type option * Location.t
-  let constructor_declaration _loc name args res = (name, args, res, _loc)
+  let constructor_declaration ?(attributes=[]) _loc name args res = (name, args, res, _loc)
   type label_declaration = string Asttypes.loc * Asttypes.mutable_flag * Parsetree.core_type * Location.t
   type case = pattern * expression
   let label_declaration _loc name mut ty =
     (name, mut, ty, _loc)
-  let type_declaration _loc name params cstrs kind priv manifest =
+  let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
     let params, variance = List.split params in
     {
      ptype_params = params;
@@ -326,7 +327,7 @@ let string_exp (b,lvl) =
      ptype_manifest = manifest;
      ptype_loc = _loc;
     }
-  let class_type_declaration _loc' _loc name params virt expr =
+  let class_type_declaration ?(attributes=[]) _loc' _loc name params virt expr =
     let params, variance = List.split params in
     let params = List.map (function None   -> id_loc "" _loc'
                                   | Some x -> x) params
@@ -345,7 +346,7 @@ let string_exp (b,lvl) =
     ( pat, expr)
   let module_binding _loc name mt me =
     (name, mt, me)
-  let module_declaration _loc name mt =
+  let module_declaration ?(attributes=[]) _loc name mt =
     (name, mt)
   let ppat_construct(a,b) = Ppat_construct(a,b,false)
   let pexp_constraint(a,b) = Pexp_constraint(a,Some b,None)
@@ -395,6 +396,81 @@ let parse_string' g e' =
     e ->
       Printf.eprintf "Error in quotation: %s\n%!" e';
       raise e
+
+(* no attributes before 4.02 *)
+#ifversion >=4.02
+let mk_attrib loc s contents =
+   (id_loc s Location.none, PStr(
+     [loc_str loc (Pstr_eval(exp_string loc contents,[]))
+   ]))
+#endif
+
+let attach_attrib =
+#ifversion < 4.02
+  fun ?(delta=1) loc acc -> acc
+#else
+  let tbl = Hashtbl.create 31 in
+  fun ?(delta=1) loc acc ->
+    let open Location in
+    let open Lexing in
+    let rec fn acc res = function
+      | [] -> ocamldoc_comments := List.rev acc; res
+
+      | (start,end_,contents as c)::rest ->
+	 let start' = loc.loc_start in
+	 let end' = loc.loc_end in
+	 let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+(*	 Printf.eprintf "sig [%d,%d] [%d,%d]\n%!"
+	 (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum end'.pos_lnum;*)
+	 if (start'.pos_lnum >= line_num (fst end_) &&
+	       start'.pos_lnum - line_num (fst end_) <= delta)
+	 then (
+	   fn acc (mk_attrib loc "ocaml.doc" contents::res) rest)
+	 else if
+	    (line_num (fst start) >= end'.pos_lnum &&
+		 line_num (fst start) - end'.pos_lnum  <= delta)
+	 then (
+	   fn acc (res @ [mk_attrib loc "ocaml.doc" contents]) rest)
+	 else
+           fn (c::acc) res rest
+    in
+    try Hashtbl.find tbl loc
+    with Not_found ->
+      let res = fn [] acc !ocamldoc_comments in
+      Hashtbl.add tbl loc res;
+      res
+#endif
+
+let attach_gen build =
+#ifversion < 4.02
+  fun loc -> []
+#else
+  let tbl = Hashtbl.create 31 in
+  fun loc ->
+    let open Location in
+    let open Lexing in
+    let rec fn acc res = function
+      | [] -> ocamldoc_comments := List.rev acc; res
+
+      | (start,end_,contents as c)::rest ->
+	 let start' = loc.loc_start in
+	 let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+(*	 Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
+	 (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
+	 if line_num (fst end_) < start'.pos_lnum then
+	   fn acc (build loc (mk_attrib loc "ocaml.text" contents) :: res) rest
+	 else
+           fn (c::acc) res rest
+    in
+    try Hashtbl.find tbl loc.loc_start
+    with Not_found ->
+      let res = fn [] [] !ocamldoc_comments in
+      Hashtbl.add tbl loc.loc_start res;
+      res
+#endif
+
+let attach_sig = attach_gen (fun loc a  -> loc_sig loc (Psig_attribute a))
+let attach_str = attach_gen (fun loc a  -> loc_str loc (Pstr_attribute a))
 
 (****************************************************************************
  * Basic syntactic elements (identifiers and litterals)                      *

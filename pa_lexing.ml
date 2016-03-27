@@ -71,10 +71,15 @@ let unclosed_comment_string : type a. (Input.buffer * int) -> a =
  *   - arbitrary string litterals (including those containing "(*" or
  *     "*)" (note that string litterals need to be closed.
  *)
+let ocamldoc_comments = ref []
+
 let ocaml_blank buf pos =
+  let ocamldoc = ref false in
+  let ocamldoc_buf = Buffer.create 1024 in
   let rec fn state stack prev curr =
     let (buf, pos) = curr in
     let (c, buf', pos') = Input.read buf pos in
+    if !ocamldoc then Buffer.add_char ocamldoc_buf c;
     let next = (buf', pos') in
     match (state, stack, c) with
     (* Basic blancs. *)
@@ -85,7 +90,17 @@ let ocaml_blank buf pos =
     (* Comment opening. *)
     | (`Ini      , _   , '('     ) -> fn (`Opn(curr)) stack curr next
     | (`Ini      , []  , _       ) -> curr
-    | (`Opn(p)   , _   , '*'     ) -> fn `Ini (p::stack) curr next
+    | (`Opn(p)   , _   , '*'     ) ->
+       (if stack = [] then
+	 let (c, buf', pos') = Input.read buf' pos' in
+	 let (c',_,_) = Input.read buf' pos' in
+	 if c = '*' && c' <> '*' then (
+	   ocamldoc := true;
+	   fn `Ini (p::stack) curr (buf',pos'))
+	 else
+	   fn `Ini (p::stack) curr next
+	else
+	   fn `Ini (p::stack) curr next)
     | (`Opn(_)   , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Opn(_)   , []  , _       ) -> prev
@@ -123,7 +138,14 @@ let ocaml_blank buf pos =
     (* Comment closing. *)
     | (`Ini      , _::_, '*'     ) -> fn `Cls stack curr next
     | (`Cls      , _::_, '*'     ) -> fn `Cls stack curr next
-    | (`Cls      , _::s, ')'     ) -> fn `Ini s curr next
+    | (`Cls      , p::s, ')'     ) ->
+       if !ocamldoc && s = [] then (
+	 let comment = Buffer.sub ocamldoc_buf 0 (Buffer.length ocamldoc_buf - 2) in
+	 Buffer.clear ocamldoc_buf;
+	 ocamldoc_comments := (p,next,comment)::!ocamldoc_comments;
+	 ocamldoc := false
+       );
+       fn `Ini s curr next
     | (`Cls      , _::_, _       ) -> fn `Ini stack curr next
     | (`Cls      , []  , _       ) -> assert false (* Impossible. *)
     (* Comment contents (excluding string litterals). *)

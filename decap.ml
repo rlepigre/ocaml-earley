@@ -486,7 +486,7 @@ let pop_final : type a. a dep_pair_tbl -> a final -> a action -> unit =
     | D {rest=rule; acts; full; debut; stack;ignb} ->
        match pre_rule rule with
        | Next(_,_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest) ->
-	  let is_eq = eq rule full in
+	  let is_eq = debut = None in
 	 (match pre_rule rest, true || is_eq with
 	 | Empty (g), false ->
 	    if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
@@ -597,7 +597,7 @@ let rec one_prediction_production
 	    if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
 	    let nouveau = D {debut=i; stack; rest; full;ignb;
 	                     acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
-	    let b = add "D" pos nouveau elements in
+	    let b = add "T" pos nouveau elements in
 	    if b then one_prediction_production nouveau elements dlr  pos pos_ab c c'
 	  end
 	 with Give_up _ | Error -> ())

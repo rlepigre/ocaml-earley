@@ -637,9 +637,9 @@ let parser constr_decl =
                             }
     -> (let c = id_loc cn _loc_cn in
 #ifversion < 4.03
-        constructor_declaration _loc c tes te
+        constructor_declaration ~attributes:(attach_attrib ~delta:0 _loc []) _loc c tes te
 #else
-        constructor_declaration _loc c (Pcstr_tuple tes) te
+        constructor_declaration ~attributes:(attach_attrib ~delta:0 _loc []) _loc c (Pcstr_tuple tes) te
 (* FIXME: add record arguments ... *)
 #endif
 )
@@ -683,7 +683,7 @@ let parser type_information =
       in
       (pri, te, tkind, cstrs)
 
-let typedef_gen = (fun constr filter ->
+let typedef_gen = (fun attach constr filter ->
   parser
   | tps:type_params?[[]] tcn:constr ti:type_information -> (fun prev_loc ->
       let _loc = match
@@ -699,12 +699,12 @@ let typedef_gen = (fun constr filter ->
 	| Some(_, te) -> pri, Some te
       in
       id_loc tcn _loc_tcn,
-         type_declaration _loc (id_loc (filter tcn) _loc_tcn)
-	   tps cstrs tkind pri te)
+      type_declaration ~attributes:(if attach then attach_attrib _loc [] else [])
+	_loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
    )
 
-let typedef = apply (fun f -> f None) (typedef_gen typeconstr_name (fun x -> x))
-let typedef_in_constraint = typedef_gen typeconstr Longident.last
+let typedef = apply (fun f -> f None) (typedef_gen true typeconstr_name (fun x -> x))
+let typedef_in_constraint = typedef_gen false typeconstr Longident.last
 
 
 let parser type_definition =
@@ -719,9 +719,9 @@ let parser exception_declaration =
         | Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } -> tes
         | Some t -> [t]
 #ifversion < 4.03
-      in (id_loc cn _loc_cn, tes, merge2 _loc_cn _loc_te))
+      in (id_loc cn _loc_cn, tes, _loc))
 #else
-      in (id_loc cn _loc_cn, Pcstr_tuple tes, merge2 _loc_cn _loc_te))
+      in (id_loc cn _loc_cn, Pcstr_tuple tes, _loc))
 (* FIXME: record ... *)
 #endif
 
@@ -837,7 +837,7 @@ let class_spec =
   parser
   | v:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
     cn:class_name STR(":") ct:class_type ->
-      class_type_declaration _loc_params _loc (id_loc cn _loc_cn) params v ct
+      class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v ct
 
 let class_specification =
   parser
@@ -848,7 +848,7 @@ let classtype_def =
   parser
   | v:virtual_flag params:{STR("[") tp:type_parameters STR("]")}?[[]] cn:class_name
     CHR('=') cbt:class_body_type ->
-      class_type_declaration _loc_params _loc (id_loc cn _loc_cn) params v cbt
+      class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v cbt
 
 let classtype_definition =
   parser
@@ -1232,20 +1232,23 @@ let simple_right_member =
 let _ = set_grammar let_binding (
   parser
   | pat:(pattern_lvl AsPat) e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
-      (value_binding ~attributes:a (merge2 _loc_pat _loc_e) pat e::l)
+     ( let loc = merge2 _loc_pat _loc_e in
+       value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
   | vn:value_name CHR(':') ty:only_poly_typexpr e:simple_right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
       let pat = loc_pat _loc (Ppat_constraint(
         loc_pat _loc (Ppat_var(id_loc vn _loc_vn)),
         ty))
       in
-      value_binding ~attributes:a (merge2 _loc_vn _loc_e) pat e::l
+      let loc = merge2 _loc_vn _loc_e in
+      value_binding ~attributes:(attach_attrib loc a) loc pat e::l
   | vn:value_name CHR(':') (ids,ty):poly_syntax_typexpr e:simple_right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
     let (e, ty) = wrap_type_annotation _loc ids ty e in
     let pat = loc_pat _loc (Ppat_constraint(
 	loc_pat _loc (Ppat_var(id_loc vn _loc_vn)),
         ty))
     in
-    value_binding ~attributes:a (merge2 _loc_vn _loc_e) pat e::l
+    let loc = merge2 _loc_vn _loc_e in
+    value_binding ~attributes:(attach_attrib loc a) loc pat e::l
 (*  | dol:CHR('$') - STR("bindings") CHR(':') e:(expression_lvl App) - CHR('$') l:{_:and_kw let_binding}?[[]] ->
     push_pop_let_binding (start_pos _loc_dol).Lexing.pos_cnum e @ l*)
   )
@@ -1444,7 +1447,7 @@ let class_binding =
                | None    -> ce
                | Some ct -> loc_pcl _loc (Pcl_constraint(ce, ct))
       in
-      class_type_declaration _loc_params _loc (id_loc cn _loc_cn) params v ce
+      class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v ce
 
 let class_definition =
   parser
@@ -1882,11 +1885,12 @@ let parser structure_item_base =
 #endif
 #endif
        | _                                           -> Pstr_value (r, l))
-  | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* ->
+  | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral*  a:post_item_attributes ->
       let l = List.length ls in
       if l < 1 || l > 3 then give_up "" (* FIXME *);
 #ifversion >= 4.02
-      Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc; pval_attributes = [] })
+     Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
+		      pval_attributes = attach_attrib _loc a })
 #else
       Pstr_primitive(id_loc n _loc_n, { pval_type = ty; pval_prim = ls;
 					pval_loc = _loc
@@ -1928,22 +1932,24 @@ let parser structure_item_base =
      Pstr_module(name,me)
 #endif
 #ifversion >= 4.02
-  |            type_kw mn:modtype_name mt:{STR"=" mt:module_type}? ->
-      Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt; pmtd_attributes = []; pmtd_loc = _loc }
+  |            type_kw mn:modtype_name mt:{STR"=" mt:module_type}? a:post_item_attributes ->
+      Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
+ 		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc }
 #else
   |            type_kw mn:modtype_name STR"=" mt:module_type ->
       Pstr_modtype(id_loc mn _loc_mn, mt)
 #endif
                } -> r
-  | open_kw o:override_flag m:module_path ->
+  | open_kw o:override_flag m:module_path a:post_item_attributes ->
 #ifversion >= 4.02
-    Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc; popen_attributes = []}
+      Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
+ 		 popen_attributes = attach_attrib _loc a}
 #else
     Pstr_open(o, id_loc m _loc_m)
 #endif
-  | include_kw me:module_expr ->
+  | include_kw me:module_expr a:post_item_attributes ->
 #ifversion >= 4.02
-    Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = [] }
+    Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a }
 #else
     Pstr_include me
 #endif
@@ -1953,21 +1959,22 @@ let parser structure_item_base =
 
 let parser structure_item_aux =
   | EMPTY -> []
-  | e:expression -> [loc_str _loc_e (pstr_eval e)]
-  | s1:structure_item_aux double_semi_col?[()] e:(alternatives extra_structure) -> List.rev_append e s1
+  | e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
+  | s1:structure_item_aux double_semi_col?[()] e:(alternatives extra_structure) ->
+     List.rev_append e (List.rev_append (attach_str _loc_e) s1)
   (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') double_semi_col? -> push_pop_structure (start_pos _loc_dol).Lexing.pos_cnum e*)
-  | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> loc_str _loc_s2 s2 :: s1
-  | s1:structure_item_aux double_semi_col e:expression -> loc_str _loc_e (pstr_eval e) :: s1
+  | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> loc_str _loc_s2 s2 :: (List.rev_append (attach_str _loc_s2) s1)
+  | s1:structure_item_aux double_semi_col e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
 
 let _ = set_grammar structure_item (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
 
 let parser signature_item_base =
   | val_kw n:value_name STR(":") ty:typexpr a:post_item_attributes ->
-     psig_value ~attributes:a _loc (id_loc n _loc_n) ty []
+     psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty []
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
       let l = List.length ls in
       if l < 1 || l > 3 then give_up "" (* FIXME *);
-      psig_value ~attributes:a _loc (id_loc n _loc_n) ty ls
+      psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls
   | td:type_definition ->
 #ifversion >= 4.03
        Psig_type (Recursive, List.map snd td)
@@ -1978,33 +1985,37 @@ let parser signature_item_base =
        Psig_type td
 #endif
 #endif
-  | (name,ed,_loc'):exception_declaration ->
+  | (name,ed,_loc'):exception_declaration a:post_item_attributes ->
 #ifversion >= 4.02
-       Psig_exception (Te.decl ~loc:_loc' ~args:ed name)
+       Psig_exception (Te.decl ~attrs:(attach_attrib _loc' a) ~loc:_loc' ~args:ed name)
 #else
        Psig_exception (name, ed)
 #endif
-  | module_kw rec_kw mn:module_name STR(":") mt:module_type
-    ms:{and_kw mn:module_name STR(":") mt:module_type -> (module_declaration _loc (id_loc mn _loc_mn) mt)}* ->
-      let m = (module_declaration _loc (id_loc mn _loc_mn) mt) in
+  | {module_kw -> attach_sig _loc} rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
+      ms:{and_kw mn:module_name STR(":") mt:module_type a:post_item_attributes ->
+	    (module_declaration ~attributes:(attach_attrib _loc a) _loc (id_loc mn _loc_mn) mt)}* ->
+      let loc_first = merge2 _loc_mn _loc_a in
+      let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first (id_loc mn _loc_mn) mt) in
       Psig_recmodule (m::ms)
 #ifversion >= 4.02
-  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
+  | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
 #else
   | module_kw r:{mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
 #endif
-                                    STR":" mt:module_type ->
+                                    STR":" mt:module_type a:post_item_attributes ->
      let mt = List.fold_left (fun acc (mn,mt,_loc) ->
                                   mtyp_loc (merge2 _loc _loc_mt) (Pmty_functor(mn, mt, acc))) mt (List.rev l) in
 #ifversion >= 4.02
-     Psig_module(module_declaration _loc (id_loc mn _loc_mn) mt)
+     Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc (id_loc mn _loc_mn) mt)
 #else
      let a, b = module_declaration _loc (id_loc mn _loc_mn) mt in
      Psig_module(a,b)
 #endif
-  |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }? ->
+  |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }?  a:post_item_attributes ->
 #ifversion >= 4.02
-     Psig_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt; pmtd_attributes = []; pmtd_loc = _loc}
+  Psig_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
+	       pmtd_attributes = attach_attrib _loc a;
+	       pmtd_loc = _loc}
 #else
      let mt = match mt with
               | None    -> Pmodtype_abstract
@@ -2013,15 +2024,16 @@ let parser signature_item_base =
      Psig_modtype(id_loc mn _loc_mn, mt)
 #endif
 		} -> r
-  | open_kw o:override_flag m:module_path ->
+  | open_kw o:override_flag m:module_path a:post_item_attributes ->
 #ifversion >= 4.02
-    Psig_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc; popen_attributes = []}
+      Psig_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
+  		 popen_attributes = attach_attrib _loc a}
 #else
     Psig_open(o, id_loc m _loc_m)
 #endif
-  | include_kw me:module_type ->
+  | include_kw me:module_type a:post_item_attributes ->
 #ifversion >= 4.02
-    Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = [] }
+    Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a }
 #else
     Psig_include me
 #endif
@@ -2030,9 +2042,9 @@ let parser signature_item_base =
 
 let _ = set_grammar signature_item (
   parser
-  | e:(alternatives extra_signature) -> e
+  | e:(alternatives extra_signature) -> attach_sig _loc @ e
   (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_signature (start_pos _loc_dol).Lexing.pos_cnum e*)
-  | s:signature_item_base double_semi_col?[()] -> [loc_sig _loc s]
+  | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [loc_sig _loc s]
   )
 
 exception Top_Exit
