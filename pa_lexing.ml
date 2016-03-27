@@ -406,7 +406,7 @@ let quoted_string : (string * string option) Decap.grammar =
       | (`Cnt(_)       , _       ) -> fn st (c::str) buf' pos'
       | (`Cls([]  ,_,l), '}'     ) -> (str, l, buf', pos') (* Success. *)
       | (`Cls([]  ,_,_), '\255'  ) -> Decap.give_up ""
-      | (`Cls([]  ,b,l), _       ) -> fn (`Cnt(l)) (List.append b str) buf' pos'
+      | (`Cls([]  ,b,l), _       ) -> fn (`Cnt(l)) (b @ str) buf' pos'
       | (`Cls(_::_,_,_), '\255'  ) -> Decap.give_up ""
       | (`Cls(x::y,b,l), _       ) ->
           if x = c then fn (`Cls(y,x::b,l)) str buf' pos'
@@ -456,5 +456,7 @@ let regexp_litteral : string Decap.grammar =
           | c   -> c
         end
   in
-  let internal = parser cs:single_char* -> cs_to_string cs in
-  parser _:double_quote - (Decap.change_layout internal Decap.no_blank) - "''"
+  let internal = parser
+    cs:single_char* "''" -> cs_to_string cs
+  in
+  parser _:double_quote - (Decap.change_layout internal Decap.no_blank)
