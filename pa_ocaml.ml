@@ -509,7 +509,7 @@ let extra_types_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_types))
 
 let _ = set_typexpr_lvl (fun lvl ->
-  parser
+  parser {
   | e:(extra_types_grammar lvl) -> e
   | e:(typexpr_lvl (next_type_prio lvl)) when lvl < AtomType -> e
   | "'" id:ident when lvl = AtomType ->
@@ -596,7 +596,7 @@ let _ = set_typexpr_lvl (fun lvl ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, [te], o))
 #endif
-)
+})
 
 (****************************************************************************
  * Type and exception definitions                                           *
@@ -637,9 +637,9 @@ let parser constr_decl =
                             }
     -> (let c = id_loc cn _loc_cn in
 #ifversion < 4.03
-        constructor_declaration ~attributes:(attach_attrib ~delta:0 _loc []) _loc c tes te
+        constructor_declaration ~attributes:(attach_attrib ~local:true _loc []) _loc c tes te
 #else
-        constructor_declaration ~attributes:(attach_attrib ~delta:0 _loc []) _loc c (Pcstr_tuple tes) te
+        constructor_declaration ~attributes:(attach_attrib ~local:true _loc []) _loc c (Pcstr_tuple tes) te
 (* FIXME: add record arguments ... *)
 #endif
 )
@@ -921,7 +921,7 @@ let parser extra_patterns_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_patterns))
 
 let _ = set_pattern_lvl (fun lvl ->
-  parser
+  parser {
   | e:(extra_patterns_grammar lvl) -> e
   | p:(pattern_lvl (next_pat_prio lvl)) when lvl < AtomPat -> p
   | vn:value_name when lvl = AtomPat ->
@@ -1082,7 +1082,7 @@ let _ = set_pattern_lvl (fun lvl ->
   | p:(pattern_lvl (next_pat_prio ConsPat)) c:"::" p':(pattern_lvl ConsPat) when lvl = ConsPat ->
        let cons = id_loc (Lident "::") _loc_c in
        let args = loc_pat (ghost _loc) (Ppat_tuple [p; p']) in
-       loc_pat _loc (ppat_construct(cons, Some args)))
+       loc_pat _loc (ppat_construct(cons, Some args))})
 
 (****************************************************************************
  * Expressions                                                              *
@@ -1482,13 +1482,13 @@ let parser extra_expressions_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_expressions))
 
 let parser prefix_expression c =
-  | e:(alternatives extra_prefix_expressions) -> e
-
   | function_kw l:match_cases -> loc_expr _loc (pexp_function l)
 
   | match_kw e:expression with_kw l:match_cases -> loc_expr _loc (Pexp_match(e, l))
 
   | try_kw e:expression with_kw l:match_cases -> loc_expr _loc (Pexp_try(e, l))
+
+  | e:(alternatives extra_prefix_expressions) -> e
 
 let parser if_expression (alm,lvl) =
   | if_kw c:expression then_kw e:(expression_lvl(Match, next_exp Seq)) else_kw e':(expression_lvl (alm, next_exp Seq)) ->
@@ -1497,7 +1497,7 @@ let parser if_expression (alm,lvl) =
   | if_kw c:expression then_kw e:(expression_lvl (alm, next_exp Seq)) no_else ->
      loc_expr _loc (Pexp_ifthenelse(c,e,None))
 
-let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
+let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser {
 
   | e:(extra_expressions_grammar c) -> e
 
@@ -1780,7 +1780,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
             pexp_construct(id_loc (Lident "::") _loc_op, Some (loc_expr (ghost _loc) (Pexp_tuple [e';e])))
           else
             Pexp_apply(loc_expr _loc_op (Pexp_ident(id_loc (Lident op) _loc_op)),
-                       [(nolabel, e') ; (nolabel, e)])))) infix_prios)))
+                       [(nolabel, e') ; (nolabel, e)])))) infix_prios))})
 
 
 (****************************************************************************
@@ -1874,7 +1874,7 @@ let _ = set_grammar module_type (
        | Some l -> mtyp_loc _loc (Pmty_with(m, l)))
   )
 
-let parser structure_item_base =
+let parser structure_item_base = {
   | RE(let_re) r:rec_flag l:let_binding ->
      (match l with
 #ifversion < 4.03
@@ -1955,7 +1955,7 @@ let parser structure_item_base =
 #endif
   | class_kw r:{ ctd:classtype_definition -> Pstr_class_type ctd
                | cds:class_definition -> Pstr_class cds } -> r
-(*  | e:expression -> pstr_eval e*)
+(*  | e:expression -> pstr_eval e*) }
 
 let parser structure_item_aux =
   | EMPTY -> []
@@ -1968,7 +1968,7 @@ let parser structure_item_aux =
 
 let _ = set_grammar structure_item (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
 
-let parser signature_item_base =
+let parser signature_item_base = {
   | val_kw n:value_name STR(":") ty:typexpr a:post_item_attributes ->
      psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty []
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
@@ -2038,7 +2038,8 @@ let parser signature_item_base =
     Psig_include me
 #endif
   | class_kw r:{ ctd:classtype_definition -> Psig_class_type ctd
-               | cs:class_specification -> Psig_class cs } -> r
+		   | cs:class_specification -> Psig_class cs } -> r
+}
 
 let _ = set_grammar signature_item (
   parser

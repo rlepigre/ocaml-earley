@@ -395,8 +395,9 @@ module Initial =
         (PStr [loc_str loc (Pstr_eval ((exp_string loc contents), []))]))
       
     let attach_attrib =
-      let tbl = Hashtbl.create 31  in
-      fun ?(delta= 1)  ->
+      let tbl_s = Hashtbl.create 31  in
+      let tbl_e = Hashtbl.create 31  in
+      fun ?(local= false)  ->
         fun loc  ->
           fun acc  ->
             let open Location in
@@ -406,31 +407,55 @@ module Initial =
                   | [] -> (ocamldoc_comments := (List.rev acc); res)
                   | ((start,end_,contents) as c)::rest ->
                       let start' = loc.loc_start  in
-                      let end' = loc.loc_end  in
                       let loc =
                         locate (fst start) (snd start) (fst end_) (snd end_)
                          in
                       if
                         (start'.pos_lnum >= (line_num (fst end_))) &&
-                          ((start'.pos_lnum - (line_num (fst end_))) <= delta)
+                          (((start'.pos_lnum - (line_num (fst end_))) <= 1)
+                             &&
+                             ((if local
+                               then (snd start) > 0
+                               else (snd start) = 0)))
                       then
                         fn acc ((mk_attrib loc "ocaml.doc" contents) :: res)
                           rest
-                      else
-                        if
-                          ((line_num (fst start)) >= end'.pos_lnum) &&
-                            (((line_num (fst start)) - end'.pos_lnum) <=
-                               delta)
-                        then
-                          fn acc (res @ [mk_attrib loc "ocaml.doc" contents])
-                            rest
-                        else fn (c :: acc) res rest
+                      else fn (c :: acc) res rest
                    in
-                try Hashtbl.find tbl loc
-                with
-                | Not_found  ->
-                    let res = fn [] acc (!ocamldoc_comments)  in
-                    (Hashtbl.add tbl loc res; res)
+                let rec gn acc res =
+                  function
+                  | [] -> (ocamldoc_comments := (List.rev acc); List.rev res)
+                  | ((start,end_,contents) as c)::rest ->
+                      let end' = loc.loc_end  in
+                      let loc =
+                        locate (fst start) (snd start) (fst end_) (snd end_)
+                         in
+                      if
+                        ((line_num (fst start)) >= end'.pos_lnum) &&
+                          ((((line_num (fst start)) - end'.pos_lnum) <= 1) &&
+                             ((if local
+                               then (snd start) > 0
+                               else (snd start) = 0)))
+                      then
+                        gn acc ((mk_attrib loc "ocaml.doc" contents) :: res)
+                          rest
+                      else gn (c :: acc) res rest
+                   in
+                let l1 =
+                  try Hashtbl.find tbl_s ((loc.loc_start), local)
+                  with
+                  | Not_found  ->
+                      let res = fn [] [] (!ocamldoc_comments)  in
+                      (Hashtbl.add tbl_s ((loc.loc_start), local) res; res)
+                   in
+                let l2 =
+                  try Hashtbl.find tbl_e ((loc.loc_end), local)
+                  with
+                  | Not_found  ->
+                      let res = gn [] [] (!ocamldoc_comments)  in
+                      (Hashtbl.add tbl_e ((loc.loc_end), local) res; res)
+                   in
+                l1 @ (acc @ l2)
       
     let attach_gen build =
       let tbl = Hashtbl.create 31  in

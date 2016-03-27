@@ -1497,8 +1497,8 @@ module Make(Initial:Extension) =
                            in
                         let c = id_loc cn _loc_cn  in
                         constructor_declaration
-                          ~attributes:(attach_attrib ~delta:0 _loc []) _loc c
-                          tes te))
+                          ~attributes:(attach_attrib ~local:true _loc [])
+                          _loc c tes te))
     let field_decl = Decap.declare_grammar "field_decl" 
     ;;Decap.set_grammar field_decl
         (Decap.fsequence_position mutable_flag
@@ -4947,19 +4947,18 @@ module Make(Initial:Extension) =
     ;;prefix_expression__set__grammar
         (fun c  ->
            Decap.alternatives
-             [alternatives extra_prefix_expressions;
-             Decap.sequence_position function_kw match_cases
-               (fun _default_0  ->
-                  fun l  ->
-                    fun __loc__start__buf  ->
-                      fun __loc__start__pos  ->
-                        fun __loc__end__buf  ->
-                          fun __loc__end__pos  ->
-                            let _loc =
-                              locate __loc__start__buf __loc__start__pos
-                                __loc__end__buf __loc__end__pos
-                               in
-                            loc_expr _loc (pexp_function l));
+             [Decap.sequence_position function_kw match_cases
+                (fun _default_0  ->
+                   fun l  ->
+                     fun __loc__start__buf  ->
+                       fun __loc__start__pos  ->
+                         fun __loc__end__buf  ->
+                           fun __loc__end__pos  ->
+                             let _loc =
+                               locate __loc__start__buf __loc__start__pos
+                                 __loc__end__buf __loc__end__pos
+                                in
+                             loc_expr _loc (pexp_function l));
              Decap.fsequence_position match_kw
                (Decap.fsequence expression
                   (Decap.sequence with_kw match_cases
@@ -4993,7 +4992,8 @@ module Make(Initial:Extension) =
                                           __loc__start__pos __loc__end__buf
                                           __loc__end__pos
                                          in
-                                      loc_expr _loc (Pexp_try (e, l)))))])
+                                      loc_expr _loc (Pexp_try (e, l)))));
+             alternatives extra_prefix_expressions])
     let (if_expression,if_expression__set__grammar) =
       Decap.grammar_family "if_expression" 
     ;;if_expression__set__grammar

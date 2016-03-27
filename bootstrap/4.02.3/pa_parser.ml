@@ -165,23 +165,7 @@ module Ext(In:Extension) =
     let location_name_re = "_loc\\([a-zA-Z0-9_']*\\)" 
     let glr_parser = Decap.declare_grammar "glr_parser" 
     ;;Decap.set_grammar glr_parser
-        (Decap.alternatives
-           [Decap.sequence parser_kw glr_rules
-              (fun _default_0  -> fun p  -> p);
-           Decap.fsequence_position parser_kw
-             (Decap.sequence (Decap.char '*' '*') glr_rules
-                (fun _  ->
-                   fun p  ->
-                     fun _default_0  ->
-                       fun __loc__start__buf  ->
-                         fun __loc__start__pos  ->
-                           fun __loc__end__buf  ->
-                             fun __loc__end__pos  ->
-                               let _loc =
-                                 locate __loc__start__buf __loc__start__pos
-                                   __loc__end__buf __loc__end__pos
-                                  in
-                               exp_apply _loc (exp_glr_fun _loc "lists") [p]))])
+        (Decap.sequence parser_kw glr_rules (fun _default_0  -> fun p  -> p))
     let glr_binding = Decap.declare_grammar "glr_binding" 
     let _ =
       Decap.set_grammar glr_binding
@@ -798,17 +782,12 @@ module Ext(In:Extension) =
     ;;glr_action__set__grammar
         (fun alm  ->
            Decap.alternatives
-             [Decap.sequence
-                (Decap.regexp "[-=]>>" (fun groupe  -> groupe 0))
-                (glr_rule alm)
-                (fun _default_0  ->
-                   fun r  -> let (a,b,c) = build_rule r  in DepSeq (a, b, c));
-             Decap.fsequence (Decap.regexp "[-=]>" (fun groupe  -> groupe 0))
-               (Decap.sequence
-                  (if alm then expression else expression_lvl (Let, Seq))
-                  no_semi
-                  (fun action  ->
-                     fun _default_0  -> fun _default_1  -> Normal action));
+             [Decap.fsequence arrow_re
+                (Decap.sequence
+                   (if alm then expression else expression_lvl (Let, Seq))
+                   no_semi
+                   (fun action  ->
+                      fun _default_0  -> fun _default_1  -> Normal action));
              Decap.apply (fun _  -> Default) (Decap.empty ())])
     let _ =
       set_glr_rule

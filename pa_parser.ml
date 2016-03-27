@@ -205,7 +205,6 @@ struct
 
   let parser glr_parser =
     | parser_kw p:glr_rules -> p
-    | parser_kw CHR('*') p:glr_rules -> exp_apply _loc (exp_glr_fun _loc "lists") [p]
 
   let glr_binding = Decap.declare_grammar "glr_binding"
   let _ = Decap.set_grammar glr_binding (
@@ -423,8 +422,8 @@ struct
       def, condition, res
 
   let parser glr_action alm =
-    | RE("[-=]>>") r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
-    | RE("[-=]>") action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
+    (*    | RE("=>") r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)*)
+    | arrow_re action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
     | EMPTY -> Default
 
   let _ = set_glr_rule (fun alm ->

@@ -421,7 +421,7 @@ let quoted_string : (string* string option) Decap.grammar =
       | (`Cnt _,_) -> fn st (c :: str) buf' pos'
       | (`Cls ([],_,l),'}') -> (str, l, buf', pos')
       | (`Cls ([],_,_),'\255') -> Decap.give_up ""
-      | (`Cls ([],b,l),_) -> fn (`Cnt l) (List.append b str) buf' pos'
+      | (`Cls ([],b,l),_) -> fn (`Cnt l) (b @ str) buf' pos'
       | (`Cls (_::_,_,_),'\255') -> Decap.give_up ""
       | (`Cls (x::y,b,l),_) ->
           if x = c
@@ -492,14 +492,13 @@ let regexp_litteral : string Decap.grammar =
              | c -> c)]
      in
   let internal =
-    Decap.apply (fun cs  -> cs_to_string cs)
+    Decap.sequence
       (Decap.apply List.rev
          (Decap.fixpoint []
             (Decap.apply (fun x  -> fun l  -> x :: l) single_char)))
+      (Decap.string "''" "''") (fun cs  -> fun _  -> cs_to_string cs)
      in
-  Decap.fsequence (Decap.ignore_next_blank double_quote)
-    (Decap.sequence
-       (Decap.ignore_next_blank (Decap.change_layout internal Decap.no_blank))
-       (Decap.string "''" "''")
-       (fun _default_0  -> fun _  -> fun _  -> _default_0))
+  Decap.sequence (Decap.ignore_next_blank double_quote)
+    (Decap.change_layout internal Decap.no_blank)
+    (fun _  -> fun _default_0  -> _default_0)
   
