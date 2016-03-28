@@ -465,10 +465,8 @@ let attach_attrib =
     l1 @ acc @ l2
 #endif
 
+#ifversion >= 4.02
 let attach_gen build =
-#ifversion < 4.02
-  fun loc -> []
-#else
   let tbl = Hashtbl.create 31 in
   fun loc ->
     let open Location in
@@ -491,10 +489,13 @@ let attach_gen build =
       let res = fn [] [] !ocamldoc_comments in
       Hashtbl.add tbl loc.loc_start res;
       res
-#endif
 
 let attach_sig = attach_gen (fun loc a  -> loc_sig loc (Psig_attribute a))
 let attach_str = attach_gen (fun loc a  -> loc_str loc (Pstr_attribute a))
+#else
+let attach_sig = (fun loc -> [])
+let attach_str = (fun loc -> [])
+#endif
 
 (****************************************************************************
  * Basic syntactic elements (identifiers and litterals)                      *

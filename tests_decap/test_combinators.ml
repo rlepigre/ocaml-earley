@@ -72,6 +72,7 @@ let _ = parse_string astar2 blank "aaa"
 let _ = parse_string astar2 blank "aaaa"
 let _ = parse_string astar2 blank "aaaaa"
 
+  (*
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives
 			      [apply (fun _ -> ()) b;
@@ -83,7 +84,7 @@ let _ = parse_string astar3 blank "baa"
 let _ = parse_string astar3 blank "baaa"
 let _ = parse_string astar3 blank "baaaa"
 let _ = parse_string astar3 blank "baaaaa"
-
+  *)
 
 let debug' s g =
   sequence (debug s) g (fun () () -> ())
@@ -181,6 +182,7 @@ let _ = Printf.eprintf "1%!"
 let _ = test genmutrec2b mutrec2b (test_cases (6, 8, 10))
 let _ = Printf.eprintf "2 OK\n%!"
 
+let _ = Decap.warn_merge := false
 let _ = Printf.eprintf "three mutually recursive grammars test ...%!"
 
 let mutrec3a = declare_grammar "mutrec3a"
@@ -220,6 +222,7 @@ and genmutrec3c suffix n =
     genmutrec3a ("e"^^suffix) (n-1) @
       genmutrec3b ("f"^^suffix) (n-1)
   else suffix
+
 
 let _ = test genmutrec3a mutrec3a (test_cases (5, 7, 9))
 let _ = Printf.eprintf "1%!"

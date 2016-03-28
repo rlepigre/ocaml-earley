@@ -15,12 +15,12 @@ let sum_sym = parser
   | '+' -> ( +. )
   | '-' -> ( -. )
 
-let cached parser expr =
+let parser expr =
   | f:float_num -> (Atom,f)
   | '(' (_,e):expr ')' -> Atom,e
   | '-' (p,e):expr -> if p < Pow then give_up ""; Pow, -. e
   | '+' (p,e):expr -> if p < Pow then give_up ""; Pow, e
-  | (p,e):expr ->>
+  | (p,e):expr
 	    { "**" (p',e'):expr when p > Pow ->
 		   if p' < Pow then give_up ""; Pow, e ** e'
             | fn:prod_sym (p',e'):expr when p >= Prod ->

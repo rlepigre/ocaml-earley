@@ -91,8 +91,9 @@ let test_end_kw =
 let key_word s =
   if (String.length s) <= 0
   then invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Decap.sequence (Decap.ignore_next_blank (Decap.string s s)) test_end_kw
-    (fun _  -> fun _default_0  -> ())
+  Decap.give_name s
+    (Decap.sequence (Decap.ignore_next_blank (Decap.string s s)) test_end_kw
+       (fun _  -> fun _default_0  -> ()))
   
 let mutable_kw = key_word "mutable" 
 let private_kw = key_word "private" 
@@ -151,20 +152,20 @@ let no_keyword s =
     if i >= len
     then ((), (not (no_ident_char c)))
     else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos  in
-  Decap.test Charset.full_charset (fn 0) 
+  Decap.test ~name:("no_" ^ s) Charset.full_charset (fn 0) 
 let no_else = no_keyword "else" 
 let no_false = no_keyword "false" 
 let no_parser = no_keyword "parser" 
 let no_with = no_keyword "with" 
 let no_dot =
-  Decap.test Charset.full_charset
+  Decap.test ~name:"no_dot" Charset.full_charset
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos  in
          if c <> '.' then ((), true) else ((), false))
   
 let no_semi =
-  Decap.test Charset.full_charset
+  Decap.test ~name:"no_semi" Charset.full_charset
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos  in
@@ -173,6 +174,17 @@ let no_semi =
          else
            (let (c,buf,pos) = Input.read buf pos  in
             if c = ';' then ((), true) else ((), false)))
+  
+let no_colon =
+  Decap.test ~name:"no_colon" Charset.full_charset
+    (fun buf  ->
+       fun pos  ->
+         let (c,buf,pos) = Input.read buf pos  in
+         if c <> ':'
+         then ((), true)
+         else
+           (let (c,buf,pos) = Input.read buf pos  in
+            if c = ':' then ((), true) else ((), false)))
   
 let make_reserved l =
   let cmp s1 s2 = String.compare s2 s1  in

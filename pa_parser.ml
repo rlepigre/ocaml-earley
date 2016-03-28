@@ -449,7 +449,7 @@ struct
     | Some c ->
       def (loc_expr _loc (Pexp_ifthenelse(c,e,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]))))
 
-  let build_alternatives _loc comb ls =
+  let build_alternatives _loc ls =
     match ls with
     | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]
     | [r] -> apply_def_cond _loc r
@@ -463,11 +463,11 @@ struct
                                  e (exp_ident _loc "y"), Some (exp_ident _loc "y"))))))
           ) ls (exp_Nil _loc)
         in
-        exp_apply _loc (exp_glr_fun _loc comb) [l]
+        exp_apply _loc (exp_glr_fun _loc "alternatives") [l]
 
   let _ = Decap.set_grammar glr_rules (
     parser
     | '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true) ->
-      build_alternatives _loc "alternatives" (rs@[r]))
+      build_alternatives _loc (rs@[r]))
 
 end

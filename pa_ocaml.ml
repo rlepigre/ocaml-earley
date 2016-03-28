@@ -213,11 +213,6 @@ let (string_of_tree:tree->string) t =
 (* Naming labels *)
 let label_name = lident
 
-let no_colon = black_box (fun str pos ->
-  let (c,_,_) = Input.read str pos in
-  if c = ':' then give_up "" else ((),str,pos))
-  Charset.full_charset true "no:"
-
 let parser label =
   | '~' - ln:label_name - no_colon -> ln (* no constructor, we add it later in this case *)
 
@@ -808,8 +803,7 @@ let _ = set_grammar class_body_type (
       pcty_loc _loc (Pcty_constr (ctp, tes))
   )
 
-let class_type =
-  parser
+let parser class_type =
   | tes:{l:maybe_opt_label? STR(":") te:typexpr -> (l, te)}* cbt:class_body_type ->
       let app acc (lab, te) =
 #ifversion >= 4.02
@@ -828,30 +822,25 @@ let class_type =
       in
       List.fold_left app cbt (List.rev tes)
 
-let type_parameters =
-  parser
+let parser type_parameters =
   | i1:type_param l:{ STR(",") i2:type_param }* -> i1::l
 
 (* Class specification *)
-let class_spec =
-  parser
+let parser class_spec =
   | v:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
     cn:class_name STR(":") ct:class_type ->
       class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v ct
 
-let class_specification =
-  parser
+let parser class_specification =
   | cs:class_spec css:{_:and_kw class_spec}* -> (cs::css)
 
 (* Class type definition *)
-let classtype_def =
-  parser
+let parser classtype_def =
   | v:virtual_flag params:{STR("[") tp:type_parameters STR("]")}?[[]] cn:class_name
     CHR('=') cbt:class_body_type ->
       class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v cbt
 
-let classtype_definition =
-  parser
+let parser classtype_definition =
   | type_kw cd:classtype_def cds:{_:and_kw classtype_def}* ->
       (cd::cds)
 
@@ -871,8 +860,7 @@ let parser integer_litteral = (s,co):int_litteral ->
 #endif
 
 (* Constants *)
-let constant =
-  parser
+let parser constant =
     f:float_litteral   -> const_float f
   | c:char_litteral    -> const_char c
   | s:string_litteral  -> const_string s
@@ -880,8 +868,7 @@ let constant =
   | i:integer_litteral -> i
 
 (* we do like parser.mly from ocaml: neg_constant for pattern only *)
-let neg_constant =
-  parser
+let parser neg_constant =
     {CHR('-') | STR("-.")} f:float_litteral -> const_float ("-"^f)
   | CHR('-') i:integer_litteral ->
      match i with
@@ -1156,15 +1143,13 @@ let bigarray_set loc arr arg newval =
   | coords ->
       exp_apply loc (bigarray_function loc "Genarray" "set") [arr; loc_expr loc (Pexp_array coords); newval]
 
-let constructor =
-  parser
+let parser constructor =
   | m:{ m:module_path STR"." }? id:{id:uident -> id | b:bool_lit -> b } ->
       match m with
       | None   -> Lident id
       | Some m -> Ldot(m, id)
 
-let argument =
-  parser
+let parser argument =
   | id:label -> (labelled id, loc_expr _loc (Pexp_ident(id_loc (Lident id) _loc)))
   | id:ty_label e:(expression_lvl (NoMatch, next_exp App)) -> (id, e)
   | id:opt_label -> (optional id, loc_expr _loc (Pexp_ident(id_loc (Lident id) _loc)))
@@ -1216,8 +1201,7 @@ let apply_params_cls _loc params e =
   in
   List.fold_left f e (List.rev params)
 
-let right_member =
-  parser
+let parser right_member =
   | l:{lb:(parameter true) -> lb, _loc_lb}* ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
       let e = match ty with
 	None -> e
@@ -1225,23 +1209,19 @@ let right_member =
       in
       apply_params ~gh:true l e
 
-let simple_right_member =
-  parser
-  | CHR('=') e:expression -> e
-
 let _ = set_grammar let_binding (
   parser
   | pat:(pattern_lvl AsPat) e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
      ( let loc = merge2 _loc_pat _loc_e in
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
-  | vn:value_name CHR(':') ty:only_poly_typexpr e:simple_right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  | vn:value_name ':' ty:only_poly_typexpr '=' e:expression a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
       let pat = loc_pat _loc (Ppat_constraint(
         loc_pat _loc (Ppat_var(id_loc vn _loc_vn)),
         ty))
       in
       let loc = merge2 _loc_vn _loc_e in
       value_binding ~attributes:(attach_attrib loc a) loc pat e::l
-  | vn:value_name CHR(':') (ids,ty):poly_syntax_typexpr e:simple_right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  | vn:value_name ':' (ids,ty):poly_syntax_typexpr '=' e:expression a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
     let (e, ty) = wrap_type_annotation _loc ids ty e in
     let pat = loc_pat _loc (Ppat_constraint(
 	loc_pat _loc (Ppat_var(id_loc vn _loc_vn)),
@@ -1292,15 +1272,13 @@ let _ = set_grammar record_list (
  * classes and objects                                                      *
  ****************************************************************************)
 
-let obj_item =
-  parser
+let parser obj_item =
   | v:inst_var_name CHR('=') e:(expression_lvl (Match, next_exp Seq)) (* FIXME match always allowed ?*)
      -> (id_loc v _loc_v, e)
 
 (* Class expression *)
 
-let class_expr_base =
-  parser
+let parser class_expr_base =
   | cp:class_path ->
       let cp = id_loc cp _loc_cp in
       loc_pcl _loc (Pcl_constr (cp, []))
@@ -1326,8 +1304,7 @@ let _ = set_grammar class_expr (
        | Some l -> loc_pcl _loc (Pcl_apply (ce, l)))
   )
 
-let class_field =
-  parser
+let parser class_field =
   | inherit_kw o:override_flag ce:class_expr id:{_:as_kw lident}? ->
 #ifversion >= 4.02
       loc_pcf _loc (Pcf_inherit (o, ce, id))
@@ -1437,8 +1414,7 @@ let _ = set_grammar class_body (
   )
 
 (* Class definition *)
-let class_binding =
-  parser
+let parser class_binding =
   | v:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
     cn:class_name ps:(parameter false)* ct:{STR(":") ct:class_type}? CHR('=')
     ce:class_expr ->
@@ -1449,8 +1425,7 @@ let class_binding =
       in
       class_type_declaration ~attributes:(attach_attrib _loc []) _loc_params _loc (id_loc cn _loc_cn) params v ce
 
-let class_definition =
-  parser
+let parser class_definition =
   | cb:class_binding cbs:{_:and_kw class_binding}* -> (cb::cbs)
 
 let pexp_list _loc ?loc_cl l =
@@ -1787,8 +1762,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser {
  * Module expressions (module implementations)                              *
  ****************************************************************************)
 
-let module_expr_base =
-  parser
+let parser module_expr_base =
   | mp:module_path ->
       let mid = id_loc mp _loc in
       mexpr_loc _loc (Pmod_ident mid)
@@ -1819,8 +1793,7 @@ let _ = set_grammar module_expr (
       List.fold_left (fun acc (_loc_n, n) -> mexpr_loc (merge2 _loc_m _loc_n) (Pmod_apply(acc, n))) m l
   )
 
-let module_type_base =
-  parser
+let parser module_type_base =
   | mp:modtype_path ->
       let mid = id_loc mp _loc in
       mtyp_loc _loc (Pmty_ident mid)
@@ -1836,8 +1809,7 @@ let module_type_base =
   | module_kw type_kw of_kw me:module_expr -> mtyp_loc _loc (Pmty_typeof me)
 (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_type (start_pos _loc_dol).Lexing.pos_cnum e*)
 
-let mod_constraint =
-  parser
+let parser mod_constraint =
   | t:type_kw tf:typedef_in_constraint -> let (tn,ty) = tf (Some _loc_t) in
 #ifversion >= 4.02
      Pwith_type(tn,ty)

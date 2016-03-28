@@ -808,7 +808,7 @@ module Ext(In:Extension) =
                     (Some
                        (exp_apply _loc (exp_glr_fun _loc "fail")
                           [exp_string _loc ""])))))
-    let build_alternatives _loc comb ls =
+    let build_alternatives _loc ls =
       match ls with
       | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]
       | r::[] -> apply_def_cond _loc r
@@ -833,7 +833,7 @@ module Ext(In:Extension) =
                                             (exp_ident _loc "y")),
                                          (Some (exp_ident _loc "y")))))))))
               ls (exp_Nil _loc) in
-          exp_apply _loc (exp_glr_fun _loc comb) [l]
+          exp_apply _loc (exp_glr_fun _loc "alternatives") [l]
     let _ =
       Decap.set_grammar glr_rules
         (Decap.fsequence_position
@@ -855,6 +855,5 @@ module Ext(In:Extension) =
                              let _loc =
                                locate __loc__start__buf __loc__start__pos
                                  __loc__end__buf __loc__end__pos in
-                             build_alternatives _loc "alternatives"
-                               (rs @ [r]))))
+                             build_alternatives _loc (rs @ [r]))))
   end

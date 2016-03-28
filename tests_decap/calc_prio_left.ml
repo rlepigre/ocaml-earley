@@ -20,7 +20,7 @@ let sum_sym = parser
 let parser test =
   EMPTY | test 'a'
 
-let cached parser expr prio : float grammar =
+let parser expr prio =
   | f:float_num                                               -> f
   | '(' e:(expr Sum) ')'                                      -> e
   | '-' e:(expr Pow)                        when prio <= Pow  -> -. e

@@ -351,11 +351,8 @@ module Initial =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)
     let attach_attrib ?(local= false)  loc acc = acc
-    let attach_gen build loc = []
-    let attach_sig =
-      attach_gen (fun loc  -> fun a  -> loc_sig loc (Psig_attribute a))
-    let attach_str =
-      attach_gen (fun loc  -> fun a  -> loc_str loc (Pstr_attribute a))
+    let attach_sig loc = []
+    let attach_str loc = []
     let union_re l =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l in
       String.concat "\\|" l

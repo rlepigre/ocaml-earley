@@ -215,6 +215,9 @@ val ignore_next_blank : 'a grammar -> 'a grammar
   [f] to the results of [g1] and [g2]. *)
 val sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
 
+val give_name : string -> 'a grammar -> 'a grammar
+(** give a name to the grammar. Usefull for debugging. *)
+
 (** [sequence_position g1 g2 f] is a grammar that first parses using [g1], and
   then parses using [g2]. The results of the sequence is then obtained by
   applying [f] to the results of [g1] and [g2], and to the positions (i.e.
@@ -387,6 +390,7 @@ val blank_grammar : unit grammar -> blank -> buffer -> int -> buffer * int
 
 (* developper only *)
 val debug_lvl : int ref
+val warn_merge : bool ref
 
 val expected : string -> 'a
 type info = bool * Charset.t
