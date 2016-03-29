@@ -174,23 +174,31 @@ let print_type ch = function
       List.iter f cl
   | Rec (a,n,fl) ->
      let is_location = match fl with
-	 (f1,_)::(f2,_)::_ when String.length f1 > 5 && String.length f2 > 4 &&
-	     String.sub f1 (String.length f1 - 5) 5 = "_desc" &&
-			     String.sub f2 (String.length f2 - 4) 4 = "_loc" ->
-			       Some (f1,f2)
+	 (desc,_)::(loc,_)::_ when String.length desc > 5 && String.length loc > 4 &&
+	     String.sub desc (String.length desc - 5) 5 = "_desc" &&
+			     String.sub loc (String.length loc - 4) 4 = "_loc" ->
+	  let name =
+	      try String.sub desc 0 (String.length desc - 5) with _ -> assert false
+	  in
+	  Some (desc,loc,name)
+       | [("txt",_); ("loc",_)] ->
+	  Some("txt","loc","loc")
        | _ -> None
      in
      let prefix = match is_location with
 	 None -> ""
-       | Some (desc,loc) ->
+       | Some (desc,loc,name) ->
 	  Printf.sprintf "if is_antiquotation r.%s then try (Hashtbl.find anti_table r.%s) Quote_%s with Not_found -> failwith \"antiquotation not in a quotation\" else\n"
-	    loc loc (try String.sub desc 0 (String.length desc - 5) with _ -> assert false)
+	    loc loc name
      in
      let suffix = match is_location with
 	 None -> ""
-       | Some (desc,loc) ->
-	  let name = String.sub desc 0 (String.length desc - 5) in
-	  Printf.sprintf "and %s_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_%s loc (Obj.magic (Some None))\n" name name
+       | Some (desc,loc,name) ->
+	  Printf.sprintf "and %s_antiquotation _loc f %s= let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; %s _loc (dummy_%s)\n"
+	    name
+	    (if name = "loc" then "loc_txt dummy_txt " else "")
+	    (if name = "loc" then "loc_txt" else "loc_"^name)
+	    (if name = "loc" then name^" dummy_txt" else name)
       in
       (match a with
        | None   -> fprintf ch "quote_%s _loc r = %s" n prefix

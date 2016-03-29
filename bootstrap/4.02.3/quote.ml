@@ -23,6 +23,33 @@ type quotation =
   | Quote_psig
   | Quote_pmod
   | Quote_pstr
+  | Quote_loc
+let dummy_pexp = (exp_ident Location.none "$Antiquotation$").pexp_desc
+let dummy_ppat = (pat_ident Location.none "$Antiquotation$").ppat_desc
+let dummy_ptyp = Obj.magic (Some None)
+let dummy_pcty = Obj.magic (Some None)
+let dummy_pctf = Obj.magic (Some None)
+let dummy_pcl = Obj.magic (Some None)
+let dummy_pcf = Obj.magic (Some None)
+let dummy_pmty = Obj.magic (Some None)
+let dummy_psig =
+  Psig_open
+    {
+      popen_lid = (id_loc (Lident "$Antiquotation$") Location.none);
+      popen_override = Fresh;
+      popen_loc = Location.none;
+      popen_attributes = []
+    }
+let dummy_pmod = Obj.magic (Some None)
+let dummy_pstr =
+  Pstr_open
+    {
+      popen_lid = (id_loc (Lident "$Antiquotation$") Location.none);
+      popen_override = Fresh;
+      popen_loc = Location.none;
+      popen_attributes = []
+    }
+let dummy_loc d = d
 let make_antiquotation loc =
   let open Lexing in
     let open Location in
@@ -166,11 +193,13 @@ let quote_closed_flag _loc x = match x with
 
 let quote_label _loc x =  quote_string _loc x
 let quote_loc : 'a. (Location.t -> 'a -> expression) -> Location.t -> 'a loc -> expression =
-  fun quote_a _loc r -> 
+  fun quote_a _loc r -> if is_antiquotation r.loc then try (Hashtbl.find anti_table r.loc) Quote_loc with Not_found -> failwith "antiquotation not in a quotation" else
+
     quote_record _loc [
    ((Ldot(Lident "Asttypes", "txt")), quote_a _loc r.txt) ;
    ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc r.loc) ;
   ]
+and loc_antiquotation _loc f loc_txt dummy_txt = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_txt _loc (dummy_loc dummy_txt)
 
 let quote_variance _loc x = match x with
   | Covariant -> quote_const _loc (Ldot(Lident "Asttypes", "Covariant")) []
@@ -193,7 +222,7 @@ and quote_core_type _loc r = if is_antiquotation r.ptyp_loc then try (Hashtbl.fi
    ((Ldot(Lident "Parsetree", "ptyp_loc")), quote_location_t _loc r.ptyp_loc) ;
    ((Ldot(Lident "Parsetree", "ptyp_attributes")), quote_attributes _loc r.ptyp_attributes) ;
   ]
-and ptyp_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_ptyp loc (Obj.magic (Some None))
+and ptyp_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_ptyp _loc (dummy_ptyp)
 
 and quote_core_type_desc _loc x = match x with
   | Ptyp_any -> quote_const _loc (Ldot(Lident "Parsetree", "Ptyp_any")) []
@@ -220,7 +249,7 @@ and quote_pattern _loc r = if is_antiquotation r.ppat_loc then try (Hashtbl.find
    ((Ldot(Lident "Parsetree", "ppat_loc")), quote_location_t _loc r.ppat_loc) ;
    ((Ldot(Lident "Parsetree", "ppat_attributes")), quote_attributes _loc r.ppat_attributes) ;
   ]
-and ppat_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_ppat loc (Obj.magic (Some None))
+and ppat_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_ppat _loc (dummy_ppat)
 
 and quote_pattern_desc _loc x = match x with
   | Ppat_any -> quote_const _loc (Ldot(Lident "Parsetree", "Ppat_any")) []
@@ -247,7 +276,7 @@ and quote_expression _loc r = if is_antiquotation r.pexp_loc then try (Hashtbl.f
    ((Ldot(Lident "Parsetree", "pexp_loc")), quote_location_t _loc r.pexp_loc) ;
    ((Ldot(Lident "Parsetree", "pexp_attributes")), quote_attributes _loc r.pexp_attributes) ;
   ]
-and pexp_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pexp loc (Obj.magic (Some None))
+and pexp_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pexp _loc (dummy_pexp)
 
 and quote_expression_desc _loc x = match x with
   | Pexp_ident(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pexp_ident")) [(quote_loc quote_longident) _loc x]
@@ -357,7 +386,7 @@ and quote_class_type _loc r = if is_antiquotation r.pcty_loc then try (Hashtbl.f
    ((Ldot(Lident "Parsetree", "pcty_loc")), quote_location_t _loc r.pcty_loc) ;
    ((Ldot(Lident "Parsetree", "pcty_attributes")), quote_attributes _loc r.pcty_attributes) ;
   ]
-and pcty_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pcty loc (Obj.magic (Some None))
+and pcty_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pcty _loc (dummy_pcty)
 
 and quote_class_type_desc _loc x = match x with
   | Pcty_constr(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcty_constr")) [ (quote_loc quote_longident) _loc x1; (quote_list quote_core_type) _loc x2;]
@@ -376,7 +405,7 @@ and quote_class_type_field _loc r = if is_antiquotation r.pctf_loc then try (Has
    ((Ldot(Lident "Parsetree", "pctf_loc")), quote_location_t _loc r.pctf_loc) ;
    ((Ldot(Lident "Parsetree", "pctf_attributes")), quote_attributes _loc r.pctf_attributes) ;
   ]
-and pctf_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pctf loc (Obj.magic (Some None))
+and pctf_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pctf _loc (dummy_pctf)
 
 and quote_class_type_field_desc _loc x = match x with
   | Pctf_inherit(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pctf_inherit")) [quote_class_type _loc x]
@@ -405,7 +434,7 @@ and quote_class_expr _loc r = if is_antiquotation r.pcl_loc then try (Hashtbl.fi
    ((Ldot(Lident "Parsetree", "pcl_loc")), quote_location_t _loc r.pcl_loc) ;
    ((Ldot(Lident "Parsetree", "pcl_attributes")), quote_attributes _loc r.pcl_attributes) ;
   ]
-and pcl_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pcl loc (Obj.magic (Some None))
+and pcl_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pcl _loc (dummy_pcl)
 
 and quote_class_expr_desc _loc x = match x with
   | Pcl_constr(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcl_constr")) [ (quote_loc quote_longident) _loc x1; (quote_list quote_core_type) _loc x2;]
@@ -427,7 +456,7 @@ and quote_class_field _loc r = if is_antiquotation r.pcf_loc then try (Hashtbl.f
    ((Ldot(Lident "Parsetree", "pcf_loc")), quote_location_t _loc r.pcf_loc) ;
    ((Ldot(Lident "Parsetree", "pcf_attributes")), quote_attributes _loc r.pcf_attributes) ;
   ]
-and pcf_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pcf loc (Obj.magic (Some None))
+and pcf_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pcf _loc (dummy_pcf)
 
 and quote_class_field_desc _loc x = match x with
   | Pcf_inherit(x1,x2,x3) -> quote_const _loc (Ldot(Lident "Parsetree", "Pcf_inherit")) [ quote_override_flag _loc x1; quote_class_expr _loc x2; (quote_option quote_string) _loc x3;]
@@ -449,7 +478,7 @@ and quote_module_type _loc r = if is_antiquotation r.pmty_loc then try (Hashtbl.
    ((Ldot(Lident "Parsetree", "pmty_loc")), quote_location_t _loc r.pmty_loc) ;
    ((Ldot(Lident "Parsetree", "pmty_attributes")), quote_attributes _loc r.pmty_attributes) ;
   ]
-and pmty_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pmty loc (Obj.magic (Some None))
+and pmty_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pmty _loc (dummy_pmty)
 
 and quote_module_type_desc _loc x = match x with
   | Pmty_ident(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pmty_ident")) [(quote_loc quote_longident) _loc x]
@@ -466,7 +495,7 @@ and quote_signature_item _loc r = if is_antiquotation r.psig_loc then try (Hasht
    ((Ldot(Lident "Parsetree", "psig_desc")), quote_signature_item_desc _loc r.psig_desc) ;
    ((Ldot(Lident "Parsetree", "psig_loc")), quote_location_t _loc r.psig_loc) ;
   ]
-and psig_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_psig loc (Obj.magic (Some None))
+and psig_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_psig _loc (dummy_psig)
 
 and quote_signature_item_desc _loc x = match x with
   | Psig_value(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Psig_value")) [quote_value_description _loc x]
@@ -526,7 +555,7 @@ and quote_module_expr _loc r = if is_antiquotation r.pmod_loc then try (Hashtbl.
    ((Ldot(Lident "Parsetree", "pmod_loc")), quote_location_t _loc r.pmod_loc) ;
    ((Ldot(Lident "Parsetree", "pmod_attributes")), quote_attributes _loc r.pmod_attributes) ;
   ]
-and pmod_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pmod loc (Obj.magic (Some None))
+and pmod_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pmod _loc (dummy_pmod)
 
 and quote_module_expr_desc _loc x = match x with
   | Pmod_ident(x) -> quote_const _loc (Ldot(Lident "Parsetree", "Pmod_ident")) [(quote_loc quote_longident) _loc x]
@@ -543,7 +572,7 @@ and quote_structure_item _loc r = if is_antiquotation r.pstr_loc then try (Hasht
    ((Ldot(Lident "Parsetree", "pstr_desc")), quote_structure_item_desc _loc r.pstr_desc) ;
    ((Ldot(Lident "Parsetree", "pstr_loc")), quote_location_t _loc r.pstr_loc) ;
   ]
-and pstr_antiquotation loc f = let loc = make_antiquotation loc in Hashtbl.add anti_table loc f; loc_pstr loc (Obj.magic (Some None))
+and pstr_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pstr _loc (dummy_pstr)
 
 and quote_structure_item_desc _loc x = match x with
   | Pstr_eval(x1,x2) -> quote_const _loc (Ldot(Lident "Parsetree", "Pstr_eval")) [ quote_expression _loc x1; quote_attributes _loc x2;]

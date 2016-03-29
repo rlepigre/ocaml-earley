@@ -239,6 +239,7 @@ let no_else = no_keyword "else"
 let no_false = no_keyword "false"
 let no_parser = no_keyword "parser"
 let no_with = no_keyword "with"
+let no_as = no_keyword "as"
 
 let no_dot =
   Decap.test ~name:"no_dot" Charset.full_charset (fun buf pos ->
@@ -293,7 +294,7 @@ let reserved_ids =
 let reserved_symbs =
   [ "#" ; "'" ; "(" ; ")" ; "," ; "->" ; "." ; ".." ; ":" ; ":>" ; ";" ; ";;"
   ; "<-" ; ">]" ; ">}" ; "?" ; "[" ; "[<" ; "[>" ; "[|" ; "]" ; "_" ; "`"
-  ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~" ]
+  ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~"; "$" ; ">>"; "<<"; "<:"]
 
 let (is_reserved_id  , add_reserved_id  ) = make_reserved reserved_ids
 let (is_reserved_symb, add_reserved_symb) = make_reserved reserved_symbs
@@ -469,23 +470,27 @@ let string_litteral : (string * string option) Decap.grammar =
 (* Regexp litteral. *)
 
 let regexp_litteral : string Decap.grammar =
-  let char_reg = "[^']" in
-  let char_esc = "[ntbrs]" in
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
   let single_char = parser
-    | c:RE(char_reg)      -> c.[0]
-    | _:single_quote      -> '\''
+    | c:RE(char_reg)      -> c
+    | _:single_quote      -> "'"
     | '\\' e:RE(char_esc) ->
         begin
           match e.[0] with
-          | 'n' -> '\n'
-          | 't' -> '\t'
-          | 'b' -> '\b'
-          | 'r' -> '\r'
-          | 's' -> ' '
-          | c   -> c
+          | 'n' -> "\n"
+          | 't' -> "\t"
+          | 'b' -> "\b"
+          | 'r' -> "\r"
+          | 's' -> " "
+          | '\\' -> "\\"
+          | '(' -> "\\("
+          | ')' -> "\\)"
+          | '|' -> "\\|"
+	  | _ -> assert false
         end
   in
   let internal = parser
-    cs:single_char* "''" -> cs_to_string cs
+    cs:single_char* "''" -> String.concat "" cs
   in
   parser _:double_quote - (Decap.change_layout internal Decap.no_blank)

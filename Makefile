@@ -150,6 +150,9 @@ pa_ocaml.byt: decap.cma $(B)/decap_ocaml.cma $(B)/pa_default.cmo
 test_parsers: decap.cmxa $(B)/decap_ocaml.cmxa test_parsers.ml
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa	$(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
 
+asttools:
+	cd ast_tools && make
+
 #BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
 boot:

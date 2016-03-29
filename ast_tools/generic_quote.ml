@@ -25,9 +25,33 @@ type quotation =
   | Quote_psig
   | Quote_pmod
   | Quote_pstr
+  | Quote_loc
 #ifversion <= 4.01
   | Quote_pfield (* for 4.01.0 *)
 #endif
+
+let dummy_pexp   = (exp_ident Location.none "$Antiquotation$").pexp_desc
+let dummy_ppat   = (pat_ident Location.none "$Antiquotation$").ppat_desc
+let dummy_ptyp   = Obj.magic (Some None)
+let dummy_pcty   = Obj.magic (Some None)
+let dummy_pctf   = Obj.magic (Some None)
+let dummy_pcl    = Obj.magic (Some None)
+let dummy_pcf    = Obj.magic (Some None)
+let dummy_pmty   = Obj.magic (Some None)
+let dummy_psig   = Psig_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
+			       popen_override = Fresh;
+			       popen_loc = Location.none;
+			       popen_attributes = [] }
+let dummy_pmod   = Obj.magic (Some None)
+let dummy_pstr   = Pstr_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
+			       popen_override = Fresh;
+			       popen_loc = Location.none;
+			       popen_attributes = [] }
+let dummy_loc d  = d
+#ifversion <= 4.01
+let dummy_pfield = Obj.magic (Some None) (* for 4.01.0 *)
+#endif
+
 
 let make_antiquotation loc =
   let open Lexing in

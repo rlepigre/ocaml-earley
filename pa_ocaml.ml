@@ -201,7 +201,7 @@ let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
 
 type tree = Node of tree * tree | Leaf of string
 
-let (string_of_tree:tree->string) t =
+let string_of_tree (t:tree) : string =
   let b = Buffer.create 101 in
   let rec fn = function
       Leaf s -> Buffer.add_string b s
@@ -995,7 +995,7 @@ let _ = set_pattern_lvl (fun lvl ->
   | begin_kw end_kw when lvl = AtomPat ->
       let unt = id_loc (Lident "()") _loc in
       loc_pat _loc (ppat_construct (unt, None))
-  | STR("(") module_kw mn:module_name pt:{STR(":") pt:package_type}? STR(")") when lvl = AtomPat ->
+  | '(' module_kw mn:module_name pt:{STR(":") pt:package_type}? ')' when lvl = AtomPat ->
       let unpack = Ppat_unpack { txt = mn; loc = _loc_mn } in
       let pat = match pt with
                 | None    -> unpack
@@ -1003,7 +1003,7 @@ let _ = set_pattern_lvl (fun lvl ->
                              Ppat_constraint (loc_pat _loc_mn unpack, pt)
       in
       loc_pat _loc pat
-  | CHR('$') - c:uident when lvl = AtomPat ->
+  | '$' - c:uident when lvl = AtomPat ->
      (try let str = Sys.getenv c in
 	  parse_string ~filename:("ENV:"^c) pattern ocaml_blank str
       with Not_found -> give_up "" (* FIXME *))
@@ -1013,7 +1013,7 @@ let _ = set_pattern_lvl (fun lvl ->
 	       | "array" -> "array"
                | "int"   -> "int"
                | "string"-> "string"
-               | "lid"   -> "lid"} CHR(':') }?["expr"] -
+               | "lid"   -> "lid"} - ':' }?["expr"] -
        e:expression - '$' when lvl = AtomPat ->
      begin
        let open Quote in
@@ -1202,17 +1202,29 @@ let apply_params_cls _loc params e =
   List.fold_left f e (List.rev params)
 
 let parser right_member =
-  | l:{lb:(parameter true) -> lb, _loc_lb}* ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
+  | l:{lb:(parameter true) -> lb, _loc_lb}+ ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
       let e = match ty with
 	None -> e
       | Some ty -> loc_expr (ghost _loc) (pexp_constraint(e, ty))
       in
       apply_params ~gh:true l e
 
+let parser eright_member =
+  | ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
+      let e = match ty with
+	None -> e
+      | Some ty -> loc_expr (ghost _loc) (pexp_constraint(e, ty))
+      in
+      e
+
 let _ = set_grammar let_binding (
   parser
-  | pat:(pattern_lvl AsPat) e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  | pat:(pattern_lvl AsPat) e:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
      ( let loc = merge2 _loc_pat _loc_e in
+       value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
+  | vn:value_name e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+     ( let loc = merge2 _loc_vn _loc_e in
+       let pat = pat_ident _loc_vn vn  in
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
   | vn:value_name ':' ty:only_poly_typexpr '=' e:expression a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
       let pat = loc_pat _loc (Ppat_constraint(
@@ -1632,7 +1644,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 } when lvl = Atom
 	-> r
 
-  | CHR('$') - c:uident when lvl = Atom ->
+  | '$' - c:uident when lvl = Atom ->
      (match c with
      | "FILE" ->
 	 exp_string _loc ((start_pos _loc).Lexing.pos_fname)
