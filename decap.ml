@@ -512,8 +512,8 @@ let pop_final : type a. a dep_pair_tbl -> position -> position -> a final -> a a
        match pre_rule rule with
        | Next(_,_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest) ->
 	  let f = fix_begin (if ignb then pos else pos_ab) f in
-	 (match pre_rule rest, true || debut=None with
-	 | Empty (g), false ->
+	 (match pre_rule rest with
+	 | Empty (g) when debut <> None ->
 	    if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
 	    iter_rules (fun r ->
 	      let complete = protect (function

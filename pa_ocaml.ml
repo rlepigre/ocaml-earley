@@ -504,7 +504,7 @@ let extra_types_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_types))
 
 let _ = set_typexpr_lvl (fun lvl ->
-  parser {
+  parser
   | e:(extra_types_grammar lvl) -> e
   | e:(typexpr_lvl (next_type_prio lvl)) when lvl < AtomType -> e
   | "'" id:ident when lvl = AtomType ->
@@ -591,7 +591,7 @@ let _ = set_typexpr_lvl (fun lvl ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, [te], o))
 #endif
-})
+)
 
 (****************************************************************************
  * Type and exception definitions                                           *
@@ -908,7 +908,7 @@ let parser extra_patterns_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_patterns))
 
 let _ = set_pattern_lvl (fun lvl ->
-  parser {
+  parser
   | e:(extra_patterns_grammar lvl) -> e
   | p:(pattern_lvl (next_pat_prio lvl)) when lvl < AtomPat -> p
   | vn:value_name when lvl = AtomPat ->
@@ -1069,7 +1069,7 @@ let _ = set_pattern_lvl (fun lvl ->
   | p:(pattern_lvl (next_pat_prio ConsPat)) c:"::" p':(pattern_lvl ConsPat) when lvl = ConsPat ->
        let cons = id_loc (Lident "::") _loc_c in
        let args = loc_pat (ghost _loc) (Ppat_tuple [p; p']) in
-       loc_pat _loc (ppat_construct(cons, Some args))})
+       loc_pat _loc (ppat_construct(cons, Some args)))
 
 (****************************************************************************
  * Expressions                                                              *
@@ -1472,7 +1472,7 @@ let parser if_expression (alm,lvl) =
   | if_kw c:expression then_kw e:(expression_lvl (alm, next_exp Seq)) no_else ->
      loc_expr _loc (Pexp_ifthenelse(c,e,None))
 
-let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser {
+let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | e:(extra_expressions_grammar c) -> e
 
@@ -1755,7 +1755,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser {
             pexp_construct(id_loc (Lident "::") _loc_op, Some (loc_expr (ghost _loc) (Pexp_tuple [e';e])))
           else
             Pexp_apply(loc_expr _loc_op (Pexp_ident(id_loc (Lident op) _loc_op)),
-                       [(nolabel, e') ; (nolabel, e)])))) infix_prios))})
+                       [(nolabel, e') ; (nolabel, e)])))) infix_prios)))
 
 
 (****************************************************************************
