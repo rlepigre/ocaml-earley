@@ -25,12 +25,12 @@ type ihdr_data = {
  ****************************************************************************)
 module PNG_Zlib = struct
   exception PNG_Zlib_error of string
- 
+
   let uncompress_string inputstr =
     let len = String.length inputstr in
     let inputpos = ref 0 in
     let output = ref [] in
-  
+
     let refill strbuf =
       let buflen = String.length strbuf in
       let remaining = len - !inputpos in
@@ -39,22 +39,22 @@ module PNG_Zlib = struct
       inputpos := !inputpos + tocopy;
       tocopy
     in
-  
+
     let flush strbuf len =
       let str = String.sub strbuf 0 len in
       output := str :: !output;
     in
-  
+
     (try Zlib.uncompress refill flush with
       _ -> raise (PNG_Zlib_error "Zlib.uncompress failed..."));
-  
+
     String.concat "" (List.rev !output)
-  
+
   let compress_string inputstr =
     let len = String.length inputstr in
     let inputpos = ref 0 in
     let output = ref [] in
-  
+
     let refill strbuf =
       let buflen = String.length strbuf in
       let remaining = len - !inputpos in
@@ -63,15 +63,15 @@ module PNG_Zlib = struct
       inputpos := !inputpos + tocopy;
       tocopy
     in
-  
+
     let flush strbuf len =
       let str = String.sub strbuf 0 len in
       output := str :: !output;
     in
-  
+
     (try Zlib.compress refill flush with
       _ -> raise (PNG_Zlib_error "Zlib.compress failed..."));
-  
+
     String.concat "" (List.rev !output)
 end
 
@@ -82,25 +82,25 @@ open PNG_Zlib
  * CRC-related things.                                                      *
  ****************************************************************************)
 module PNG_CRC = struct
-  let (>>) = Int32.shift_right_logical
+  let (>>>) = Int32.shift_right_logical
   let (&)  = Int32.logand
   let (^)  = Int32.logxor
-  
+
   let crc_table =
     let elem n =
       let c = ref (Int32.of_int n) in
       for k = 0 to 7 do
-        c := (!c >> 1) ^ (0xedb88320l & (Int32.succ (Int32.lognot (!c & 1l))))
+        c := (!c >>> 1) ^ (0xedb88320l & (Int32.succ (Int32.lognot (!c & 1l))))
       done; !c
     in Array.init 256 elem
-  
+
   let update_crc crc buf len =
     let c = ref crc in
     for n = 0 to len - 1 do
       let e = Int32.of_int (int_of_char buf.[n]) in
-      c := crc_table.(Int32.to_int ((!c ^ e) & 0xffl)) ^ (!c >> 8)
+      c := crc_table.(Int32.to_int ((!c ^ e) & 0xffl)) ^ (!c >>> 8)
     done; !c
-  
+
   let png_crc buf len =
     Int32.lognot (update_crc 0xffffffffl buf len)
 end
@@ -125,7 +125,7 @@ module ReadPNG : ReadImage = struct
       (if hdr <> png_signature then
         raise (Corrupted_Image "Corrupted header..."))
     else raise Wrong_image_type
-  
+
   (* Read one PNG chunck, and check the CRC.
    * Arguments:
    *   - ich : input channel
@@ -169,7 +169,7 @@ module ReadPNG : ReadImage = struct
             "Unsupported combination of colour type %X with bit depth %X..."
             colour_type bit_depth in
       raise (Corrupted_Image msg)
-    end; 
+    end;
     let compression_method = int_of_char s.[10] in
     if compression_method <> 0 then begin
       let msg = Printf.sprintf
@@ -233,10 +233,10 @@ module ReadPNG : ReadImage = struct
       then a
       else (if pb <= pc then b else c)
     in
-  
+
     let slen = String.length scanline in
     let unfiltered = String.create slen in
-  
+
     for x = 0 to slen - 1 do
       let filtx = int_of_char scanline.[x] in
       let recona =
@@ -268,7 +268,7 @@ module ReadPNG : ReadImage = struct
       String.set unfiltered x (char_of_int recon)
     done;
     unfiltered
-  
+
   (*
    * Pass extraction function.
    * Arguments :
@@ -284,21 +284,21 @@ module ReadPNG : ReadImage = struct
     let col_increment = [| 8; 8; 4; 4; 2; 2; 1 |] in
     (*let block_height  = [| 8; 8; 4; 4; 2; 2; 1 |] in*)
     (*let block_width   = [| 8; 4; 4; 2; 2; 1; 1 |] in*)
-  
+
     let rowsize_bit = w * pl_bit in
     let rowsize = rowsize_bit / 8 + if rowsize_bit mod 8 <> 0 then 1 else 0 in
     let zchar = char_of_int 0 in
     let output = Array.init h (fun _ -> String.make rowsize zchar) in
-  
+
     let input_byte = ref 0 in
     let input_bit = ref 0 in
-  
+
     let read_byte () =
       assert (!input_bit = 0);
       let c = String.get s !input_byte in
       incr input_byte; int_of_char c
     in
-  
+
     let read_pix str pixnum =
       if pl_bit mod 8 = 0
       then begin
@@ -321,7 +321,7 @@ module ReadPNG : ReadImage = struct
         res
       end
     in
-  
+
     let read_pixel () =
       if pl_bit mod 8 = 0
       then begin
@@ -340,7 +340,7 @@ module ReadPNG : ReadImage = struct
         String.make 1 (char_of_int pix)
       end
     in
-  
+
     let flush_end_of_byte () =
       if !input_bit <> 0
       then begin
@@ -348,7 +348,7 @@ module ReadPNG : ReadImage = struct
         incr input_byte
       end
     in
-  
+
     (* Writes the pixel pix at pixel position pos in the string str. *)
     let output_pixel pix pos str =
       if pl_bit mod 8 = 0
@@ -377,31 +377,31 @@ module ReadPNG : ReadImage = struct
         (* DEBUG FIXME *)
       end
     in
-  
+
     let sl = String.make (w * 8) zchar in (* ugly... (2bytes x 4 component) *)
     let slpos = ref 0 in
-  
+
     for pass = 0 to 6 do
       let prevsl = ref None in
-  
+
       let row = ref starting_row.(pass) in
       while !row < h do
         let ft = ref (-1) in
-  
+
         slpos := 0;
         let col = ref starting_col.(pass) in
         while !col < w do
           if !ft < 0 then ft := read_byte ();
-  
+
           let pix = read_pixel () in
           (*
           let pval = (int_of_char pix.[0]) lsr 7 in
           Printf.fprintf stderr "reading pixel at pos: (x = %i, y = %i, val = %i)\n%!" !col !row pval;
           *)
-  
+
           output_pixel pix !slpos sl;
           incr slpos;
-  
+
           col := !col + col_increment.(pass)
         done;
         flush_end_of_byte ();
@@ -410,7 +410,7 @@ module ReadPNG : ReadImage = struct
           print_byte (int_of_char sl.[blibli]);
         done;
         Printf.fprintf stderr "\n%!";*)
-  
+
         if !ft >= 0 then begin
           let bitlen = !slpos * pl_bit in
           let sllen = bitlen / 8 + if bitlen mod 8 = 0 then 0 else 1 in
@@ -424,18 +424,18 @@ module ReadPNG : ReadImage = struct
           let bpp = max (pl_bit / 8) 1 in
           let slunfilt = unfilter !ft bpp sl !prevsl in
           prevsl := Some slunfilt;
-  
+
           col := starting_col.(pass);
           slpos := 0;
           while !col < w do
             let pix = read_pix slunfilt !slpos in
             incr slpos;
             output_pixel pix !col output.(!row);
-  
+
             col := !col + col_increment.(pass)
           done;
         end;
-  
+
         row := !row + row_increment.(pass)
       done
     done;
@@ -451,10 +451,10 @@ module ReadPNG : ReadImage = struct
   let openfile fn =
     let ich = open_in_bin fn in
     read_signature ich;
-  
+
     let curr_chunck = ref (read_chunck ich) in
     let read_chuncks = ref [] in
-  
+
     let only_once ctype =
       if List.mem ctype !read_chuncks
       then begin
@@ -465,7 +465,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let only_before ctype ctype' =
       if List.mem ctype' !read_chuncks
       then begin
@@ -476,7 +476,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let only_after ctype' ctype =
       if not (List.mem ctype' !read_chuncks)
       then begin
@@ -487,7 +487,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let is_first_chunck ctype =
       if ([] <> !read_chuncks)
       then begin
@@ -498,7 +498,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let is_not_first_chunck ctype =
       if ([] = !read_chuncks)
       then begin
@@ -509,7 +509,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let is_not_compatible_with ctype ctype' =
       if List.mem ctype' !read_chuncks
       then begin
@@ -520,17 +520,17 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let last_chunck () =
       match !read_chuncks with
         | []   -> "NONE"
         | x::_ -> x
     in
-  
+
     let has_read_chunck ctype =
       List.mem ctype !read_chuncks
     in
-  
+
     let not_after ctype' ctype =
       if List.mem ctype' !read_chuncks
       then begin
@@ -541,7 +541,7 @@ module ReadPNG : ReadImage = struct
         raise (Corrupted_Image msg)
       end
     in
-  
+
     let empty_ihdr = {
       image_size         = -1 , -1;
       bit_depth          = -1;
@@ -588,7 +588,7 @@ module ReadPNG : ReadImage = struct
                only_once curr_ctype;
                not_after "tRNS" curr_ctype;
                not_after "bKGD" curr_ctype;
-  
+
                let ct = !ihdr.colour_type in
                if ct = 0 || ct = 4
                then begin
@@ -596,7 +596,7 @@ module ReadPNG : ReadImage = struct
                        "Chunck PLTE is forbiden for greyscale mode (%i)..." ct
                  in raise (Corrupted_Image msg);
                end;
-  
+
                let bytes_palette = String.length !curr_chunck.chunck_data in
                if bytes_palette mod 3 <> 0
                then raise (Corrupted_Image "Invalid palette size...");
@@ -628,7 +628,7 @@ module ReadPNG : ReadImage = struct
                end
            (* IEND cannot occur (end condition of the loop) *)
            (* | "IEND" -> *)
-  
+
            (* Ancillary chunks *)
            | "cHRM" ->
                only_once curr_ctype;
@@ -766,19 +766,19 @@ module ReadPNG : ReadImage = struct
         (close_in ich;
          raise (Corrupted_Image "End of file reached before chunck end..."))
     end;
-  
+
     (* Check for trailing bytes... *)
     if (try let _ = input_char ich in true with End_of_file -> false)
     then raise (Corrupted_Image "Data after the IEND chunck...");
     close_in ich;
-  
+
     let uncomp_idat = uncompress_string !raw_idat in
-  
+
     let w, h = !ihdr.image_size in
     let bd = !ihdr.bit_depth in
     let ct = !ihdr.colour_type in
     let im = !ihdr.interlace_method in
-  
+
     (* Computing number of component and byte per pixel *)
     let nb_comp = match ct with
                    | 0 -> 1 | 2 -> 3 | 3 -> 1 | 4 -> 2 | 6 -> 4
@@ -789,7 +789,7 @@ module ReadPNG : ReadImage = struct
                | 16 -> 2 * nb_comp
                | _  -> 1
     in
-  
+
     let unfiltered =
       match im with
        | 0 ->
@@ -798,7 +798,7 @@ module ReadPNG : ReadImage = struct
          let slen = sl_bit / 8 + if sl_bit mod 8 <> 0 then 1 else 0 in
          if !debug then
            Printf.fprintf stderr "No interlace, scanline length = %i\n%!" slen;
-  
+
          (* Building the scanlines *)
          let scanlines = Array.init h
            (fun y ->
@@ -808,7 +808,7 @@ module ReadPNG : ReadImage = struct
              (ft, sl)
            )
          in
-       
+
          (* Removing the filter on the scanlines *)
          let prev_scanline = ref None in
          Array.mapi
@@ -822,10 +822,10 @@ module ReadPNG : ReadImage = struct
          extract_pass uncomp_idat pixlen_bit w h
        | _ -> assert false
     in
-  
+
     (* Conversion of the array of string into an array of array of int *)
     let unfiltered_int = Array.init h (fun y -> Array.make (w * nb_comp) 0) in
-  
+
     for y = 0 to h - 1 do
       for x = 0 to (w * nb_comp) - 1 do
         match bd with
@@ -852,11 +852,11 @@ module ReadPNG : ReadImage = struct
          | _  -> assert false
       done;
     done;
-  
+
     (* Output *)
     if !debug then Printf.fprintf stderr "Building image structure...\n%!";
     match ct with
-    | 0 -> 
+    | 0 ->
       let image = create_grey ~max_val:(ones bd) w h in
       for y = 0 to h - 1 do
 	for x = 0 to w - 1 do
@@ -885,7 +885,7 @@ module ReadPNG : ReadImage = struct
            let index = (* FIXME *)
              if index >= Array.length !palette
              then (Printf.fprintf stderr "Palette index too big...\n%!"; 0)
-             else index 
+             else index
            in
 	   let p = !palette.(index) in
            write_rgb_pixel image x y p.r p.g p.b
@@ -897,7 +897,7 @@ module ReadPNG : ReadImage = struct
        let image = create_grey ~alpha:true ~max_val:(ones bd) w h in
        for y = 0 to h - 1 do
 	 for x = 0 to w - 1 do
-	   write_greya_pixel image x y 
+	   write_greya_pixel image x y
 	     unfiltered_int.(y).(2 * x)
 	     unfiltered_int.(y).(2 * x + 1);
 	 done
@@ -934,9 +934,9 @@ let write_chunk och chunck =
   let type_and_data = String.concat ""
     [chunck.chunck_type; chunck.chunck_data] in
   let crc = png_crc type_and_data (len + 4) in
-  let crc3 = Int32.to_int ((crc >> 24) & 0xFFl) in
-  let crc2 = Int32.to_int ((crc >> 16) & 0xFFl) in
-  let crc1 = Int32.to_int ((crc >> 8) & 0xFFl) in
+  let crc3 = Int32.to_int ((crc >>> 24) & 0xFFl) in
+  let crc2 = Int32.to_int ((crc >>> 16) & 0xFFl) in
+  let crc1 = Int32.to_int ((crc >>> 8) & 0xFFl) in
   let crc0 = Int32.to_int (crc & 0xFFl) in
   output_char och (char_of_int crc3);
   output_char och (char_of_int crc2);
@@ -1075,7 +1075,7 @@ let write_png fn img =
       for y = 0 to h - 1 do
         byte0 (); (* Scanline with no filter *)
         for x = 0 to w - 1 do
-	  read_grey_pixel img x y (fun ~g -> 
+	  read_grey_pixel img x y (fun ~g ->
             add_byte (g lsr 8);
             add_byte (g land mask));
         done
@@ -1084,7 +1084,7 @@ let write_png fn img =
       for y = 0 to h - 1 do
         byte0 (); (* Scanline with no filter *)
         for x = 0 to w - 1 do
- 	  read_greya_pixel img x y (fun ~g ~a -> 
+ 	  read_greya_pixel img x y (fun ~g ~a ->
             add_byte g;
             add_byte a);
         done
@@ -1094,7 +1094,7 @@ let write_png fn img =
       for y = 0 to h - 1 do
         byte0 (); (* Scanline with no filter *)
         for x = 0 to w - 1 do
-	  read_greya_pixel img x y (fun ~g ~a -> 
+	  read_greya_pixel img x y (fun ~g ~a ->
             add_byte (g lsr 8);
             add_byte (g land mask);
             add_byte (a lsr 8);
@@ -1105,7 +1105,7 @@ let write_png fn img =
       for y = 0 to h - 1 do
         byte0 (); (* Scanline with no filter *)
         for x = 0 to w - 1 do
-	  read_rgb_pixel img x y (fun ~r ~g ~b -> 
+	  read_rgb_pixel img x y (fun ~r ~g ~b ->
             add_byte r;
             add_byte g;
             add_byte b);
@@ -1116,7 +1116,7 @@ let write_png fn img =
       for y = 0 to h - 1 do
         byte0 (); (* Scanline with no filter *)
         for x = 0 to w - 1 do
-          read_rgb_pixel img x y (fun ~r ~g ~b -> 
+          read_rgb_pixel img x y (fun ~r ~g ~b ->
 	    add_byte (r lsr 8);
             add_byte (r land mask);
             add_byte (g lsr 8);

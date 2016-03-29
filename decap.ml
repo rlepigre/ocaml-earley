@@ -67,8 +67,8 @@ and 'a rule = ('a prerule * assoc_cell)
 
 (* type de la table de Earley *)
 type position = buffer * int
-type ('a,'b,'c,'r) cell = {
-  ignb:bool; (*ignb!ignore next blank*)
+type ('a,'b,'c,'r,'i) cell = {
+  ignb:'i; (*ignb!ignore next blank*)
   debut : (position * position) option; (* second position is after blank *)
   stack : ('c, 'r) element list ref;
   acts  : 'a;
@@ -76,11 +76,11 @@ type ('a,'b,'c,'r) cell = {
   full  : 'c rule }
 
 and (_,_) element =
-  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
+  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r,unit) cell -> ('a,'r) element
   | B : ('a -> 'b) pos -> ('a,'b) element
   | A : ('a, 'a) element
 
-and _ final   = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
+and _ final   = D : (('b -> 'c), 'b, 'c, 'r, bool) cell -> 'r final
 
 (* si t : table et t.(j) = (i, R, R' R) cela veut dire qu'entre i et j on a parsé
    la règle R' et qu'il reste R à parser. On a donc toujours
@@ -517,9 +517,9 @@ let pop_final : type a. a dep_pair_tbl -> position -> position -> a final -> a a
 	    if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
 	    iter_rules (fun r ->
 	      let complete = protect (function
-		| C {rest; acts=acts'; full; debut=d; stack;ignb=i} ->
+		| C {rest; acts=acts'; full; debut=d; stack} ->
 		   let debut = if d = None then debut else d in
-		   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack;ignb=ignb||i} in
+		   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack;ignb=()} in
  		     ignore(add_assq r c dlr)
 		| B acts' ->
 		     let c = B (combine2 acts acts' g f) in
@@ -530,7 +530,7 @@ let pop_final : type a. a dep_pair_tbl -> position -> position -> a final -> a a
 	      List.iter complete !stack;
 	      act.a r (find_assq r dlr)) rules
 	 | _ ->
-	     let c = C {rest; acts=combine1 acts f; full; debut; stack;ignb} in
+	     let c = C {rest; acts=combine1 acts f; full; debut; stack;ignb=()} in
 	     iter_rules (fun r -> act.a r (add_assq r c dlr)) rules);
 
        | _ -> assert false
@@ -558,15 +558,15 @@ let rec one_prediction_production
  = fun element elements dlr pos pos_ab c c' ->
    match element with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
-   | D {debut=i; acts; stack; rest; full;ignb=ignb0} as element0 ->
+   | D {debut=i; acts; stack; rest; full;ignb} as element0 ->
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a\n%!" print_final element0;
      match pre_rule rest with
-     | Next(info,_,_,(NonTerm (_) | RefTerm(_)),_,_) when good (if ignb0 then c' else c) info ->
+     | Next(info,_,_,(NonTerm (_) | RefTerm(_)),_,_) when good (if ignb then c' else c) info ->
 	let acts =
 	  { a = (fun rule stack ->
-	    if good (if ignb0 then c' else c) (rule_info rule) then (
-	      let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule; ignb=ignb0} in
+	    if good (if ignb then c' else c) (rule_info rule) then (
+	      let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule; ignb} in
 	      let b = add "P" pos nouveau elements in
 	      if b then one_prediction_production nouveau elements dlr pos pos_ab c c'))
 	  }
@@ -584,8 +584,7 @@ let rec one_prediction_production
 	   if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
 	  let complete = fun element ->
 	    match element with
-	    | C {debut=k; stack=els'; acts; rest; full;ignb} ->
-	       let ignb = ignb||ignb0 in
+	    | C {debut=k; stack=els'; acts; rest; full} ->
 	       if good (if ignb then c' else c) (rule_info rest) then begin
 		 if !debug_lvl > 1 then
 		   Printf.eprintf "action for completion bis of %a =>" print_final element0;
@@ -595,7 +594,7 @@ let rec one_prediction_production
 	           with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
 		 in
 		 if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-		 let nouveau = D {debut=(if k = None then i else k); acts = x; stack=els'; rest; full;ignb;} in
+		 let nouveau = D {debut=(if k = None then i else k); acts = x; stack=els'; rest; full;ignb} in
 		 let b = add "C" pos nouveau elements in
 		 if b then one_prediction_production nouveau elements dlr pos pos_ab c c'
 	       end
@@ -609,18 +608,18 @@ let rec one_prediction_production
 (*     | Dep rest ->
 	let rest = rest acts in
 	if good c (rule_info rest) then begin
-	  let nouveau = D {debut=i; debut_after_blank=i0; fin=j; acts; stack; rest; full;ignb=ignb0} in
+	  let nouveau = D {debut=i; debut_after_blank=i0; fin=j; acts; stack; rest; full;ignb} in
 	  let b = add "D" nouveau elements in
 	  if b then one_prediction_production buf pos c c' rec_err dlr elements nouveau
        end*)
-     | Next(_,_,ignb,Test(s,f),g,rest) ->
+     | Next(_,_,ignb',Test(s,f),g,rest) ->
 	(try
-	  let j = if ignb0 then pos else pos_ab in
+	  let j = if ignb then pos else pos_ab in
           if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element);
 	  let (a,b) = f (fst j) (snd j) in
 	  if b then begin
 	    if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-	    let nouveau = D {debut=i; stack; rest; full;ignb;
+	    let nouveau = D {debut=i; stack; rest; full;ignb=ignb';
 	                     acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
 	    let b = add "T" pos nouveau elements in
 	    if b then one_prediction_production nouveau elements dlr  pos pos_ab c c'
