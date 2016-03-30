@@ -21,7 +21,7 @@ ifeq ($(HAS_PA_OCAML),1)
 B=.
 IB=-I $(B) -I $(BOOTDIR)
 PA_OCAML=./pa_ocaml
-PP= -pp $(PA_OCAML)
+PP= -pp "$(PA_OCAML) $(ASCII)"
 all: pa_ocaml decap.cmxa $(B)/decap.cma $(B)/decap_ocaml.cmxa $(B)/decap_ocaml.cma
 else
 B=$(BOOTDIR)
@@ -33,6 +33,7 @@ endif
 MAJOR = 20160307
 MINOR = alpha
 VERSION = $(MAJOR).$(MINOR)
+ASCII =
 
 COMPILER_INC = -I +compiler-libs
 COMPILER_LIBS = ocamlcommon.cma
@@ -150,7 +151,7 @@ pa_ocaml.byt: decap.cma $(B)/decap_ocaml.cma $(B)/pa_default.cmo
 test_parsers: decap.cmxa $(B)/decap_ocaml.cmxa test_parsers.ml
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa	$(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
 
-asttools:
+asttools: decap.cmxa decap_ocaml.cmxa
 	cd ast_tools && make
 
 #BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION

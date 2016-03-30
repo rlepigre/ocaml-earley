@@ -67,7 +67,6 @@ let pcty_loc ?(attributes=[]) _loc desc = { pcty_desc = desc; pcty_loc = _loc; p
 let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
 let mexpr_loc ?(attributes=[]) _loc desc = { pmod_desc = desc; pmod_loc = _loc; pmod_attributes = attributes }
 let mtyp_loc ?(attributes=[]) _loc desc = { pmty_desc = desc; pmty_loc = _loc; pmty_attributes = attributes }
-let id_loc txt loc = { txt; loc }
 let pexp_construct(a,b) = Pexp_construct(a,b)
 let pexp_fun(label, opt, pat, expr) =
   Pexp_fun(label,opt,pat,expr)
@@ -80,7 +79,6 @@ let loc_typ ?(attributes=[]) _loc typ = { ptyp_desc = typ; ptyp_loc = _loc; }
 let loc_pfield ?(attributes=[]) _loc field = { pfield_desc = field; pfield_loc = _loc; }
 let pctf_loc ?(attributes=[]) _loc desc = { pctf_desc = desc; pctf_loc = _loc; }
 let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; }
-let id_loc txt loc = { txt; loc; }
 let pcty_loc ?(attributes=[]) _loc desc = { pcty_desc = desc; pcty_loc = _loc; }
 let mexpr_loc ?(attributes=[]) _loc desc = { pmod_desc = desc; pmod_loc = _loc }
 let mtyp_loc ?(attributes=[]) _loc desc = { pmty_desc = desc; pmty_loc = _loc }
@@ -88,6 +86,9 @@ let pexp_construct(a,b) = Pexp_construct(a,b,false)
 let pexp_fun(label, opt, pat, expr) =
   Pexp_function(label,opt,[pat,expr])
 #endif
+
+let id_loc txt loc = { txt; loc }
+let loc_id loc txt = { txt; loc }
 
 let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 

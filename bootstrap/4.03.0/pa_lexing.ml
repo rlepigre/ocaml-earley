@@ -151,6 +151,7 @@ let no_else = no_keyword "else"
 let no_false = no_keyword "false"
 let no_parser = no_keyword "parser"
 let no_with = no_keyword "with"
+let no_as = no_keyword "as"
 let no_dot =
   Decap.test ~name:"no_dot" Charset.full_charset
     (fun buf  ->
@@ -275,7 +276,11 @@ let reserved_symbs =
   "|";
   "|]";
   "}";
-  "~"]
+  "~";
+  "$";
+  ">>";
+  "<<";
+  "<:"]
 let (is_reserved_id,add_reserved_id) = make_reserved reserved_ids
 let (is_reserved_symb,add_reserved_symb) = make_reserved reserved_symbs
 let not_special =
@@ -463,30 +468,33 @@ let string_litteral: (string* string option) Decap.grammar =
   Decap.alternatives
     [Decap.apply (fun s  -> (s, None)) normal_string; quoted_string]
 let regexp_litteral: string Decap.grammar =
-  let char_reg = "[^']" in
-  let char_esc = "[ntbrs]" in
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
   let single_char =
     Decap.alternatives
-      [Decap.apply (fun c  -> c.[0])
-         (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
-      Decap.apply (fun _  -> '\'') single_quote;
+      [Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
+      Decap.apply (fun _  -> "'") single_quote;
       Decap.sequence (Decap.char '\\' '\\')
         (Decap.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
         (fun _  ->
            fun e  ->
              match e.[0] with
-             | 'n' -> '\n'
-             | 't' -> '\t'
-             | 'b' -> '\b'
-             | 'r' -> '\r'
-             | 's' -> ' '
-             | c -> c)] in
+             | 'n' -> "\n"
+             | 't' -> "\t"
+             | 'b' -> "\b"
+             | 'r' -> "\r"
+             | 's' -> " "
+             | '\\' -> "\\"
+             | '(' -> "\\("
+             | ')' -> "\\)"
+             | '|' -> "\\|"
+             | _ -> assert false)] in
   let internal =
     Decap.sequence
       (Decap.apply List.rev
          (Decap.fixpoint []
             (Decap.apply (fun x  -> fun l  -> x :: l) single_char)))
-      (Decap.string "''" "''") (fun cs  -> fun _  -> cs_to_string cs) in
+      (Decap.string "''" "''") (fun cs  -> fun _  -> String.concat "" cs) in
   Decap.sequence (Decap.ignore_next_blank double_quote)
     (Decap.change_layout internal Decap.no_blank)
     (fun _  -> fun _default_0  -> _default_0)

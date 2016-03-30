@@ -1,9 +1,12 @@
 #!/bin/bash
 
 make pa_ocaml
+make asttools
 
 export MAKEOPTS="OCAMLFIND= OCAMLOPT=ocamlopt.opt OCAMLC=ocamlc.opt"
 export MAKE="make $MAKEOPTS"
+
+set -v
 
 function build {
     opam switch $1
@@ -11,30 +14,16 @@ function build {
     export OCAMLVERSION=$1
     echo ==========================================================
     echo $PATH
-    echo $MAKE clean boot
     which ocamlopt.opt
-    echo ==========================================================
-    $MAKE clean boot
+    touch pa_ocaml.ml
+    $MAKE ASCII=--ascii clean boot asttools
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi
     echo ==========================================================
-    echo $MAKE pa_ocaml
+    $MAKE distclean
     echo ==========================================================
-    $MAKE pa_ocaml
+    $MAKE && $MAKE
     echo ==========================================================
-    echo $MAKE
-    echo ==========================================================
-    $MAKE
-    echo ==========================================================
-    echo cd ast_tools
-    echo $MAKE distclean all
-    echo ==========================================================
-    cd ast_tools
-    $MAKE distclean all
-    cd ..
-    echo ==========================================================
-    echo ./tests_pa_ocaml.sh
-    echo ==========================================================
-    #./tests_pa_ocaml.sh
+    # ./tests_pa_ocaml.sh
 }
 
 for v in 4.03.0+trunk 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0; do

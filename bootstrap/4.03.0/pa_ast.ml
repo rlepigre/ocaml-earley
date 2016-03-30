@@ -22,9 +22,10 @@ let mexpr_loc ?(attributes= [])  _loc desc =
   { pmod_desc = desc; pmod_loc = _loc; pmod_attributes = attributes }
 let mtyp_loc ?(attributes= [])  _loc desc =
   { pmty_desc = desc; pmty_loc = _loc; pmty_attributes = attributes }
-let id_loc txt loc = { txt; loc }
 let pexp_construct (a,b) = Pexp_construct (a, b)
 let pexp_fun (label,opt,pat,expr) = Pexp_fun (label, opt, pat, expr)
+let id_loc txt loc = { txt; loc }
+let loc_id loc txt = { txt; loc }
 let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 let const_float s = Pconst_float (s, None)
 let const_char s = Pconst_char s

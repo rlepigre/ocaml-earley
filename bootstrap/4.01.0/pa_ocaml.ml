@@ -10,6 +10,12 @@ include Pa_ocaml_prelude
 module Make(Initial:Extension) =
   struct
     include Initial
+    let ouident = uident
+    let uident = Decap.declare_grammar "uident"
+    let _ = Decap.set_grammar uident ouident
+    let olident = lident
+    let lident = Decap.declare_grammar "lident"
+    let _ = Decap.set_grammar lident olident
     let mk_unary_opp name _loc_name arg _loc_arg =
       let res =
         match (name, (arg.pexp_desc)) with
@@ -101,14 +107,13 @@ module Make(Initial:Extension) =
     type tree =
       | Node of tree* tree
       | Leaf of string
-    let (string_of_tree :tree -> string)=
-      fun t  ->
-        let b = Buffer.create 101 in
-        let rec fn =
-          function
-          | Leaf s -> Buffer.add_string b s
-          | Node (a,b) -> (fn a; fn b) in
-        fn t; Buffer.contents b
+    let string_of_tree (t : tree) =
+      (let b = Buffer.create 101 in
+       let rec fn =
+         function
+         | Leaf s -> Buffer.add_string b s
+         | Node (a,b) -> (fn a; fn b) in
+       fn t; Buffer.contents b : string)
     let label_name = lident
     let label = Decap.declare_grammar "label"
     let _ =
@@ -164,7 +169,20 @@ module Make(Initial:Extension) =
         (Decap.sequence (Decap.string "`" "`") ident (fun _  -> fun c  -> c))
     let typeconstr_name = lident
     let field_name = lident
-    let module_name = uident
+    let smodule_name = uident
+    let module_name = Decap.declare_grammar "module_name"
+    let _ =
+      Decap.set_grammar module_name
+        (Decap.apply_position
+           (fun u  ->
+              fun __loc__start__buf  ->
+                fun __loc__start__pos  ->
+                  fun __loc__end__buf  ->
+                    fun __loc__end__pos  ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      id_loc u _loc) uident)
     let modtype_name = ident
     let class_name = lident
     let inst_var_name = lident
@@ -180,7 +198,7 @@ module Make(Initial:Extension) =
         (fun allow_app  ->
            Decap.alternatives
              (let y =
-                [Decap.sequence (Decap.string "." ".") module_name
+                [Decap.sequence (Decap.string "." ".") smodule_name
                    (fun _  -> fun m  -> fun acc  -> Ldot (acc, m))] in
               if allow_app
               then
@@ -202,7 +220,7 @@ module Make(Initial:Extension) =
     let _ =
       set_module_path_gen
         (fun allow_app  ->
-           Decap.sequence module_name (module_path_suit allow_app)
+           Decap.sequence smodule_name (module_path_suit allow_app)
              (fun m  -> fun s  -> s (Lident m)))
     let module_path = module_path_gen false
     let extended_module_path = module_path_gen true
@@ -2472,6 +2490,7 @@ module Make(Initial:Extension) =
                                                                     "expr"
                                                                     (Decap.ignore_next_blank
                                                                     (Decap.sequence
+                                                                    (Decap.ignore_next_blank
                                                                     (Decap.alternatives
                                                                     [
                                                                     Decap.apply
@@ -2506,13 +2525,7 @@ module Make(Initial:Extension) =
                                                                     "string")
                                                                     (Decap.string
                                                                     "string"
-                                                                    "string");
-                                                                    Decap.apply
-                                                                    (fun _ 
-                                                                    -> "lid")
-                                                                    (Decap.string
-                                                                    "lid"
-                                                                    "lid")])
+                                                                    "string")]))
                                                                     (Decap.char
                                                                     ':' ':')
                                                                     (fun t 
@@ -2612,31 +2625,6 @@ module Make(Initial:Extension) =
                                                                     (locate
                                                                     _loc e)
                                                                     | 
-                                                                    "lid" ->
-                                                                    let e =
-                                                                    quote_const
-                                                                    _loc
-                                                                    (parsetree
-                                                                    "Ppat_var")
-                                                                    [
-                                                                    quote_record
-                                                                    _loc
-                                                                    [
-                                                                    ((Ldot
-                                                                    ((Lident
-                                                                    "Asttypes"),
-                                                                    "txt")),
-                                                                    e);
-                                                                    ((Ldot
-                                                                    ((Lident
-                                                                    "Asttypes"),
-                                                                    "loc")),
-                                                                    (quote_location_t
-                                                                    _loc _loc))]] in
-                                                                    generic_quote
-                                                                    (locate
-                                                                    _loc e)
-                                                                    | 
                                                                     _ ->
                                                                     give_up
                                                                     "bad antiquotation" in
@@ -2674,8 +2662,8 @@ module Make(Initial:Extension) =
                                                       if lvl = AtomPat
                                                       then
                                                         (Decap.fsequence_position
-                                                           (Decap.string "("
-                                                              "(")
+                                                           (Decap.char '('
+                                                              '(')
                                                            (Decap.fsequence
                                                               module_kw
                                                               (Decap.fsequence
@@ -2726,8 +2714,8 @@ module Make(Initial:Extension) =
                                                                     fun pt 
                                                                     -> pt)))))
                                                                     (
-                                                                    Decap.string
-                                                                    ")" ")")
+                                                                    Decap.char
+                                                                    ')' ')')
                                                                     (
                                                                     fun pt 
                                                                     ->
@@ -2766,11 +2754,7 @@ module Make(Initial:Extension) =
                                                                     let unpack
                                                                     =
                                                                     Ppat_unpack
-                                                                    {
-                                                                    txt = mn;
-                                                                    loc =
-                                                                    _loc_mn
-                                                                    } in
+                                                                    mn in
                                                                     let pat =
                                                                     match pt
                                                                     with
@@ -3867,7 +3851,7 @@ module Make(Initial:Extension) =
       Decap.set_grammar right_member
         (Decap.fsequence_position
            (Decap.apply List.rev
-              (Decap.fixpoint []
+              (Decap.fixpoint1 []
                  (Decap.apply (fun x  -> fun l  -> x :: l)
                     (Decap.apply
                        (fun lb  -> let (_loc_lb,lb) = lb in (lb, _loc_lb))
@@ -3904,6 +3888,32 @@ module Make(Initial:Extension) =
                                         loc_expr (ghost _loc)
                                           (pexp_constraint (e, ty)) in
                                   apply_params ~gh:true l e))))
+    let eright_member = Decap.declare_grammar "eright_member"
+    let _ =
+      Decap.set_grammar eright_member
+        (Decap.fsequence_position
+           (Decap.option None
+              (Decap.apply (fun x  -> Some x)
+                 (Decap.sequence (Decap.char ':' ':') typexpr
+                    (fun _  -> fun t  -> t))))
+           (Decap.sequence (Decap.char '=' '=') expression
+              (fun _  ->
+                 fun e  ->
+                   fun ty  ->
+                     fun __loc__start__buf  ->
+                       fun __loc__start__pos  ->
+                         fun __loc__end__buf  ->
+                           fun __loc__end__pos  ->
+                             let _loc =
+                               locate __loc__start__buf __loc__start__pos
+                                 __loc__end__buf __loc__end__pos in
+                             let e =
+                               match ty with
+                               | None  -> e
+                               | Some ty ->
+                                   loc_expr (ghost _loc)
+                                     (pexp_constraint (e, ty)) in
+                             e)))
     let _ =
       set_grammar let_binding
         (Decap.alternatives
@@ -3922,7 +3932,7 @@ module Make(Initial:Extension) =
                          fun pos  ->
                            fun str'  ->
                              fun pos'  -> ((locate str pos str' pos'), x))
-                    right_member)
+                    eright_member)
                  (Decap.sequence post_item_attributes
                     (Decap.option []
                        (Decap.sequence and_kw let_binding
@@ -3937,6 +3947,37 @@ module Make(Initial:Extension) =
                              (value_binding ~attributes:(attach_attrib loc a)
                                 loc pat e)
                                :: l)));
+           Decap.fsequence
+             (Decap.apply_position
+                (fun x  ->
+                   fun str  ->
+                     fun pos  ->
+                       fun str'  ->
+                         fun pos'  -> ((locate str pos str' pos'), x))
+                value_name)
+             (Decap.fsequence
+                (Decap.apply_position
+                   (fun x  ->
+                      fun str  ->
+                        fun pos  ->
+                          fun str'  ->
+                            fun pos'  -> ((locate str pos str' pos'), x))
+                   right_member)
+                (Decap.sequence post_item_attributes
+                   (Decap.option []
+                      (Decap.sequence and_kw let_binding
+                         (fun _  -> fun _default_0  -> _default_0)))
+                   (fun a  ->
+                      fun l  ->
+                        fun e  ->
+                          let (_loc_e,e) = e in
+                          fun vn  ->
+                            let (_loc_vn,vn) = vn in
+                            let loc = merge2 _loc_vn _loc_e in
+                            let pat = pat_ident _loc_vn vn in
+                            (value_binding ~attributes:(attach_attrib loc a)
+                               loc pat e)
+                              :: l)));
            Decap.fsequence_position
              (Decap.apply_position
                 (fun x  ->
@@ -4907,6 +4948,7 @@ module Make(Initial:Extension) =
       extra_expressions_grammar__set__grammar
         (fun lvl  ->
            alternatives (List.map (fun g  -> g lvl) extra_expressions))
+    let structure_item_simple = declare_grammar "structure_item_simple"
     let (prefix_expression,prefix_expression__set__grammar) =
       Decap.grammar_family "prefix_expression"
     let _ =
@@ -6031,8 +6073,8 @@ module Make(Initial:Extension) =
                                                                     with
                                                                     | 
                                                                     "expr" ->
-                                                                    (fun _ 
-                                                                    -> e)
+                                                                    generic_antiquote
+                                                                    e
                                                                     | 
                                                                     "bool" ->
                                                                     generic_antiquote
@@ -6078,25 +6120,6 @@ module Make(Initial:Extension) =
                                                                     [
                                                                     quote_loc
                                                                     _loc e] in
-                                                                    generic_antiquote
-                                                                    (locate
-                                                                    _loc e)
-                                                                    | 
-                                                                    "lid" ->
-                                                                    let id =
-                                                                    quote_const
-                                                                    _loc
-                                                                    (longident
-                                                                    "Lident")
-                                                                    [e] in
-                                                                    let e =
-                                                                    quote_const
-                                                                    _loc
-                                                                    (parsetree
-                                                                    "Pexp_ident")
-                                                                    [
-                                                                    quote_loc
-                                                                    _loc id] in
                                                                     generic_antiquote
                                                                     (locate
                                                                     _loc e)
@@ -6294,8 +6317,8 @@ module Make(Initial:Extension) =
                                                                     _loc_e e)));
                                                                     Decap.fsequence
                                                                     (Decap.string
-                                                                    "structure"
-                                                                    "structure")
+                                                                    "struct"
+                                                                    "struct")
                                                                     (Decap.fsequence
                                                                     (Decap.char
                                                                     '<' '<')
@@ -6315,7 +6338,7 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                    structure_item)
+                                                                    structure_item_simple)
                                                                     (Decap.string
                                                                     ">>" ">>")
                                                                     (fun e 
@@ -6330,8 +6353,8 @@ module Make(Initial:Extension) =
                                                                     _loc_e e)));
                                                                     Decap.fsequence
                                                                     (Decap.string
-                                                                    "signature"
-                                                                    "signature")
+                                                                    "sig"
+                                                                    "sig")
                                                                     (Decap.fsequence
                                                                     (Decap.char
                                                                     '<' '<')
@@ -7620,17 +7643,7 @@ module Make(Initial:Extension) =
                                    (Decap.alternatives
                                       (let y =
                                          [Decap.fsequence_position module_kw
-                                            (Decap.fsequence
-                                               (Decap.apply_position
-                                                  (fun x  ->
-                                                     fun str  ->
-                                                       fun pos  ->
-                                                         fun str'  ->
-                                                           fun pos'  ->
-                                                             ((locate str pos
-                                                                 str' pos'),
-                                                               x))
-                                                  module_name)
+                                            (Decap.fsequence module_name
                                                (Decap.fsequence
                                                   (Decap.apply List.rev
                                                      (Decap.fixpoint []
@@ -7642,22 +7655,7 @@ module Make(Initial:Extension) =
                                                               (Decap.char '('
                                                                  '(')
                                                               (Decap.fsequence
-                                                                 (Decap.apply_position
-                                                                    (
-                                                                    fun x  ->
-                                                                    fun str 
-                                                                    ->
-                                                                    fun pos 
-                                                                    ->
-                                                                    fun str' 
-                                                                    ->
-                                                                    fun pos' 
-                                                                    ->
-                                                                    ((locate
-                                                                    str pos
-                                                                    str' pos'),
-                                                                    x))
-                                                                    module_name)
+                                                                 module_name
                                                                  (Decap.fsequence
                                                                     (
                                                                     Decap.char
@@ -7673,9 +7671,6 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun mn 
                                                                     ->
-                                                                    let 
-                                                                    (_loc_mn,mn)
-                                                                    = mn in
                                                                     fun _  ->
                                                                     fun
                                                                     __loc__start__buf
@@ -7696,10 +7691,8 @@ module Make(Initial:Extension) =
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
-                                                                    ((id_loc
-                                                                    mn
-                                                                    _loc_mn),
-                                                                    mt, _loc)))))))))
+                                                                    (mn, mt,
+                                                                    _loc)))))))))
                                                   (Decap.fsequence
                                                      (Decap.apply_position
                                                         (fun x  ->
@@ -7761,9 +7754,6 @@ module Make(Initial:Extension) =
                                                                     fun l  ->
                                                                     fun mn 
                                                                     ->
-                                                                    let 
-                                                                    (_loc_mn,mn)
-                                                                    = mn in
                                                                     fun
                                                                     _default_1
                                                                      ->
@@ -7822,10 +7812,8 @@ module Make(Initial:Extension) =
                                                                     loc_expr
                                                                     _loc
                                                                     (Pexp_letmodule
-                                                                    ((id_loc
-                                                                    mn
-                                                                    _loc_mn),
-                                                                    me, e)))))))));
+                                                                    (mn, me,
+                                                                    e)))))))));
                                          Decap.fsequence_position open_kw
                                            (Decap.fsequence override_flag
                                               (Decap.fsequence
@@ -8133,14 +8121,7 @@ module Make(Initial:Extension) =
                                mexpr_loc _loc (Pmod_structure ms)));
            Decap.fsequence_position functor_kw
              (Decap.fsequence (Decap.char '(' '(')
-                (Decap.fsequence
-                   (Decap.apply_position
-                      (fun x  ->
-                         fun str  ->
-                           fun pos  ->
-                             fun str'  ->
-                               fun pos'  -> ((locate str pos str' pos'), x))
-                      module_name)
+                (Decap.fsequence module_name
                    (Decap.fsequence (Decap.char ':' ':')
                       (Decap.fsequence module_type
                          (Decap.fsequence (Decap.char ')' ')')
@@ -8151,7 +8132,6 @@ module Make(Initial:Extension) =
                                       fun mt  ->
                                         fun _  ->
                                           fun mn  ->
-                                            let (_loc_mn,mn) = mn in
                                             fun _  ->
                                               fun _default_1  ->
                                                 fun __loc__start__buf  ->
@@ -8166,9 +8146,7 @@ module Make(Initial:Extension) =
                                                             __loc__end__pos in
                                                         mexpr_loc _loc
                                                           (Pmod_functor
-                                                             ((id_loc mn
-                                                                 _loc_mn),
-                                                               mt, me)))))))));
+                                                             (mn, mt, me)))))))));
            Decap.fsequence_position (Decap.char '(' '(')
              (Decap.fsequence module_expr
                 (Decap.sequence
@@ -8297,14 +8275,7 @@ module Make(Initial:Extension) =
                                mtyp_loc _loc (Pmty_signature ms)));
            Decap.fsequence_position functor_kw
              (Decap.fsequence (Decap.char '(' '(')
-                (Decap.fsequence
-                   (Decap.apply_position
-                      (fun x  ->
-                         fun str  ->
-                           fun pos  ->
-                             fun str'  ->
-                               fun pos'  -> ((locate str pos str' pos'), x))
-                      module_name)
+                (Decap.fsequence module_name
                    (Decap.fsequence (Decap.char ':' ':')
                       (Decap.fsequence module_type
                          (Decap.fsequence (Decap.char ')' ')')
@@ -8317,7 +8288,6 @@ module Make(Initial:Extension) =
                                            fun mt  ->
                                              fun _  ->
                                                fun mn  ->
-                                                 let (_loc_mn,mn) = mn in
                                                  fun _  ->
                                                    fun _default_2  ->
                                                      fun __loc__start__buf 
@@ -8337,9 +8307,8 @@ module Make(Initial:Extension) =
                                                                  __loc__end__pos in
                                                              mtyp_loc _loc
                                                                (Pmty_functor
-                                                                  ((id_loc mn
-                                                                    _loc_mn),
-                                                                    mt, me))))))))));
+                                                                  (mn, mt,
+                                                                    me))))))))));
            Decap.fsequence (Decap.string "(" "(")
              (Decap.sequence module_type (Decap.string ")" ")")
                 (fun mt  -> fun _  -> fun _  -> mt));
@@ -8432,14 +8401,7 @@ module Make(Initial:Extension) =
                                          ((id_loc (Lident tcn) _loc_tcn),
                                            (Pwith_typesubst td))))));
            Decap.fsequence module_kw
-             (Decap.fsequence
-                (Decap.apply_position
-                   (fun x  ->
-                      fun str  ->
-                        fun pos  ->
-                          fun str'  ->
-                            fun pos'  -> ((locate str pos str' pos'), x))
-                   module_name)
+             (Decap.fsequence module_name
                 (Decap.sequence (Decap.string ":=" ":=")
                    (Decap.apply_position
                       (fun x  ->
@@ -8452,9 +8414,8 @@ module Make(Initial:Extension) =
                       fun emp  ->
                         let (_loc_emp,emp) = emp in
                         fun mn  ->
-                          let (_loc_mn,mn) = mn in
                           fun _default_0  ->
-                            ((id_loc (Lident mn) _loc_mn),
+                            ({ txt = (Lident (mn.txt)); loc = (mn.loc) },
                               (Pwith_modsubst (id_loc emp _loc_emp))))))])
     let _ =
       set_grammar module_type
@@ -8544,15 +8505,7 @@ module Make(Initial:Extension) =
            Decap.sequence module_kw
              (Decap.alternatives
                 [Decap.fsequence_position rec_kw
-                   (Decap.fsequence
-                      (Decap.apply_position
-                         (fun x  ->
-                            fun str  ->
-                              fun pos  ->
-                                fun str'  ->
-                                  fun pos'  ->
-                                    ((locate str pos str' pos'), x))
-                         module_name)
+                   (Decap.fsequence module_name
                       (Decap.fsequence (Decap.string ":" ":")
                          (Decap.fsequence module_type
                             (Decap.fsequence (Decap.char '=' '=')
@@ -8562,17 +8515,7 @@ module Make(Initial:Extension) =
                                         (Decap.apply
                                            (fun x  -> fun l  -> x :: l)
                                            (Decap.fsequence_position and_kw
-                                              (Decap.fsequence
-                                                 (Decap.apply_position
-                                                    (fun x  ->
-                                                       fun str  ->
-                                                         fun pos  ->
-                                                           fun str'  ->
-                                                             fun pos'  ->
-                                                               ((locate str
-                                                                   pos str'
-                                                                   pos'), x))
-                                                    module_name)
+                                              (Decap.fsequence module_name
                                                  (Decap.fsequence
                                                     (Decap.string ":" ":")
                                                     (Decap.fsequence
@@ -8585,9 +8528,6 @@ module Make(Initial:Extension) =
                                                                fun mt  ->
                                                                  fun _  ->
                                                                    fun mn  ->
-                                                                    let 
-                                                                    (_loc_mn,mn)
-                                                                    = mn in
                                                                     fun
                                                                     _default_0
                                                                      ->
@@ -8611,10 +8551,7 @@ module Make(Initial:Extension) =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                     module_binding
-                                                                    _loc
-                                                                    (id_loc
-                                                                    mn
-                                                                    _loc_mn)
+                                                                    _loc mn
                                                                     mt me)))))))))
                                   (fun me  ->
                                      fun ms  ->
@@ -8622,7 +8559,6 @@ module Make(Initial:Extension) =
                                          fun mt  ->
                                            fun _  ->
                                              fun mn  ->
-                                               let (_loc_mn,mn) = mn in
                                                fun _default_0  ->
                                                  fun __loc__start__buf  ->
                                                    fun __loc__start__pos  ->
@@ -8637,35 +8573,17 @@ module Make(Initial:Extension) =
                                                              __loc__end__pos in
                                                          let m =
                                                            module_binding
-                                                             _loc
-                                                             (id_loc mn
-                                                                _loc_mn) mt
-                                                             me in
+                                                             _loc mn mt me in
                                                          Pstr_recmodule (m ::
                                                            ms)))))));
-                Decap.fsequence_position
-                  (Decap.apply_position
-                     (fun x  ->
-                        fun str  ->
-                          fun pos  ->
-                            fun str'  ->
-                              fun pos'  -> ((locate str pos str' pos'), x))
-                     module_name)
+                Decap.fsequence_position module_name
                   (Decap.fsequence
                      (Decap.apply List.rev
                         (Decap.fixpoint []
                            (Decap.apply (fun x  -> fun l  -> x :: l)
                               (Decap.fsequence_position
                                  (Decap.string "(" "(")
-                                 (Decap.fsequence
-                                    (Decap.apply_position
-                                       (fun x  ->
-                                          fun str  ->
-                                            fun pos  ->
-                                              fun str'  ->
-                                                fun pos'  ->
-                                                  ((locate str pos str' pos'),
-                                                    x)) module_name)
+                                 (Decap.fsequence module_name
                                     (Decap.fsequence (Decap.string ":" ":")
                                        (Decap.sequence module_type
                                           (Decap.string ")" ")")
@@ -8673,7 +8591,6 @@ module Make(Initial:Extension) =
                                              fun _  ->
                                                fun _  ->
                                                  fun mn  ->
-                                                   let (_loc_mn,mn) = mn in
                                                    fun _  ->
                                                      fun __loc__start__buf 
                                                        ->
@@ -8690,9 +8607,7 @@ module Make(Initial:Extension) =
                                                                  __loc__start__pos
                                                                  __loc__end__buf
                                                                  __loc__end__pos in
-                                                             ((id_loc mn
-                                                                 _loc_mn),
-                                                               mt, _loc)))))))))
+                                                             (mn, mt, _loc)))))))))
                      (Decap.fsequence
                         (Decap.apply_position
                            (fun x  ->
@@ -8721,7 +8636,6 @@ module Make(Initial:Extension) =
                                   let (_loc_mt,mt) = mt in
                                   fun l  ->
                                     fun mn  ->
-                                      let (_loc_mn,mn) = mn in
                                       fun __loc__start__buf  ->
                                         fun __loc__start__pos  ->
                                           fun __loc__end__buf  ->
@@ -8749,8 +8663,8 @@ module Make(Initial:Extension) =
                                                             (mn, mt, acc)))
                                                   me (List.rev l) in
                                               let (name,_,me) =
-                                                module_binding _loc
-                                                  (id_loc mn _loc_mn) None me in
+                                                module_binding _loc mn None
+                                                  me in
                                               Pstr_module (name, me)))));
                 Decap.fsequence type_kw
                   (Decap.fsequence
@@ -8792,7 +8706,25 @@ module Make(Initial:Extension) =
                 [Decap.apply (fun ctd  -> Pstr_class_type ctd)
                    classtype_definition;
                 Decap.apply (fun cds  -> Pstr_class cds) class_definition])
-             (fun _default_0  -> fun r  -> r)])
+             (fun _default_0  -> fun r  -> r);
+           Decap.fsequence_position (Decap.string "$struct:" "$struct:")
+             (Decap.sequence (Decap.ignore_next_blank expression)
+                (Decap.char '$' '$')
+                (fun e  ->
+                   fun _  ->
+                     fun _  ->
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               let open Quote in
+                                 (pstr_antiquotation _loc
+                                    (function
+                                     | Quote_pstr  -> e
+                                     | _ -> failwith "Bad antiquotation...")).pstr_desc))])
     let structure_item_aux = Decap.declare_grammar "structure_item_aux"
     let _ =
       Decap.set_grammar structure_item_aux
@@ -8863,6 +8795,21 @@ module Make(Initial:Extension) =
       set_grammar structure_item
         (Decap.sequence structure_item_aux (Decap.option () double_semi_col)
            (fun l  -> fun _default_0  -> List.rev l))
+    let _ =
+      set_grammar structure_item_simple
+        (Decap.apply List.rev
+           (Decap.fixpoint []
+              (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply_position
+                    (fun l  ->
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               loc_str _loc l) structure_item_base))))
     let signature_item_base = Decap.declare_grammar "signature_item_base"
     let _ =
       Decap.set_grammar signature_item_base
@@ -8976,16 +8923,7 @@ module Make(Initial:Extension) =
                                (Decap.fixpoint []
                                   (Decap.apply (fun x  -> fun l  -> x :: l)
                                      (Decap.fsequence_position and_kw
-                                        (Decap.fsequence
-                                           (Decap.apply_position
-                                              (fun x  ->
-                                                 fun str  ->
-                                                   fun pos  ->
-                                                     fun str'  ->
-                                                       fun pos'  ->
-                                                         ((locate str pos
-                                                             str' pos'), x))
-                                              module_name)
+                                        (Decap.fsequence module_name
                                            (Decap.fsequence
                                               (Decap.string ":" ":")
                                               (Decap.sequence module_type
@@ -8994,8 +8932,6 @@ module Make(Initial:Extension) =
                                                     fun a  ->
                                                       fun _  ->
                                                         fun mn  ->
-                                                          let (_loc_mn,mn) =
-                                                            mn in
                                                           fun _default_0  ->
                                                             fun
                                                               __loc__start__buf
@@ -9020,10 +8956,7 @@ module Make(Initial:Extension) =
                                                                     ~attributes:(
                                                                     attach_attrib
                                                                     _loc a)
-                                                                    _loc
-                                                                    (id_loc
-                                                                    mn
-                                                                    _loc_mn)
+                                                                    _loc mn
                                                                     mt))))))))
                             (fun a  ->
                                let (_loc_a,a) = a in
@@ -9040,34 +8973,18 @@ module Make(Initial:Extension) =
                                              module_declaration
                                                ~attributes:(attach_attrib
                                                               loc_first a)
-                                               loc_first (id_loc mn _loc_mn)
-                                               mt in
+                                               loc_first mn mt in
                                            Psig_recmodule (m :: ms)))))));
            Decap.sequence module_kw
              (Decap.alternatives
-                [Decap.fsequence_position
-                   (Decap.apply_position
-                      (fun x  ->
-                         fun str  ->
-                           fun pos  ->
-                             fun str'  ->
-                               fun pos'  -> ((locate str pos str' pos'), x))
-                      module_name)
+                [Decap.fsequence_position module_name
                    (Decap.fsequence
                       (Decap.apply List.rev
                          (Decap.fixpoint []
                             (Decap.apply (fun x  -> fun l  -> x :: l)
                                (Decap.fsequence_position
                                   (Decap.string "(" "(")
-                                  (Decap.fsequence
-                                     (Decap.apply_position
-                                        (fun x  ->
-                                           fun str  ->
-                                             fun pos  ->
-                                               fun str'  ->
-                                                 fun pos'  ->
-                                                   ((locate str pos str' pos'),
-                                                     x)) module_name)
+                                  (Decap.fsequence module_name
                                      (Decap.fsequence (Decap.string ":" ":")
                                         (Decap.sequence module_type
                                            (Decap.string ")" ")")
@@ -9075,7 +8992,6 @@ module Make(Initial:Extension) =
                                               fun _  ->
                                                 fun _  ->
                                                   fun mn  ->
-                                                    let (_loc_mn,mn) = mn in
                                                     fun _  ->
                                                       fun __loc__start__buf 
                                                         ->
@@ -9092,9 +9008,7 @@ module Make(Initial:Extension) =
                                                                   __loc__start__pos
                                                                   __loc__end__buf
                                                                   __loc__end__pos in
-                                                              ((id_loc mn
-                                                                  _loc_mn),
-                                                                mt, _loc)))))))))
+                                                              (mn, mt, _loc)))))))))
                       (Decap.fsequence (Decap.string ":" ":")
                          (Decap.sequence
                             (Decap.apply_position
@@ -9111,7 +9025,6 @@ module Make(Initial:Extension) =
                                  fun _  ->
                                    fun l  ->
                                      fun mn  ->
-                                       let (_loc_mn,mn) = mn in
                                        fun __loc__start__buf  ->
                                          fun __loc__start__pos  ->
                                            fun __loc__end__buf  ->
@@ -9132,8 +9045,8 @@ module Make(Initial:Extension) =
                                                              (mn, mt, acc)))
                                                    mt (List.rev l) in
                                                let (a,b) =
-                                                 module_declaration _loc
-                                                   (id_loc mn _loc_mn) mt in
+                                                 module_declaration _loc mn
+                                                   mt in
                                                Psig_module (a, b)))));
                 Decap.fsequence type_kw
                   (Decap.fsequence
@@ -9184,7 +9097,26 @@ module Make(Initial:Extension) =
                 [Decap.apply (fun ctd  -> Psig_class_type ctd)
                    classtype_definition;
                 Decap.apply (fun cs  -> Psig_class cs) class_specification])
-             (fun _default_0  -> fun r  -> r)])
+             (fun _default_0  -> fun r  -> r);
+           Decap.fsequence_position
+             (Decap.ignore_next_blank (Decap.char '$' '$'))
+             (Decap.sequence (Decap.ignore_next_blank expression)
+                (Decap.char '$' '$')
+                (fun e  ->
+                   fun _  ->
+                     fun dol  ->
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               let open Quote in
+                                 (psig_antiquotation _loc
+                                    (function
+                                     | Quote_psig  -> e
+                                     | _ -> failwith "Bad antiquotation...")).psig_desc))])
     let _ =
       set_grammar signature_item
         (Decap.alternatives

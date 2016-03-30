@@ -38,20 +38,22 @@ let dummy_pctf   = Obj.magic (Some None)
 let dummy_pcl    = Obj.magic (Some None)
 let dummy_pcf    = Obj.magic (Some None)
 let dummy_pmty   = Obj.magic (Some None)
+let dummy_pmod   = Obj.magic (Some None)
+let dummy_loc d  = d
+#if version <= 4.01
+let dummy_psig   = Psig_open ( Fresh, id_loc (Lident "$Antiquotation$")  Location.none)
+let dummy_pstr   = Pstr_open ( Fresh, id_loc (Lident "$Antiquotation$")  Location.none)
+let dummy_pfield = Obj.magic (Some None) (* for 4.01.0 *)
+#else
 let dummy_psig   = Psig_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
 			       popen_override = Fresh;
 			       popen_loc = Location.none;
 			       popen_attributes = [] }
-let dummy_pmod   = Obj.magic (Some None)
 let dummy_pstr   = Pstr_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
 			       popen_override = Fresh;
 			       popen_loc = Location.none;
 			       popen_attributes = [] }
-let dummy_loc d  = d
-#ifversion <= 4.01
-let dummy_pfield = Obj.magic (Some None) (* for 4.01.0 *)
 #endif
-
 
 let make_antiquotation loc =
   let open Lexing in
@@ -66,6 +68,7 @@ let is_antiquotation loc =
   String.length s > 0 && s.[0] = '$'
 
 let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
+let string_anti_table = (Hashtbl.create 101 : (string,expression) Hashtbl.t)
 
 (* Generic functions *)
 let quote_bool : Location.t -> bool -> expression =
@@ -86,8 +89,14 @@ let quote_nativeint : Location.t -> nativeint -> expression =
 let quote_char : Location.t -> char -> expression =
   Pa_ast.exp_char
 
-let quote_string : Location.t -> string -> expression =
-  Pa_ast.exp_string
+let anti_string_prefix = "string antiquotation\000"
+let quote_string : Location.t -> string -> expression = fun loc s ->
+  try Hashtbl.find string_anti_table s
+  with Not_found -> Pa_ast.exp_string loc s
+let string_antiquotation _loc e =
+  let key = anti_string_prefix ^ Marshal.to_string _loc [] in
+  Hashtbl.add string_anti_table key e;
+  key
 
 let quote_option : 'a. (Location.t -> 'a -> expression) -> Location.t -> 'a option -> expression =
   fun qe _loc eo ->

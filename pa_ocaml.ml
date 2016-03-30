@@ -64,6 +64,18 @@ module Make = functor (Initial:Extension) -> struct
 
 include Initial
 
+let ouident = uident
+let parser uident   = ouident
+(*  | "$uid:" e:expression - '$' ->
+     let open Quote in
+    string_antiquotation _loc e*)
+
+let olident = lident
+let parser lident   = olident
+(*  | "$lid:" e:expression - '$' ->
+     let open Quote in
+    string_antiquotation _loc e*)
+
 (* FIXME ... !Main.a = !(Main.a) !main.a = (!main).a ... *)
 #ifversion >= 4.03
 let mk_unary_opp name _loc_name arg _loc_arg =
@@ -248,10 +260,10 @@ let parser tag_name = STR("`") c:ident -> c
 
 let typeconstr_name = lident
 let field_name      = lident
-(*  | dol:CHR('$') - STR("lid") CHR(':') e:(expression_lvl App) - CHR('$') ->
-    Quote.make_antiquotation e*)
 
-let module_name     = uident
+let smodule_name    = uident
+let parser module_name = u:uident -> id_loc u _loc
+
 let modtype_name    = ident
 let class_name      = lident
 let inst_var_name   = lident
@@ -263,7 +275,7 @@ let module_path_suit, set_module_path_suit  = grammar_family "module_path_suit"
 let parser module_path_suit_aux allow_app =
   | STR("(") m':(module_path_gen true) STR(")") when allow_app ->
       (fun a -> Lapply(a, m'))
-  | STR(".") m:module_name ->
+  | STR(".") m:smodule_name ->
       (fun acc -> Ldot(acc, m))
 
 let _ = set_module_path_suit (fun allow_app ->
@@ -274,7 +286,7 @@ let _ = set_module_path_suit (fun allow_app ->
 
 let _ = set_module_path_gen (fun allow_app ->
   parser
-  | m:module_name s:(module_path_suit allow_app) -> s (Lident m)
+  | m:smodule_name s:(module_path_suit allow_app) -> s (Lident m)
   )
 
 let module_path = module_path_gen false
@@ -996,7 +1008,7 @@ let _ = set_pattern_lvl (fun lvl ->
       let unt = id_loc (Lident "()") _loc in
       loc_pat _loc (ppat_construct (unt, None))
   | '(' module_kw mn:module_name pt:{STR(":") pt:package_type}? ')' when lvl = AtomPat ->
-      let unpack = Ppat_unpack { txt = mn; loc = _loc_mn } in
+      let unpack = Ppat_unpack mn in
       let pat = match pt with
                 | None    -> unpack
                 | Some pt -> let pt = loc_typ _loc_pt pt in
@@ -1013,7 +1025,7 @@ let _ = set_pattern_lvl (fun lvl ->
 	       | "array" -> "array"
                | "int"   -> "int"
                | "string"-> "string"
-               | "lid"   -> "lid"} - ':' }?["expr"] -
+               } - ':' }?["expr"] -
        e:expression - '$' when lvl = AtomPat ->
      begin
        let open Quote in
@@ -1022,7 +1034,7 @@ let _ = set_pattern_lvl (fun lvl ->
 	   (parsetree "ppat_desc", e) ;
 	   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
 #ifversion >= 4.02
-           (parsetree "pexp_attributes", quote_attributes _loc [])
+           (parsetree "ppat_attributes", quote_attributes _loc [])
 #endif
 	 ]
        in
@@ -1041,14 +1053,6 @@ let _ = set_pattern_lvl (fun lvl ->
 	    | "string"  ->
 	       let e = quote_const _loc (parsetree "Ppat_constant")
 		 [quote_apply _loc (pa_ast "const_string") [e]]
-	       in
-	       generic_quote (locate _loc e)
-	    | "lid"  ->
-	       let e = quote_const _loc (parsetree "Ppat_var")
-		 [quote_record _loc [
-		   ((Ldot(Lident "Asttypes", "txt")), e) ;
-		   ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ;
-		 ]]
 	       in
 	       generic_quote (locate _loc e)
 	    | _ -> give_up "bad antiquotation"
@@ -1468,6 +1472,8 @@ let rec mk_seq = function
 let parser extra_expressions_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_expressions))
 
+let structure_item_simple = declare_grammar "structure_item_simple"
+
 let parser prefix_expression c =
   | function_kw l:match_cases -> loc_expr _loc (pexp_function l)
 
@@ -1510,16 +1516,15 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi when allow_let alm && lvl < App
                   -> (fun _loc -> loc_expr _loc (Pexp_let (r, l, e)))
 #ifversion >= 4.02
-             | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' ->
-		     (id_loc mn _loc_mn, mt, _loc)}*
+             | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' -> (mn, mt, _loc)}*
 #else
-             | module_kw mn:module_name l:{ '(' mn:module_name ':' mt:module_type ')' -> (id_loc mn _loc_mn, mt, _loc)}*
+             | module_kw mn:module_name l:{ '(' mn:module_name ':' mt:module_type ')' -> (mn, mt, _loc)}*
 #endif
                  mt:{STR":" mt:module_type }? STR"=" me:module_expr in_kw e:(expression_lvl (right_alm alm,Seq))  ->
                (let me = match mt with None -> me | Some mt -> mexpr_loc (merge2 _loc_mt _loc_me) (Pmod_constraint(me, mt)) in
                let me = List.fold_left (fun acc (mn,mt,_loc) ->
                  mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
-               fun _loc -> loc_expr _loc (Pexp_letmodule(id_loc mn _loc_mn, me, e)))
+               fun _loc -> loc_expr _loc (Pexp_letmodule(mn, me, e)))
              | open_kw o:override_flag mp:module_path in_kw
 		 e:(expression_lvl (right_alm alm,Seq)) ->
 	      (let mp = id_loc mp _loc_mp in
@@ -1591,11 +1596,11 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
                               pexp_constraint (me, pt)
       in loc_expr _loc desc
 
-| "<:" r:{ "expr"      '<' e:expression     ">>" -> Quote.quote_expression _loc_e e
-	 | "type"      '<' e:typexpr        ">>" -> Quote.quote_core_type  _loc_e e
-	 | "pat"       '<' e:pattern        ">>" -> Quote.quote_pattern    _loc_e e
-	 | "structure" '<' e:structure_item ">>" -> Quote.quote_structure  _loc_e e
-	 | "signature" '<' e:signature_item ">>" -> Quote.quote_signature  _loc_e e
+| "<:" r:{ "expr"      '<' e:expression            ">>" -> Quote.quote_expression _loc_e e
+	 | "type"      '<' e:typexpr               ">>" -> Quote.quote_core_type  _loc_e e
+	 | "pat"       '<' e:pattern               ">>" -> Quote.quote_pattern    _loc_e e
+	 | "struct"    '<' e:structure_item_simple ">>" -> Quote.quote_structure  _loc_e e
+	 | "sig"       '<' e:signature_item        ">>" -> Quote.quote_signature  _loc_e e
 	 | "constructors"
 	     '<' e:constr_decl_list ">>" ->
 #ifversion < 4.02
@@ -1679,7 +1684,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
           ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]
       in
       match aq with
-      | "expr"      -> (fun _ -> e)
+      | "expr"      -> generic_antiquote e
       | "bool"      -> generic_antiquote
 	                 (quote_apply _loc (pa_ast "exp_bool") [quote_location_t _loc _loc; e])
       | "int"       -> generic_antiquote
@@ -1688,10 +1693,6 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
                          (quote_apply _loc (pa_ast "exp_string") [quote_location_t _loc _loc; e])
       | "longident" ->
           let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
-          generic_antiquote (locate _loc e)
-      | "lid"       ->
-          let id = quote_const _loc (longident "Lident") [e] in
-          let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc id] in
           generic_antiquote (locate _loc e)
       | _      -> give_up (Printf.sprintf "Invalid antiquotation %s." aq)
     in Quote.pexp_antiquotation _loc f
@@ -1785,7 +1786,7 @@ let parser module_expr_base =
 #else
   | functor_kw '(' mn:module_name ':' mt:module_type ')'
 #endif
-    arrow_re me:module_expr -> mexpr_loc _loc (Pmod_functor(id_loc mn _loc_mn, mt, me))
+    arrow_re me:module_expr -> mexpr_loc _loc (Pmod_functor(mn, mt, me))
   | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
       (match mt with
        | None    -> me
@@ -1816,7 +1817,7 @@ let parser module_type_base =
 #else
   | functor_kw '(' mn:module_name ':' mt:module_type ')'
 #endif
-     arrow_re me:module_type no_with -> mtyp_loc _loc (Pmty_functor(id_loc mn _loc_mn, mt, me))
+     arrow_re me:module_type no_with -> mtyp_loc _loc (Pmty_functor(mn, mt, me))
   | STR("(") mt:module_type STR(")") -> mt
   | module_kw type_kw of_kw me:module_expr -> mtyp_loc _loc (Pmty_typeof me)
 (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_type (start_pos _loc_dol).Lexing.pos_cnum e*)
@@ -1845,9 +1846,9 @@ let parser mod_constraint =
 #endif
   | module_kw mn:module_name STR(":=") emp:extended_module_path ->
 #ifversion >= 4.02
-     Pwith_modsubst(id_loc mn _loc_mn, id_loc emp _loc_emp)
+     Pwith_modsubst(mn, id_loc emp _loc_emp)
 #else
-     (id_loc (Lident mn) _loc_mn, Pwith_modsubst(id_loc emp _loc_emp))
+     ({ txt = Lident mn.txt; loc = mn.loc}, Pwith_modsubst(id_loc emp _loc_emp))
 #endif
 
 let _ = set_grammar module_type (
@@ -1858,7 +1859,7 @@ let _ = set_grammar module_type (
        | Some l -> mtyp_loc _loc (Pmty_with(m, l)))
   )
 
-let parser structure_item_base = {
+let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
      (match l with
 #ifversion < 4.03
@@ -1897,22 +1898,22 @@ let parser structure_item_base = {
   | module_kw r:{rec_kw mn:module_name STR(":") mt:module_type CHR('=')
     me:module_expr ms:{and_kw mn:module_name STR(":") mt:module_type CHR('=')
 #endif
-    me:module_expr -> (module_binding _loc (id_loc mn _loc_mn) mt me)}* ->
-      let m = (module_binding _loc (id_loc mn _loc_mn) mt me) in
+    me:module_expr -> (module_binding _loc mn mt me)}* ->
+      let m = (module_binding _loc mn mt me) in
       Pstr_recmodule (m::ms)
 #ifversion >= 4.02
-  |            mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type }? STR")" -> (id_loc mn _loc_mn, mt, _loc)}*
+  |            mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type }? STR")" -> (mn, mt, _loc)}*
 #else
-  |            mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
+  |            mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (mn, mt, _loc)}*
 #endif
      mt:{STR":" mt:module_type }? STR"=" me:module_expr ->
     let me = match mt with None -> me | Some mt -> mexpr_loc (merge2 _loc_mt _loc_me) (Pmod_constraint(me,mt)) in
      let me = List.fold_left (fun acc (mn,mt,_loc) ->
        mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
 #ifversion >= 4.02
-     Pstr_module(module_binding _loc (id_loc mn _loc_mn) None me)
+     Pstr_module(module_binding _loc mn None me)
 #else
-     let (name, _, me) = module_binding _loc (id_loc mn _loc_mn) None me in
+     let (name, _, me) = module_binding _loc mn None me in
      Pstr_module(name,me)
 #endif
 #ifversion >= 4.02
@@ -1939,20 +1940,27 @@ let parser structure_item_base = {
 #endif
   | class_kw r:{ ctd:classtype_definition -> Pstr_class_type ctd
                | cds:class_definition -> Pstr_class cds } -> r
-(*  | e:expression -> pstr_eval e*) }
+  | "$struct:" e:expression - '$' ->
+     let open Quote in
+     (pstr_antiquotation _loc (function
+     | Quote_pstr -> e
+     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))).pstr_desc
+
 
 let parser structure_item_aux =
   | EMPTY -> []
   | e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
   | s1:structure_item_aux double_semi_col?[()] e:(alternatives extra_structure) ->
      List.rev_append e (List.rev_append (attach_str _loc_e) s1)
-  (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') double_semi_col? -> push_pop_structure (start_pos _loc_dol).Lexing.pos_cnum e*)
   | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> loc_str _loc_s2 s2 :: (List.rev_append (attach_str _loc_s2) s1)
   | s1:structure_item_aux double_semi_col e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
 
-let _ = set_grammar structure_item (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
+let _ = set_grammar structure_item
+  (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
+let _ = set_grammar structure_item_simple
+  (parser ls:{l:structure_item_base -> loc_str _loc l}* -> ls)
 
-let parser signature_item_base = {
+let parser signature_item_base =
   | val_kw n:value_name STR(":") ty:typexpr a:post_item_attributes ->
      psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty []
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
@@ -1977,22 +1985,22 @@ let parser signature_item_base = {
 #endif
   | {module_kw -> attach_sig _loc} rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
       ms:{and_kw mn:module_name STR(":") mt:module_type a:post_item_attributes ->
-	    (module_declaration ~attributes:(attach_attrib _loc a) _loc (id_loc mn _loc_mn) mt)}* ->
+	    (module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)}* ->
       let loc_first = merge2 _loc_mn _loc_a in
-      let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first (id_loc mn _loc_mn) mt) in
+      let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
       Psig_recmodule (m::ms)
 #ifversion >= 4.02
-  | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
+  | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
 #else
-  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (id_loc mn _loc_mn, mt, _loc)}*
+  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (mn, mt, _loc)}*
 #endif
                                     STR":" mt:module_type a:post_item_attributes ->
      let mt = List.fold_left (fun acc (mn,mt,_loc) ->
                                   mtyp_loc (merge2 _loc _loc_mt) (Pmty_functor(mn, mt, acc))) mt (List.rev l) in
 #ifversion >= 4.02
-     Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc (id_loc mn _loc_mn) mt)
+     Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)
 #else
-     let a, b = module_declaration _loc (id_loc mn _loc_mn) mt in
+     let a, b = module_declaration _loc mn mt in
      Psig_module(a,b)
 #endif
   |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }?  a:post_item_attributes ->
@@ -2023,12 +2031,16 @@ let parser signature_item_base = {
 #endif
   | class_kw r:{ ctd:classtype_definition -> Psig_class_type ctd
 		   | cs:class_specification -> Psig_class cs } -> r
-}
+
+  | dol:CHR('$') - e:expression - CHR('$') ->
+     let open Quote in
+     (psig_antiquotation _loc (function
+     | Quote_psig -> e
+     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))).psig_desc
 
 let _ = set_grammar signature_item (
   parser
   | e:(alternatives extra_signature) -> attach_sig _loc @ e
-  (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_signature (start_pos _loc_dol).Lexing.pos_cnum e*)
   | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [loc_sig _loc s]
   )
 

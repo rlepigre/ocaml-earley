@@ -13,12 +13,25 @@ let f i j =
 
 let f3 i j p e = <:expr< function $int:i$ -> $int:j$ | $p$ -> $e$ >>
 
+let f id = <:expr<$lid: id$>>
+
 let f4 id = <:expr< fun $lid:id^"toto"$ -> $lid:id^"toto"$ >>
 
 let f5 id = <:expr< $longident:id$ >>
 
 let f6 s = <:expr< "blabla" ^ $string:s$>>
 
+let f7 s =
+  <:struct<
+    let id x = x
+    $struct:s$
+  >>
+
+let f8 u =
+  <:struct<
+    open $uid:u$
+    let x = $uid:u$.x
+  >>
 (*
 let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
 

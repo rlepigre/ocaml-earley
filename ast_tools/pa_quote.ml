@@ -196,9 +196,9 @@ let print_type ch = function
        | Some (desc,loc,name) ->
 	  Printf.sprintf "and %s_antiquotation _loc f %s= let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; %s _loc (dummy_%s)\n"
 	    name
-	    (if name = "loc" then "loc_txt dummy_txt " else "")
-	    (if name = "loc" then "loc_txt" else "loc_"^name)
-	    (if name = "loc" then name^" dummy_txt" else name)
+	    (if name = "loc" then "dummy_txt " else "")
+	    (if name = "loc" then "loc_id" else "loc_"^name)
+	    (if name = "loc" then "txt" else name)
       in
       (match a with
        | None   -> fprintf ch "quote_%s _loc r = %s" n prefix
