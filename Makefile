@@ -2,7 +2,6 @@ OCAMLFIND = ocamlfind
 OCAMLC = $(OCAMLFIND) ocamlc
 OCAMLOPT = $(OCAMLFIND) ocamlopt -intf-suffix .cmi
 BINDIR = /usr/local/bin
-LIBDIR = $(shell ocamlc -where)/decap
 
 # do not add decap.cm(x)a because decap in bootstrap is
 # does not contain pa_ocaml_prelude and adding decap.cm(x)a
@@ -175,15 +174,13 @@ opam: opam.tmpl
 	sed -e s/__VERSION__/$(VERSION)/g $< > $@
 
 install: uninstall $(INSTALLED)
-	install -m 755 -d $(DESTDIR)/$(LIBDIR)
-	install -m 755 -d $(DESTDIR)/$(BINDIR)
-	ocamlfind install -destdir $(DESTDIR)/$(dir $(LIBDIR)) decap META $(INSTALLED)
-	install -m 755 pa_ocaml $(DESTDIR)/$(BINDIR)
+	install -m 755 -d $(BINDIR)
+	ocamlfind install decap META $(INSTALLED)
+	install -m 755 pa_ocaml $(BINDIR)
 
 uninstall:
-	ocamlfind remove -destdir $(DESTDIR)/$(dir $(LIBDIR)) decap
-	rm -rf $(DESTDIR)/$(LIBDIR)
-	rm -f $(DESTDIR)/$(BINDIR)/pa_ocaml
+	ocamlfind remove decap
+	rm -f $(BINDIR)/pa_ocaml
 
 clean:
 	- rm -f *.cm* *.o *.a

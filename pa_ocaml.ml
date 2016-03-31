@@ -1943,7 +1943,28 @@ let parser structure_item_base =
   | "$struct:" e:expression - '$' ->
      let open Quote in
      pstr_antiquotation _loc (function
-     | Quote_pstr -> e
+     | Quote_pstr ->
+#ifversion >= 4.02
+	(quote_apply _loc (pa_ast "loc_str")
+	   [quote_location_t _loc _loc;
+	    quote_const _loc (parsetree "Pstr_include")
+	      [quote_record _loc [
+		(parsetree "pincl_loc", quote_location_t _loc _loc);
+		(parsetree "pincl_attributes", quote_list (quote_attribute) _loc []);
+		(parsetree "pincl_mod",
+		 quote_apply _loc (pa_ast "mexpr_loc")
+		     [quote_location_t _loc _loc;
+		      quote_const _loc (parsetree "Pmod_structure")
+			[e]])]]])
+#else
+	(quote_apply _loc (pa_ast "loc_str")
+	   [quote_location_t _loc _loc;
+	    quote_const _loc (parsetree "Pstr_include")
+	      [quote_apply _loc (pa_ast "mexpr_loc")
+		  [quote_location_t _loc _loc;
+		   quote_const _loc (parsetree "Pmod_structure")
+		     [e]]]])
+#endif
      | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))
 
 
