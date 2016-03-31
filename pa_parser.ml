@@ -326,7 +326,7 @@ struct
 	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
 	 | Some e -> e
        in
-       (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc_s s;
+       (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc_s (String.escaped s);
 							  nolabel, exp_string _loc_s s;
 							  nolabel, exp_fun _loc_opt "groupe" opt])
 
