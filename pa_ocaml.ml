@@ -1527,7 +1527,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | '(' e:expression? ')' when lvl = Atom ->
        (match e with
-       | Some(e) -> loc_expr _loc e.pexp_desc
+       | Some(e) -> if e.pexp_desc == Quote.dummy_pexp then e else loc_expr _loc e.pexp_desc
        | None ->
 	  let cunit = id_loc (Lident "()") _loc in
 	  loc_expr _loc (pexp_construct(cunit, None)))
@@ -1861,7 +1861,7 @@ let _ = set_grammar module_type (
 
 let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
-     (match l with
+     loc_str _loc (match l with
 #ifversion < 4.03
 #ifversion >= 4.02
        | [{pvb_pat = {ppat_desc = Ppat_any}; pvb_expr = e}] -> pstr_eval e
@@ -1874,23 +1874,23 @@ let parser structure_item_base =
       let l = List.length ls in
       if l < 1 || l > 3 then give_up "" (* FIXME *);
 #ifversion >= 4.02
-     Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
-		      pval_attributes = attach_attrib _loc a })
+     loc_str _loc (Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
+		      pval_attributes = attach_attrib _loc a }))
 #else
-      Pstr_primitive(id_loc n _loc_n, { pval_type = ty; pval_prim = ls;
+      loc_str _loc (Pstr_primitive(id_loc n _loc_n, { pval_type = ty; pval_prim = ls;
 					pval_loc = _loc
-				      })
+				      }))
 #endif
 #ifversion >= 4.03
-  | td:type_definition -> Pstr_type (Recursive, List.map snd td) (* FIXME ? *)
+  | td:type_definition -> loc_str _loc (Pstr_type (Recursive, List.map snd td)) (* FIXME ? *)
 #else
 #ifversion >= 4.02
-  | td:type_definition -> Pstr_type (List.map snd td)
+  | td:type_definition -> loc_str _loc (Pstr_type (List.map snd td))
 #else
-  | td:type_definition -> Pstr_type td
+  | td:type_definition -> loc_str _loc (Pstr_type td)
 #endif
 #endif
-  | ex:exception_definition -> ex
+  | ex:exception_definition -> loc_str _loc ex
 #ifversion >= 4.02
   | module_kw r:{rec_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
     me:module_expr ms:{and_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
@@ -1900,7 +1900,7 @@ let parser structure_item_base =
 #endif
     me:module_expr -> (module_binding _loc mn mt me)}* ->
       let m = (module_binding _loc mn mt me) in
-      Pstr_recmodule (m::ms)
+      loc_str _loc (Pstr_recmodule (m::ms))
 #ifversion >= 4.02
   |            mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type }? STR")" -> (mn, mt, _loc)}*
 #else
@@ -1911,40 +1911,40 @@ let parser structure_item_base =
      let me = List.fold_left (fun acc (mn,mt,_loc) ->
        mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
 #ifversion >= 4.02
-     Pstr_module(module_binding _loc mn None me)
+     loc_str _loc (Pstr_module(module_binding _loc mn None me))
 #else
      let (name, _, me) = module_binding _loc mn None me in
-     Pstr_module(name,me)
+     loc_str _loc (Pstr_module(name,me))
 #endif
 #ifversion >= 4.02
   |            type_kw mn:modtype_name mt:{STR"=" mt:module_type}? a:post_item_attributes ->
-      Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
- 		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc }
+      loc_str _loc (Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
+ 		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc })
 #else
   |            type_kw mn:modtype_name STR"=" mt:module_type ->
-      Pstr_modtype(id_loc mn _loc_mn, mt)
+      loc_str _loc (Pstr_modtype(id_loc mn _loc_mn, mt))
 #endif
                } -> r
   | open_kw o:override_flag m:module_path a:post_item_attributes ->
 #ifversion >= 4.02
-      Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
- 		 popen_attributes = attach_attrib _loc a}
+      loc_str _loc (Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
+ 		 popen_attributes = attach_attrib _loc a})
 #else
-    Pstr_open(o, id_loc m _loc_m)
+    loc_str _loc (Pstr_open(o, id_loc m _loc_m))
 #endif
   | include_kw me:module_expr a:post_item_attributes ->
 #ifversion >= 4.02
-    Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a }
+    loc_str _loc (Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
 #else
-    Pstr_include me
+    loc_str _loc (Pstr_include me)
 #endif
   | class_kw r:{ ctd:classtype_definition -> Pstr_class_type ctd
-               | cds:class_definition -> Pstr_class cds } -> r
+               | cds:class_definition -> Pstr_class cds } -> loc_str _loc r
   | "$struct:" e:expression - '$' ->
      let open Quote in
-     (pstr_antiquotation _loc (function
+     pstr_antiquotation _loc (function
      | Quote_pstr -> e
-     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))).pstr_desc
+     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))
 
 
 let parser structure_item_aux =
@@ -1952,43 +1952,43 @@ let parser structure_item_aux =
   | e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
   | s1:structure_item_aux double_semi_col?[()] e:(alternatives extra_structure) ->
      List.rev_append e (List.rev_append (attach_str _loc_e) s1)
-  | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> loc_str _loc_s2 s2 :: (List.rev_append (attach_str _loc_s2) s1)
+  | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> s2 :: (List.rev_append (attach_str _loc_s2) s1)
   | s1:structure_item_aux double_semi_col e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
 
 let _ = set_grammar structure_item
   (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
 let _ = set_grammar structure_item_simple
-  (parser ls:{l:structure_item_base -> loc_str _loc l}* -> ls)
+  (parser ls:{l:structure_item_base -> l}* -> ls)
 
 let parser signature_item_base =
   | val_kw n:value_name STR(":") ty:typexpr a:post_item_attributes ->
-     psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty []
+     loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty [])
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
       let l = List.length ls in
       if l < 1 || l > 3 then give_up "" (* FIXME *);
-      psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls
+      loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls)
   | td:type_definition ->
 #ifversion >= 4.03
-       Psig_type (Recursive, List.map snd td)
+       loc_sig _loc (Psig_type (Recursive, List.map snd td))
 #else
 #ifversion >= 4.02
-       Psig_type (List.map snd td)
+       loc_sig _loc (Psig_type (List.map snd td))
 #else
-       Psig_type td
+       loc_sig _loc (Psig_type td)
 #endif
 #endif
   | (name,ed,_loc'):exception_declaration a:post_item_attributes ->
 #ifversion >= 4.02
-       Psig_exception (Te.decl ~attrs:(attach_attrib _loc' a) ~loc:_loc' ~args:ed name)
+       loc_sig _loc (Psig_exception (Te.decl ~attrs:(attach_attrib _loc' a) ~loc:_loc' ~args:ed name))
 #else
-       Psig_exception (name, ed)
+       loc_sig _loc (Psig_exception (name, ed))
 #endif
   | {module_kw -> attach_sig _loc} rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
       ms:{and_kw mn:module_name STR(":") mt:module_type a:post_item_attributes ->
 	    (module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)}* ->
       let loc_first = merge2 _loc_mn _loc_a in
       let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
-      Psig_recmodule (m::ms)
+      loc_sig _loc (Psig_recmodule (m::ms))
 #ifversion >= 4.02
   | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
 #else
@@ -2015,39 +2015,39 @@ let parser signature_item_base =
      in
      Psig_modtype(id_loc mn _loc_mn, mt)
 #endif
-		} -> r
+		} -> loc_sig _loc r
   | open_kw o:override_flag m:module_path a:post_item_attributes ->
 #ifversion >= 4.02
-      Psig_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
-  		 popen_attributes = attach_attrib _loc a}
+      loc_sig _loc (Psig_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
+  		 popen_attributes = attach_attrib _loc a})
 #else
-    Psig_open(o, id_loc m _loc_m)
+    loc_sig _loc (Psig_open(o, id_loc m _loc_m))
 #endif
   | include_kw me:module_type a:post_item_attributes ->
 #ifversion >= 4.02
-    Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a }
+    loc_sig _loc (Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
 #else
-    Psig_include me
+    loc_sig _loc (Psig_include me)
 #endif
   | class_kw r:{ ctd:classtype_definition -> Psig_class_type ctd
-		   | cs:class_specification -> Psig_class cs } -> r
+		   | cs:class_specification -> Psig_class cs } -> loc_sig _loc r
 
   | dol:CHR('$') - e:expression - CHR('$') ->
      let open Quote in
-     (psig_antiquotation _loc (function
+     psig_antiquotation _loc (function
      | Quote_psig -> e
-     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))).psig_desc
+     | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))
 
 let _ = set_grammar signature_item (
   parser
   | e:(alternatives extra_signature) -> attach_sig _loc @ e
-  | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [loc_sig _loc s]
+  | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [s]
   )
 
 exception Top_Exit
 
 let parser top_phrase =
-  | CHR(';')? l:{s:structure_item_base -> loc_str _loc s}+ (double_semi_col) -> Ptop_def(l)
+  | CHR(';')? l:{s:structure_item_base -> s}+ (double_semi_col) -> Ptop_def(l)
   | CHR(';')? EOF -> raise Top_Exit
 
 (*
