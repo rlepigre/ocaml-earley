@@ -71,7 +71,7 @@ module Start = functor (Main : Final) -> struct
         | (ext, res)::l -> if Filename.check_suffix s ext then res else fn l
         | [] -> eprintf "Don't know what to do with file %s\n%!" s; exit 1
       in
-      fn !Main.entry_points
+      fn Main.entry_points
     | FromExt, None -> Implementation (Main.structure, ocaml_blank)
     | Intf, _       -> Interface      (Main.signature, ocaml_blank)
     | Impl, _       -> Implementation (Main.structure, ocaml_blank)

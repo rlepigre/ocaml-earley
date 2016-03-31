@@ -58,7 +58,7 @@ let entry =
 	(ext, res)::l -> if Filename.check_suffix s ext then res else fn l
       | [] -> eprintf "Don't know what to do with file %s\n%!" s; exit 1
     in
-    fn !Main.entry_points
+    fn Main.entry_points
   | FromExt, None -> `Top
   | Intf, _ -> `Intf Main.signature
   | Impl, _ -> `Impl Main.structure

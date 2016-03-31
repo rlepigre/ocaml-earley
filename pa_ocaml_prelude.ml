@@ -47,25 +47,20 @@
 
 open Input
 open Decap
-open Charset
 open Asttypes
 open Parsetree
-open Longident
 open Pa_ast
 open Pa_lexing
 
-let fast = ref false
-let file : string option ref = ref None
-let ascii = ref false
+(* Some references for the handling of command-line arguments. *)
 type entry = FromExt | Impl | Intf
-let entry = ref FromExt
 
-let start_pos loc =
-  loc.Location.loc_start
+let entry : entry ref         = ref FromExt
+let fast  : bool ref          = ref false
+let file  : string option ref = ref None
+let ascii : bool ref          = ref false
 
-let end_pos loc =
-  loc.Location.loc_end
-
+(* Location function. *)
 let locate str pos str' pos' =
   Lexing.(
     let s = Input.lexing_position str pos in
@@ -74,27 +69,35 @@ let locate str pos str' pos' =
 
 #define LOCATE locate
 
+(* OCaml grammar entry points. *)
 type entry_point =
-  | Implementation of Parsetree.structure_item list Decap.grammar * blank
-  | Interface of Parsetree.signature_item list Decap.grammar * blank
+  | Implementation of Parsetree.structure_item list grammar * blank
+  | Interface      of Parsetree.signature_item list grammar * blank
 
-(* declare expression soon for antiquotation *)
-module Initial = struct
+(* Initial parser module, starting point of the functorial interface. *)
+module Initial =
+  struct
 
-let spec = [
-  "--ascii", Arg.Set ascii , "output ascii ast instead of serialized ast" ;
-  "--impl", Arg.Unit (fun () -> entry := Impl), "treat file as an implementation" ;
-  "--intf", Arg.Unit (fun () -> entry := Intf), "treat file as an interface" ;
-  "--unsafe", Arg.Set fast, "use unsafe function for arrays" ;
-  "--debug", Arg.Set_int Decap.debug_lvl, "set decap debug_lvl" ;
- ]
+    (* Default command line arguments. *)
+    let spec : (Arg.key * Arg.spec * Arg.doc) list =
+      [ ("--ascii", Arg.Set ascii,
+          "Output ASCII text instead of serialized AST.")
+      ; ("--impl", Arg.Unit (fun () -> entry := Impl),
+          "Treat file as an implementation.")
+      ; ("--intf", Arg.Unit (fun () -> entry := Intf),
+          "Treat file as an interface.")
+      ; ("--unsafe", Arg.Set fast,
+          "Use unsafe functions for arrays (more efficient).")
+      ; ("--debug", Arg.Set_int Decap.debug_lvl,
+          "Sets the value of \"Decap.debug_lvl\".") ]
 
-let before_parse_hook () = ()
+    (* Function to be run before parsing. *)
+    let before_parse_hook : unit -> unit = fun () -> ()
 
-(* Declaration of grammars for litterals *)
-let char_litteral : char grammar = declare_grammar "char_litteral"
-let string_litteral : string grammar = declare_grammar "string_litteral"
-let regexp_litteral : string grammar = declare_grammar "regexp_litteral"
+    (* Declaration of grammars for litterals *)
+    let char_litteral   : char   grammar = declare_grammar "char_litteral"
+    let string_litteral : string grammar = declare_grammar "string_litteral"
+    let regexp_litteral : string grammar = declare_grammar "regexp_litteral"
 
 type expression_prio =
   | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append
@@ -418,10 +421,9 @@ let parser downto_flag =
   | to_kw     -> Upto
   | downto_kw -> Downto
 
-let entry_points : (string * entry_point) list ref
-   = ref [ ".mli", Interface (signature, ocaml_blank)
-         ;  ".ml", Implementation (structure, ocaml_blank) ]
-
+let entry_points : (string * entry_point) list =
+   [ ".mli", Interface      (signature, ocaml_blank)
+   ;  ".ml", Implementation (structure, ocaml_blank) ]
 end
 
 module type Extension = module type of Initial
@@ -429,3 +431,11 @@ module type Extension = module type of Initial
 module type FExt = functor (E:Extension) -> Extension
 
 include Initial
+
+let start_pos loc =
+  loc.Location.loc_start
+
+let end_pos loc =
+  loc.Location.loc_end
+
+

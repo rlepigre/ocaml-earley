@@ -203,8 +203,6 @@ let wrap_type_annotation _loc newtypes core_type body =
 
 (* Floating-point litterals *)
 let float_litteral = Decap.apply fst Pa_lexing.float_litteral
-
-(* Character litterals *)
 let _ = set_grammar char_litteral Pa_lexing.char_litteral
 let _ = set_grammar string_litteral (Decap.apply fst Pa_lexing.string_litteral)
 let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
