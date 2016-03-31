@@ -12,10 +12,44 @@ module Make(Initial:Extension) =
     include Initial
     let ouident = uident
     let uident = Decap.declare_grammar "uident"
-    let _ = Decap.set_grammar uident ouident
+    let _ =
+      Decap.set_grammar uident
+        (Decap.alternatives
+           [ouident;
+           Decap.fsequence_position (Decap.string "$uid:" "$uid:")
+             (Decap.sequence (Decap.ignore_next_blank expression)
+                (Decap.char '$' '$')
+                (fun e  ->
+                   fun _  ->
+                     fun _  ->
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               Quote.string_antiquotation _loc e))])
     let olident = lident
     let lident = Decap.declare_grammar "lident"
-    let _ = Decap.set_grammar lident olident
+    let _ =
+      Decap.set_grammar lident
+        (Decap.alternatives
+           [olident;
+           Decap.fsequence_position (Decap.string "$lid:" "$lid:")
+             (Decap.sequence (Decap.ignore_next_blank expression)
+                (Decap.char '$' '$')
+                (fun e  ->
+                   fun _  ->
+                     fun _  ->
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               Quote.string_antiquotation _loc e))])
     let mk_unary_opp name _loc_name arg _loc_arg =
       let res =
         match (name, (arg.pexp_desc)) with
@@ -2197,16 +2231,6 @@ module Make(Initial:Extension) =
       | ConsPat  -> ConstrPat
       | ConstrPat  -> AtomPat
       | AtomPat  -> AtomPat
-    let ppat_list _loc l =
-      let nil = id_loc (Lident "[]") (ghost _loc) in
-      let cons x xs =
-        let c = id_loc (Lident "::") (ghost _loc) in
-        let cons =
-          ppat_construct
-            (c, (Some (loc_pat (ghost _loc) (Ppat_tuple [x; xs])))) in
-        loc_pat _loc cons in
-      List.fold_right cons l
-        (loc_pat (ghost _loc) (ppat_construct (nil, None)))
     let (extra_patterns_grammar,extra_patterns_grammar__set__grammar) =
       Decap.grammar_family "extra_patterns_grammar"
     let _ =
@@ -2487,51 +2511,23 @@ module Make(Initial:Extension) =
                                                                     '$' '$'))
                                                                (Decap.fsequence
                                                                   (Decap.option
-                                                                    "expr"
-                                                                    (Decap.ignore_next_blank
+                                                                    "pat"
                                                                     (Decap.sequence
                                                                     (Decap.ignore_next_blank
-                                                                    (Decap.alternatives
-                                                                    [
-                                                                    Decap.apply
-                                                                    (fun _ 
+                                                                    (Decap.regexp
+                                                                    ~name:"[a-z]+"
+                                                                    "[a-z]+"
+                                                                    (fun
+                                                                    groupe 
                                                                     ->
-                                                                    "tuple")
-                                                                    (Decap.string
-                                                                    "tuple"
-                                                                    "tuple");
-                                                                    Decap.apply
-                                                                    (fun _ 
-                                                                    -> "list")
-                                                                    (Decap.string
-                                                                    "list"
-                                                                    "list");
-                                                                    Decap.apply
-                                                                    (fun _ 
-                                                                    ->
-                                                                    "array")
-                                                                    (Decap.string
-                                                                    "array"
-                                                                    "array");
-                                                                    Decap.apply
-                                                                    (fun _ 
-                                                                    -> "int")
-                                                                    (Decap.string
-                                                                    "int"
-                                                                    "int");
-                                                                    Decap.apply
-                                                                    (fun _ 
-                                                                    ->
-                                                                    "string")
-                                                                    (Decap.string
-                                                                    "string"
-                                                                    "string")]))
+                                                                    groupe 0)))
                                                                     (Decap.char
                                                                     ':' ':')
-                                                                    (fun t 
-                                                                    ->
+                                                                    (fun
+                                                                    _default_0
+                                                                     ->
                                                                     fun _  ->
-                                                                    t))))
+                                                                    _default_0)))
                                                                   (Decap.sequence
                                                                     (Decap.ignore_next_blank
                                                                     expression)
@@ -2540,7 +2536,8 @@ module Make(Initial:Extension) =
                                                                     (fun e 
                                                                     ->
                                                                     fun _  ->
-                                                                    fun t  ->
+                                                                    fun aq 
+                                                                    ->
                                                                     fun _  ->
                                                                     fun
                                                                     __loc__start__buf
@@ -2574,7 +2571,7 @@ module Make(Initial:Extension) =
                                                                     "ppat_loc"),
                                                                     (quote_location_t
                                                                     _loc _loc))] in
-                                                                    let generic_quote
+                                                                    let generic_antiquote
                                                                     e =
                                                                     function
                                                                     | 
@@ -2585,12 +2582,28 @@ module Make(Initial:Extension) =
                                                                     failwith
                                                                     "invalid antiquotation type" in
                                                                     let f =
-                                                                    match t
+                                                                    match aq
                                                                     with
                                                                     | 
-                                                                    "expr" ->
-                                                                    (fun _ 
-                                                                    -> e)
+                                                                    "pat" ->
+                                                                    generic_antiquote
+                                                                    e
+                                                                    | 
+                                                                    "bool" ->
+                                                                    let e =
+                                                                    quote_const
+                                                                    _loc
+                                                                    (parsetree
+                                                                    "Ppat_constant")
+                                                                    [
+                                                                    quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "const_bool")
+                                                                    [e]] in
+                                                                    generic_antiquote
+                                                                    (locate
+                                                                    _loc e)
                                                                     | 
                                                                     "int" ->
                                                                     let e =
@@ -2604,7 +2617,7 @@ module Make(Initial:Extension) =
                                                                     (pa_ast
                                                                     "const_int")
                                                                     [e]] in
-                                                                    generic_quote
+                                                                    generic_antiquote
                                                                     (locate
                                                                     _loc e)
                                                                     | 
@@ -2621,9 +2634,44 @@ module Make(Initial:Extension) =
                                                                     (pa_ast
                                                                     "const_string")
                                                                     [e]] in
-                                                                    generic_quote
+                                                                    generic_antiquote
                                                                     (locate
                                                                     _loc e)
+                                                                    | 
+                                                                    "list" ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "pat_list")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
+                                                                    "tuple"
+                                                                    ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "pat_tuple")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
+                                                                    "array"
+                                                                    ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "pat_array")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
                                                                     | 
                                                                     _ ->
                                                                     give_up
@@ -3031,7 +3079,7 @@ module Make(Initial:Extension) =
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
-                                                                    ppat_list
+                                                                    pat_list
                                                                     _loc (p
                                                                     :: ps))))))
                                             :: y
@@ -6076,6 +6124,20 @@ module Make(Initial:Extension) =
                                                                     generic_antiquote
                                                                     e
                                                                     | 
+                                                                    "longident"
+                                                                    ->
+                                                                    let e =
+                                                                    quote_const
+                                                                    _loc
+                                                                    (parsetree
+                                                                    "Pexp_ident")
+                                                                    [
+                                                                    quote_loc
+                                                                    _loc e] in
+                                                                    generic_antiquote
+                                                                    (locate
+                                                                    _loc e)
+                                                                    | 
                                                                     "bool" ->
                                                                     generic_antiquote
                                                                     (quote_apply
@@ -6110,19 +6172,40 @@ module Make(Initial:Extension) =
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
-                                                                    "longident"
-                                                                    ->
-                                                                    let e =
-                                                                    quote_const
-                                                                    _loc
-                                                                    (parsetree
-                                                                    "Pexp_ident")
-                                                                    [
-                                                                    quote_loc
-                                                                    _loc e] in
+                                                                    "list" ->
                                                                     generic_antiquote
-                                                                    (locate
-                                                                    _loc e)
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_list")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
+                                                                    "tuple"
+                                                                    ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_tuple")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
+                                                                    "array"
+                                                                    ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_array")
+                                                                    [
+                                                                    quote_location_t
+                                                                    _loc _loc;
+                                                                    e])
                                                                     | 
                                                                     _ ->
                                                                     give_up

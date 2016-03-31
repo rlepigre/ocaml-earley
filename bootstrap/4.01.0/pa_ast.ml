@@ -25,8 +25,37 @@ let mtyp_loc ?(attributes= [])  _loc desc =
   { pmty_desc = desc; pmty_loc = _loc }
 let pexp_construct (a,b) = Pexp_construct (a, b, false)
 let pexp_fun (label,opt,pat,expr) = Pexp_function (label, opt, [(pat, expr)])
+let ghost loc = let open Location in { loc with loc_ghost = true }
+let no_ghost loc = let open Location in { loc with loc_ghost = false }
+let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
 let id_loc txt loc = { txt; loc }
 let loc_id loc txt = { txt; loc }
+let rec merge =
+  function
+  | [] -> assert false
+  | loc::[] -> loc
+  | l1::_ as ls ->
+      let ls = List.rev ls in
+      let rec fn =
+        function
+        | [] -> assert false
+        | loc::[] -> loc
+        | l2::ls when let open Location in l2.loc_start = l2.loc_end -> fn ls
+        | l2::ls ->
+            let open Location in
+              {
+                loc_start = (l1.loc_start);
+                loc_end = (l2.loc_end);
+                loc_ghost = (l1.loc_ghost && l2.loc_ghost)
+              } in
+      fn ls
+let merge2 l1 l2 =
+  let open Location in
+    {
+      loc_start = (l1.loc_start);
+      loc_end = (l2.loc_end);
+      loc_ghost = (l1.loc_ghost && l2.loc_ghost)
+    }
 let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 let const_float s = Const_float s
 let const_char s = Const_char s
@@ -57,6 +86,7 @@ let exp_unit _loc =
   let cunit = id_loc (Lident "()") _loc in
   loc_expr _loc (pexp_construct (cunit, None))
 let exp_tuple _loc l = loc_expr _loc (Pexp_tuple l)
+let exp_array _loc l = loc_expr _loc (Pexp_array l)
 let exp_Nil _loc =
   let cnil = id_loc (Lident "[]") _loc in
   loc_expr _loc (pexp_construct (cnil, None))
@@ -75,6 +105,8 @@ let exp_list _loc l = List.fold_right (exp_Cons _loc) l (exp_Nil _loc)
 let exp_ident _loc id = loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc))
 let exp_lident _loc id = loc_expr _loc (Pexp_ident (id_loc id _loc))
 let pat_ident _loc id = loc_pat _loc (Ppat_var (id_loc id _loc))
+let pat_tuple _loc l = loc_pat _loc (Ppat_tuple l)
+let pat_array _loc l = loc_pat _loc (Ppat_array l)
 let nolabel = ""
 let labelled s = s
 let optional s = "?" ^ s
@@ -121,26 +153,68 @@ let exp_apply_fun _loc =
        (exp_apply _loc (exp_ident _loc "f") [exp_ident _loc "a"]))
 let ppat_alias _loc p id =
   if id = "_" then p else loc_pat _loc (Ppat_alias (p, (id_loc id _loc)))
-let rec expression_to_pattern p =
-  let fn arg =
-    match arg with | None  -> None | Some e -> Some (expression_to_pattern e) in
-  let p' =
-    match p.pexp_desc with
-    | Pexp_ident { txt = Lident id; loc = l } ->
-        Ppat_var { txt = id; loc = l }
-    | Pexp_constant c -> Ppat_constant c
-    | Pexp_tuple l -> Ppat_tuple (List.map expression_to_pattern l)
-    | Pexp_array l -> Ppat_array (List.map expression_to_pattern l)
-    | Pexp_construct (id,arg,b) -> Ppat_construct (id, (fn arg), b)
-    | Pexp_variant (id,arg) -> Ppat_variant (id, (fn arg))
-    | Pexp_record (l,None ) ->
-        Ppat_record
-          ((List.map (fun (id,e)  -> (id, (expression_to_pattern e))) l),
-            Open)
-    | Pexp_lazy e -> Ppat_lazy (expression_to_pattern e)
-    | Pexp_poly (e,Some ty) ->
-        Ppat_constraint ((expression_to_pattern e), ty)
-    | _ ->
-        (Pprintast.expression Format.std_formatter p;
-         failwith "Illegal quotation pattern") in
-  { ppat_desc = p'; ppat_loc = (p.pexp_loc) }
+let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
+type constructor_declaration =
+  (string Asttypes.loc* Parsetree.core_type list* Parsetree.core_type option*
+    Location.t)
+let constructor_declaration ?(attributes= [])  _loc name args res =
+  (name, args, res, _loc)
+type label_declaration =
+  (string Asttypes.loc* Asttypes.mutable_flag* Parsetree.core_type*
+    Location.t)
+type case = (pattern* expression)
+let label_declaration _loc name mut ty = (name, mut, ty, _loc)
+let type_declaration ?(attributes= [])  _loc name params cstrs kind priv
+  manifest =
+  let (params,variance) = List.split params in
+  {
+    ptype_params = params;
+    ptype_cstrs = cstrs;
+    ptype_kind = kind;
+    ptype_private = priv;
+    ptype_variance = variance;
+    ptype_manifest = manifest;
+    ptype_loc = _loc
+  }
+let class_type_declaration ?(attributes= [])  _loc' _loc name params virt
+  expr =
+  let (params,variance) = List.split params in
+  let params =
+    List.map (function | None  -> id_loc "" _loc' | Some x -> x) params in
+  {
+    pci_params = (params, _loc');
+    pci_variance = variance;
+    pci_virt = virt;
+    pci_name = name;
+    pci_expr = expr;
+    pci_loc = _loc
+  }
+let pstr_eval e = Pstr_eval e
+let psig_value ?(attributes= [])  _loc name ty prim =
+  Psig_value (name, { pval_type = ty; pval_prim = prim; pval_loc = _loc })
+let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
+let module_binding _loc name mt me = (name, mt, me)
+let module_declaration ?(attributes= [])  _loc name mt = (name, mt)
+let ppat_construct (a,b) = Ppat_construct (a, b, false)
+let pexp_constraint (a,b) = Pexp_constraint (a, (Some b), None)
+let pexp_coerce (a,b,c) = Pexp_constraint (a, b, (Some c))
+let pexp_assertfalse _loc = Pexp_assertfalse
+let make_case pat expr guard =
+  match guard with
+  | None  -> (pat, expr)
+  | Some e ->
+      (pat,
+        (loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when (e, expr))))
+let map_cases cases =
+  List.map (fun (pat,expr,guard)  -> make_case pat expr guard) cases
+let pexp_function cases = Pexp_function ("", None, cases)
+type value_binding = (Parsetree.pattern* Parsetree.expression)
+let pat_list _loc l =
+  let nil = id_loc (Lident "[]") (ghost _loc) in
+  let cons x xs =
+    let c = id_loc (Lident "::") (ghost _loc) in
+    let cons =
+      ppat_construct (c, (Some (loc_pat (ghost _loc) (Ppat_tuple [x; xs])))) in
+    loc_pat _loc cons in
+  List.fold_right cons l (loc_pat (ghost _loc) (ppat_construct (nil, None)))
+let ppat_list = pat_list

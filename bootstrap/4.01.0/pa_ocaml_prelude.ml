@@ -9,28 +9,11 @@ open Pa_lexing
 let fast = ref false
 let file: string option ref = ref None
 let ascii = ref false
-let in_ocamldep = ref false
 type entry =
   | FromExt
   | Impl
   | Intf
 let entry = ref FromExt
-let spec =
-  ref
-    [("--ascii", (Arg.Set ascii),
-       "output ascii ast instead of serialized ast");
-    ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
-      "treat file as an implementation");
-    ("--intf", (Arg.Unit ((fun ()  -> entry := Intf))),
-      "treat file as an interface");
-    ("--unsafe", (Arg.Set fast), "use unsafe function for arrays");
-    ("--ocamldep", (Arg.Set in_ocamldep),
-      "set a flag to inform parser that we are computing dependencies");
-    ("--debug", (Arg.Set_int Decap.debug_lvl), "set decap debug_lvl")]
-let extend_cl_args l = spec := ((!spec) @ l)
-let ghost loc = let open Location in { loc with loc_ghost = true }
-let no_ghost loc = let open Location in { loc with loc_ghost = false }
-let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
 let start_pos loc = loc.Location.loc_start
 let end_pos loc = loc.Location.loc_end
 let locate str pos str' pos' =
@@ -38,37 +21,20 @@ let locate str pos str' pos' =
     let s = Input.lexing_position str pos in
     let e = Input.lexing_position str' pos' in
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
-let rec merge =
-  function
-  | [] -> assert false
-  | loc::[] -> loc
-  | l1::_ as ls ->
-      let ls = List.rev ls in
-      let rec fn =
-        function
-        | [] -> assert false
-        | loc::[] -> loc
-        | l2::ls when let open Location in l2.loc_start = l2.loc_end -> fn ls
-        | l2::ls ->
-            let open Location in
-              {
-                loc_start = (l1.loc_start);
-                loc_end = (l2.loc_end);
-                loc_ghost = (l1.loc_ghost && l2.loc_ghost)
-              } in
-      fn ls
-let merge2 l1 l2 =
-  let open Location in
-    {
-      loc_start = (l1.loc_start);
-      loc_end = (l2.loc_end);
-      loc_ghost = (l1.loc_ghost && l2.loc_ghost)
-    }
 type entry_point =
   | Implementation of Parsetree.structure_item list Decap.grammar* blank
   | Interface of Parsetree.signature_item list Decap.grammar* blank
 module Initial =
   struct
+    let spec =
+      [("--ascii", (Arg.Set ascii),
+         "output ascii ast instead of serialized ast");
+      ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
+        "treat file as an implementation");
+      ("--intf", (Arg.Unit ((fun ()  -> entry := Intf))),
+        "treat file as an interface");
+      ("--unsafe", (Arg.Set fast), "use unsafe function for arrays");
+      ("--debug", (Arg.Set_int Decap.debug_lvl), "set decap debug_lvl")]
     let before_parse_hook () = ()
     let char_litteral: char grammar = declare_grammar "char_litteral"
     let string_litteral: string grammar = declare_grammar "string_litteral"
@@ -246,7 +212,6 @@ module Initial =
     let ((pattern_lvl : pattern_prio -> pattern grammar),set_pattern_lvl) =
       grammar_family "pattern_lvl"
     let pattern = pattern_lvl TopPat
-    type value_binding = (Parsetree.pattern* Parsetree.expression)
     let let_binding: value_binding list grammar =
       declare_grammar "let_binding"
     let class_body: class_structure grammar = declare_grammar "class_body"
@@ -259,62 +224,6 @@ module Initial =
     let extra_patterns: (pattern_prio -> pattern grammar) list = []
     let extra_structure: structure_item list grammar list = []
     let extra_signature: signature_item list grammar list = []
-    let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
-    type constructor_declaration =
-      (string Asttypes.loc* Parsetree.core_type list* Parsetree.core_type
-        option* Location.t)
-    let constructor_declaration ?(attributes= [])  _loc name args res =
-      (name, args, res, _loc)
-    type label_declaration =
-      (string Asttypes.loc* Asttypes.mutable_flag* Parsetree.core_type*
-        Location.t)
-    type case = (pattern* expression)
-    let label_declaration _loc name mut ty = (name, mut, ty, _loc)
-    let type_declaration ?(attributes= [])  _loc name params cstrs kind priv
-      manifest =
-      let (params,variance) = List.split params in
-      {
-        ptype_params = params;
-        ptype_cstrs = cstrs;
-        ptype_kind = kind;
-        ptype_private = priv;
-        ptype_variance = variance;
-        ptype_manifest = manifest;
-        ptype_loc = _loc
-      }
-    let class_type_declaration ?(attributes= [])  _loc' _loc name params virt
-      expr =
-      let (params,variance) = List.split params in
-      let params =
-        List.map (function | None  -> id_loc "" _loc' | Some x -> x) params in
-      {
-        pci_params = (params, _loc');
-        pci_variance = variance;
-        pci_virt = virt;
-        pci_name = name;
-        pci_expr = expr;
-        pci_loc = _loc
-      }
-    let pstr_eval e = Pstr_eval e
-    let psig_value ?(attributes= [])  _loc name ty prim =
-      Psig_value
-        (name, { pval_type = ty; pval_prim = prim; pval_loc = _loc })
-    let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
-    let module_binding _loc name mt me = (name, mt, me)
-    let module_declaration ?(attributes= [])  _loc name mt = (name, mt)
-    let ppat_construct (a,b) = Ppat_construct (a, b, false)
-    let pexp_constraint (a,b) = Pexp_constraint (a, (Some b), None)
-    let pexp_coerce (a,b,c) = Pexp_constraint (a, b, (Some c))
-    let pexp_assertfalse _loc = Pexp_assertfalse
-    let make_case pat expr guard =
-      match guard with
-      | None  -> (pat, expr)
-      | Some e ->
-          (pat,
-            (loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when (e, expr))))
-    let map_cases cases =
-      List.map (fun (pat,expr,guard)  -> make_case pat expr guard) cases
-    let pexp_function cases = Pexp_function ("", None, cases)
     type record_field = (Longident.t Asttypes.loc* Parsetree.expression)
     let constr_decl_list: constructor_declaration list grammar =
       declare_grammar "constr_decl_list"
@@ -325,28 +234,6 @@ module Initial =
     let match_cases: case list grammar = declare_grammar "match_cases"
     let module_expr: module_expr grammar = declare_grammar "module_expr"
     let module_type: module_type grammar = declare_grammar "module_type"
-    let localise _loc e =
-      let len = String.length e in
-      if (len = 0) || ((e.[0]) = '#')
-      then e
-      else
-        (let cols =
-           let n =
-             let open Location in
-               let open Lexing in
-                 (_loc.loc_start).pos_cnum - (_loc.loc_start).pos_bol in
-           String.make (n + 1) ' ' in
-         ((let open Location in
-             let open Lexing in
-               Printf.sprintf "#%d %S\n%s" ((_loc.loc_start).pos_lnum - 1)
-                 (_loc.loc_start).pos_fname) cols)
-           ^ e)
-    let loc_none =
-      let loc =
-        let open Lexing in
-          { pos_fname = "none"; pos_lnum = 1; pos_bol = 0; pos_cnum = (-1) } in
-      let open Location in
-        { loc_start = loc; loc_end = loc; loc_ghost = true }
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)

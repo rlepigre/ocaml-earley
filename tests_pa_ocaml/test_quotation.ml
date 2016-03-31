@@ -32,12 +32,18 @@ let f8 u =
     open $uid:u$
     let x = $uid:u$.x
   >>
+
+(*let f9 x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>*)
+
+let f10 a x y = <:struct<let $lid:a$ = $x$ and b = $lid:y$>>
+
+(*let f11 x y = <:sig<val $lid:x$ : $y$>>*)
+
+let f12 x y z = <:expr< ($list:x$, $array:y$, $tuple:z$) >>
+
+let f13 x y z x' y' z' = <:expr< fun ($list:x$, $array:y$, $tuple:z$) -> ($list:x'$, $array:y'$, $tuple:z'$) >>
+
 (*
-let f x y t p = <:expr<3 * $x$ * (match $y$ : $t$ with $p$ -> $y$ | _ -> $x$) + 2>>
-
-let g a x y = <:structure<let $lid:a$ = $x$ and b = $lid:y$>>
-
-let h x y = <:signature<val $lid:x$ : $y$>>
 
 let j a b c d e f g h = <:expr<$bool:a$, $int:b$, $int32:c$, $int64:d$, $natint:e$, $char:f$, $string:g$, $float:h$>>
 

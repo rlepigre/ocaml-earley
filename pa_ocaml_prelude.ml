@@ -57,30 +57,8 @@ open Pa_lexing
 let fast = ref false
 let file : string option ref = ref None
 let ascii = ref false
-let in_ocamldep = ref false
 type entry = FromExt | Impl | Intf
 let entry = ref FromExt
-
-let spec = ref [
-  "--ascii", Arg.Set ascii , "output ascii ast instead of serialized ast" ;
-  "--impl", Arg.Unit (fun () -> entry := Impl), "treat file as an implementation" ;
-  "--intf", Arg.Unit (fun () -> entry := Intf), "treat file as an interface" ;
-  "--unsafe", Arg.Set fast, "use unsafe function for arrays" ;
-  "--ocamldep", Arg.Set in_ocamldep, "set a flag to inform parser that we are computing dependencies" ;
-  "--debug", Arg.Set_int Decap.debug_lvl, "set decap debug_lvl" ;
- ]
-
-let extend_cl_args l =
-  spec := (!spec @ l)
-
-let ghost loc =
-  Location.({loc with loc_ghost = true})
-
-let no_ghost loc =
-  Location.({loc with loc_ghost = false})
-
-let de_ghost e =
-  loc_expr (no_ghost e.pexp_loc) e.pexp_desc
 
 let start_pos loc =
   loc.Location.loc_start
@@ -96,30 +74,20 @@ let locate str pos str' pos' =
 
 #define LOCATE locate
 
-let rec merge = function
-  | [] -> assert false
-  | [loc] -> loc
-  | l1::_ as ls ->
-     let ls = List.rev ls in
-     let rec fn = function
-       | [] -> assert false
-       | [loc] -> loc
-       | l2::ls when Location.(l2.loc_start = l2.loc_end) -> fn ls
-       | l2::ls ->
-	  Location.(
-	   {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
-     in fn ls
-
-let merge2 l1 l2 =
-  Location.(
-    {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
-
 type entry_point =
   | Implementation of Parsetree.structure_item list Decap.grammar * blank
   | Interface of Parsetree.signature_item list Decap.grammar * blank
 
 (* declare expression soon for antiquotation *)
 module Initial = struct
+
+let spec = [
+  "--ascii", Arg.Set ascii , "output ascii ast instead of serialized ast" ;
+  "--impl", Arg.Unit (fun () -> entry := Impl), "treat file as an implementation" ;
+  "--intf", Arg.Unit (fun () -> entry := Intf), "treat file as an interface" ;
+  "--unsafe", Arg.Set fast, "use unsafe function for arrays" ;
+  "--debug", Arg.Set_int Decap.debug_lvl, "set decap debug_lvl" ;
+ ]
 
 let before_parse_hook () = ()
 
@@ -246,9 +214,6 @@ let string_exp (b,lvl) =
   let (pattern_lvl : pattern_prio -> pattern grammar), set_pattern_lvl = grammar_family "pattern_lvl"
   let pattern = pattern_lvl TopPat
 
-#ifversion < 4.02
-  type value_binding = Parsetree.pattern * Parsetree.expression
-#endif
   let let_binding : value_binding list grammar = declare_grammar "let_binding"
   let class_body : class_structure grammar = declare_grammar "class_body"
   let class_expr : class_expr grammar = declare_grammar "class_expr"
@@ -259,107 +224,6 @@ let string_exp (b,lvl) =
   let extra_patterns = ([] : (pattern_prio -> pattern grammar) list)
   let extra_structure = ([] : structure_item list grammar list)
   let extra_signature = ([] : signature_item list grammar list)
-#ifversion >= 4.02
-  let constructor_declaration ?(attributes=[]) _loc name args res =
-    { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
-  let label_declaration _loc name mut ty =
-    { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = []; pld_loc = _loc }
-  let params_map _loc params =
-    let fn (name, var) =
-      match name with
-	None -> (loc_typ _loc Ptyp_any, var)
-      | Some name -> (loc_typ name.loc (Ptyp_var name.txt), var)
-    in
-    List.map fn params
-  let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
-    let params = params_map _loc params in
-    {
-     ptype_name = name;
-     ptype_params = params;
-     ptype_cstrs = cstrs;
-     ptype_kind = kind;
-     ptype_private = priv;
-     ptype_manifest = manifest;
-     ptype_attributes = attributes;
-     ptype_loc = _loc;
-    }
-  let class_type_declaration ?(attributes=[]) _loc' _loc name params virt expr =
-    let params = params_map _loc' params in
-      { pci_params = params
-      ; pci_virt = virt
-      ; pci_name = name
-      ; pci_expr = expr
-      ; pci_attributes = attributes
-      ; pci_loc = _loc }
-  let pstr_eval e = Pstr_eval(e, [])
-  let psig_value ?(attributes=[]) _loc name ty prim =
-    Psig_value { pval_name = name; pval_type = ty ; pval_prim = prim ; pval_attributes = attributes; pval_loc = _loc }
-  let value_binding ?(attributes=[]) _loc pat expr =
-    { pvb_pat = pat; pvb_expr = expr; pvb_attributes = attributes; pvb_loc = _loc }
-  let module_binding _loc name mt me =
-    let me = match mt with None -> me | Some mt -> mexpr_loc _loc (Pmod_constraint(me,mt)) in
-    { pmb_name = name; pmb_expr = me; pmb_attributes = []; pmb_loc = _loc }
-  let module_declaration ?(attributes=[]) _loc name mt =
-    { pmd_name = name; pmd_type = mt; pmd_attributes = attributes; pmd_loc = _loc }
-  let ppat_construct(a,b) = Ppat_construct(a,b)
-  let pexp_constraint(a,b) = Pexp_constraint(a,b)
-  let pexp_coerce(a,b,c) = Pexp_coerce(a,b,c)
-  let pexp_assertfalse _loc = Pexp_assert(loc_expr _loc (pexp_construct({ txt = Lident "false"; loc = _loc}, None)))
-  let make_case = fun pat expr guard -> { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
-  let pexp_function cases =
-    Pexp_function (cases)
-#else
-  let value_binding ?(attributes=[]) _loc pat expr = (pat, expr)
-  type constructor_declaration = string Asttypes.loc * Parsetree.core_type list * Parsetree.core_type option * Location.t
-  let constructor_declaration ?(attributes=[]) _loc name args res = (name, args, res, _loc)
-  type label_declaration = string Asttypes.loc * Asttypes.mutable_flag * Parsetree.core_type * Location.t
-  type case = pattern * expression
-  let label_declaration _loc name mut ty =
-    (name, mut, ty, _loc)
-  let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
-    let params, variance = List.split params in
-    {
-     ptype_params = params;
-     ptype_cstrs = cstrs;
-     ptype_kind = kind;
-     ptype_private = priv;
-     ptype_variance = variance;
-     ptype_manifest = manifest;
-     ptype_loc = _loc;
-    }
-  let class_type_declaration ?(attributes=[]) _loc' _loc name params virt expr =
-    let params, variance = List.split params in
-    let params = List.map (function None   -> id_loc "" _loc'
-                                  | Some x -> x) params
-    in
-      { pci_params = params, _loc'
-      ; pci_variance = variance
-      ; pci_virt = virt
-      ; pci_name = name
-      ; pci_expr = expr
-      ; pci_loc = _loc }
-  let pstr_eval e = Pstr_eval(e)
-  let psig_value ?(attributes=[]) _loc name ty prim =
-    Psig_value( name, { pval_type = ty ; pval_prim = prim ; pval_loc = _loc; } )
-
-  let value_binding  ?(attributes=[]) _loc pat expr =
-    ( pat, expr)
-  let module_binding _loc name mt me =
-    (name, mt, me)
-  let module_declaration ?(attributes=[]) _loc name mt =
-    (name, mt)
-  let ppat_construct(a,b) = Ppat_construct(a,b,false)
-  let pexp_constraint(a,b) = Pexp_constraint(a,Some b,None)
-  let pexp_coerce(a,b,c) = Pexp_constraint(a,b,Some c)
-  let pexp_assertfalse _loc = Pexp_assertfalse
-  let make_case = fun pat expr guard ->
-    match guard with None -> (pat, expr)
-    | Some e -> (pat, loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when(e,expr)))
-
-  let map_cases cases = List.map (fun (pat, expr, guard) ->make_case pat expr guard) cases
-  let pexp_function(cases) =
-    Pexp_function("", None, cases)
-#endif
 
   type record_field = Longident.t Asttypes.loc * Parsetree.expression
 
@@ -370,25 +234,6 @@ let string_exp (b,lvl) =
   let module_expr : module_expr grammar = declare_grammar "module_expr"
   let module_type : module_type grammar = declare_grammar "module_type"
 
-
-let localise _loc e =
-  let len = String.length e in
-  if len = 0 || e.[0] = '#' then e else
-  let cols =
-    let n = Location.(Lexing.(_loc.loc_start.pos_cnum - _loc.loc_start.pos_bol)) in
-    String.make (n+1) ' '
-  in
-  Location.(Lexing.(Printf.sprintf "#%d %S\n%s" (_loc.loc_start.pos_lnum - 1) _loc.loc_start.pos_fname)) cols ^ e
-
-let loc_none =
-  let loc = Lexing.({
-    pos_fname = "none";
-    pos_lnum = 1;
-    pos_bol = 0;
-    pos_cnum = -1;
-  }) in
-  Location.({ loc_start = loc; loc_end = loc; loc_ghost = true })
-
 let parse_string' g e' =
   try
     parse_string g ocaml_blank e'
@@ -396,6 +241,10 @@ let parse_string' g e' =
     e ->
       Printf.eprintf "Error in quotation: %s\n%!" e';
       raise e
+
+(****************************************************************************
+ * Gestion of attachment of ocamldoc comments                               *
+ ****************************************************************************)
 
 (* no attributes before 4.02 *)
 #ifversion >=4.02
