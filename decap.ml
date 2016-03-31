@@ -992,7 +992,11 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
 let blank_grammar grammar blank buf pos =
   let save_debug = !debug_lvl in
   debug_lvl := !debug_lvl / 10;
-  let (_,buf,pos) = partial_parse_buffer grammar blank buf pos in
+  let (_,buf,pos) =
+    try
+      internal_parse_buffer grammar blank buf pos
+    with Error -> ((),buf,pos)
+  in
   debug_lvl := save_debug;
   (buf,pos)
 
