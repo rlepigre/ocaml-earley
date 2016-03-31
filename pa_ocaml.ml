@@ -65,16 +65,14 @@ module Make = functor (Initial:Extension) -> struct
 include Initial
 
 let ouident = uident
-let parser uident   = ouident
-(*  | "$uid:" e:expression - '$' ->
-     let open Quote in
-    string_antiquotation _loc e*)
+let parser uident   =
+  | ouident
+  | "$uid:" e:expression - '$' -> Quote.string_antiquotation _loc e
 
 let olident = lident
-let parser lident   = olident
-(*  | "$lid:" e:expression - '$' ->
-     let open Quote in
-    string_antiquotation _loc e*)
+let parser lident   =
+  | olident
+  | "$lid:" e:expression - '$' -> Quote.string_antiquotation _loc e
 
 (* FIXME ... !Main.a = !(Main.a) !main.a = (!main).a ... *)
 #ifversion >= 4.03
