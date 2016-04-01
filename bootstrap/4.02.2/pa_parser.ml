@@ -558,7 +558,8 @@ module Ext(In:Extension) =
                             | Some e -> e in
                           (true,
                             (exp_lab_apply _loc (exp_glr_fun _loc "regexp")
-                               [((labelled "name"), (exp_string _loc_s s));
+                               [((labelled "name"),
+                                  (exp_string _loc_s (String.escaped s)));
                                (nolabel, (exp_string _loc_s s));
                                (nolabel, (exp_fun _loc_opt "groupe" opt))])));
            Decap.apply_position

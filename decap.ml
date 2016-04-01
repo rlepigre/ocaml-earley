@@ -560,7 +560,7 @@ let rec one_prediction_production
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D {debut=i; acts; stack; rest; full;ignb} as element0 ->
 
-     if !debug_lvl > 1 then Printf.eprintf "predict/product for %a\n%!" print_final element0;
+     if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C %C)\n%!" print_final element0 c c';
      match pre_rule rest with
      | Next(info,_,_,(NonTerm (_) | RefTerm(_)),_,_) when good (if ignb then c' else c) info ->
 	let acts =
@@ -642,7 +642,8 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let forward = ref empty_buf in
-
+    if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
+      parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let prediction_production msg l =
       Hashtbl.clear elements;
       let dlr = ref [] in
@@ -650,6 +651,7 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
       let c,_,_ = Input.read buf'' pos'' in
       let c',_,_ = Input.read !buf !pos in
       buf' := buf''; pos' := pos'';
+      if !debug_lvl > 0 then Printf.eprintf "read blank: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
 	one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
@@ -680,23 +682,28 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
       if internal then raise Error else
 	raise (Parse_error (fname !buf, line_num !buf, !pos, [], []))
     in
+    if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {debut=Some((b,i),_); stack=s1; rest=(Empty f,_); acts; full=r1} :: els ->
-	 assert(eq_buf b buf0 &&  i = pos0);
-	 let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
-	 let rec gn = function
-	   | B (ls)::l ->
-	      apply_pos ls (buf0, pos0) (!buf, !pos) x
-	   | C _:: l -> gn l
-	   | _::l -> assert false
-	   | [] -> fn els
-	 in
-	 gn !s1
+      | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els ->
+	 (try
+	   let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
+	   let rec gn : type a b.(unit -> a) -> b -> (b,a) element list -> a = fun cont x -> function
+	     | B (ls)::l ->
+	       (try apply_pos ls (buf0, pos0) (!buf, !pos) x
+		with Error | Give_up _ -> gn cont x l)
+	     | C _:: l ->
+		gn cont x l
+	     | _::l -> assert false
+	     | [] -> cont ()
+	   in
+	   gn (fun () -> fn els) x !s1
+	  with Error | Give_up _ -> fn els)
       | _ :: els -> fn els
     in
     let a = (try fn (find_pos_tbl elements (buf0,pos0)) with Not_found -> parse_error ()) in
-    (a, !buf, !pos)
+    if !debug_lvl > 0 then Printf.eprintf "exit parsing %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
+    (a, !buf', !pos')
 
 let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
    = fun g bl buf pos ->
@@ -992,12 +999,9 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
 let blank_grammar grammar blank buf pos =
   let save_debug = !debug_lvl in
   debug_lvl := !debug_lvl / 10;
-  let (_,buf,pos) =
-    try
-      internal_parse_buffer grammar blank buf pos
-    with Error -> ((),buf,pos)
-  in
+  let (_,buf,pos) = internal_parse_buffer grammar blank buf pos in
   debug_lvl := save_debug;
+  if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
   (buf,pos)
 
 let accept_empty grammar =

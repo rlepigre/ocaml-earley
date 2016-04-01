@@ -1,41 +1,39 @@
 open Input
 open Decap
-open Charset
 open Asttypes
 open Parsetree
-open Longident
 open Pa_ast
 open Pa_lexing
-let fast = ref false
-let file: string option ref = ref None
-let ascii = ref false
 type entry =
   | FromExt
   | Impl
   | Intf
-let entry = ref FromExt
-let start_pos loc = loc.Location.loc_start
-let end_pos loc = loc.Location.loc_end
+let entry: entry ref = ref FromExt
+let fast: bool ref = ref false
+let file: string option ref = ref None
+let ascii: bool ref = ref false
 let locate str pos str' pos' =
   let open Lexing in
     let s = Input.lexing_position str pos in
     let e = Input.lexing_position str' pos' in
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
 type entry_point =
-  | Implementation of Parsetree.structure_item list Decap.grammar* blank
-  | Interface of Parsetree.signature_item list Decap.grammar* blank
+  | Implementation of Parsetree.structure_item list grammar* blank
+  | Interface of Parsetree.signature_item list grammar* blank
 module Initial =
   struct
-    let spec =
+    let spec: (Arg.key* Arg.spec* Arg.doc) list =
       [("--ascii", (Arg.Set ascii),
-         "output ascii ast instead of serialized ast");
+         "Output ASCII text instead of serialized AST.");
       ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
-        "treat file as an implementation");
+        "Treat file as an implementation.");
       ("--intf", (Arg.Unit ((fun ()  -> entry := Intf))),
-        "treat file as an interface");
-      ("--unsafe", (Arg.Set fast), "use unsafe function for arrays");
-      ("--debug", (Arg.Set_int Decap.debug_lvl), "set decap debug_lvl")]
-    let before_parse_hook () = ()
+        "Treat file as an interface.");
+      ("--unsafe", (Arg.Set fast),
+        "Use unsafe functions for arrays (more efficient).");
+      ("--debug", (Arg.Set_int Decap.debug_lvl),
+        "Sets the value of \"Decap.debug_lvl\".")]
+    let before_parse_hook: unit -> unit = fun ()  -> ()
     let char_litteral: char grammar = declare_grammar "char_litteral"
     let string_litteral: string grammar = declare_grammar "string_litteral"
     let regexp_litteral: string grammar = declare_grammar "regexp_litteral"
@@ -246,7 +244,7 @@ module Initial =
     let arrow_re = Decap.declare_grammar "arrow_re"
     let _ =
       Decap.set_grammar arrow_re
-        (Decap.regexp ~name:"\\(->\\)\\|\\(\226\134\146\\)"
+        (Decap.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
     let infix_symb_re prio =
       match prio with
@@ -356,11 +354,12 @@ module Initial =
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Upto) to_kw;
            Decap.apply (fun _default_0  -> Downto) downto_kw])
-    let entry_points: (string* entry_point) list ref =
-      ref
-        [(".mli", (Interface (signature, ocaml_blank)));
-        (".ml", (Implementation (structure, ocaml_blank)))]
+    let entry_points: (string* entry_point) list =
+      [(".mli", (Interface (signature, ocaml_blank)));
+      (".ml", (Implementation (structure, ocaml_blank)))]
   end
 module type Extension  = module type of Initial
 module type FExt  = functor (E : Extension) -> Extension
 include Initial
+let start_pos loc = loc.Location.loc_start
+let end_pos loc = loc.Location.loc_end

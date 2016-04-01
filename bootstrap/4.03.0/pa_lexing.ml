@@ -305,7 +305,7 @@ let _ =
           if is_reserved_id id then Decap.give_up (id ^ " is a keyword...");
           id)
        (Decap.regexp
-          ~name:"\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
+          ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
           "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
           (fun groupe  -> groupe 0)))
 let uident = Decap.declare_grammar "uident"
