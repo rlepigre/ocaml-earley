@@ -95,6 +95,7 @@ let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
 let eq_closure : type a b. a -> b -> bool =
   fun f g ->
     let open Obj in
+    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
     let adone = ref [] in
     let rec fneq f g =
       f == g ||
@@ -102,17 +103,17 @@ let eq_closure : type a b. a -> b -> bool =
 	| true, true -> f = g
 	| false, true | true, false -> false
 	| false, false ->
-	   if !debug_lvl > 10 then Printf.eprintf "*%!";
+	   (*	   if !debug_lvl > 10 then Printf.eprintf "*%!";*)
 	   let ft = tag f and gt = tag g in
 	   if ft = forward_tag then (
-	     if !debug_lvl > 10 then Printf.eprintf "#%!";
+	     (*	     if !debug_lvl > 10 then Printf.eprintf "#%!";*)
 	     fneq (field f 0) g)
 	   else if gt = forward_tag then (
-	     if !debug_lvl > 10 then Printf.eprintf "#%!";
+	     (*	     if !debug_lvl > 10 then Printf.eprintf "#%!";*)
 	     fneq f (field g 0))
 	   else if ft = custom_tag || gt = custom_tag then f = g
 	   else if ft <> gt then false
-	   else (if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;
+	   else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
 	   if ft = string_tag || ft = double_tag || ft = double_array_tag then f = g
 	   else if ft = abstract_tag || ft = out_of_heap_tag || ft = no_scan_tag then f == g
 	   else if ft =  infix_tag then (
@@ -131,6 +132,7 @@ let eq_closure : type a b. a -> b -> bool =
 		  r)))
 
     in fneq (repr f) (repr g)
+
 
 let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
 
@@ -990,7 +992,7 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
       );
       g),
   (fun f ->
-    if !is_set <> None then invalid_arg ("grammar family "^name^" already set");
+    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     is_set := Some f;
     Ahash.iter (fun p r ->
       set_grammar r (f p);
