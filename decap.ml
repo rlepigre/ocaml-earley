@@ -919,15 +919,22 @@ let iter : 'a grammar grammar -> 'a grammar
   = fun g -> dependent_sequence g (fun x -> x)
 *)
 
-let conditional_sequence : 'a grammar -> ('a -> bool) -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
+let conditional_sequence : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> 'd) -> 'd grammar
   = fun l1 cond l2 f ->
-    mk_grammar (List.map (next l1 (Simple(fun x -> if cond x then x else give_up "condition fail")))
-		  (snd (apply (fun b a -> f a b) l2)))
+    mk_grammar [next l1 (Simple cond) (next l2 (Simple (fun b a -> f a b)) idtEmpty)]
 
-let conditional_fsequence : 'a grammar -> ('a -> bool) -> ('a -> 'b) grammar -> 'b grammar
+let conditional_sequence_position : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> buffer -> int -> buffer -> int -> 'd) -> 'd grammar
+   = fun l1 cond l2 f ->
+     mk_grammar [next l1 (Simple cond)
+		  (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),new_cell ()))]
+
+let conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c grammar
   = fun l1 cond l2 ->
-    mk_grammar (List.map (next l1 (Simple(fun x -> if cond x then x else give_up "condition fail")))
-		  (snd l2))
+    mk_grammar [next l1 (Simple cond) (grammar_to_rule l2)]
+
+let conditional_fsequence_position : 'a grammar -> ('a -> 'b) -> ('b -> buffer -> int -> buffer -> int -> 'c) grammar -> 'c grammar
+  = fun l1 cond l2 ->
+    apply_position idt (conditional_fsequence l1 cond l2)
 
 let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
