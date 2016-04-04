@@ -31,7 +31,7 @@ let blank_regexp r =
 
 type info = bool * Charset.t
 
-type assoc_cell = Obj.t ref
+type assoc_cell = { mutable alr : (assoc_cell list ref * Obj.t) list }
 
 type _ pos =
   | Idt : ('a -> 'a) pos
@@ -64,6 +64,9 @@ and _ prerule =
   (** Sequence of a symbol and a rule. then bool is to ignore blank after symbol. *)
 
 and 'a rule = ('a prerule * assoc_cell)
+
+and 'a dep_pair_tbl = assoc_cell list ref
+
 
 (* type de la table de Earley *)
 type position = buffer * int
@@ -141,6 +144,7 @@ let eq_pos p1 p2 = match p1, p2 with
   | None, None -> true
   | _ -> false
 
+
 let eq_D (D {debut; rest; full; ignb; stack})
          (D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'}) =
   eq_pos debut d' && eq rest r' && eq full fu' && ignb=ignb' && (assert (eq stack stack'); true)
@@ -153,9 +157,9 @@ let eq_C c1 c2 = eq c1 c2 ||
   | (B acts, B acts') -> eq_closure acts acts'
   | _ -> false
 
-let new_cell, is_unset, unset =
-  let x = Obj.repr (0,0) in
-  (fun () -> ref x), (fun c -> !c == x), (fun c -> c := x)
+
+let new_cell(*, is_unset, unset*) =
+  (fun () -> { alr = [] })
 
 
 let idt = fun x -> x
@@ -321,16 +325,20 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
 
 type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) ref -> 'b dep_pair
 
-type 'a dep_pair_tbl = assoc_cell list ref
-
 let find (_,c) dlr =
-  if is_unset c then raise Not_found else Obj.magic !c
+  Obj.magic (List.assq dlr c.alr)
 
 let add (_,c) p dlr =
-  if is_unset c then
-    (dlr := c::!dlr; c := Obj.repr p)
-  else
+  try
+    let _ = List.assq dlr c.alr in
     assert false
+  with
+    Not_found ->
+      dlr := c::!dlr; c.alr <- (dlr,Obj.repr p)::c.alr
+
+let unset dlr =
+  List.iter (fun c ->
+    c.alr <- List.filter (fun (d,_) -> d != dlr) c.alr) !dlr
 
 let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
@@ -355,7 +363,7 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
 	| _ -> assert false
     with Not_found ->
       if !debug_lvl > 3 then
-	Printf.eprintf "add stack %a ==> %a\n%!" print_rule r print_element el;
+	Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
       let res = ref [el] in add r (P(r,res, ref (fun el -> ()))) dlr; res
 
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
@@ -418,19 +426,22 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
     let rec fn acc = function
       | [] ->
 	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
-	   (elt_pos pos element) (char_pos pos);
+	   (char_pos debut) (char_pos pos);
 	add_pos_tbl old debut (element :: oldl); true
       | e::es ->
 	 (match e, element with
 	   D {debut=d; rest; full; ignb; stack; acts},
            D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'; acts = acts'}
 	 ->
+	 (* if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %b\n%!"
+            info print_final e print_final element (elt_pos pos e) (elt_pos pos element) (eq_pos d d')
+              (eq rest r') (eq full fu') (ignb=ignb');*)
 	 (match
            eq_pos d d', rest === r', full === fu', ignb=ignb', acts, acts' with
            | true, Eq, Eq, true, act, acts' ->
 	   if not (eq_closure acts acts') && !warn_merge then
 	     Printf.eprintf "\027[31mmerging %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos);
-	   (*	     assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));*)
+	     assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
 	   false
 	  | _ ->
 	    fn (e::acc) es))
@@ -657,7 +668,7 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
 	one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
-      List.iter unset !dlr
+      unset dlr
     in
 
     prediction_production "I" [init];
@@ -859,6 +870,9 @@ let string : ?name:string -> string -> 'a -> 'a grammar
     in
     solo ~name (Charset.singleton s.[0]) fn
 
+let option : 'a -> 'a grammar -> 'a grammar
+  = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
+
 let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
   = fun ?name r0  a ->
     let r = Str.regexp r0 in
@@ -879,11 +893,17 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
       if string_match r l pos then (
         let f n = matched_group n l in
         let pos' = match_end () in
+	if pos' = pos then raise Error;
 	let res = try a f with Give_up msg -> unexpected msg in
 	(res,buf,pos'))
       else expected name
     in
-    solo ~name set fn
+    let l = "" in
+    if string_match r l 0 then
+      let f n = matched_group n "" in
+      option (a f) (solo ~name set fn)
+    else
+      solo ~name set fn
 
 (* charset is now useless ... will be suppressed soon *)
 let black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool -> string -> 'a grammar
@@ -935,9 +955,6 @@ let conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c
 let conditional_fsequence_position : 'a grammar -> ('a -> 'b) -> ('b -> buffer -> int -> buffer -> int -> 'c) grammar -> 'c grammar
   = fun l1 cond l2 ->
     apply_position idt (conditional_fsequence l1 cond l2)
-
-let option : 'a -> 'a grammar -> 'a grammar
-  = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
 
 let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
