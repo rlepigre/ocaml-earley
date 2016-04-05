@@ -28,7 +28,7 @@ and expr =
   | '(' (_,e):expr ')' -> Atom,e
   | '-' (p,e):expr -> if p < Pow then give_up ""; Pow, -. e
   | '+' (p,e):expr -> if p < Pow then give_up ""; Pow, e
-  | (p,e):expr => g:(expr_suit p) -> g e
+  | (p,e):expr ->> g:(expr_suit p) -> g e
 
 (* The main loop *)
 let _ = run (apply snd expr)
