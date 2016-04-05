@@ -17,15 +17,22 @@ let sum_sym = parser
 
 let parser expr =
   | f:float_num -> (Atom,f)
-  | '(' (_,e):expr ')'  -> Atom,e
-  | '-' (p,e):expr -> if p < Pow then give_up ""; Pow, -. e
-  | '+' (p,e):expr -> if p < Pow then give_up ""; Pow, e
-  | (conditional_sequence expr (fun (p,e) -> p > Pow) (parser "**" expr) (fun (p, e) (p', e') ->
-					      if p' < Pow then give_up ""; Pow, e ** e'))
-  | (conditional_sequence expr (fun (p,e) -> p >= Prod) (parser prod_sym expr) (fun (p, e) (fn,(p', e')) ->
-					      if p' <= Prod then give_up ""; Pow, fn e e'))
-  | (conditional_sequence expr (fun (p,e) -> p >= Sum) (parser sum_sym expr) (fun (p, e) (fn,(p', e')) ->
-					      if p' <= Sum then give_up ""; Pow, fn e e'))
+  | '(' (_,e):expr ')'  -> (Atom,e)
+  | '-' e:(expr_lvl Pow) -> (Pow, -. e)
+  | '+' e:(expr_lvl Pow) -> (Pow, e)
+  | (conditional_sequence expr
+       (fun (p,e) -> if p <= Pow then give_up ""; e)
+       (parser _:"**" (expr_lvl Pow)) (fun e e' -> (Pow, e ** e')))
+  | (conditional_sequence expr
+       (fun (p,e) -> if p < Prod then give_up ""; e)
+       (parser prod_sym (expr_lvl Pow)) (fun e (fn, e') -> (Prod, fn e e')))
+  | (conditional_sequence expr
+       (fun (p,e) -> if p < Sum then give_up ""; e)
+       (parser sum_sym (expr_lvl Prod)) (fun e (fn, e') -> (Sum, fn e e')))
+
+and expr_lvl p =
+    | (p',e):expr -> if p' < p then give_up ""; e
+
 
 (* The main loop *)
 let _ = run (apply snd expr)

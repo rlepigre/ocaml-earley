@@ -58,7 +58,7 @@ and _ symbol =
 and _ prerule =
   | Empty : 'a pos -> 'a prerule
   (** Empty rule. *)
-  (*  | Dep : (('a -> 'c rule) -> 'c rule) rule -> 'a rule*)
+  | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
   (** Dependant rule *)
   | Next : info Fixpoint.t * string * bool * 'a symbol * ('a -> 'b) pos * ('b -> 'c) rule -> 'c prerule
   (** Sequence of a symbol and a rule. then bool is to ignore blank after symbol. *)
@@ -258,11 +258,11 @@ let any = Fixpoint.from_val (true, full_charset)
 
 let pre_rule (x,_) = x
 
-let rule_info:type a.a rule -> info Fixpoint.t = fun r ->
+let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
   match pre_rule r with
   | Next(i,_,_,_,_,_) -> i
   | Empty _ -> empty
-(*  | Dep(_) -> any*)
+  | Dep(_) -> any
 
 let symbol_info:type a.a symbol -> info Fixpoint.t  = function
   | Term(i,_) -> Fixpoint.from_val (false,i)
@@ -289,7 +289,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
     match pre_rule rule with
     | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
-    (*    | Dep _ -> Printf.fprintf ch "DEP "*)
+    | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
 let print_final ch (D {rest; full}) =
@@ -297,7 +297,7 @@ let print_final ch (D {rest; full}) =
     if eq rule rest then Printf.fprintf ch "* " ;
     match pre_rule rule with
     | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
-    (*    | Dep _ -> Printf.fprintf ch "DEP "*)
+    | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
   in
   fn full;
@@ -310,6 +310,7 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
     match pre_rule rule with
     | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
     (*    | Dep _ -> Printf.fprintf ch "DEP "*)
+    | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
   in
   match el with
@@ -586,6 +587,23 @@ let rec one_prediction_production
 	in
 	pop_final dlr pos pos_ab element acts
 
+
+     | Dep(r) ->
+       if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
+       let a =
+	 let a = ref None in
+	 try let _ = acts (fun x -> a := Some x; raise Exit) in assert false
+	 with Exit ->
+	   match !a with None -> assert false | Some a -> a
+       in
+       let cc = C { debut = i;  acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
+		   rest = idtEmpty; full; ignb = () } in
+       let rule = r a in
+       let stack' = add_assq rule cc dlr in
+       let nouveau = D {debut=i; acts = idt; stack = stack'; rest = rule; full = rule; ignb} in
+       let b = add "P" pos nouveau elements in
+       if b then one_prediction_production nouveau elements dlr pos pos_ab c c'
+
      (* production	(pos, i, ... o ) dans la table *)
      | Empty(a) ->
 	(try
@@ -618,13 +636,7 @@ let rec one_prediction_production
 	  if i = None then memo_assq full dlr complete
 	  else List.iter complete !stack;
 	 with Give_up _ | Error -> ())
-(*     | Dep rest ->
-	let rest = rest acts in
-	if good c (rule_info rest) then begin
-	  let nouveau = D {debut=i; debut_after_blank=i0; fin=j; acts; stack; rest; full;ignb} in
-	  let b = add "D" nouveau elements in
-	  if b then one_prediction_production buf pos c c' rec_err dlr elements nouveau
-       end*)
+
      | Next(_,_,ignb',Test(s,f),g,rest) ->
 	(try
 	  let j = if ignb then pos else pos_ab in
@@ -922,23 +934,6 @@ let fsequence_position : 'a grammar -> ('a -> buffer -> int -> buffer -> int -> 
   = fun l1 l2 ->
     apply_position idt (fsequence l1 l2)
 
-(*
-let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
-  = fun l1 f2 ->
-    let tbl = Ahash.create 31 in
-    mk_grammar [next l1 (Dep (fun a ->
-      try Ahash.find tbl a
-      with Not_found ->
-	let res = grammar_to_rule (f2 a) in
-	Ahash.replace tbl a res;
-	res
-    ))]
-
-
-let iter : 'a grammar grammar -> 'a grammar
-  = fun g -> dependent_sequence g (fun x -> x)
-*)
-
 let conditional_sequence : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> 'd) -> 'd grammar
   = fun l1 cond l2 f ->
     mk_grammar [next l1 (Simple cond) (next l2 (Simple (fun b a -> f a b)) idtEmpty)]
@@ -1053,3 +1048,16 @@ let ignore_next_blank : 'a grammar -> 'a grammar = fun g ->
 
 
 let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
+
+let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
+  = fun l1 f2 ->
+    let tbl = Ahash.create 31 in
+	  mk_grammar [next l1 Idt (Dep (fun a ->
+	      try Ahash.find tbl a
+	      with Not_found ->
+		let res = grammar_to_rule (f2 a) in
+		Ahash.add tbl a res; res
+	  ), new_cell ())]
+
+let iter : 'a grammar grammar -> 'a grammar
+  = fun g -> dependent_sequence g (fun x -> x)

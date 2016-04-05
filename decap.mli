@@ -270,18 +270,15 @@ val conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c
 (** similar to the previous one, with position passed to the result of g2 *)
 val conditional_fsequence_position : 'a grammar -> ('a -> 'b) -> ('b -> buffer -> int -> buffer -> int -> 'c) grammar -> 'c grammar
 
-(*
+
 (** [dependent_sequence g1 g2] is a grammar that first parses using [g1],
   which returns a value [x], and then continues to parse with [g2 x] and
   return its result. *)
 val dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
 
-
-(** {2 Misc} *)
-
 val iter : 'a grammar grammar -> 'a grammar
-  (* = fun g -> dependent_sequence g (fun x -> x) *)
-*)
+(**  = fun g -> dependent_sequence g (fun x -> x) *)
+
 
 (** [option v g] tries to parse the input as [g], and returns [v] in case of
   failure. *)

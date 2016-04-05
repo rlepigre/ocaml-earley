@@ -72,7 +72,7 @@ let _ = parse_string astar2 blank "aaa"
 let _ = parse_string astar2 blank "aaaa"
 let _ = parse_string astar2 blank "aaaaa"
 
-  (*
+
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives
 			      [apply (fun _ -> ()) b;
@@ -84,7 +84,6 @@ let _ = parse_string astar3 blank "baa"
 let _ = parse_string astar3 blank "baaa"
 let _ = parse_string astar3 blank "baaaa"
 let _ = parse_string astar3 blank "baaaaa"
-  *)
 
 let debug' s g =
   sequence (debug s) g (fun () () -> ())

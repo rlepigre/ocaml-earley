@@ -422,7 +422,7 @@ struct
       def, condition, res
 
   let parser glr_action alm =
-    (*    | RE("=>") r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)*)
+    | RE("=>") r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
     | arrow_re action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
     | EMPTY -> Default
 
