@@ -164,11 +164,6 @@ val fail : string -> 'a grammar
 val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
                  -> string -> 'a grammar
 
-(** [internal_parse_buffer g bl buf pos] can be used to parse using a
-  grammar in the definition of a [black_box]. *)
-val internal_parse_buffer : 'a grammar -> blank -> buffer -> int
-                            -> 'a * buffer * int
-
 (** [char c v] is a grammar that parses the character [c] and returns [v]. *)
 val char : ?name:string -> char -> 'a -> 'a grammar
 
@@ -402,7 +397,6 @@ val blank_grammar : unit grammar -> blank -> buffer -> int -> buffer * int
 val debug_lvl : int ref
 val warn_merge : bool ref
 
-val expected : string -> 'a
 type info = bool * Charset.t
 val grammar_info : 'a grammar -> info
 

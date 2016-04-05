@@ -82,9 +82,6 @@ module Start = functor (Main : Final) -> struct
     let filename, ch = match !file with
         None -> "stdin", stdin
       | Some name ->
-  (*       let buffer = Input.buffer_from_file name in
-         List.iter (fun line ->
-  		  Printf.eprintf "%s\n" line.Input.contents) buffer;*)
          name, open_in name
     in
     try
@@ -99,15 +96,9 @@ module Start = functor (Main : Final) -> struct
   let _ =
     if !ascii then begin
       begin
-#ifversion >= 4.01
         match ast with
         | `Struct ast -> Pprintast.structure Format.std_formatter ast;
         | `Sig ast -> Pprintast.signature Format.std_formatter ast;
-#else
-        match ast with
-        | `Struct ast -> Printast.implementation Format.std_formatter ast;
-        | `Sig ast -> Printast.interface Format.std_formatter ast;
-#endif
       end;
       Format.print_newline ()
     end else begin

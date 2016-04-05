@@ -53,7 +53,7 @@ type buffer = buffer_aux Lazy.t
                   ; length       : int      (* Length of the current line. *)
                   ; contents     : string   (* Contents of the line. *)
                   ; mutable next : buffer   (* Rest of the buffer. *)
-		  ; ident        : int }    (* Unique identifier for compatison *)
+		  ; ident        : int }    (* Unique identifier for comparison *)
 
 let rec read (lazy b as b0) i =
   if b.is_empty then ('\255', b0, 0) else

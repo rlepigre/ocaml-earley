@@ -6,10 +6,9 @@ let debug_lvl = ref 0
 let warn_merge = ref true
 let _ = Printexc.record_backtrace true
 
-exception Give_up of string
 exception Error
 
-let give_up s = raise (Give_up s)
+let give_up s = raise Error
 
 type blank = buffer -> int -> buffer * int
 
@@ -46,6 +45,8 @@ type 'a grammar = info Fixpoint.t * 'a rule list
 
 and _ symbol =
   | Term : Charset.t * (buffer -> int -> 'a * buffer * int) -> 'a symbol
+  (** terminal symbol just read the input buffer *)
+  | Greedy : ((buffer * int) ref -> buffer -> int -> 'a * buffer * int) -> 'a symbol
   (** terminal symbol just read the input buffer *)
   | Test : Charset.t * (buffer -> int -> 'a * bool) -> 'a symbol
   (** test *)
@@ -266,6 +267,7 @@ let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
 
 let symbol_info:type a.a symbol -> info Fixpoint.t  = function
   | Term(i,_) -> Fixpoint.from_val (false,i)
+  | Greedy _ -> Fixpoint.from_val (false, full_charset)
   | NonTerm(i,_) | RefTerm(i,_) -> i
   | Test(set,_) -> Fixpoint.from_val (true, set)
 
@@ -382,6 +384,9 @@ let solo = fun ?(name=new_name ()) set s ->
   let j = Fixpoint.from_val i in
   (j, [(Next(j,name,false,Term (set, s),Idt,idtEmpty),new_cell ())])
 
+let lazy_solo = fun ?(name=new_name ()) i s ->
+  (i, [(Next(i,name,false,Greedy s,Idt,idtEmpty),new_cell ())])
+
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
@@ -404,7 +409,6 @@ let debut' : type a b.position -> (a,b) element -> position = fun pos -> functio
   | C { debut } -> match debut with None -> pos | Some (p,_) -> p
 let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> function A -> pos | B _ -> pos
   | C { debut } -> match debut with None -> pos | Some (_,p) -> p
-let is_term = function D { rest= (Next(_,_,_,Term _,_,_),_) } -> true | _ -> false
 
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
@@ -463,19 +467,26 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
   in
   match el with D {stack} -> fn (cast_elements !stack); !res
 
-let expected s = raise Error
-let unexpected s = raise Error
+type errpos = position ref
 
-let protect f a =
+let update_errpos ({contents=(buf',pos')} as errpos) (buf, pos as p) =
+  if
+    (match Input.cmp_buf buf' buf with
+    | 0 -> pos' < pos
+    | c -> c < 0)
+  then (
+    if !debug_lvl > 0 then Printf.eprintf "update error: %d %d\n%!" (line_num buf) pos;
+    errpos := p)
+
+let protect errpos f a =
   try
     f a
-  with Give_up _ | Error -> ()
+  with Error -> ()
 
-let protect_cons f a acc =
+let protect_cons errpos f a acc =
   try
     f a :: acc
-  with Give_up _ | Error -> acc
-
+  with Error -> acc
 
 let combine2 : type a0 a1 a2 b bb c.(a2 -> b) -> (b -> c) pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) pos =
    fun acts acts' g f ->
@@ -485,8 +496,8 @@ let combine1 : type a b c d.(c -> d) -> (a -> b) pos -> (a -> (b -> c) -> d) pos
    fun acts g -> pos_apply (fun g x -> let y = g x in fun h -> acts (h y)) g
 
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
-let lecture : type a.int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
-  fun id pos pos_ab elements tbl ->
+let lecture : type a.errpos -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
+  fun errpos id pos pos_ab elements tbl ->
     if !debug_lvl > 3 then Printf.eprintf "read at line = %d col = %d (%d)\n%!" (line_num (fst pos)) (snd pos) id;
     if !debug_lvl > 2 then Printf.eprintf "read after blank line = %d col = %d (%d)\n%!" (line_num (fst pos_ab)) (snd pos_ab) id;
     let tbl = ref tbl in
@@ -510,7 +521,26 @@ let lecture : type a.int -> position -> position -> a pos_tbl -> a final buf_tab
 	       (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;ignb=ignb0;})
 	     in
 	     tbl := insert_buf buf pos state !tbl
-	   with Error | Give_up _ -> ())
+	   with Error -> ())
+
+       | Next(_,_,ignb0,Greedy f,g,rest0) ->
+	  (try
+	     let (buf0, pos0), debut = match debut with
+		 None -> if ignb then pos, Some(pos, pos) else pos_ab, Some(pos, pos_ab)
+	       | Some(p,p') -> (if ignb then pos else pos_ab), debut
+	     in
+	     if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf0) pos0;
+	     let a, buf, pos = f errpos buf0 pos0 in
+	     if !debug_lvl > 1 then
+	       Printf.eprintf "action for greedy of %a =>" print_final element;
+             let a = try apply_pos g (buf0, pos0) (buf, pos) a
+	       with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
+	     if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
+	     let state =
+	       (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;ignb=ignb0;})
+	     in
+	     tbl := insert_buf buf pos state !tbl
+	   with Error -> ())
 
        | _ -> ()) l) elements;
     !tbl
@@ -519,8 +549,8 @@ let lecture : type a.int -> position -> position -> a pos_tbl -> a final buf_tab
    ayant la règle donnée *)
 type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
 
-let pop_final : type a. a dep_pair_tbl -> position -> position -> a final -> a action -> unit =
-  fun dlr pos pos_ab element act ->
+let pop_final : type a. errpos -> a dep_pair_tbl -> position -> position -> a final -> a action -> unit =
+  fun errpos dlr pos pos_ab element act ->
     match element with
     | D {rest=rule; acts; full; debut; stack;ignb} ->
        match pre_rule rule with
@@ -530,7 +560,7 @@ let pop_final : type a. a dep_pair_tbl -> position -> position -> a final -> a a
 	 | Empty (g) when debut <> None ->
 	    if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
 	    iter_rules (fun r ->
-	      let complete = protect (function
+	      let complete = protect errpos (function
 		| C {rest; acts=acts'; full; debut=d; stack} ->
 		   let debut = if d = None then debut else d in
 		   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack;ignb=()} in
@@ -568,8 +598,8 @@ let good c i =
    comme une prédiction ou une production peut en entraîner d'autres,
    c'est une fonction récursive *)
 let rec one_prediction_production
- : type a. a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char -> char ->  unit
- = fun element elements dlr pos pos_ab c c' ->
+ : type a. errpos -> a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char -> char ->  unit
+ = fun errpos element elements dlr pos pos_ab c c' ->
    match element with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D {debut=i; acts; stack; rest; full;ignb} as element0 ->
@@ -582,10 +612,10 @@ let rec one_prediction_production
 	    if good (if ignb then c' else c) (rule_info rule) then (
 	      let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule; ignb} in
 	      let b = add "P" pos nouveau elements in
-	      if b then one_prediction_production nouveau elements dlr pos pos_ab c c'))
+	      if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
 	  }
 	in
-	pop_final dlr pos pos_ab element acts
+	pop_final errpos dlr pos pos_ab element acts
 
 
      | Dep(r) ->
@@ -602,7 +632,7 @@ let rec one_prediction_production
        let stack' = add_assq rule cc dlr in
        let nouveau = D {debut=i; acts = idt; stack = stack'; rest = rule; full = rule; ignb} in
        let b = add "P" pos nouveau elements in
-       if b then one_prediction_production nouveau elements dlr pos pos_ab c c'
+       if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
 
      (* production	(pos, i, ... o ) dans la table *)
      | Empty(a) ->
@@ -627,15 +657,15 @@ let rec one_prediction_production
 		 if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
 		 let nouveau = D {debut=(if k = None then i else k); acts = x; stack=els'; rest; full;ignb} in
 		 let b = add "C" pos nouveau elements in
-		 if b then one_prediction_production nouveau elements dlr pos pos_ab c c'
+		 if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
 	       end
 	    | B _ -> ()
 	    | _ -> assert false
 	  in
-	  let complete = protect complete in
+	  let complete = protect errpos complete in
 	  if i = None then memo_assq full dlr complete
 	  else List.iter complete !stack;
-	 with Give_up _ | Error -> ())
+	 with Error -> ())
 
      | Next(_,_,ignb',Test(s,f),g,rest) ->
 	(try
@@ -647,16 +677,16 @@ let rec one_prediction_production
 	    let nouveau = D {debut=i; stack; rest; full;ignb=ignb';
 	                     acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
 	    let b = add "T" pos nouveau elements in
-	    if b then one_prediction_production nouveau elements dlr  pos pos_ab c c'
+	    if b then one_prediction_production errpos nouveau elements dlr  pos pos_ab c c'
 	  end
-	 with Give_up _ | Error -> ())
+	 with Error -> ())
      | _ -> ()
 
 exception Parse_error of string * int * int * string list * string list
 
 let c = ref 0
-let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
-  fun internal main blank buf0 pos0 ->
+let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
+  fun errpos internal main blank buf0 pos0 ->
     Fixpoint.debug := !debug_lvl > 2;
     let parse_id = incr c; !c in
     (* construction de la table initiale *)
@@ -676,10 +706,11 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
       let c,_,_ = Input.read buf'' pos'' in
       let c',_,_ = Input.read !buf !pos in
       buf' := buf''; pos' := pos'';
+      update_errpos errpos (buf'', pos'');
       if !debug_lvl > 0 then Printf.eprintf "read blank: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
-	one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
+	one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
       unset dlr
     in
 
@@ -688,9 +719,10 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
     (* boucle principale *)
     let continue = ref true in
     while !continue do
-      if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d\n%!"
-	parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward);
-     forward := lecture parse_id (!buf, !pos) (!buf', !pos') elements !forward;
+      if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d (%d,%d)\n%!"
+	parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward)
+        (line_num (fst !errpos)) (snd !errpos);
+     forward := lecture errpos parse_id (!buf, !pos) (!buf', !pos') elements !forward;
      let l =
        try
 	 let (buf', pos', l, forward') = pop_firsts_buf !forward in
@@ -704,8 +736,11 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
     done;
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
-      if internal then raise Error else
-	raise (Parse_error (fname !buf, line_num !buf, !pos, [], []))
+      if internal then
+	raise Error
+      else
+	let buf, pos = !errpos in
+	raise (Parse_error (fname buf, line_num buf, pos, [], []))
     in
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> a = function
@@ -716,14 +751,14 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
 	   let rec gn : type a b.(unit -> a) -> b -> (b,a) element list -> a = fun cont x -> function
 	     | B (ls)::l ->
 	       (try apply_pos ls (buf0, pos0) (!buf, !pos) x
-		with Error | Give_up _ -> gn cont x l)
+		with Error -> gn cont x l)
 	     | C _:: l ->
 		gn cont x l
 	     | _::l -> assert false
 	     | [] -> cont ()
 	   in
 	   gn (fun () -> fn els) x !s1
-	  with Error | Give_up _ -> fn els)
+	  with Error -> fn els)
       | _ :: els -> fn els
     in
     let a = (try fn (find_pos_tbl elements (buf0,pos0)) with Not_found -> parse_error ()) in
@@ -732,15 +767,15 @@ let parse_buffer_aux : type a.bool -> a grammar -> blank -> buffer -> int -> a *
 
 let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
    = fun g bl buf pos ->
-       parse_buffer_aux false g bl buf pos
+       parse_buffer_aux (ref(buf,pos)) false g bl buf pos
 
-let internal_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
-  = fun g bl buf pos -> parse_buffer_aux true g bl buf pos
+let internal_parse_buffer : type a.errpos -> a grammar -> blank -> buffer -> int -> a * buffer * int
+  = fun errpos g bl buf pos -> parse_buffer_aux errpos true g bl buf pos
 
 let eof : 'a -> 'a grammar
   = fun a ->
     let fn buf pos =
-      if is_empty buf pos then (a,buf,pos) else expected "EOF"
+      if is_empty buf pos then (a,buf,pos) else raise Error
     in
     solo (Charset.singleton '\255') fn
 
@@ -784,11 +819,9 @@ let parse_file grammar blank filename  =
   let str = buffer_from_file filename in
   parse_buffer grammar blank str
 
-let fail : string -> 'a grammar
+let fail : 'b -> 'a grammar
   = fun msg ->
-    let fn buf pos =
-      unexpected msg
-    in
+    let fn buf pos = raise Error in
     solo Charset.empty_charset fn (* make sure we have the message *)
 
 let unset : string -> 'a grammar
@@ -824,7 +857,7 @@ let char : ?name:string -> char -> 'a -> 'a grammar
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
       let c', buf', pos' = read buf pos in
-      if c = c' then (a,buf',pos') else expected msg
+      if c = c' then (a,buf',pos') else give_up ()
     in
     solo ~name (Charset.singleton c) fn
 
@@ -834,7 +867,7 @@ let in_charset : ?name:string -> charset -> char grammar
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
       let c, buf', pos' = read buf pos in
-      if mem cs c then (c,buf',pos') else expected msg
+      if mem cs c then (c,buf',pos') else give_up ()
     in
     solo ~name cs fn
 
@@ -875,7 +908,7 @@ let string : ?name:string -> string -> 'a -> 'a grammar
       let len_s = String.length s in
       for i = 0 to len_s - 1 do
         let c, buf', pos' = read !buf !pos in
-        if c <> s.[i] then expected s;
+        if c <> s.[i] then give_up ();
         buf := buf'; pos := pos'
       done;
       (a,!buf,!pos)
@@ -901,14 +934,14 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
     (*    if ae then invalid_arg "Decap.regexp"; FIXME*)
     let fn buf pos =
       let l = line buf in
-      if pos > String.length l then expected name;
+      if pos > String.length l then give_up ();
       if string_match r l pos then (
         let f n = matched_group n l in
         let pos' = match_end () in
 	if pos' = pos then raise Error;
-	let res = try a f with Give_up msg -> unexpected msg in
+	let res = a f in
 	(res,buf,pos'))
-      else expected name
+      else give_up ()
     in
     let l = "" in
     if string_match r l 0 then
@@ -1020,7 +1053,7 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
 let blank_grammar grammar blank buf pos =
   let save_debug = !debug_lvl in
   debug_lvl := !debug_lvl / 10;
-  let (_,buf,pos) = internal_parse_buffer grammar blank buf pos in
+  let (_,buf,pos) = internal_parse_buffer (ref(buf,pos)) grammar blank buf pos in
   debug_lvl := save_debug;
   if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
   (buf,pos)
@@ -1036,12 +1069,11 @@ let change_layout : 'a grammar -> blank -> 'a grammar
     (* compose with a test with a full_charset to pass the final charset test in
        internal_parse_buffer *)
     let l1 = sequence l1 (test full_charset (fun _ _ -> (), true)) (fun x _ -> x) in
-    let fn buf pos =
-      let (a,buf,pos) = internal_parse_buffer l1 blank1 buf pos in
+    let fn errpos buf pos =
+      let (a,buf,pos) = internal_parse_buffer errpos l1 blank1 buf pos in
       (a,buf,pos)
     in
-    let (ae, set) = force (fst l1) in
-    solo (*FIXME:ae = true*) set fn
+    lazy_solo (fst l1) fn
 
 let ignore_next_blank : 'a grammar -> 'a grammar = fun g ->
   mk_grammar [next ~ignb:true g Idt idtEmpty]
