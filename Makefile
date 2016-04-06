@@ -1,6 +1,6 @@
 OCAMLFIND = ocamlfind
-OCAMLC = $(OCAMLFIND) ocamlc
-OCAMLOPT = $(OCAMLFIND) ocamlopt -intf-suffix .cmi
+OCAMLC = $(OCAMLFIND) ocamlc -package bytes
+OCAMLOPT = $(OCAMLFIND) ocamlopt -package bytes -intf-suffix .cmi
 BINDIR = /usr/local/bin
 
 # do not add decap.cm(x)a because decap in bootstrap is

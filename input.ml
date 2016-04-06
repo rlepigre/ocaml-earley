@@ -276,16 +276,16 @@ let input_line chan =
     if n = 0 then begin                   (* n = 0: we are at EOF *)
       match accu with
         [] -> raise End_of_file
-      | _  -> build_result (String.create len) len accu
+      | _  -> build_result (Bytes.create len) len accu
     end else if n > 0 then begin          (* n > 0: newline found in buffer *)
-      let res = String.create n in
+      let res = Bytes.create n in
       ignore (unsafe_input chan res 0 n);
       match accu with
         [] -> res
       |  _ -> let len = len + n in
-              build_result (String.create len) len (res :: accu)
+              build_result (Bytes.create len) len (res :: accu)
     end else begin                        (* n < 0: newline not found *)
-      let beg = String.create (-n) in
+      let beg = Bytes.create (-n) in
       ignore(unsafe_input chan beg 0 (-n));
       scan (beg :: accu) (len - n)
     end
