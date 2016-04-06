@@ -1,8 +1,5 @@
 #!/bin/bash
 
-make pa_ocaml
-make asttools
-
 export MAKEOPTS="OCAMLFIND= OCAMLOPT=ocamlopt.opt OCAMLC=ocamlc.opt"
 export MAKE="make $MAKEOPTS"
 
@@ -16,11 +13,12 @@ function build {
     echo $PATH
     which ocamlopt.opt
     touch pa_ocaml.ml
-    $MAKE ASCII=--ascii clean boot asttools
-    if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi
-    echo ==========================================================
-    $MAKE distclean
-    echo ==========================================================
+    $MAKE distclean &&\
+    $MAKE &&\
+    $MAKE &&\
+    $MAKE ASCII=--ascii clean boot asttools &&\
+    if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
+    $MAKE distclean &&\
     $MAKE && $MAKE
     echo ==========================================================
     # ./tests_pa_ocaml.sh

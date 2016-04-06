@@ -46,7 +46,7 @@ type 'a grammar = info Fixpoint.t * 'a rule list
 and _ symbol =
   | Term : Charset.t * (buffer -> int -> 'a * buffer * int) -> 'a symbol
   (** terminal symbol just read the input buffer *)
-  | Greedy : ((buffer * int) ref -> buffer -> int -> 'a * buffer * int) -> 'a symbol
+  | Greedy : info Fixpoint.t * ((buffer * int) ref -> blank -> buffer -> int -> buffer -> int -> 'a * buffer * int) -> 'a symbol
   (** terminal symbol just read the input buffer *)
   | Test : Charset.t * (buffer -> int -> 'a * bool) -> 'a symbol
   (** test *)
@@ -267,8 +267,7 @@ let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
 
 let symbol_info:type a.a symbol -> info Fixpoint.t  = function
   | Term(i,_) -> Fixpoint.from_val (false,i)
-  | Greedy _ -> Fixpoint.from_val (false, full_charset)
-  | NonTerm(i,_) | RefTerm(i,_) -> i
+  | NonTerm(i,_) | Greedy(i,_) | RefTerm(i,_) -> i
   | Test(set,_) -> Fixpoint.from_val (true, set)
 
 let compose_info i1 i2 =
@@ -384,8 +383,8 @@ let solo = fun ?(name=new_name ()) set s ->
   let j = Fixpoint.from_val i in
   (j, [(Next(j,name,false,Term (set, s),Idt,idtEmpty),new_cell ())])
 
-let lazy_solo = fun ?(name=new_name ()) i s ->
-  (i, [(Next(i,name,false,Greedy s,Idt,idtEmpty),new_cell ())])
+let greedy_solo = fun ?(name=new_name ()) i s ->
+  (i, [(Next(i,name,false,Greedy(i,s),Idt,idtEmpty),new_cell ())])
 
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
@@ -496,8 +495,8 @@ let combine1 : type a b c d.(c -> d) -> (a -> b) pos -> (a -> (b -> c) -> d) pos
    fun acts g -> pos_apply (fun g x -> let y = g x in fun h -> acts (h y)) g
 
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
-let lecture : type a.errpos -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
-  fun errpos id pos pos_ab elements tbl ->
+let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
+  fun errpos blank id pos pos_ab elements tbl ->
     if !debug_lvl > 3 then Printf.eprintf "read at line = %d col = %d (%d)\n%!" (line_num (fst pos)) (snd pos) id;
     if !debug_lvl > 2 then Printf.eprintf "read after blank line = %d col = %d (%d)\n%!" (line_num (fst pos_ab)) (snd pos_ab) id;
     let tbl = ref tbl in
@@ -523,14 +522,14 @@ let lecture : type a.errpos -> int -> position -> position -> a pos_tbl -> a fin
 	     tbl := insert_buf buf pos state !tbl
 	   with Error -> ())
 
-       | Next(_,_,ignb0,Greedy f,g,rest0) ->
+       | Next(_,_,ignb0,Greedy(_,f),g,rest0) ->
 	  (try
 	     let (buf0, pos0), debut = match debut with
 		 None -> if ignb then pos, Some(pos, pos) else pos_ab, Some(pos, pos_ab)
 	       | Some(p,p') -> (if ignb then pos else pos_ab), debut
 	     in
 	     if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf0) pos0;
-	     let a, buf, pos = f errpos buf0 pos0 in
+	     let a, buf, pos = f errpos blank (fst pos) (snd pos) buf0 pos0 in
 	     if !debug_lvl > 1 then
 	       Printf.eprintf "action for greedy of %a =>" print_final element;
              let a = try apply_pos g (buf0, pos0) (buf, pos) a
@@ -722,7 +721,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d (%d,%d)\n%!"
 	parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward)
         (line_num (fst !errpos)) (snd !errpos);
-     forward := lecture errpos parse_id (!buf, !pos) (!buf', !pos') elements !forward;
+     forward := lecture errpos blank parse_id (!buf, !pos) (!buf', !pos') elements !forward;
      let l =
        try
 	 let (buf', pos', l, forward') = pop_firsts_buf !forward in
@@ -743,14 +742,15 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	raise (Parse_error (fname buf, line_num buf, pos, [], []))
     in
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let rec fn : type a.a final list -> a = function
+    let rec fn : type a.a final list -> bool * a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els ->
+      | D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} :: els ->
 	 (try
 	   let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
-	   let rec gn : type a b.(unit -> a) -> b -> (b,a) element list -> a = fun cont x -> function
+	   let rec gn : type a b.(unit -> bool * a) -> b -> (b,a) element list -> bool * a =
+	     fun cont x -> function
 	     | B (ls)::l ->
-	       (try apply_pos ls (buf0, pos0) (!buf, !pos) x
+	       (try ignb, apply_pos ls (buf0, pos0) (!buf, !pos) x
 		with Error -> gn cont x l)
 	     | C _:: l ->
 		gn cont x l
@@ -761,9 +761,9 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	  with Error -> fn els)
       | _ :: els -> fn els
     in
-    let a = (try fn (find_pos_tbl elements (buf0,pos0)) with Not_found -> parse_error ()) in
+    let ignb, a = (try fn (find_pos_tbl elements (buf0,pos0)) with Not_found -> parse_error ()) in
     if !debug_lvl > 0 then Printf.eprintf "exit parsing %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    (a, !buf', !pos')
+    if ignb then (a, !buf, !pos) else (a, !buf', !pos')
 
 let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
    = fun g bl buf pos ->
@@ -1064,16 +1064,33 @@ let accept_empty grammar =
   with
     Parse_error _ -> false
 
-let change_layout : 'a grammar -> blank -> 'a grammar
-  = fun l1 blank1 ->
+let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a grammar -> blank -> 'a grammar
+  = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
+    let i = Fixpoint.from_val (false, full_charset) in
     (* compose with a test with a full_charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = sequence l1 (test full_charset (fun _ _ -> (), true)) (fun x _ -> x) in
-    let fn errpos buf pos =
+    let ignb = not new_blank_after in
+    let l1 = mk_grammar [next ~ignb l1 Idt (next ~ignb (test full_charset (fun _ _ -> (), true))
+			       (Simple (fun _ a -> a)) idtEmpty)] in
+    let fn errpos _ buf pos buf' pos' =
+      let buf,pos = if old_blank_before then buf', pos' else buf, pos in
       let (a,buf,pos) = internal_parse_buffer errpos l1 blank1 buf pos in
       (a,buf,pos)
     in
-    lazy_solo (fst l1) fn
+    greedy_solo i fn
+
+let greedy : 'a grammar -> 'a grammar
+  = fun l1 ->
+    (* compose with a test with a full_charset to pass the final charset test in
+       internal_parse_buffer *)
+    let l1 = mk_grammar [next ~ignb:true l1 Idt (next ~ignb:true (test full_charset (fun _ _ -> (), true))
+						   (Simple (fun _ a -> a)) idtEmpty)] in
+    (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
+    let fn errpos blank buf pos _ _ =
+      let (a,buf,pos) = internal_parse_buffer errpos l1 blank buf pos in
+      (a,buf,pos)
+    in
+    greedy_solo (fst l1) fn
 
 let ignore_next_blank : 'a grammar -> 'a grammar = fun g ->
   mk_grammar [next ~ignb:true g Idt idtEmpty]

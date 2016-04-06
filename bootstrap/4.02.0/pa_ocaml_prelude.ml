@@ -158,7 +158,7 @@ module Initial =
         (Decap.apply (fun l  -> List.flatten l)
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l) signature_item))))
+                 (Decap.apply (fun x  -> fun y  -> x :: y) signature_item))))
     type type_prio =
       | TopType
       | As

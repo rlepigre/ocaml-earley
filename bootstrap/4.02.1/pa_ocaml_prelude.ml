@@ -148,8 +148,8 @@ module Initial =
     type arg_label = string
     let ((parameter :
            bool ->
-             [ `Arg of (arg_label* expression option* pattern) 
-             | `Type of string ] grammar),set_parameter)
+             [ `Arg of (arg_label* expression option* pattern)
+             | `Type of string] grammar),set_parameter)
       = grammar_family "parameter"
     let structure = structure_item
     let signature = Decap.declare_grammar "signature"
@@ -158,7 +158,7 @@ module Initial =
         (Decap.apply (fun l  -> List.flatten l)
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l) signature_item))))
+                 (Decap.apply (fun x  -> fun y  -> x :: y) signature_item))))
     type type_prio =
       | TopType
       | As

@@ -147,41 +147,27 @@ let rec build_action _loc occur_loc ids e =
   ) e (List.rev ids)
 
 let apply_option _loc opt visible e =
+  let fn e f d =
+    match d with
+       None   -> <:expr< Decap.$lid:f$ None (Decap.apply (fun x -> Some x) $e$) >>
+    | Some d -> <:expr< Decap.$lid:f$ $d$ $e$ >>
+  in
+  let gn e f d =
+    match d with
+      None   -> <:expr< Decap.apply List.rev (Decap.$lid:f$ [] (Decap.apply (fun x y -> x::y) $e$)) >>
+    | Some d -> <:expr< Decap.$lid:f$ $d$ $e$ >>
+  in
+  let kn e = function
+    | None   -> e
+    | Some _ -> <:expr< Decap.greedy $e$ >>
+  in
   filter _loc visible (match opt with
     `Once -> e
-  | `Option(d) ->
-     let f = "option" in
-    (match d with
-       None ->
-       exp_apply _loc (exp_glr_fun _loc f)
-	  [exp_None _loc;
-	   exp_apply _loc (exp_glr_fun _loc "apply")
-	     [exp_Some_fun _loc; e]]
-     | Some d ->
-	exp_apply _loc (exp_glr_fun _loc f) [d; e])
-  | `Fixpoint(d) ->
-     let f = "fixpoint" in
-    (match d with None ->
-       exp_apply _loc (exp_glr_fun _loc "apply")
-	  [exp_list_fun _loc "rev";
-	   exp_apply _loc (exp_glr_fun _loc f)
-	     [exp_Nil _loc;
-	      exp_apply _loc (exp_glr_fun _loc "apply")
-		[exp_Cons_fun _loc; e]]]
-    | Some d ->
-       exp_apply _loc (exp_glr_fun _loc f) [d; e])
-  | `Fixpoint1(d) ->
-     let f = "fixpoint1" in
-    (match d with None ->
-       exp_apply _loc (exp_glr_fun _loc "apply")
-	  [exp_list_fun _loc "rev";
-	   exp_apply _loc (exp_glr_fun _loc f)
-	     [exp_Nil _loc;
-	      exp_apply _loc (exp_glr_fun _loc "apply")
-		[exp_Cons_fun _loc; e]]]
-    | Some d ->
-       exp_apply _loc (exp_glr_fun _loc f) [d; e])
-   )
+  | `Option(d,g)    -> kn (fn e "option" d) g
+  | `Greedy       -> <:expr< Decap.greedy $e$ >>
+  | `Fixpoint(d,g)  -> kn (gn e "fixpoint" d) g
+  | `Fixpoint1(d,g) -> kn (gn e "fixpoint1" d) g
+  )
 
 let default_action _loc l =
   let l = List.filter (function `Normal((("_",_),false,_,_,_)) -> false | `Ignore -> false | _ -> true) l in
@@ -270,9 +256,10 @@ struct
       e:{ CHR('[') e:expression CHR(']') }? -> e
 
   let parser glr_option =
-    | CHR('*') e:glr_opt_expr -> `Fixpoint(e)
-    | CHR('+') e:glr_opt_expr -> `Fixpoint1(e)
-    | CHR('?') e:glr_opt_expr -> `Option(e)
+    | '*' e:glr_opt_expr g:'#'? -> `Fixpoint(e,g)
+    | '+' e:glr_opt_expr g:'#'? -> `Fixpoint1(e,g)
+    | '?' e:glr_opt_expr g:'#'? -> `Option(e,g)
+    | '#'                -> `Greedy
     | EMPTY -> `Once
 
   let parser glr_sequence =

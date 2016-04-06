@@ -98,40 +98,1483 @@ let rec build_action _loc occur_loc ids e =
                (pexp_fun (nolabel, None, (mkpatt' _loc (id, x)), e))) e
     (List.rev ids)
 let apply_option _loc opt visible e =
+  let fn e f d =
+    match d with
+    | None  ->
+        {
+          Parsetree.pexp_desc =
+            (Parsetree.Pexp_apply
+               ({
+                  Parsetree.pexp_desc =
+                    (Parsetree.Pexp_ident
+                       {
+                         Asttypes.txt =
+                           (Longident.Ldot ((Longident.Lident "Decap"), f));
+                         Asttypes.loc =
+                           {
+                             Location.loc_start =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 152;
+                                 Lexing.pos_bol = 5249;
+                                 Lexing.pos_cnum = 5274
+                               };
+                             Location.loc_end =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 152;
+                                 Lexing.pos_bol = 5249;
+                                 Lexing.pos_cnum = 5287
+                               };
+                             Location.loc_ghost = false
+                           }
+                       });
+                  Parsetree.pexp_loc =
+                    {
+                      Location.loc_start =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 152;
+                          Lexing.pos_bol = 5249;
+                          Lexing.pos_cnum = 5274
+                        };
+                      Location.loc_end =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 152;
+                          Lexing.pos_bol = 5249;
+                          Lexing.pos_cnum = 5287
+                        };
+                      Location.loc_ghost = false
+                    };
+                  Parsetree.pexp_attributes = []
+                },
+                 [("",
+                    {
+                      Parsetree.pexp_desc =
+                        (Parsetree.Pexp_construct
+                           ({
+                              Asttypes.txt = (Longident.Lident "None");
+                              Asttypes.loc =
+                                {
+                                  Location.loc_start =
+                                    {
+                                      Lexing.pos_fname = "pa_parser.ml";
+                                      Lexing.pos_lnum = 152;
+                                      Lexing.pos_bol = 5249;
+                                      Lexing.pos_cnum = 5288
+                                    };
+                                  Location.loc_end =
+                                    {
+                                      Lexing.pos_fname = "pa_parser.ml";
+                                      Lexing.pos_lnum = 152;
+                                      Lexing.pos_bol = 5249;
+                                      Lexing.pos_cnum = 5292
+                                    };
+                                  Location.loc_ghost = false
+                                }
+                            }, None));
+                      Parsetree.pexp_loc =
+                        {
+                          Location.loc_start =
+                            {
+                              Lexing.pos_fname = "pa_parser.ml";
+                              Lexing.pos_lnum = 152;
+                              Lexing.pos_bol = 5249;
+                              Lexing.pos_cnum = 5288
+                            };
+                          Location.loc_end =
+                            {
+                              Lexing.pos_fname = "pa_parser.ml";
+                              Lexing.pos_lnum = 152;
+                              Lexing.pos_bol = 5249;
+                              Lexing.pos_cnum = 5292
+                            };
+                          Location.loc_ghost = false
+                        };
+                      Parsetree.pexp_attributes = []
+                    });
+                 ("",
+                   {
+                     Parsetree.pexp_desc =
+                       (Parsetree.Pexp_apply
+                          ({
+                             Parsetree.pexp_desc =
+                               (Parsetree.Pexp_ident
+                                  {
+                                    Asttypes.txt =
+                                      (Longident.Ldot
+                                         ((Longident.Lident "Decap"),
+                                           "apply"));
+                                    Asttypes.loc =
+                                      {
+                                        Location.loc_start =
+                                          {
+                                            Lexing.pos_fname = "pa_parser.ml";
+                                            Lexing.pos_lnum = 152;
+                                            Lexing.pos_bol = 5249;
+                                            Lexing.pos_cnum = 5294
+                                          };
+                                        Location.loc_end =
+                                          {
+                                            Lexing.pos_fname = "pa_parser.ml";
+                                            Lexing.pos_lnum = 152;
+                                            Lexing.pos_bol = 5249;
+                                            Lexing.pos_cnum = 5305
+                                          };
+                                        Location.loc_ghost = false
+                                      }
+                                  });
+                             Parsetree.pexp_loc =
+                               {
+                                 Location.loc_start =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 152;
+                                     Lexing.pos_bol = 5249;
+                                     Lexing.pos_cnum = 5294
+                                   };
+                                 Location.loc_end =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 152;
+                                     Lexing.pos_bol = 5249;
+                                     Lexing.pos_cnum = 5305
+                                   };
+                                 Location.loc_ghost = false
+                               };
+                             Parsetree.pexp_attributes = []
+                           },
+                            [("",
+                               {
+                                 Parsetree.pexp_desc =
+                                   (Parsetree.Pexp_fun
+                                      ("", None,
+                                        {
+                                          Parsetree.ppat_desc =
+                                            (Parsetree.Ppat_var
+                                               {
+                                                 Asttypes.txt = "x";
+                                                 Asttypes.loc =
+                                                   {
+                                                     Location.loc_start =
+                                                       {
+                                                         Lexing.pos_fname =
+                                                           "pa_parser.ml";
+                                                         Lexing.pos_lnum =
+                                                           152;
+                                                         Lexing.pos_bol =
+                                                           5249;
+                                                         Lexing.pos_cnum =
+                                                           5311
+                                                       };
+                                                     Location.loc_end =
+                                                       {
+                                                         Lexing.pos_fname =
+                                                           "pa_parser.ml";
+                                                         Lexing.pos_lnum =
+                                                           152;
+                                                         Lexing.pos_bol =
+                                                           5249;
+                                                         Lexing.pos_cnum =
+                                                           5312
+                                                       };
+                                                     Location.loc_ghost =
+                                                       false
+                                                   }
+                                               });
+                                          Parsetree.ppat_loc =
+                                            {
+                                              Location.loc_start =
+                                                {
+                                                  Lexing.pos_fname =
+                                                    "pa_parser.ml";
+                                                  Lexing.pos_lnum = 152;
+                                                  Lexing.pos_bol = 5249;
+                                                  Lexing.pos_cnum = 5311
+                                                };
+                                              Location.loc_end =
+                                                {
+                                                  Lexing.pos_fname =
+                                                    "pa_parser.ml";
+                                                  Lexing.pos_lnum = 152;
+                                                  Lexing.pos_bol = 5249;
+                                                  Lexing.pos_cnum = 5312
+                                                };
+                                              Location.loc_ghost = false
+                                            };
+                                          Parsetree.ppat_attributes = []
+                                        },
+                                        {
+                                          Parsetree.pexp_desc =
+                                            (Parsetree.Pexp_construct
+                                               ({
+                                                  Asttypes.txt =
+                                                    (Longident.Lident "Some");
+                                                  Asttypes.loc =
+                                                    {
+                                                      Location.loc_start =
+                                                        {
+                                                          Lexing.pos_fname =
+                                                            "pa_parser.ml";
+                                                          Lexing.pos_lnum =
+                                                            152;
+                                                          Lexing.pos_bol =
+                                                            5249;
+                                                          Lexing.pos_cnum =
+                                                            5316
+                                                        };
+                                                      Location.loc_end =
+                                                        {
+                                                          Lexing.pos_fname =
+                                                            "pa_parser.ml";
+                                                          Lexing.pos_lnum =
+                                                            152;
+                                                          Lexing.pos_bol =
+                                                            5249;
+                                                          Lexing.pos_cnum =
+                                                            5320
+                                                        };
+                                                      Location.loc_ghost =
+                                                        false
+                                                    }
+                                                },
+                                                 (Some
+                                                    {
+                                                      Parsetree.pexp_desc =
+                                                        (Parsetree.Pexp_ident
+                                                           {
+                                                             Asttypes.txt =
+                                                               (Longident.Lident
+                                                                  "x");
+                                                             Asttypes.loc =
+                                                               {
+                                                                 Location.loc_start
+                                                                   =
+                                                                   {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 152;
+                                                                    Lexing.pos_bol
+                                                                    = 5249;
+                                                                    Lexing.pos_cnum
+                                                                    = 5321
+                                                                   };
+                                                                 Location.loc_end
+                                                                   =
+                                                                   {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 152;
+                                                                    Lexing.pos_bol
+                                                                    = 5249;
+                                                                    Lexing.pos_cnum
+                                                                    = 5322
+                                                                   };
+                                                                 Location.loc_ghost
+                                                                   = false
+                                                               }
+                                                           });
+                                                      Parsetree.pexp_loc =
+                                                        {
+                                                          Location.loc_start
+                                                            =
+                                                            {
+                                                              Lexing.pos_fname
+                                                                =
+                                                                "pa_parser.ml";
+                                                              Lexing.pos_lnum
+                                                                = 152;
+                                                              Lexing.pos_bol
+                                                                = 5249;
+                                                              Lexing.pos_cnum
+                                                                = 5321
+                                                            };
+                                                          Location.loc_end =
+                                                            {
+                                                              Lexing.pos_fname
+                                                                =
+                                                                "pa_parser.ml";
+                                                              Lexing.pos_lnum
+                                                                = 152;
+                                                              Lexing.pos_bol
+                                                                = 5249;
+                                                              Lexing.pos_cnum
+                                                                = 5322
+                                                            };
+                                                          Location.loc_ghost
+                                                            = false
+                                                        };
+                                                      Parsetree.pexp_attributes
+                                                        = []
+                                                    })));
+                                          Parsetree.pexp_loc =
+                                            {
+                                              Location.loc_start =
+                                                {
+                                                  Lexing.pos_fname =
+                                                    "pa_parser.ml";
+                                                  Lexing.pos_lnum = 152;
+                                                  Lexing.pos_bol = 5249;
+                                                  Lexing.pos_cnum = 5321
+                                                };
+                                              Location.loc_end =
+                                                {
+                                                  Lexing.pos_fname =
+                                                    "pa_parser.ml";
+                                                  Lexing.pos_lnum = 152;
+                                                  Lexing.pos_bol = 5249;
+                                                  Lexing.pos_cnum = 5322
+                                                };
+                                              Location.loc_ghost = false
+                                            };
+                                          Parsetree.pexp_attributes = []
+                                        }));
+                                 Parsetree.pexp_loc =
+                                   {
+                                     Location.loc_start =
+                                       {
+                                         Lexing.pos_fname = "pa_parser.ml";
+                                         Lexing.pos_lnum = 152;
+                                         Lexing.pos_bol = 5249;
+                                         Lexing.pos_cnum = 5306
+                                       };
+                                     Location.loc_end =
+                                       {
+                                         Lexing.pos_fname = "pa_parser.ml";
+                                         Lexing.pos_lnum = 152;
+                                         Lexing.pos_bol = 5249;
+                                         Lexing.pos_cnum = 5323
+                                       };
+                                     Location.loc_ghost = false
+                                   };
+                                 Parsetree.pexp_attributes = []
+                               });
+                            ("", e)]));
+                     Parsetree.pexp_loc =
+                       {
+                         Location.loc_start =
+                           {
+                             Lexing.pos_fname = "pa_parser.ml";
+                             Lexing.pos_lnum = 152;
+                             Lexing.pos_bol = 5249;
+                             Lexing.pos_cnum = 5293
+                           };
+                         Location.loc_end =
+                           {
+                             Lexing.pos_fname = "pa_parser.ml";
+                             Lexing.pos_lnum = 152;
+                             Lexing.pos_bol = 5249;
+                             Lexing.pos_cnum = 5328
+                           };
+                         Location.loc_ghost = false
+                       };
+                     Parsetree.pexp_attributes = []
+                   })]));
+          Parsetree.pexp_loc =
+            {
+              Location.loc_start =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 152;
+                  Lexing.pos_bol = 5249;
+                  Lexing.pos_cnum = 5293
+                };
+              Location.loc_end =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 152;
+                  Lexing.pos_bol = 5249;
+                  Lexing.pos_cnum = 5328
+                };
+              Location.loc_ghost = false
+            };
+          Parsetree.pexp_attributes = []
+        }
+    | Some d ->
+        {
+          Parsetree.pexp_desc =
+            (Parsetree.Pexp_apply
+               ({
+                  Parsetree.pexp_desc =
+                    (Parsetree.Pexp_ident
+                       {
+                         Asttypes.txt =
+                           (Longident.Ldot ((Longident.Lident "Decap"), f));
+                         Asttypes.loc =
+                           {
+                             Location.loc_start =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 153;
+                                 Lexing.pos_bol = 5332;
+                                 Lexing.pos_cnum = 5356
+                               };
+                             Location.loc_end =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 153;
+                                 Lexing.pos_bol = 5332;
+                                 Lexing.pos_cnum = 5369
+                               };
+                             Location.loc_ghost = false
+                           }
+                       });
+                  Parsetree.pexp_loc =
+                    {
+                      Location.loc_start =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 153;
+                          Lexing.pos_bol = 5332;
+                          Lexing.pos_cnum = 5356
+                        };
+                      Location.loc_end =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 153;
+                          Lexing.pos_bol = 5332;
+                          Lexing.pos_cnum = 5369
+                        };
+                      Location.loc_ghost = false
+                    };
+                  Parsetree.pexp_attributes = []
+                }, [("", d); ("", e)]));
+          Parsetree.pexp_loc =
+            {
+              Location.loc_start =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 153;
+                  Lexing.pos_bol = 5332;
+                  Lexing.pos_cnum = 5374
+                };
+              Location.loc_end =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 153;
+                  Lexing.pos_bol = 5332;
+                  Lexing.pos_cnum = 5377
+                };
+              Location.loc_ghost = false
+            };
+          Parsetree.pexp_attributes = []
+        } in
+  let gn e f d =
+    match d with
+    | None  ->
+        {
+          Parsetree.pexp_desc =
+            (Parsetree.Pexp_apply
+               ({
+                  Parsetree.pexp_desc =
+                    (Parsetree.Pexp_ident
+                       {
+                         Asttypes.txt =
+                           (Longident.Ldot
+                              ((Longident.Lident "Decap"), "apply"));
+                         Asttypes.loc =
+                           {
+                             Location.loc_start =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 157;
+                                 Lexing.pos_bol = 5420;
+                                 Lexing.pos_cnum = 5444
+                               };
+                             Location.loc_end =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 157;
+                                 Lexing.pos_bol = 5420;
+                                 Lexing.pos_cnum = 5455
+                               };
+                             Location.loc_ghost = false
+                           }
+                       });
+                  Parsetree.pexp_loc =
+                    {
+                      Location.loc_start =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 157;
+                          Lexing.pos_bol = 5420;
+                          Lexing.pos_cnum = 5444
+                        };
+                      Location.loc_end =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 157;
+                          Lexing.pos_bol = 5420;
+                          Lexing.pos_cnum = 5455
+                        };
+                      Location.loc_ghost = false
+                    };
+                  Parsetree.pexp_attributes = []
+                },
+                 [("",
+                    {
+                      Parsetree.pexp_desc =
+                        (Parsetree.Pexp_ident
+                           {
+                             Asttypes.txt =
+                               (Longident.Ldot
+                                  ((Longident.Lident "List"), "rev"));
+                             Asttypes.loc =
+                               {
+                                 Location.loc_start =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 157;
+                                     Lexing.pos_bol = 5420;
+                                     Lexing.pos_cnum = 5456
+                                   };
+                                 Location.loc_end =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 157;
+                                     Lexing.pos_bol = 5420;
+                                     Lexing.pos_cnum = 5464
+                                   };
+                                 Location.loc_ghost = false
+                               }
+                           });
+                      Parsetree.pexp_loc =
+                        {
+                          Location.loc_start =
+                            {
+                              Lexing.pos_fname = "pa_parser.ml";
+                              Lexing.pos_lnum = 157;
+                              Lexing.pos_bol = 5420;
+                              Lexing.pos_cnum = 5456
+                            };
+                          Location.loc_end =
+                            {
+                              Lexing.pos_fname = "pa_parser.ml";
+                              Lexing.pos_lnum = 157;
+                              Lexing.pos_bol = 5420;
+                              Lexing.pos_cnum = 5464
+                            };
+                          Location.loc_ghost = false
+                        };
+                      Parsetree.pexp_attributes = []
+                    });
+                 ("",
+                   {
+                     Parsetree.pexp_desc =
+                       (Parsetree.Pexp_apply
+                          ({
+                             Parsetree.pexp_desc =
+                               (Parsetree.Pexp_ident
+                                  {
+                                    Asttypes.txt =
+                                      (Longident.Ldot
+                                         ((Longident.Lident "Decap"), f));
+                                    Asttypes.loc =
+                                      {
+                                        Location.loc_start =
+                                          {
+                                            Lexing.pos_fname = "pa_parser.ml";
+                                            Lexing.pos_lnum = 157;
+                                            Lexing.pos_bol = 5420;
+                                            Lexing.pos_cnum = 5466
+                                          };
+                                        Location.loc_end =
+                                          {
+                                            Lexing.pos_fname = "pa_parser.ml";
+                                            Lexing.pos_lnum = 157;
+                                            Lexing.pos_bol = 5420;
+                                            Lexing.pos_cnum = 5479
+                                          };
+                                        Location.loc_ghost = false
+                                      }
+                                  });
+                             Parsetree.pexp_loc =
+                               {
+                                 Location.loc_start =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 157;
+                                     Lexing.pos_bol = 5420;
+                                     Lexing.pos_cnum = 5466
+                                   };
+                                 Location.loc_end =
+                                   {
+                                     Lexing.pos_fname = "pa_parser.ml";
+                                     Lexing.pos_lnum = 157;
+                                     Lexing.pos_bol = 5420;
+                                     Lexing.pos_cnum = 5479
+                                   };
+                                 Location.loc_ghost = false
+                               };
+                             Parsetree.pexp_attributes = []
+                           },
+                            [("",
+                               {
+                                 Parsetree.pexp_desc =
+                                   (Parsetree.Pexp_construct
+                                      ({
+                                         Asttypes.txt =
+                                           (Longident.Lident "[]");
+                                         Asttypes.loc =
+                                           {
+                                             Location.loc_start =
+                                               {
+                                                 Lexing.pos_fname =
+                                                   "pa_parser.ml";
+                                                 Lexing.pos_lnum = 157;
+                                                 Lexing.pos_bol = 5420;
+                                                 Lexing.pos_cnum = 5480
+                                               };
+                                             Location.loc_end =
+                                               {
+                                                 Lexing.pos_fname =
+                                                   "pa_parser.ml";
+                                                 Lexing.pos_lnum = 157;
+                                                 Lexing.pos_bol = 5420;
+                                                 Lexing.pos_cnum = 5482
+                                               };
+                                             Location.loc_ghost = false
+                                           }
+                                       }, None));
+                                 Parsetree.pexp_loc =
+                                   {
+                                     Location.loc_start =
+                                       {
+                                         Lexing.pos_fname = "pa_parser.ml";
+                                         Lexing.pos_lnum = 157;
+                                         Lexing.pos_bol = 5420;
+                                         Lexing.pos_cnum = 5480
+                                       };
+                                     Location.loc_end =
+                                       {
+                                         Lexing.pos_fname = "pa_parser.ml";
+                                         Lexing.pos_lnum = 157;
+                                         Lexing.pos_bol = 5420;
+                                         Lexing.pos_cnum = 5482
+                                       };
+                                     Location.loc_ghost = false
+                                   };
+                                 Parsetree.pexp_attributes = []
+                               });
+                            ("",
+                              {
+                                Parsetree.pexp_desc =
+                                  (Parsetree.Pexp_apply
+                                     ({
+                                        Parsetree.pexp_desc =
+                                          (Parsetree.Pexp_ident
+                                             {
+                                               Asttypes.txt =
+                                                 (Longident.Ldot
+                                                    ((Longident.Lident
+                                                        "Decap"), "apply"));
+                                               Asttypes.loc =
+                                                 {
+                                                   Location.loc_start =
+                                                     {
+                                                       Lexing.pos_fname =
+                                                         "pa_parser.ml";
+                                                       Lexing.pos_lnum = 157;
+                                                       Lexing.pos_bol = 5420;
+                                                       Lexing.pos_cnum = 5484
+                                                     };
+                                                   Location.loc_end =
+                                                     {
+                                                       Lexing.pos_fname =
+                                                         "pa_parser.ml";
+                                                       Lexing.pos_lnum = 157;
+                                                       Lexing.pos_bol = 5420;
+                                                       Lexing.pos_cnum = 5495
+                                                     };
+                                                   Location.loc_ghost = false
+                                                 }
+                                             });
+                                        Parsetree.pexp_loc =
+                                          {
+                                            Location.loc_start =
+                                              {
+                                                Lexing.pos_fname =
+                                                  "pa_parser.ml";
+                                                Lexing.pos_lnum = 157;
+                                                Lexing.pos_bol = 5420;
+                                                Lexing.pos_cnum = 5484
+                                              };
+                                            Location.loc_end =
+                                              {
+                                                Lexing.pos_fname =
+                                                  "pa_parser.ml";
+                                                Lexing.pos_lnum = 157;
+                                                Lexing.pos_bol = 5420;
+                                                Lexing.pos_cnum = 5495
+                                              };
+                                            Location.loc_ghost = false
+                                          };
+                                        Parsetree.pexp_attributes = []
+                                      },
+                                       [("",
+                                          {
+                                            Parsetree.pexp_desc =
+                                              (Parsetree.Pexp_fun
+                                                 ("", None,
+                                                   {
+                                                     Parsetree.ppat_desc =
+                                                       (Parsetree.Ppat_var
+                                                          {
+                                                            Asttypes.txt =
+                                                              "x";
+                                                            Asttypes.loc =
+                                                              {
+                                                                Location.loc_start
+                                                                  =
+                                                                  {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5501
+                                                                  };
+                                                                Location.loc_end
+                                                                  =
+                                                                  {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5502
+                                                                  };
+                                                                Location.loc_ghost
+                                                                  = false
+                                                              }
+                                                          });
+                                                     Parsetree.ppat_loc =
+                                                       {
+                                                         Location.loc_start =
+                                                           {
+                                                             Lexing.pos_fname
+                                                               =
+                                                               "pa_parser.ml";
+                                                             Lexing.pos_lnum
+                                                               = 157;
+                                                             Lexing.pos_bol =
+                                                               5420;
+                                                             Lexing.pos_cnum
+                                                               = 5501
+                                                           };
+                                                         Location.loc_end =
+                                                           {
+                                                             Lexing.pos_fname
+                                                               =
+                                                               "pa_parser.ml";
+                                                             Lexing.pos_lnum
+                                                               = 157;
+                                                             Lexing.pos_bol =
+                                                               5420;
+                                                             Lexing.pos_cnum
+                                                               = 5502
+                                                           };
+                                                         Location.loc_ghost =
+                                                           false
+                                                       };
+                                                     Parsetree.ppat_attributes
+                                                       = []
+                                                   },
+                                                   {
+                                                     Parsetree.pexp_desc =
+                                                       (Parsetree.Pexp_fun
+                                                          ("", None,
+                                                            {
+                                                              Parsetree.ppat_desc
+                                                                =
+                                                                (Parsetree.Ppat_var
+                                                                   {
+                                                                    Asttypes.txt
+                                                                    = "y";
+                                                                    Asttypes.loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5503
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5504
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    }
+                                                                   });
+                                                              Parsetree.ppat_loc
+                                                                =
+                                                                {
+                                                                  Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5503
+                                                                    };
+                                                                  Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5504
+                                                                    };
+                                                                  Location.loc_ghost
+                                                                    = false
+                                                                };
+                                                              Parsetree.ppat_attributes
+                                                                = []
+                                                            },
+                                                            {
+                                                              Parsetree.pexp_desc
+                                                                =
+                                                                (Parsetree.Pexp_construct
+                                                                   ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "::");
+                                                                    Asttypes.loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5509
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5511
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    }
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_tuple
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "x");
+                                                                    Asttypes.loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5508
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5509
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    }
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5508
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5509
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    };
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "y");
+                                                                    Asttypes.loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5511
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5512
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    }
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5511
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5512
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = false
+                                                                    };
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }]);
+                                                                    Parsetree.pexp_loc
+                                                                    =
+                                                                    {
+                                                                    Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5508
+                                                                    };
+                                                                    Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5512
+                                                                    };
+                                                                    Location.loc_ghost
+                                                                    = true
+                                                                    };
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                              Parsetree.pexp_loc
+                                                                =
+                                                                {
+                                                                  Location.loc_start
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5508
+                                                                    };
+                                                                  Location.loc_end
+                                                                    =
+                                                                    {
+                                                                    Lexing.pos_fname
+                                                                    =
+                                                                    "pa_parser.ml";
+                                                                    Lexing.pos_lnum
+                                                                    = 157;
+                                                                    Lexing.pos_bol
+                                                                    = 5420;
+                                                                    Lexing.pos_cnum
+                                                                    = 5512
+                                                                    };
+                                                                  Location.loc_ghost
+                                                                    = false
+                                                                };
+                                                              Parsetree.pexp_attributes
+                                                                = []
+                                                            }));
+                                                     Parsetree.pexp_loc =
+                                                       {
+                                                         Location.loc_start =
+                                                           {
+                                                             Lexing.pos_fname
+                                                               =
+                                                               "pa_parser.ml";
+                                                             Lexing.pos_lnum
+                                                               = 157;
+                                                             Lexing.pos_bol =
+                                                               5420;
+                                                             Lexing.pos_cnum
+                                                               = 5503
+                                                           };
+                                                         Location.loc_end =
+                                                           {
+                                                             Lexing.pos_fname
+                                                               =
+                                                               "pa_parser.ml";
+                                                             Lexing.pos_lnum
+                                                               = 157;
+                                                             Lexing.pos_bol =
+                                                               5420;
+                                                             Lexing.pos_cnum
+                                                               = 5512
+                                                           };
+                                                         Location.loc_ghost =
+                                                           true
+                                                       };
+                                                     Parsetree.pexp_attributes
+                                                       = []
+                                                   }));
+                                            Parsetree.pexp_loc =
+                                              {
+                                                Location.loc_start =
+                                                  {
+                                                    Lexing.pos_fname =
+                                                      "pa_parser.ml";
+                                                    Lexing.pos_lnum = 157;
+                                                    Lexing.pos_bol = 5420;
+                                                    Lexing.pos_cnum = 5496
+                                                  };
+                                                Location.loc_end =
+                                                  {
+                                                    Lexing.pos_fname =
+                                                      "pa_parser.ml";
+                                                    Lexing.pos_lnum = 157;
+                                                    Lexing.pos_bol = 5420;
+                                                    Lexing.pos_cnum = 5513
+                                                  };
+                                                Location.loc_ghost = false
+                                              };
+                                            Parsetree.pexp_attributes = []
+                                          });
+                                       ("", e)]));
+                                Parsetree.pexp_loc =
+                                  {
+                                    Location.loc_start =
+                                      {
+                                        Lexing.pos_fname = "pa_parser.ml";
+                                        Lexing.pos_lnum = 157;
+                                        Lexing.pos_bol = 5420;
+                                        Lexing.pos_cnum = 5483
+                                      };
+                                    Location.loc_end =
+                                      {
+                                        Lexing.pos_fname = "pa_parser.ml";
+                                        Lexing.pos_lnum = 157;
+                                        Lexing.pos_bol = 5420;
+                                        Lexing.pos_cnum = 5518
+                                      };
+                                    Location.loc_ghost = false
+                                  };
+                                Parsetree.pexp_attributes = []
+                              })]));
+                     Parsetree.pexp_loc =
+                       {
+                         Location.loc_start =
+                           {
+                             Lexing.pos_fname = "pa_parser.ml";
+                             Lexing.pos_lnum = 157;
+                             Lexing.pos_bol = 5420;
+                             Lexing.pos_cnum = 5465
+                           };
+                         Location.loc_end =
+                           {
+                             Lexing.pos_fname = "pa_parser.ml";
+                             Lexing.pos_lnum = 157;
+                             Lexing.pos_bol = 5420;
+                             Lexing.pos_cnum = 5519
+                           };
+                         Location.loc_ghost = false
+                       };
+                     Parsetree.pexp_attributes = []
+                   })]));
+          Parsetree.pexp_loc =
+            {
+              Location.loc_start =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 157;
+                  Lexing.pos_bol = 5420;
+                  Lexing.pos_cnum = 5465
+                };
+              Location.loc_end =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 157;
+                  Lexing.pos_bol = 5420;
+                  Lexing.pos_cnum = 5519
+                };
+              Location.loc_ghost = false
+            };
+          Parsetree.pexp_attributes = []
+        }
+    | Some d ->
+        {
+          Parsetree.pexp_desc =
+            (Parsetree.Pexp_apply
+               ({
+                  Parsetree.pexp_desc =
+                    (Parsetree.Pexp_ident
+                       {
+                         Asttypes.txt =
+                           (Longident.Ldot ((Longident.Lident "Decap"), f));
+                         Asttypes.loc =
+                           {
+                             Location.loc_start =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 158;
+                                 Lexing.pos_bol = 5523;
+                                 Lexing.pos_cnum = 5547
+                               };
+                             Location.loc_end =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 158;
+                                 Lexing.pos_bol = 5523;
+                                 Lexing.pos_cnum = 5560
+                               };
+                             Location.loc_ghost = false
+                           }
+                       });
+                  Parsetree.pexp_loc =
+                    {
+                      Location.loc_start =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 158;
+                          Lexing.pos_bol = 5523;
+                          Lexing.pos_cnum = 5547
+                        };
+                      Location.loc_end =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 158;
+                          Lexing.pos_bol = 5523;
+                          Lexing.pos_cnum = 5560
+                        };
+                      Location.loc_ghost = false
+                    };
+                  Parsetree.pexp_attributes = []
+                }, [("", d); ("", e)]));
+          Parsetree.pexp_loc =
+            {
+              Location.loc_start =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 158;
+                  Lexing.pos_bol = 5523;
+                  Lexing.pos_cnum = 5565
+                };
+              Location.loc_end =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 158;
+                  Lexing.pos_bol = 5523;
+                  Lexing.pos_cnum = 5568
+                };
+              Location.loc_ghost = false
+            };
+          Parsetree.pexp_attributes = []
+        } in
+  let kn e =
+    function
+    | None  -> e
+    | Some _ ->
+        {
+          Parsetree.pexp_desc =
+            (Parsetree.Pexp_apply
+               ({
+                  Parsetree.pexp_desc =
+                    (Parsetree.Pexp_ident
+                       {
+                         Asttypes.txt =
+                           (Longident.Ldot
+                              ((Longident.Lident "Decap"), "greedy"));
+                         Asttypes.loc =
+                           {
+                             Location.loc_start =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 162;
+                                 Lexing.pos_bol = 5617;
+                                 Lexing.pos_cnum = 5641
+                               };
+                             Location.loc_end =
+                               {
+                                 Lexing.pos_fname = "pa_parser.ml";
+                                 Lexing.pos_lnum = 162;
+                                 Lexing.pos_bol = 5617;
+                                 Lexing.pos_cnum = 5653
+                               };
+                             Location.loc_ghost = false
+                           }
+                       });
+                  Parsetree.pexp_loc =
+                    {
+                      Location.loc_start =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 162;
+                          Lexing.pos_bol = 5617;
+                          Lexing.pos_cnum = 5641
+                        };
+                      Location.loc_end =
+                        {
+                          Lexing.pos_fname = "pa_parser.ml";
+                          Lexing.pos_lnum = 162;
+                          Lexing.pos_bol = 5617;
+                          Lexing.pos_cnum = 5653
+                        };
+                      Location.loc_ghost = false
+                    };
+                  Parsetree.pexp_attributes = []
+                }, [("", e)]));
+          Parsetree.pexp_loc =
+            {
+              Location.loc_start =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 162;
+                  Lexing.pos_bol = 5617;
+                  Lexing.pos_cnum = 5654
+                };
+              Location.loc_end =
+                {
+                  Lexing.pos_fname = "pa_parser.ml";
+                  Lexing.pos_lnum = 162;
+                  Lexing.pos_bol = 5617;
+                  Lexing.pos_cnum = 5657
+                };
+              Location.loc_ghost = false
+            };
+          Parsetree.pexp_attributes = []
+        } in
   filter _loc visible
     (match opt with
      | `Once -> e
-     | `Option d ->
-         let f = "option" in
-         (match d with
-          | None  ->
-              exp_apply _loc (exp_glr_fun _loc f)
-                [exp_None _loc;
-                exp_apply _loc (exp_glr_fun _loc "apply")
-                  [exp_Some_fun _loc; e]]
-          | Some d -> exp_apply _loc (exp_glr_fun _loc f) [d; e])
-     | `Fixpoint d ->
-         let f = "fixpoint" in
-         (match d with
-          | None  ->
-              exp_apply _loc (exp_glr_fun _loc "apply")
-                [exp_list_fun _loc "rev";
-                exp_apply _loc (exp_glr_fun _loc f)
-                  [exp_Nil _loc;
-                  exp_apply _loc (exp_glr_fun _loc "apply")
-                    [exp_Cons_fun _loc; e]]]
-          | Some d -> exp_apply _loc (exp_glr_fun _loc f) [d; e])
-     | `Fixpoint1 d ->
-         let f = "fixpoint1" in
-         (match d with
-          | None  ->
-              exp_apply _loc (exp_glr_fun _loc "apply")
-                [exp_list_fun _loc "rev";
-                exp_apply _loc (exp_glr_fun _loc f)
-                  [exp_Nil _loc;
-                  exp_apply _loc (exp_glr_fun _loc "apply")
-                    [exp_Cons_fun _loc; e]]]
-          | Some d -> exp_apply _loc (exp_glr_fun _loc f) [d; e]))
+     | `Option (d,g) -> kn (fn e "option" d) g
+     | `Greedy ->
+         {
+           Parsetree.pexp_desc =
+             (Parsetree.Pexp_apply
+                ({
+                   Parsetree.pexp_desc =
+                     (Parsetree.Pexp_ident
+                        {
+                          Asttypes.txt =
+                            (Longident.Ldot
+                               ((Longident.Lident "Decap"), "greedy"));
+                          Asttypes.loc =
+                            {
+                              Location.loc_start =
+                                {
+                                  Lexing.pos_fname = "pa_parser.ml";
+                                  Lexing.pos_lnum = 167;
+                                  Lexing.pos_bol = 5765;
+                                  Lexing.pos_cnum = 5794
+                                };
+                              Location.loc_end =
+                                {
+                                  Lexing.pos_fname = "pa_parser.ml";
+                                  Lexing.pos_lnum = 167;
+                                  Lexing.pos_bol = 5765;
+                                  Lexing.pos_cnum = 5806
+                                };
+                              Location.loc_ghost = false
+                            }
+                        });
+                   Parsetree.pexp_loc =
+                     {
+                       Location.loc_start =
+                         {
+                           Lexing.pos_fname = "pa_parser.ml";
+                           Lexing.pos_lnum = 167;
+                           Lexing.pos_bol = 5765;
+                           Lexing.pos_cnum = 5794
+                         };
+                       Location.loc_end =
+                         {
+                           Lexing.pos_fname = "pa_parser.ml";
+                           Lexing.pos_lnum = 167;
+                           Lexing.pos_bol = 5765;
+                           Lexing.pos_cnum = 5806
+                         };
+                       Location.loc_ghost = false
+                     };
+                   Parsetree.pexp_attributes = []
+                 }, [("", e)]));
+           Parsetree.pexp_loc =
+             {
+               Location.loc_start =
+                 {
+                   Lexing.pos_fname = "pa_parser.ml";
+                   Lexing.pos_lnum = 167;
+                   Lexing.pos_bol = 5765;
+                   Lexing.pos_cnum = 5807
+                 };
+               Location.loc_end =
+                 {
+                   Lexing.pos_fname = "pa_parser.ml";
+                   Lexing.pos_lnum = 167;
+                   Lexing.pos_bol = 5765;
+                   Lexing.pos_cnum = 5810
+                 };
+               Location.loc_ghost = false
+             };
+           Parsetree.pexp_attributes = []
+         }
+     | `Fixpoint (d,g) -> kn (gn e "fixpoint" d) g
+     | `Fixpoint1 (d,g) -> kn (gn e "fixpoint1" d) g)
 let default_action _loc l =
   let l =
     List.filter
@@ -314,12 +1757,22 @@ module Ext(In:Extension) =
     let _ =
       Decap.set_grammar glr_option
         (Decap.alternatives
-           [Decap.sequence (Decap.char '*' '*') glr_opt_expr
-              (fun _  -> fun e  -> `Fixpoint e);
-           Decap.sequence (Decap.char '+' '+') glr_opt_expr
-             (fun _  -> fun e  -> `Fixpoint1 e);
-           Decap.sequence (Decap.char '?' '?') glr_opt_expr
-             (fun _  -> fun e  -> `Option e);
+           [Decap.fsequence (Decap.char '*' '*')
+              (Decap.sequence glr_opt_expr
+                 (Decap.option None
+                    (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                 (fun e  -> fun g  -> fun _  -> `Fixpoint (e, g)));
+           Decap.fsequence (Decap.char '+' '+')
+             (Decap.sequence glr_opt_expr
+                (Decap.option None
+                   (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                (fun e  -> fun g  -> fun _  -> `Fixpoint1 (e, g)));
+           Decap.fsequence (Decap.char '?' '?')
+             (Decap.sequence glr_opt_expr
+                (Decap.option None
+                   (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                (fun e  -> fun g  -> fun _  -> `Option (e, g)));
+           Decap.apply (fun _  -> `Greedy) (Decap.char '#' '#');
            Decap.apply (fun _  -> `Once) (Decap.empty ())])
     let glr_sequence = Decap.declare_grammar "glr_sequence"
     let _ =
@@ -626,7 +2079,7 @@ module Ext(In:Extension) =
                           (id, (fopt cst' ((opt <> `Once) || cst)), s, opt))))
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.alternatives
                        [Decap.fsequence glr_ident
                           (Decap.sequence glr_sequence glr_option
@@ -741,12 +2194,16 @@ module Ext(In:Extension) =
       glr_action__set__grammar
         (fun alm  ->
            Decap.alternatives
-             [Decap.fsequence arrow_re
-                (Decap.sequence
-                   (if alm then expression else expression_lvl (Let, Seq))
-                   no_semi
-                   (fun action  ->
-                      fun _default_0  -> fun _default_1  -> Normal action));
+             [Decap.sequence (Decap.regexp "->>" (fun groupe  -> groupe 0))
+                (glr_rule alm)
+                (fun _default_0  ->
+                   fun r  -> let (a,b,c) = build_rule r in DepSeq (a, b, c));
+             Decap.fsequence arrow_re
+               (Decap.sequence
+                  (if alm then expression else expression_lvl (Let, Seq))
+                  no_semi
+                  (fun action  ->
+                     fun _default_0  -> fun _default_1  -> Normal action));
              Decap.apply (fun _  -> Default) (Decap.empty ())])
     let _ =
       set_glr_rule
@@ -843,7 +2300,7 @@ module Ext(In:Extension) =
            (Decap.sequence
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence (glr_rule false) (Decap.char '|' '|')
                           (fun r  -> fun _  -> r))))) (glr_rule true)
               (fun rs  ->

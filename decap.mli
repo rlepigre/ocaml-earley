@@ -195,7 +195,12 @@ val regexp : ?name:string -> string -> ((int -> string) -> 'a) -> 'a grammar
   optional parameter [oba], which is [true] by default, forces a call to the
   old blank function, after the end of the parsing of [g]. The new blank
   function is always called after the last terminal. *)
-val change_layout : 'a grammar -> blank -> 'a grammar
+val change_layout : ?old_blank_before:bool -> ?new_blank_after:bool ->
+                   'a grammar -> blank -> 'a grammar
+
+(** [greedy g] parses g in a greedy way: only the longest match is considered.
+    Still ambigous if the longest match is not unique *)
+val greedy : 'a grammar -> 'a grammar
 
 (** [ignore_next_blank g] disables the call to the blank function before the
   first terminal of [g]. If the empty input is parsed using [g], blanks are

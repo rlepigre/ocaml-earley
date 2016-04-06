@@ -157,12 +157,14 @@ let value_binding ?(attributes= [])  _loc pat expr = (pat, expr)
 type constructor_declaration =
   (string Asttypes.loc* Parsetree.core_type list* Parsetree.core_type option*
     Location.t)
+  
 let constructor_declaration ?(attributes= [])  _loc name args res =
   (name, args, res, _loc)
 type label_declaration =
   (string Asttypes.loc* Asttypes.mutable_flag* Parsetree.core_type*
     Location.t)
-type case = (pattern* expression)
+  
+type case = (pattern* expression) 
 let label_declaration _loc name mut ty = (name, mut, ty, _loc)
 let type_declaration ?(attributes= [])  _loc name params cstrs kind priv
   manifest =
@@ -208,7 +210,7 @@ let make_case pat expr guard =
 let map_cases cases =
   List.map (fun (pat,expr,guard)  -> make_case pat expr guard) cases
 let pexp_function cases = Pexp_function ("", None, cases)
-type value_binding = (Parsetree.pattern* Parsetree.expression)
+type value_binding = (Parsetree.pattern* Parsetree.expression) 
 let pat_list _loc l =
   let nil = id_loc (Lident "[]") (ghost _loc) in
   let cons x xs =

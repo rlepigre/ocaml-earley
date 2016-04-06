@@ -5,24 +5,25 @@ open Parsetree
 open Pa_ast
 open Pa_lexing
 type entry =
-  | FromExt
-  | Impl
-  | Intf
-let entry: entry ref = ref FromExt
-let fast: bool ref = ref false
-let file: string option ref = ref None
-let ascii: bool ref = ref false
+  | FromExt 
+  | Impl 
+  | Intf 
+let entry : entry ref = ref FromExt 
+let fast : bool ref = ref false 
+let file : string option ref = ref None 
+let ascii : bool ref = ref false 
 let locate str pos str' pos' =
   let open Lexing in
-    let s = Input.lexing_position str pos in
-    let e = Input.lexing_position str' pos' in
+    let s = Input.lexing_position str pos  in
+    let e = Input.lexing_position str' pos'  in
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
+  
 type entry_point =
-  | Implementation of Parsetree.structure_item list grammar* blank
-  | Interface of Parsetree.signature_item list grammar* blank
+  | Implementation of Parsetree.structure_item list grammar* blank 
+  | Interface of Parsetree.signature_item list grammar* blank 
 module Initial =
   struct
-    let spec: (Arg.key* Arg.spec* Arg.doc) list =
+    let spec : (Arg.key* Arg.spec* Arg.doc) list =
       [("--ascii", (Arg.Set ascii),
          "Output ASCII text instead of serialized AST.");
       ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
@@ -33,29 +34,30 @@ module Initial =
         "Use unsafe functions for arrays (more efficient).");
       ("--debug", (Arg.Set_int Decap.debug_lvl),
         "Sets the value of \"Decap.debug_lvl\".")]
-    let before_parse_hook: unit -> unit = fun ()  -> ()
-    let char_litteral: char grammar = declare_grammar "char_litteral"
-    let string_litteral: string grammar = declare_grammar "string_litteral"
-    let regexp_litteral: string grammar = declare_grammar "regexp_litteral"
+      
+    let before_parse_hook : unit -> unit = fun ()  -> () 
+    let char_litteral : char grammar = declare_grammar "char_litteral" 
+    let string_litteral : string grammar = declare_grammar "string_litteral" 
+    let regexp_litteral : string grammar = declare_grammar "regexp_litteral" 
     type expression_prio =
-      | Seq
-      | If
-      | Aff
-      | Tupl
-      | Disj
-      | Conj
-      | Eq
-      | Append
-      | Cons
-      | Sum
-      | Prod
-      | Pow
-      | Opp
-      | App
-      | Dash
-      | Dot
-      | Prefix
-      | Atom
+      | Seq 
+      | If 
+      | Aff 
+      | Tupl 
+      | Disj 
+      | Conj 
+      | Eq 
+      | Append 
+      | Cons 
+      | Sum 
+      | Prod 
+      | Pow 
+      | Opp 
+      | App 
+      | Dash 
+      | Dot 
+      | Prefix 
+      | Atom 
     let expression_prios =
       [Seq;
       Aff;
@@ -73,7 +75,7 @@ module Initial =
       Dash;
       Dot;
       Prefix;
-      Atom]
+      Atom] 
     let next_exp =
       function
       | Seq  -> If
@@ -93,25 +95,25 @@ module Initial =
       | Dash  -> Dot
       | Dot  -> Prefix
       | Prefix  -> Atom
-      | Atom  -> Atom
+      | Atom  -> Atom 
     type alm =
-      | NoMatch
-      | Match
-      | MatchRight
-      | Let
-      | LetRight
+      | NoMatch 
+      | Match 
+      | MatchRight 
+      | Let 
+      | LetRight 
     let right_alm =
       function
       | Match |MatchRight  -> Match
       | Let |LetRight  -> Let
-      | NoMatch  -> NoMatch
+      | NoMatch  -> NoMatch 
     let left_alm =
       function
       | Match |MatchRight  -> MatchRight
       | Let |LetRight  -> LetRight
-      | NoMatch  -> NoMatch
-    let allow_match = function | Match  -> true | _ -> false
-    let allow_let = function | Match |Let  -> true | _ -> false
+      | NoMatch  -> NoMatch 
+    let allow_match = function | Match  -> true | _ -> false 
+    let allow_let = function | Match |Let  -> true | _ -> false 
     let string_exp (b,lvl) =
       (match b with
        | NoMatch  -> ""
@@ -138,36 +140,36 @@ module Initial =
          | Dot  -> "Dot"
          | Prefix  -> "Prefix"
          | Atom  -> "Atom")
+      
     let ((expression_lvl : (alm* expression_prio) -> expression grammar),set_expression_lvl)
-      = grammar_family ~param_to_string:string_exp "expression_lvl"
-    let expression = expression_lvl (Match, Seq)
-    let structure_item: structure_item list grammar =
-      declare_grammar "structure_item"
-    let signature_item: signature_item list grammar =
-      declare_grammar "signature_item"
+      = grammar_family ~param_to_string:string_exp "expression_lvl" 
+    let expression = expression_lvl (Match, Seq) 
+    let structure_item : structure_item list grammar =
+      declare_grammar "structure_item" 
+    let signature_item : signature_item list grammar =
+      declare_grammar "signature_item" 
     let ((parameter :
            bool ->
              [ `Arg of (arg_label* expression option* pattern) 
              | `Type of string ] grammar),set_parameter)
-      = grammar_family "parameter"
-    let structure = structure_item
-    let signature = Decap.declare_grammar "signature"
-    let _ =
-      Decap.set_grammar signature
+      = grammar_family "parameter" 
+    let structure = structure_item 
+    let signature = Decap.declare_grammar "signature" 
+    ;;Decap.set_grammar signature
         (Decap.apply (fun l  -> List.flatten l)
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l) signature_item))))
+                 (Decap.apply (fun x  -> fun y  -> x :: y) signature_item))))
     type type_prio =
-      | TopType
-      | As
-      | Arr
-      | ProdType
-      | DashType
-      | AppType
-      | AtomType
+      | TopType 
+      | As 
+      | Arr 
+      | ProdType 
+      | DashType 
+      | AppType 
+      | AtomType 
     let type_prios =
-      [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
+      [TopType; As; Arr; ProdType; DashType; AppType; AtomType] 
     let type_prio_to_string =
       function
       | TopType  -> "TopType"
@@ -176,7 +178,7 @@ module Initial =
       | ProdType  -> "ProdType"
       | DashType  -> "DashType"
       | AppType  -> "AppType"
-      | AtomType  -> "AtomType"
+      | AtomType  -> "AtomType" 
     let next_type_prio =
       function
       | TopType  -> As
@@ -185,18 +187,18 @@ module Initial =
       | ProdType  -> DashType
       | DashType  -> AppType
       | AppType  -> AtomType
-      | AtomType  -> AtomType
+      | AtomType  -> AtomType 
     let ((typexpr_lvl : type_prio -> core_type grammar),set_typexpr_lvl) =
-      grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl"
-    let typexpr = typexpr_lvl TopType
+      grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl" 
+    let typexpr = typexpr_lvl TopType 
     type pattern_prio =
-      | TopPat
-      | AsPat
-      | AltPat
-      | TupPat
-      | ConsPat
-      | ConstrPat
-      | AtomPat
+      | TopPat 
+      | AsPat 
+      | AltPat 
+      | TupPat 
+      | ConsPat 
+      | ConstrPat 
+      | AtomPat 
     let next_pat_prio =
       function
       | TopPat  -> AsPat
@@ -205,41 +207,42 @@ module Initial =
       | TupPat  -> ConsPat
       | ConsPat  -> ConstrPat
       | ConstrPat  -> AtomPat
-      | AtomPat  -> AtomPat
+      | AtomPat  -> AtomPat 
     let ((pattern_lvl : pattern_prio -> pattern grammar),set_pattern_lvl) =
-      grammar_family "pattern_lvl"
-    let pattern = pattern_lvl TopPat
-    let let_binding: value_binding list grammar =
-      declare_grammar "let_binding"
-    let class_body: class_structure grammar = declare_grammar "class_body"
-    let class_expr: class_expr grammar = declare_grammar "class_expr"
-    let value_path: Longident.t grammar = declare_grammar "value_path"
-    let extra_expressions:
-      ((alm* expression_prio) -> expression grammar) list = []
-    let extra_prefix_expressions: expression grammar list = []
-    let extra_types: (type_prio -> core_type grammar) list = []
-    let extra_patterns: (pattern_prio -> pattern grammar) list = []
-    let extra_structure: structure_item list grammar list = []
-    let extra_signature: signature_item list grammar list = []
+      grammar_family "pattern_lvl" 
+    let pattern = pattern_lvl TopPat 
+    let let_binding : value_binding list grammar =
+      declare_grammar "let_binding" 
+    let class_body : class_structure grammar = declare_grammar "class_body" 
+    let class_expr : class_expr grammar = declare_grammar "class_expr" 
+    let value_path : Longident.t grammar = declare_grammar "value_path" 
+    let extra_expressions :
+      ((alm* expression_prio) -> expression grammar) list = [] 
+    let extra_prefix_expressions : expression grammar list = [] 
+    let extra_types : (type_prio -> core_type grammar) list = [] 
+    let extra_patterns : (pattern_prio -> pattern grammar) list = [] 
+    let extra_structure : structure_item list grammar list = [] 
+    let extra_signature : signature_item list grammar list = [] 
     type record_field = (Longident.t Asttypes.loc* Parsetree.expression)
-    let constr_decl_list: constructor_declaration list grammar =
-      declare_grammar "constr_decl_list"
-    let field_decl_list: label_declaration list grammar =
-      declare_grammar "field_decl_list"
-    let record_list: record_field list grammar =
-      declare_grammar "record_list"
-    let match_cases: case list grammar = declare_grammar "match_cases"
-    let module_expr: module_expr grammar = declare_grammar "module_expr"
-    let module_type: module_type grammar = declare_grammar "module_type"
+    let constr_decl_list : constructor_declaration list grammar =
+      declare_grammar "constr_decl_list" 
+    let field_decl_list : label_declaration list grammar =
+      declare_grammar "field_decl_list" 
+    let record_list : record_field list grammar =
+      declare_grammar "record_list" 
+    let match_cases : case list grammar = declare_grammar "match_cases" 
+    let module_expr : module_expr grammar = declare_grammar "module_expr" 
+    let module_type : module_type grammar = declare_grammar "module_type" 
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
-      with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)
+      with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e) 
     let mk_attrib loc s contents =
       ((id_loc s Location.none),
         (PStr [loc_str loc (Pstr_eval ((exp_string loc contents), []))]))
+      
     let attach_attrib =
-      let tbl_s = Hashtbl.create 31 in
-      let tbl_e = Hashtbl.create 31 in
+      let tbl_s = Hashtbl.create 31  in
+      let tbl_e = Hashtbl.create 31  in
       fun ?(local= false)  ->
         fun loc  ->
           fun acc  ->
@@ -249,9 +252,10 @@ module Initial =
                   function
                   | [] -> (ocamldoc_comments := (List.rev acc); res)
                   | ((start,end_,contents) as c)::rest ->
-                      let start' = loc.loc_start in
+                      let start' = loc.loc_start  in
                       let loc =
-                        locate (fst start) (snd start) (fst end_) (snd end_) in
+                        locate (fst start) (snd start) (fst end_) (snd end_)
+                         in
                       if
                         (start'.pos_lnum >= (line_num (fst end_))) &&
                           (((start'.pos_lnum - (line_num (fst end_))) <= 1)
@@ -262,14 +266,16 @@ module Initial =
                       then
                         fn acc ((mk_attrib loc "ocaml.doc" contents) :: res)
                           rest
-                      else fn (c :: acc) res rest in
+                      else fn (c :: acc) res rest
+                   in
                 let rec gn acc res =
                   function
                   | [] -> (ocamldoc_comments := (List.rev acc); List.rev res)
                   | ((start,end_,contents) as c)::rest ->
-                      let end' = loc.loc_end in
+                      let end' = loc.loc_end  in
                       let loc =
-                        locate (fst start) (snd start) (fst end_) (snd end_) in
+                        locate (fst start) (snd start) (fst end_) (snd end_)
+                         in
                       if
                         ((line_num (fst start)) >= end'.pos_lnum) &&
                           ((((line_num (fst start)) - end'.pos_lnum) <= 1) &&
@@ -279,22 +285,26 @@ module Initial =
                       then
                         gn acc ((mk_attrib loc "ocaml.doc" contents) :: res)
                           rest
-                      else gn (c :: acc) res rest in
+                      else gn (c :: acc) res rest
+                   in
                 let l1 =
                   try Hashtbl.find tbl_s ((loc.loc_start), local)
                   with
                   | Not_found  ->
-                      let res = fn [] [] (!ocamldoc_comments) in
-                      (Hashtbl.add tbl_s ((loc.loc_start), local) res; res) in
+                      let res = fn [] [] (!ocamldoc_comments)  in
+                      (Hashtbl.add tbl_s ((loc.loc_start), local) res; res)
+                   in
                 let l2 =
                   try Hashtbl.find tbl_e ((loc.loc_end), local)
                   with
                   | Not_found  ->
-                      let res = gn [] [] (!ocamldoc_comments) in
-                      (Hashtbl.add tbl_e ((loc.loc_end), local) res; res) in
+                      let res = gn [] [] (!ocamldoc_comments)  in
+                      (Hashtbl.add tbl_e ((loc.loc_end), local) res; res)
+                   in
                 l1 @ (acc @ l2)
+      
     let attach_gen build =
-      let tbl = Hashtbl.create 31 in
+      let tbl = Hashtbl.create 31  in
       fun loc  ->
         let open Location in
           let open Lexing in
@@ -302,29 +312,30 @@ module Initial =
               function
               | [] -> (ocamldoc_comments := (List.rev acc); res)
               | ((start,end_,contents) as c)::rest ->
-                  let start' = loc.loc_start in
+                  let start' = loc.loc_start  in
                   let loc =
-                    locate (fst start) (snd start) (fst end_) (snd end_) in
+                    locate (fst start) (snd start) (fst end_) (snd end_)  in
                   if (line_num (fst end_)) < start'.pos_lnum
                   then
                     fn acc ((build loc (mk_attrib loc "ocaml.text" contents))
                       :: res) rest
-                  else fn (c :: acc) res rest in
+                  else fn (c :: acc) res rest
+               in
             try Hashtbl.find tbl loc.loc_start
             with
             | Not_found  ->
-                let res = fn [] [] (!ocamldoc_comments) in
+                let res = fn [] [] (!ocamldoc_comments)  in
                 (Hashtbl.add tbl loc.loc_start res; res)
+      
     let attach_sig =
-      attach_gen (fun loc  -> fun a  -> loc_sig loc (Psig_attribute a))
+      attach_gen (fun loc  -> fun a  -> loc_sig loc (Psig_attribute a)) 
     let attach_str =
-      attach_gen (fun loc  -> fun a  -> loc_str loc (Pstr_attribute a))
+      attach_gen (fun loc  -> fun a  -> loc_str loc (Pstr_attribute a)) 
     let union_re l =
-      let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l in
-      String.concat "\\|" l
-    let arrow_re = Decap.declare_grammar "arrow_re"
-    let _ =
-      Decap.set_grammar arrow_re
+      let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l  in
+      String.concat "\\|" l 
+    let arrow_re = Decap.declare_grammar "arrow_re" 
+    ;;Decap.set_grammar arrow_re
         (Decap.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
     let infix_symb_re prio =
@@ -354,23 +365,22 @@ module Initial =
       | Pow  ->
           union_re
             ["lsl\\b"; "lsr\\b"; "asr\\b"; "[*][*][!$%&*+./:<=>?@^|~-]*"]
-      | _ -> assert false
-    let infix_prios = [Prod; Sum; Append; Cons; Aff; Eq; Conj; Disj; Pow]
+      | _ -> assert false 
+    let infix_prios = [Prod; Sum; Append; Cons; Aff; Eq; Conj; Disj; Pow] 
     let prefix_symb_re prio =
       match prio with
       | Opp  -> union_re ["-[.]?"; "+[.]?"]
       | Prefix  ->
           union_re ["[!][!$%&*+./:<=>?@^|~-]*"; "[~?][!$%&*+./:<=>?@^|~-]+"]
-      | _ -> assert false
-    let prefix_prios = [Opp; Prefix]
+      | _ -> assert false 
+    let prefix_prios = [Opp; Prefix] 
     let (infix_symbol,infix_symbol__set__grammar) =
-      Decap.grammar_family "infix_symbol"
-    let _ =
-      infix_symbol__set__grammar
+      Decap.grammar_family "infix_symbol" 
+    ;;infix_symbol__set__grammar
         (fun prio  ->
            Decap.alternatives
              (let y =
-                let y = [] in
+                let y = []  in
                 if prio <> Cons
                 then
                   (Decap.sequence
@@ -385,15 +395,14 @@ module Initial =
                               ("The infix symbol " ^ (sym ^ "is reserved..."));
                           sym))
                   :: y
-                else y in
+                else y  in
               if prio = Cons
               then (Decap.apply (fun _  -> "::") (Decap.string "::" "::")) ::
                 y
               else y))
     let (prefix_symbol,prefix_symbol__set__grammar) =
-      Decap.grammar_family "prefix_symbol"
-    let _ =
-      prefix_symbol__set__grammar
+      Decap.grammar_family "prefix_symbol" 
+    ;;prefix_symbol__set__grammar
         (fun prio  ->
            Decap.sequence
              (Decap.ignore_next_blank
@@ -405,42 +414,37 @@ module Initial =
                   then
                     give_up ("The prefix symbol " ^ (sym ^ "is reserved..."));
                   sym))
-    let mutable_flag = Decap.declare_grammar "mutable_flag"
-    let _ =
-      Decap.set_grammar mutable_flag
+    let mutable_flag = Decap.declare_grammar "mutable_flag" 
+    ;;Decap.set_grammar mutable_flag
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Mutable) mutable_kw;
            Decap.apply (fun _  -> Immutable) (Decap.empty ())])
-    let private_flag = Decap.declare_grammar "private_flag"
-    let _ =
-      Decap.set_grammar private_flag
+    let private_flag = Decap.declare_grammar "private_flag" 
+    ;;Decap.set_grammar private_flag
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Private) private_kw;
            Decap.apply (fun _  -> Public) (Decap.empty ())])
-    let virtual_flag = Decap.declare_grammar "virtual_flag"
-    let _ =
-      Decap.set_grammar virtual_flag
+    let virtual_flag = Decap.declare_grammar "virtual_flag" 
+    ;;Decap.set_grammar virtual_flag
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Virtual) virtual_kw;
            Decap.apply (fun _  -> Concrete) (Decap.empty ())])
-    let rec_flag = Decap.declare_grammar "rec_flag"
-    let _ =
-      Decap.set_grammar rec_flag
+    let rec_flag = Decap.declare_grammar "rec_flag" 
+    ;;Decap.set_grammar rec_flag
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Recursive) rec_kw;
            Decap.apply (fun _  -> Nonrecursive) (Decap.empty ())])
-    let downto_flag = Decap.declare_grammar "downto_flag"
-    let _ =
-      Decap.set_grammar downto_flag
+    let downto_flag = Decap.declare_grammar "downto_flag" 
+    ;;Decap.set_grammar downto_flag
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Upto) to_kw;
            Decap.apply (fun _default_0  -> Downto) downto_kw])
-    let entry_points: (string* entry_point) list =
+    let entry_points : (string* entry_point) list =
       [(".mli", (Interface (signature, ocaml_blank)));
-      (".ml", (Implementation (structure, ocaml_blank)))]
+      (".ml", (Implementation (structure, ocaml_blank)))] 
   end
 module type Extension  = module type of Initial
 module type FExt  = functor (E : Extension) -> Extension
 include Initial
-let start_pos loc = loc.Location.loc_start
-let end_pos loc = loc.Location.loc_end
+let start_pos loc = loc.Location.loc_start 
+let end_pos loc = loc.Location.loc_end 

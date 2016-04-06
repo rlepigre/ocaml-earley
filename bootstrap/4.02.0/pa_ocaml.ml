@@ -358,7 +358,7 @@ module Make(Initial:Extension) =
         (Decap.sequence_position ident
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.sequence (Decap.char '.' '.') ident
                        (fun _  -> fun id  -> id)))))
            (fun id  ->
@@ -396,7 +396,7 @@ module Make(Initial:Extension) =
       Decap.set_grammar attributes
         (Decap.apply List.rev
            (Decap.fixpoint []
-              (Decap.apply (fun x  -> fun l  -> x :: l) attribute)))
+              (Decap.apply (fun x  -> fun y  -> x :: y) attribute)))
     let ext_attributes = Decap.declare_grammar "ext_attributes"
     let _ =
       Decap.set_grammar ext_attributes
@@ -411,7 +411,7 @@ module Make(Initial:Extension) =
       Decap.set_grammar post_item_attributes
         (Decap.apply List.rev
            (Decap.fixpoint []
-              (Decap.apply (fun x  -> fun l  -> x :: l)
+              (Decap.apply (fun x  -> fun y  -> x :: y)
                  (Decap.fsequence (Decap.string "[@@" "[@@")
                     (Decap.fsequence attr_id
                        (Decap.sequence payload (Decap.char ']' ']')
@@ -421,7 +421,7 @@ module Make(Initial:Extension) =
       Decap.set_grammar ext_attributes
         (Decap.apply List.rev
            (Decap.fixpoint []
-              (Decap.apply (fun x  -> fun l  -> x :: l)
+              (Decap.apply (fun x  -> fun y  -> x :: y)
                  (Decap.fsequence (Decap.string "[@@@" "[@@@")
                     (Decap.fsequence attr_id
                        (Decap.sequence payload (Decap.char ']' ']')
@@ -446,7 +446,7 @@ module Make(Initial:Extension) =
         (Decap.fsequence_position
            (Decap.apply List.rev
               (Decap.fixpoint1 []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.sequence (Decap.string "'" "'") ident
                        (fun _  -> fun id  -> id)))))
            (Decap.sequence (Decap.string "." ".") typexpr
@@ -468,7 +468,7 @@ module Make(Initial:Extension) =
            [Decap.fsequence_position
               (Decap.apply List.rev
                  (Decap.fixpoint1 []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence (Decap.string "'" "'") ident
                           (fun _  -> fun id  -> id)))))
               (Decap.sequence (Decap.string "." ".") typexpr
@@ -491,7 +491,7 @@ module Make(Initial:Extension) =
            (Decap.fsequence
               (Decap.apply List.rev
                  (Decap.fixpoint1 []
-                    (Decap.apply (fun x  -> fun l  -> x :: l) typeconstr_name)))
+                    (Decap.apply (fun x  -> fun y  -> x :: y) typeconstr_name)))
               (Decap.sequence (Decap.string "." ".") typexpr
                  (fun _  ->
                     fun te  -> fun ids  -> fun _default_0  -> (ids, te)))))
@@ -569,7 +569,7 @@ module Make(Initial:Extension) =
                        (Decap.sequence typexpr
                           (Decap.apply List.rev
                              (Decap.fixpoint []
-                                (Decap.apply (fun x  -> fun l  -> x :: l)
+                                (Decap.apply (fun x  -> fun y  -> x :: y)
                                    (Decap.sequence (Decap.string "&" "&")
                                       typexpr (fun _  -> fun te  -> te)))))
                           (fun te  ->
@@ -590,7 +590,7 @@ module Make(Initial:Extension) =
                  (Decap.sequence
                     (Decap.apply List.rev
                        (Decap.fixpoint []
-                          (Decap.apply (fun x  -> fun l  -> x :: l)
+                          (Decap.apply (fun x  -> fun y  -> x :: y)
                              (Decap.sequence (Decap.string "|" "|") tag_spec
                                 (fun _  -> fun ts  -> ts)))))
                     (Decap.string "]" "]")
@@ -616,7 +616,7 @@ module Make(Initial:Extension) =
                 (Decap.sequence
                    (Decap.apply List.rev
                       (Decap.fixpoint []
-                         (Decap.apply (fun x  -> fun l  -> x :: l)
+                         (Decap.apply (fun x  -> fun y  -> x :: y)
                             (Decap.sequence (Decap.string "|" "|") tag_spec
                                (fun _  -> fun ts  -> ts)))))
                    (Decap.string "]" "]")
@@ -647,7 +647,7 @@ module Make(Initial:Extension) =
                    (Decap.fsequence
                       (Decap.apply List.rev
                          (Decap.fixpoint []
-                            (Decap.apply (fun x  -> fun l  -> x :: l)
+                            (Decap.apply (fun x  -> fun y  -> x :: y)
                                (Decap.sequence (Decap.string "|" "|")
                                   tag_spec_full (fun _  -> fun tsf  -> tsf)))))
                       (Decap.sequence
@@ -656,7 +656,7 @@ module Make(Initial:Extension) =
                                (Decap.apply List.rev
                                   (Decap.fixpoint1 []
                                      (Decap.apply
-                                        (fun x  -> fun l  -> x :: l) tag_name)))
+                                        (fun x  -> fun y  -> x :: y) tag_name)))
                                (fun _  -> fun tns  -> tns)))
                          (Decap.string "]" "]")
                          (fun tns  ->
@@ -714,7 +714,7 @@ module Make(Initial:Extension) =
                  (Decap.sequence package_constraint
                     (Decap.apply List.rev
                        (Decap.fixpoint []
-                          (Decap.apply (fun x  -> fun l  -> x :: l)
+                          (Decap.apply (fun x  -> fun y  -> x :: y)
                              (Decap.sequence and_kw package_constraint
                                 (fun _  -> fun _default_0  -> _default_0)))))
                     (fun pc  -> fun pcs  -> fun _default_0  -> pc :: pcs))))
@@ -730,7 +730,7 @@ module Make(Initial:Extension) =
               (Decap.sequence
                  (Decap.apply List.rev
                     (Decap.fixpoint1 []
-                       (Decap.apply (fun x  -> fun l  -> x :: l) tag_name)))
+                       (Decap.apply (fun x  -> fun y  -> x :: y) tag_name)))
                  (Decap.string "]" "]") (fun l  -> fun _  -> fun _  -> l));
            Decap.apply (fun _  -> []) (Decap.empty ())])
     let mkoption loc d =
@@ -866,8 +866,8 @@ module Make(Initial:Extension) =
                                                       (Decap.fixpoint1 []
                                                          (Decap.apply
                                                             (fun x  ->
-                                                               fun l  -> x ::
-                                                                 l)
+                                                               fun y  -> x ::
+                                                                 y)
                                                             (Decap.sequence
                                                                (Decap.string
                                                                   "*" "*")
@@ -912,8 +912,8 @@ module Make(Initial:Extension) =
                                                           (Decap.fixpoint []
                                                              (Decap.apply
                                                                 (fun x  ->
-                                                                   fun l  ->
-                                                                    x :: l)
+                                                                   fun y  ->
+                                                                    x :: y)
                                                                 (Decap.sequence
                                                                    (Decap.string
                                                                     "," ",")
@@ -1029,8 +1029,8 @@ module Make(Initial:Extension) =
                                                       (Decap.fixpoint []
                                                          (Decap.apply
                                                             (fun x  ->
-                                                               fun l  -> x ::
-                                                                 l)
+                                                               fun y  -> x ::
+                                                                 y)
                                                             (Decap.sequence
                                                                semi_col
                                                                method_type
@@ -1178,7 +1178,7 @@ module Make(Initial:Extension) =
                                               (Decap.fixpoint1 []
                                                  (Decap.apply
                                                     (fun x  ->
-                                                       fun l  -> x :: l)
+                                                       fun y  -> x :: y)
                                                     (Decap.sequence
                                                        (Decap.char ',' ',')
                                                        typexpr
@@ -1436,7 +1436,7 @@ module Make(Initial:Extension) =
                 (Decap.sequence
                    (Decap.apply List.rev
                       (Decap.fixpoint []
-                         (Decap.apply (fun x  -> fun l  -> x :: l)
+                         (Decap.apply (fun x  -> fun y  -> x :: y)
                             (Decap.sequence (Decap.string "," ",") type_param
                                (fun _  -> fun tp  -> tp)))))
                    (Decap.string ")" ")")
@@ -1517,7 +1517,7 @@ module Make(Initial:Extension) =
                          (Decap.sequence
                             (Decap.apply List.rev
                                (Decap.fixpoint []
-                                  (Decap.apply (fun x  -> fun l  -> x :: l)
+                                  (Decap.apply (fun x  -> fun y  -> x :: y)
                                      (Decap.sequence (Decap.char '*' '*')
                                         (typexpr_lvl
                                            (next_type_prio ProdType))
@@ -1583,7 +1583,7 @@ module Make(Initial:Extension) =
               (Decap.sequence all_constr_decl
                  (Decap.apply List.rev
                     (Decap.fixpoint []
-                       (Decap.apply (fun x  -> fun l  -> x :: l)
+                       (Decap.apply (fun x  -> fun y  -> x :: y)
                           (Decap.sequence (Decap.string "|" "|")
                              all_constr_decl (fun _  -> fun cd  -> cd)))))
                  (fun cd  ->
@@ -1628,7 +1628,7 @@ module Make(Initial:Extension) =
                           (fun pri  -> fun tr  -> fun _  -> (pri, tr))))))
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l) type_constraint)))
+                    (Decap.apply (fun x  -> fun y  -> x :: y) type_constraint)))
               (fun ptr  ->
                  fun cstrs  ->
                    fun te  ->
@@ -1689,7 +1689,7 @@ module Make(Initial:Extension) =
            (Decap.sequence typedef
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence and_kw typedef
                           (fun _default_0  -> fun td  -> td)))))
               (fun td  -> fun tds  -> fun _default_0  -> td :: tds)))
@@ -1887,7 +1887,7 @@ module Make(Initial:Extension) =
                  (Decap.sequence
                     (Decap.apply List.rev
                        (Decap.fixpoint []
-                          (Decap.apply (fun x  -> fun l  -> x :: l)
+                          (Decap.apply (fun x  -> fun y  -> x :: y)
                              class_field_spec))) end_kw
                     (fun cfs  ->
                        fun _default_0  ->
@@ -1919,7 +1919,7 @@ module Make(Initial:Extension) =
                       (Decap.sequence
                          (Decap.apply List.rev
                             (Decap.fixpoint []
-                               (Decap.apply (fun x  -> fun l  -> x :: l)
+                               (Decap.apply (fun x  -> fun y  -> x :: y)
                                   (Decap.sequence (Decap.string "," ",")
                                      typexpr (fun _  -> fun te  -> te)))))
                          (Decap.string "]" "]")
@@ -1956,7 +1956,7 @@ module Make(Initial:Extension) =
                        fun pos'  -> ((locate str pos str' pos'), x))
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.fsequence
                           (Decap.option None
                              (Decap.apply (fun x  -> Some x) maybe_opt_label))
@@ -1991,7 +1991,7 @@ module Make(Initial:Extension) =
         (Decap.sequence type_param
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.sequence (Decap.string "," ",") type_param
                        (fun _  -> fun i2  -> i2)))))
            (fun i1  -> fun l  -> i1 :: l))
@@ -2044,7 +2044,7 @@ module Make(Initial:Extension) =
         (Decap.sequence class_spec
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.sequence and_kw class_spec
                        (fun _  -> fun _default_0  -> _default_0)))))
            (fun cs  -> fun css  -> cs :: css))
@@ -2098,7 +2098,7 @@ module Make(Initial:Extension) =
            (Decap.sequence classtype_def
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence and_kw classtype_def
                           (fun _  -> fun _default_0  -> _default_0)))))
               (fun cd  -> fun cds  -> fun _default_0  -> cd :: cds)))
@@ -2283,8 +2283,8 @@ module Make(Initial:Extension) =
                                                                     (Decap.apply
                                                                     (fun x 
                                                                     ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     (Decap.sequence
                                                                     (Decap.char
                                                                     ',' ',')
@@ -2880,8 +2880,8 @@ module Make(Initial:Extension) =
                                                                  (Decap.apply
                                                                     (
                                                                     fun x  ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     (
                                                                     Decap.sequence
                                                                     semi_col
@@ -2978,8 +2978,8 @@ module Make(Initial:Extension) =
                                                           (Decap.fixpoint []
                                                              (Decap.apply
                                                                 (fun x  ->
-                                                                   fun l  ->
-                                                                    x :: l)
+                                                                   fun y  ->
+                                                                    x :: y)
                                                                 (Decap.sequence
                                                                    semi_col
                                                                    pattern
@@ -3054,8 +3054,8 @@ module Make(Initial:Extension) =
                                                            (Decap.fixpoint []
                                                               (Decap.apply
                                                                  (fun x  ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                  (Decap.fsequence
                                                                     semi_col
                                                                     (
@@ -3849,7 +3849,7 @@ module Make(Initial:Extension) =
         (Decap.fsequence_position
            (Decap.apply List.rev
               (Decap.fixpoint1 []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.apply
                        (fun lb  -> let (_loc_lb,lb) = lb in (lb, _loc_lb))
                        (Decap.apply_position
@@ -4115,7 +4115,7 @@ module Make(Initial:Extension) =
               (Decap.fsequence
                  (Decap.apply List.rev
                     (Decap.fixpoint []
-                       (Decap.apply (fun x  -> fun l  -> x :: l)
+                       (Decap.apply (fun x  -> fun y  -> x :: y)
                           (Decap.sequence (match_case (Let, Seq))
                              (Decap.char '|' '|')
                              (fun _default_0  -> fun _  -> _default_0)))))
@@ -4144,7 +4144,7 @@ module Make(Initial:Extension) =
            [Decap.fsequence
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence
                           (Decap.apply_position
                              (fun x  ->
@@ -4230,7 +4230,7 @@ module Make(Initial:Extension) =
            [Decap.fsequence
               (Decap.apply List.rev
                  (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun l  -> x :: l)
+                    (Decap.apply (fun x  -> fun y  -> x :: y)
                        (Decap.sequence record_item semi_col
                           (fun _default_0  -> fun _  -> _default_0)))))
               (Decap.sequence last_record_item
@@ -4281,7 +4281,7 @@ module Make(Initial:Extension) =
                 (Decap.fsequence
                    (Decap.apply List.rev
                       (Decap.fixpoint []
-                         (Decap.apply (fun x  -> fun l  -> x :: l)
+                         (Decap.apply (fun x  -> fun y  -> x :: y)
                             (Decap.sequence (Decap.char ',' ',') typexpr
                                (fun _  -> fun te  -> te)))))
                    (Decap.sequence (Decap.char ']' ']')
@@ -4346,7 +4346,7 @@ module Make(Initial:Extension) =
              (Decap.fsequence
                 (Decap.apply List.rev
                    (Decap.fixpoint1 []
-                      (Decap.apply (fun x  -> fun l  -> x :: l)
+                      (Decap.apply (fun x  -> fun y  -> x :: y)
                          (parameter false))))
                 (Decap.sequence arrow_re class_expr
                    (fun _default_0  ->
@@ -4400,7 +4400,7 @@ module Make(Initial:Extension) =
               (Decap.apply (fun x  -> Some x)
                  (Decap.apply List.rev
                     (Decap.fixpoint1 []
-                       (Decap.apply (fun x  -> fun l  -> x :: l) argument)))))
+                       (Decap.apply (fun x  -> fun y  -> x :: y) argument)))))
            (fun ce  ->
               fun args  ->
                 fun __loc__start__buf  ->
@@ -4670,7 +4670,7 @@ module Make(Initial:Extension) =
                       (Decap.fsequence
                          (Decap.apply List.rev
                             (Decap.fixpoint []
-                               (Decap.apply (fun x  -> fun l  -> x :: l)
+                               (Decap.apply (fun x  -> fun y  -> x :: y)
                                   (Decap.apply
                                      (fun p  ->
                                         let (_loc_p,p) = p in (p, _loc_p))
@@ -4837,7 +4837,7 @@ module Make(Initial:Extension) =
               (Decap.option None (Decap.apply (fun x  -> Some x) pattern)))
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l) class_field)))
+                 (Decap.apply (fun x  -> fun y  -> x :: y) class_field)))
            (fun p  ->
               let (_loc_p,p) = p in
               fun f  ->
@@ -4872,7 +4872,7 @@ module Make(Initial:Extension) =
                  (Decap.fsequence
                     (Decap.apply List.rev
                        (Decap.fixpoint []
-                          (Decap.apply (fun x  -> fun l  -> x :: l)
+                          (Decap.apply (fun x  -> fun y  -> x :: y)
                              (parameter false))))
                     (Decap.fsequence
                        (Decap.option None
@@ -4920,7 +4920,7 @@ module Make(Initial:Extension) =
         (Decap.sequence class_binding
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.sequence and_kw class_binding
                        (fun _  -> fun _default_0  -> _default_0)))))
            (fun cb  -> fun cbs  -> cb :: cbs))
@@ -5286,8 +5286,8 @@ module Make(Initial:Extension) =
                                                                     (Decap.apply
                                                                     (fun x 
                                                                     ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     argument)))
                                                                     (fun f 
                                                                     ->
@@ -5887,8 +5887,8 @@ module Make(Initial:Extension) =
                                                                     (Decap.apply
                                                                     (fun x 
                                                                     ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     (Decap.sequence
                                                                     (expression_lvl
                                                                     (LetRight,
@@ -5933,8 +5933,8 @@ module Make(Initial:Extension) =
                                                                     (Decap.apply
                                                                     (fun x 
                                                                     ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     (Decap.sequence
                                                                     (expression_lvl
                                                                     (NoMatch,
@@ -6876,8 +6876,8 @@ module Make(Initial:Extension) =
                                                                     (Decap.apply
                                                                     (fun x 
                                                                     ->
-                                                                    fun l  ->
-                                                                    x :: l)
+                                                                    fun y  ->
+                                                                    x :: y)
                                                                     (Decap.sequence
                                                                     semi_col
                                                                     obj_item
@@ -7549,8 +7549,8 @@ module Make(Initial:Extension) =
                                                      (Decap.fixpoint []
                                                         (Decap.apply
                                                            (fun x  ->
-                                                              fun l  -> x ::
-                                                                l)
+                                                              fun y  -> x ::
+                                                                y)
                                                            (Decap.fsequence_position
                                                               (Decap.char '('
                                                                  '(')
@@ -7838,7 +7838,7 @@ module Make(Initial:Extension) =
                                     (Decap.apply List.rev
                                        (Decap.fixpoint []
                                           (Decap.apply
-                                             (fun x  -> fun l  -> x :: l)
+                                             (fun x  -> fun y  -> x :: y)
                                              (Decap.apply
                                                 (fun lbl  ->
                                                    let (_loc_lbl,lbl) = lbl in
@@ -8132,7 +8132,7 @@ module Make(Initial:Extension) =
               module_expr_base)
            (Decap.apply List.rev
               (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun l  -> x :: l)
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
                     (Decap.fsequence_position (Decap.string "(" "(")
                        (Decap.sequence module_expr (Decap.string ")" ")")
                           (fun m  ->
@@ -8330,7 +8330,7 @@ module Make(Initial:Extension) =
                     (Decap.sequence mod_constraint
                        (Decap.apply List.rev
                           (Decap.fixpoint []
-                             (Decap.apply (fun x  -> fun l  -> x :: l)
+                             (Decap.apply (fun x  -> fun y  -> x :: y)
                                 (Decap.sequence and_kw mod_constraint
                                    (fun _  -> fun _default_0  -> _default_0)))))
                        (fun m  -> fun l  -> fun _  -> m :: l)))))
@@ -8383,7 +8383,7 @@ module Make(Initial:Extension) =
                          (Decap.sequence
                             (Decap.apply List.rev
                                (Decap.fixpoint []
-                                  (Decap.apply (fun x  -> fun l  -> x :: l)
+                                  (Decap.apply (fun x  -> fun y  -> x :: y)
                                      string_litteral))) post_item_attributes
                             (fun ls  ->
                                fun a  ->
@@ -8452,7 +8452,7 @@ module Make(Initial:Extension) =
                                (Decap.apply List.rev
                                   (Decap.fixpoint []
                                      (Decap.apply
-                                        (fun x  -> fun l  -> x :: l)
+                                        (fun x  -> fun y  -> x :: y)
                                         (Decap.fsequence_position and_kw
                                            (Decap.fsequence module_name
                                               (Decap.fsequence
@@ -8521,7 +8521,7 @@ module Make(Initial:Extension) =
                   (Decap.fsequence
                      (Decap.apply List.rev
                         (Decap.fixpoint []
-                           (Decap.apply (fun x  -> fun l  -> x :: l)
+                           (Decap.apply (fun x  -> fun y  -> x :: y)
                               (Decap.fsequence_position
                                  (Decap.string "(" "(")
                                  (Decap.fsequence module_name
@@ -8823,7 +8823,7 @@ module Make(Initial:Extension) =
       set_grammar structure_item_simple
         (Decap.apply List.rev
            (Decap.fixpoint []
-              (Decap.apply (fun x  -> fun l  -> x :: l) structure_item_base)))
+              (Decap.apply (fun x  -> fun y  -> x :: y) structure_item_base)))
     let signature_item_base = Decap.declare_grammar "signature_item_base"
     let _ =
       Decap.set_grammar signature_item_base
@@ -8873,7 +8873,7 @@ module Make(Initial:Extension) =
                          (Decap.sequence
                             (Decap.apply List.rev
                                (Decap.fixpoint []
-                                  (Decap.apply (fun x  -> fun l  -> x :: l)
+                                  (Decap.apply (fun x  -> fun y  -> x :: y)
                                      string_litteral))) post_item_attributes
                             (fun ls  ->
                                fun a  ->
@@ -8960,7 +8960,7 @@ module Make(Initial:Extension) =
                                post_item_attributes)
                             (Decap.apply List.rev
                                (Decap.fixpoint []
-                                  (Decap.apply (fun x  -> fun l  -> x :: l)
+                                  (Decap.apply (fun x  -> fun y  -> x :: y)
                                      (Decap.fsequence_position and_kw
                                         (Decap.fsequence module_name
                                            (Decap.fsequence
@@ -9042,7 +9042,7 @@ module Make(Initial:Extension) =
                    (Decap.fsequence
                       (Decap.apply List.rev
                          (Decap.fixpoint []
-                            (Decap.apply (fun x  -> fun l  -> x :: l)
+                            (Decap.apply (fun x  -> fun y  -> x :: y)
                                (Decap.fsequence_position
                                   (Decap.string "(" "(")
                                   (Decap.fsequence module_name
@@ -9280,7 +9280,7 @@ module Make(Initial:Extension) =
               (Decap.sequence
                  (Decap.apply List.rev
                     (Decap.fixpoint1 []
-                       (Decap.apply (fun x  -> fun l  -> x :: l)
+                       (Decap.apply (fun x  -> fun y  -> x :: y)
                           structure_item_base))) double_semi_col
                  (fun l  -> fun _default_0  -> fun _default_1  -> Ptop_def l));
            Decap.sequence
