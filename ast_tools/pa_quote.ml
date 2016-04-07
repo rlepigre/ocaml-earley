@@ -98,7 +98,7 @@ let modname =
 	 let f = s.[0] in
 	 if f >= 'a' && f <= 'z' then (
 	   let f' = Char.chr (Char.code f - Char.code 'a' + Char.code 'A') in
-	   s.[0] <- f');
+	   Bytes.set s 0 f');
 	 fun id -> Printf.sprintf "(Ldot(Lident \"%s\", \"%s\"))" s id
   | _ -> failwith "Wrong number of arguments..."
 

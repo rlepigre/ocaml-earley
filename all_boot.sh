@@ -1,7 +1,6 @@
 #!/bin/bash
 
-export MAKEOPTS="OCAMLFIND= OCAMLOPT=ocamlopt.opt OCAMLC=ocamlc.opt"
-export MAKE="make $MAKEOPTS"
+export MAKE="make"
 
 set -v
 

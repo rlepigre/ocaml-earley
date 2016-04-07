@@ -1,6 +1,7 @@
 export OCAMLVERSION=$(shell ocamlc -version)
 DECAP=..
 PA_OCAML=$(DECAP)/pa_ocaml
+OCAMLOPT=ocamlfind ocamlopt -package bytes
 
 COMPILER_INC = -I +compiler-libs
 COMPILER_LIBS = ocamlcommon.cma
@@ -23,13 +24,13 @@ debug:
 	echo $(BOOTDIR)
 
 pa_eq: pa_eq.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	ocamlopt -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
 
 pa_iter: pa_iter.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	ocamlopt -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
 
 pa_quote: pa_quote.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	ocamlopt -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
 
 # FIXME target construction does not fail if pa_eq fails...
 $(BOOTDIR)/compare.ml: pa_eq generic_eq.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
@@ -59,22 +60,22 @@ $(BOOTDIR)/quote.ml: pa_quote generic_quote.ml $(ASTDIR)/parsetree.mli $(ASTDIR)
 	./pa_quote $(ASTDIR)/parsetree.mli >> $@
 
 compare.cmx: $(BOOTDIR)/compare.ml
-	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 compare.cmo: $(BOOTDIR)/compare.ml
-	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 iter.cmx: $(BOOTDIR)/iter.ml
-	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 iter.cmo: $(BOOTDIR)/iter.ml
-	ocamlopt -c $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 quote.cmx: $(BOOTDIR)/quote.ml
-	ocamlopt -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 quote.cmo: $(BOOTDIR)/quote.ml
-	ocamlopt -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 clean:
 	rm -f *.cmi *.cmx *.cmo *.cma *.cmxa *.o

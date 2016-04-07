@@ -409,7 +409,7 @@ struct
       def, condition, res
 
   let parser glr_action alm =
-    | RE("->>") r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
+    | "->>" r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
     | arrow_re action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
     | EMPTY -> Default
 
@@ -426,8 +426,7 @@ struct
 	| `Ignore -> (`Ignore::res,i)) l ([], 0))
       in
       let occur_loc = occur ("_loc") action in
-      (_loc, occur_loc, def, l, condition, action)
-     )
+      (_loc, occur_loc, def, l, condition, action))
 
   let apply_def_cond _loc arg =
     let (def,cond,e) = build_rule arg in

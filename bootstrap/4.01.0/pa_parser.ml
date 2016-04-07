@@ -2023,10 +2023,8 @@ module Ext(In:Extension) =
       glr_action__set__grammar
         (fun alm  ->
            Decap.alternatives
-             [Decap.sequence (Decap.regexp "->>" (fun groupe  -> groupe 0))
-                (glr_rule alm)
-                (fun _default_0  r  ->
-                   let (a,b,c) = build_rule r in DepSeq (a, b, c));
+             [Decap.sequence (Decap.string "->>" "->>") (glr_rule alm)
+                (fun _  r  -> let (a,b,c) = build_rule r in DepSeq (a, b, c));
              Decap.fsequence arrow_re
                (Decap.sequence
                   (if alm then expression else expression_lvl (Let, Seq))

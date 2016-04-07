@@ -52,7 +52,7 @@ ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 %.cmi: %.mli
 	$(OCAMLC) $(OCAMLFLAGS) -c $<
 
-%.cmo %.cmi: %.ml
+%.cmo: %.ml
 	$(OCAMLC) $(OCAMLFLAGS) -c $<
 
 %.cmx: %.cmo
