@@ -32,6 +32,8 @@ module Initial =
         "Treat file as an interface.");
       ("--unsafe", (Arg.Set fast),
         "Use unsafe functions for arrays (more efficient).");
+      ("--position-from-parser", (Arg.Set Quote.quote_parser_position),
+        "Report position from quotation in parser (usefull to debug quotation).");
       ("--debug", (Arg.Set_int Decap.debug_lvl),
         "Sets the value of \"Decap.debug_lvl\".")]
       

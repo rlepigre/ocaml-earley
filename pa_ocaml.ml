@@ -1010,12 +1010,13 @@ let _ = set_pattern_lvl (fun lvl ->
   | '$' - aq:{''[a-z]+'' - ':'}?["pat"] e:expression - '$' when lvl = AtomPat ->
      begin
        let open Quote in
+       let e_loc = exp_ident _loc "_loc" in
        let locate _loc e =
-	 quote_record _loc [
+	 quote_record e_loc _loc [
 	   (parsetree "ppat_desc", e) ;
-	   (parsetree "ppat_loc", quote_location_t _loc _loc) ;
+	   (parsetree "ppat_loc", quote_location_t e_loc _loc _loc) ;
 #ifversion >= 4.02
-           (parsetree "ppat_attributes", quote_attributes _loc [])
+           (parsetree "ppat_attributes", quote_attributes e_loc _loc [])
 #endif
 	 ]
        in
@@ -1027,26 +1028,26 @@ let _ = set_pattern_lvl (fun lvl ->
 	 match aq with
 	    | "pat" -> generic_antiquote e
 	    | "bool"  ->
-	       let e = quote_const _loc (parsetree "Ppat_constant")
-		 [quote_apply _loc (pa_ast "const_bool") [e]]
+	       let e = quote_const e_loc _loc (parsetree "Ppat_constant")
+		 [quote_apply e_loc _loc (pa_ast "const_bool") [e]]
 	       in
 	       generic_antiquote (locate _loc e)
 	    | "int"  ->
-	       let e = quote_const _loc (parsetree "Ppat_constant")
-		 [quote_apply _loc (pa_ast "const_int") [e]]
+	       let e = quote_const e_loc _loc (parsetree "Ppat_constant")
+		 [quote_apply e_loc _loc (pa_ast "const_int") [e]]
 	       in
 	       generic_antiquote (locate _loc e)
 	    | "string"  ->
-	       let e = quote_const _loc (parsetree "Ppat_constant")
-		 [quote_apply _loc (pa_ast "const_string") [e]]
+	       let e = quote_const e_loc _loc (parsetree "Ppat_constant")
+		 [quote_apply e_loc _loc (pa_ast "const_string") [e]]
 	       in
 	       generic_antiquote (locate _loc e)
 	    | "list"      ->
-	       generic_antiquote (quote_apply _loc (pa_ast "pat_list") [quote_location_t _loc _loc; e])
+	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_list") [quote_location_t e_loc _loc _loc; e])
 	    | "tuple"      ->
-	       generic_antiquote (quote_apply _loc (pa_ast "pat_tuple") [quote_location_t _loc _loc; e])
+	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_tuple") [quote_location_t e_loc _loc _loc; e])
 	    | "array"      ->
-	       generic_antiquote (quote_apply _loc (pa_ast "pat_array") [quote_location_t _loc _loc; e])
+	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_array") [quote_location_t e_loc _loc _loc; e])
 	    | _ -> give_up "bad antiquotation"
       in
       Quote.ppat_antiquotation _loc f
@@ -1588,56 +1589,63 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
                               pexp_constraint (me, pt)
       in loc_expr _loc desc
 
-| "<:" r:{ "expr"      '<' e:expression            ">>" -> Quote.quote_expression _loc_e e
-	 | "type"      '<' e:typexpr               ">>" -> Quote.quote_core_type  _loc_e e
-	 | "pat"       '<' e:pattern               ">>" -> Quote.quote_pattern    _loc_e e
-	 | "struct"    '<' e:structure_item_simple ">>" -> Quote.quote_structure  _loc_e e
-	 | "sig"       '<' e:signature_item        ">>" -> Quote.quote_signature  _loc_e e
+| "<:" r:{ "expr"      '<' e:expression            ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_expression e_loc _loc_e e
+	 | "type"      '<' e:typexpr               ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_core_type  e_loc _loc_e e
+	 | "pat"       '<' e:pattern               ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_pattern    e_loc _loc_e e
+	 | "struct"    '<' e:structure_item_simple ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_structure  e_loc _loc_e e
+	 | "sig"       '<' e:signature_item        ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_signature  e_loc _loc_e e
 	 | "constructors"
 	     '<' e:constr_decl_list ">>" ->
 #ifversion < 4.02
-	   let quote_constructor_declaration _loc (s,t,t',l) =
-	     Quote.(quote_tuple _loc [
-	       ((quote_loc quote_string) _loc s) ;
-	       ((quote_list quote_core_type) _loc t) ;
-	       ((quote_option quote_core_type) _loc t') ;
-	       (quote_location_t _loc l) ; ])
+	   let quote_constructor_declaration e_loc _loc (s,t,t',l) =
+	     Quote.(quote_tuple e_loc _loc [
+	       ((quote_loc quote_string) e_loc _loc s) ;
+	       ((quote_list quote_core_type) e_loc _loc t) ;
+	       ((quote_option quote_core_type) e_loc _loc t') ;
+	       (quote_location_t e_loc _loc l) ; ])
            in
 #endif
-	                   Quote.(quote_list quote_constructor_declaration _loc_e e)
+	   let e_loc = exp_ident _loc "_loc" in
+           Quote.(quote_list quote_constructor_declaration e_loc _loc_e e)
 	 | "fields"    '<' e:field_decl_list ">>" ->
 #ifversion < 4.02
-	   let quote_label_declaration _loc (x1,x2,x3,x4) =
-	     Quote.(quote_tuple _loc [(quote_loc quote_string) _loc x1;quote_mutable_flag _loc x2;
-			       quote_core_type _loc x3;quote_location_t _loc x4;])
+	   let quote_label_declaration e_loc _loc (x1,x2,x3,x4) =
+	     Quote.(quote_tuple e_loc _loc [quote_loc quote_string e_loc _loc x1;
+					    quote_mutable_flag e_loc _loc x2;
+			       quote_core_type e_loc _loc x3;quote_location_t e_loc _loc x4;])
 	   in
 #endif
-	                   Quote.(quote_list quote_label_declaration _loc_e e)
+	   let e_loc = exp_ident _loc "_loc" in
+	   Quote.(quote_list quote_label_declaration e_loc _loc_e e)
 	 | "bindings"  '<' e:let_binding     ">>" ->
 #ifversion < 4.02
-	   let quote_value_binding _loc (x1,x2) =
-	     Quote.(quote_tuple _loc [quote_pattern _loc x1;quote_expression _loc x2;])
+	   let quote_value_binding e_loc _loc (x1,x2) =
+	     Quote.(quote_tuple e_loc _loc [quote_pattern e_loc _loc x1;quote_expression e_loc _loc x2;])
 	   in
 #endif
-
-	                   Quote.(quote_list quote_value_binding _loc_e e)
+	   let e_loc = exp_ident _loc "_loc" in
+	   Quote.(quote_list quote_value_binding e_loc _loc_e e)
 	 | "cases"     '<' e:match_cases ">>" ->
 #ifversion < 4.02
-	   let quote_case _loc (x1,x2) =
-	     Quote.(quote_tuple _loc [quote_pattern _loc x1;quote_expression _loc x2;])
+	   let quote_case e_loc _loc (x1,x2) =
+	     Quote.(quote_tuple e_loc _loc [quote_pattern e_loc _loc x1;quote_expression e_loc _loc x2;])
 	   in
 #endif
-	                   Quote.(quote_list quote_case _loc_e e)
+	   let e_loc = exp_ident _loc "_loc" in
+	   Quote.(quote_list quote_case e_loc _loc_e e)
 	 | "module"    '<' e:module_expr ">>" ->
-	                   Quote.quote_module_expr _loc_e e
+	    let e_loc = exp_ident _loc "_loc" in
+	    Quote.quote_module_expr e_loc _loc_e e
 	 | "module" "type" '<' e:module_type ">>" ->
-	                   Quote.quote_module_type _loc_e e
+	    let e_loc = exp_ident _loc "_loc" in
+	    Quote.quote_module_type e_loc _loc_e e
 	 | "record"    '<' e:record_list     ">>" ->
+	    let e_loc = exp_ident _loc "_loc" in
 	    let quote_fields = Quote.(quote_list
-	      (fun _loc (x1,x2) -> quote_tuple _loc [(quote_loc quote_longident) _loc x1;
-						     quote_expression _loc x2;]))
+	      (fun e_loc _loc (x1,x2) -> quote_tuple e_loc _loc [(quote_loc quote_longident) e_loc _loc x1;
+						     quote_expression e_loc _loc x2;]))
 	    in
-	    quote_fields _loc_e e
+	    quote_fields e_loc _loc_e e
 	 } when lvl = Atom
 	-> r
 
@@ -1655,12 +1663,13 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | '$' - aq:{''[a-z]+'' - ':'}?["expr"] e:expression - '$' when lvl = Atom ->
     let f =
       let open Quote in
+      let e_loc = exp_ident _loc "_loc" in
       let locate _loc e =
-	quote_record _loc
+	quote_record e_loc _loc
               [ (parsetree "pexp_desc", e)
-              ; (parsetree "pexp_loc", quote_location_t _loc _loc)
+              ; (parsetree "pexp_loc", quote_location_t e_loc _loc _loc)
 #ifversion >= 4.02
-              ; (parsetree "pexp_attributes", quote_attributes _loc [])
+              ; (parsetree "pexp_attributes", quote_attributes e_loc _loc [])
 #endif
 	      ]
       in
@@ -1671,27 +1680,27 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
             failwith "Bad antiquotation..." (* FIXME:add location *)
       in
       let quote_loc _loc e =
-        quote_record _loc
+        quote_record e_loc _loc
           [ ((Ldot(Lident "Asttypes", "txt")), e)
-          ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t _loc _loc) ]
+          ; ((Ldot(Lident "Asttypes", "loc")), quote_location_t e_loc _loc _loc) ]
       in
       match aq with
       | "expr"      -> generic_antiquote e
       | "longident" ->
-          let e = quote_const _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
+          let e = quote_const e_loc _loc (parsetree "Pexp_ident") [quote_loc _loc e] in
           generic_antiquote (locate _loc e)
       | "bool"      ->
-	 generic_antiquote (quote_apply _loc (pa_ast "exp_bool") [quote_location_t _loc _loc; e])
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_bool") [quote_location_t e_loc _loc _loc; e])
       | "int"       ->
-	 generic_antiquote (quote_apply _loc (pa_ast "exp_int") [quote_location_t _loc _loc; e])
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_int") [quote_location_t e_loc _loc _loc; e])
       | "string"    ->
-	 generic_antiquote (quote_apply _loc (pa_ast "exp_string") [quote_location_t _loc _loc; e])
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_string") [quote_location_t e_loc _loc _loc; e])
       | "list"      ->
-	 generic_antiquote (quote_apply _loc (pa_ast "exp_list") [quote_location_t _loc _loc; e])
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_list") [quote_location_t e_loc _loc _loc; e])
       | "tuple"      ->
-	 generic_antiquote (quote_apply _loc (pa_ast "exp_tuple") [quote_location_t _loc _loc; e])
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_tuple") [quote_location_t e_loc _loc _loc; e])
       | "array"      ->
-	generic_antiquote (quote_apply _loc (pa_ast "exp_array") [quote_location_t _loc _loc; e])
+	generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_array") [quote_location_t e_loc _loc _loc; e])
       | _      -> give_up (Printf.sprintf "Invalid antiquotation %s." aq)
     in Quote.pexp_antiquotation _loc f
 
@@ -1942,25 +1951,26 @@ let parser structure_item_base =
      let open Quote in
      pstr_antiquotation _loc (function
      | Quote_pstr ->
+	let e_loc = exp_ident _loc "_loc" in
 #ifversion >= 4.02
-	(quote_apply _loc (pa_ast "loc_str")
-	   [quote_location_t _loc _loc;
-	    quote_const _loc (parsetree "Pstr_include")
-	      [quote_record _loc [
-		(parsetree "pincl_loc", quote_location_t _loc _loc);
-		(parsetree "pincl_attributes", quote_list (quote_attribute) _loc []);
+	(quote_apply e_loc _loc (pa_ast "loc_str")
+	   [quote_location_t e_loc _loc _loc;
+	    quote_const e_loc _loc (parsetree "Pstr_include")
+	      [quote_record e_loc _loc [
+		(parsetree "pincl_loc", quote_location_t e_loc _loc _loc);
+		(parsetree "pincl_attributes", quote_list (quote_attribute) e_loc _loc []);
 		(parsetree "pincl_mod",
-		 quote_apply _loc (pa_ast "mexpr_loc")
-		     [quote_location_t _loc _loc;
-		      quote_const _loc (parsetree "Pmod_structure")
+		 quote_apply e_loc _loc (pa_ast "mexpr_loc")
+		     [quote_location_t e_loc _loc _loc;
+		      quote_const e_loc _loc (parsetree "Pmod_structure")
 			[e]])]]])
 #else
-	(quote_apply _loc (pa_ast "loc_str")
-	   [quote_location_t _loc _loc;
-	    quote_const _loc (parsetree "Pstr_include")
-	      [quote_apply _loc (pa_ast "mexpr_loc")
-		  [quote_location_t _loc _loc;
-		   quote_const _loc (parsetree "Pmod_structure")
+	(quote_apply e_loc _loc (pa_ast "loc_str")
+	   [quote_location_t e_loc _loc _loc;
+	    quote_const e_loc _loc (parsetree "Pstr_include")
+	      [quote_apply e_loc _loc (pa_ast "mexpr_loc")
+		  [quote_location_t e_loc _loc _loc;
+		   quote_const e_loc _loc (parsetree "Pmod_structure")
 		     [e]]]])
 #endif
      | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))

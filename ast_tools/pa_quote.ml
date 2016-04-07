@@ -143,19 +143,19 @@ let rec print_btype ch = function
       let xs = List.rev (build_list "x" len) in
       let cxs = "(" ^ (String.concat "," xs) ^ ")" in
       let txs = zip lt xs in
-      fprintf ch "(fun _loc %s -> quote_tuple _loc [" cxs;
-      let f (t, x) = fprintf ch "%a _loc %s;" print_btype t x in
+      fprintf ch "(fun e_loc _loc %s -> quote_tuple e_loc _loc [" cxs;
+      let f (t, x) = fprintf ch "%a e_loc _loc %s;" print_btype t x in
       List.iter f txs;
       fprintf ch "])"
 
 let print_type ch = function
-  | Syn (n,t)    -> fprintf ch "quote_%s _loc x =  %a _loc x" n print_btype t
+  | Syn (n,t)    -> fprintf ch "quote_%s e_loc _loc x =  %a e_loc _loc x" n print_btype t
   | Sum (n,cl)   ->
-      fprintf ch "quote_%s _loc x = match x with\n" n;
+      fprintf ch "quote_%s e_loc _loc x = match x with\n" n;
       let f (c, ts) =
         match ts with
-        | []  -> fprintf ch "  | %s -> quote_const _loc %s []\n" c (modname c)
-        | [t] -> fprintf ch "  | %s(x) -> quote_const _loc %s [%a _loc x]\n" c (modname c)
+        | []  -> fprintf ch "  | %s -> quote_const e_loc _loc %s []\n" c (modname c)
+        | [t] -> fprintf ch "  | %s(x) -> quote_const e_loc _loc %s [%a e_loc _loc x]\n" c (modname c)
                    print_btype t
         | _   ->
             let len = List.length ts in
@@ -165,9 +165,9 @@ let print_type ch = function
             in
             let xs = List.rev (build_list "x" len) in
             let cxs = "(" ^ (String.concat "," xs) ^ ")" in
-            fprintf ch "  | %s%s -> quote_const _loc %s [" c cxs (modname c);
+            fprintf ch "  | %s%s -> quote_const e_loc _loc %s [" c cxs (modname c);
             let txs = zip ts xs in
-            let f (t,x) = Printf.fprintf ch " %a _loc %s;" print_btype t x in
+            let f (t,x) = Printf.fprintf ch " %a e_loc _loc %s;" print_btype t x in
             List.iter f txs;
             fprintf ch "]\n"
       in
@@ -201,14 +201,14 @@ let print_type ch = function
 	    (if name = "loc" then "txt" else name)
       in
       (match a with
-       | None   -> fprintf ch "quote_%s _loc r = %s" n prefix
+       | None   -> fprintf ch "quote_%s e_loc _loc r = %s" n prefix
        | Some a ->
-           fprintf ch "quote_%s : 'a. (Location.t -> 'a -> expression) ->" n;
-           fprintf ch " Location.t -> 'a %s -> expression =\n" n;
-           fprintf ch "  fun quote_%s _loc r -> %s\n  " a prefix);
-      fprintf ch "  quote_record _loc [\n";
+           fprintf ch "quote_%s : 'a. (expression -> Location.t -> 'a -> expression) ->" n;
+           fprintf ch " expression -> Location.t -> 'a %s -> expression =\n" n;
+           fprintf ch "  fun quote_%s e_loc _loc r -> %s\n  " a prefix);
+      fprintf ch "  quote_record e_loc _loc [\n";
       let f (l, t) =
-        fprintf ch "   (%s, %a _loc r.%s) ;\n" (modname l) print_btype t l
+        fprintf ch "   (%s, %a e_loc _loc r.%s) ;\n" (modname l) print_btype t l
       in
       List.iter f fl;
       fprintf ch "  ]\n%s" suffix

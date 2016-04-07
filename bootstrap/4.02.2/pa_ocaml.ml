@@ -2486,9 +2486,15 @@ module Make(Initial:Extension) =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                     let open Quote in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let locate
                                                                     _loc e =
                                                                     quote_record
+                                                                    e_loc
                                                                     _loc
                                                                     [
                                                                     ((parsetree
@@ -2497,10 +2503,12 @@ module Make(Initial:Extension) =
                                                                     ((parsetree
                                                                     "ppat_loc"),
                                                                     (quote_location_t
+                                                                    e_loc
                                                                     _loc _loc));
                                                                     ((parsetree
                                                                     "ppat_attributes"),
                                                                     (quote_attributes
+                                                                    e_loc
                                                                     _loc []))] in
                                                                     let generic_antiquote
                                                                     e =
@@ -2523,11 +2531,13 @@ module Make(Initial:Extension) =
                                                                     "bool" ->
                                                                     let e =
                                                                     quote_const
+                                                                    e_loc
                                                                     _loc
                                                                     (parsetree
                                                                     "Ppat_constant")
                                                                     [
                                                                     quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "const_bool")
@@ -2539,11 +2549,13 @@ module Make(Initial:Extension) =
                                                                     "int" ->
                                                                     let e =
                                                                     quote_const
+                                                                    e_loc
                                                                     _loc
                                                                     (parsetree
                                                                     "Ppat_constant")
                                                                     [
                                                                     quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "const_int")
@@ -2556,11 +2568,13 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     let e =
                                                                     quote_const
+                                                                    e_loc
                                                                     _loc
                                                                     (parsetree
                                                                     "Ppat_constant")
                                                                     [
                                                                     quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "const_string")
@@ -2572,11 +2586,13 @@ module Make(Initial:Extension) =
                                                                     "list" ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "pat_list")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -2584,11 +2600,13 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "pat_tuple")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -2596,11 +2614,13 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "pat_array")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -6040,9 +6060,15 @@ module Make(Initial:Extension) =
                                                                     __loc__end__pos in
                                                                     let f =
                                                                     let open Quote in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let locate
                                                                     _loc e =
                                                                     quote_record
+                                                                    e_loc
                                                                     _loc
                                                                     [
                                                                     ((parsetree
@@ -6051,10 +6077,12 @@ module Make(Initial:Extension) =
                                                                     ((parsetree
                                                                     "pexp_loc"),
                                                                     (quote_location_t
+                                                                    e_loc
                                                                     _loc _loc));
                                                                     ((parsetree
                                                                     "pexp_attributes"),
                                                                     (quote_attributes
+                                                                    e_loc
                                                                     _loc []))] in
                                                                     let generic_antiquote
                                                                     e =
@@ -6069,6 +6097,7 @@ module Make(Initial:Extension) =
                                                                     let quote_loc
                                                                     _loc e =
                                                                     quote_record
+                                                                    e_loc
                                                                     _loc
                                                                     [
                                                                     ((Ldot
@@ -6081,6 +6110,7 @@ module Make(Initial:Extension) =
                                                                     "Asttypes"),
                                                                     "loc")),
                                                                     (quote_location_t
+                                                                    e_loc
                                                                     _loc _loc))] in
                                                                     match aq
                                                                     with
@@ -6093,6 +6123,7 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     let e =
                                                                     quote_const
+                                                                    e_loc
                                                                     _loc
                                                                     (parsetree
                                                                     "Pexp_ident")
@@ -6106,22 +6137,26 @@ module Make(Initial:Extension) =
                                                                     "bool" ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_bool")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
                                                                     "int" ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_int")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -6129,22 +6164,26 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_string")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
                                                                     "list" ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_list")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -6152,11 +6191,13 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_tuple")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -6164,11 +6205,13 @@ module Make(Initial:Extension) =
                                                                     ->
                                                                     generic_antiquote
                                                                     (quote_apply
+                                                                    e_loc
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_array")
                                                                     [
                                                                     quote_location_t
+                                                                    e_loc
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
@@ -6255,7 +6298,7 @@ module Make(Initial:Extension) =
                                                                     "<:" "<:")
                                                                     (Decap.alternatives
                                                                     [
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "expr"
                                                                     "expr")
@@ -6289,9 +6332,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_expression
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "type"
                                                                     "type")
@@ -6325,9 +6393,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_core_type
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "pat"
                                                                     "pat")
@@ -6361,9 +6454,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_pattern
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "struct"
                                                                     "struct")
@@ -6397,9 +6515,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_structure
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "sig"
                                                                     "sig")
@@ -6433,9 +6576,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_signature
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "constructors"
                                                                     "constructors")
@@ -6469,11 +6637,36 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let open Quote in
                                                                     quote_list
                                                                     quote_constructor_declaration
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "fields"
                                                                     "fields")
@@ -6507,11 +6700,36 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let open Quote in
                                                                     quote_list
                                                                     quote_label_declaration
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "bindings"
                                                                     "bindings")
@@ -6545,11 +6763,36 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let open Quote in
                                                                     quote_list
                                                                     quote_value_binding
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "cases"
                                                                     "cases")
@@ -6583,11 +6826,36 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let open Quote in
                                                                     quote_list
                                                                     quote_case
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "module"
                                                                     "module")
@@ -6621,9 +6889,34 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_module_expr
+                                                                    e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence
+                                                                    Decap.fsequence_position
                                                                     (Decap.string
                                                                     "module"
                                                                     "module")
@@ -6662,7 +6955,32 @@ module Make(Initial:Extension) =
                                                                     fun _  ->
                                                                     fun _  ->
                                                                     fun _  ->
+                                                                    fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     Quote.quote_module_type
+                                                                    e_loc
                                                                     _loc_e e))));
                                                                     Decap.fsequence_position
                                                                     (Decap.string
@@ -6717,24 +7035,35 @@ module Make(Initial:Extension) =
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
+                                                                    let e_loc
+                                                                    =
+                                                                    exp_ident
+                                                                    _loc
+                                                                    "_loc" in
                                                                     let quote_fields
                                                                     =
                                                                     let open Quote in
                                                                     quote_list
-                                                                    (fun _loc
-                                                                     ->
+                                                                    (fun
+                                                                    e_loc  ->
+                                                                    fun _loc 
+                                                                    ->
                                                                     fun
                                                                     (x1,x2) 
                                                                     ->
                                                                     quote_tuple
+                                                                    e_loc
                                                                     _loc
                                                                     [
                                                                     (quote_loc
                                                                     quote_longident)
+                                                                    e_loc
                                                                     _loc x1;
                                                                     quote_expression
+                                                                    e_loc
                                                                     _loc x2]) in
                                                                     quote_fields
+                                                                    e_loc
                                                                     _loc_e e)))])
                                                                     (fun _ 
                                                                     ->
@@ -8729,22 +9058,25 @@ module Make(Initial:Extension) =
                                  pstr_antiquotation _loc
                                    (function
                                     | Quote_pstr  ->
-                                        quote_apply _loc (pa_ast "loc_str")
-                                          [quote_location_t _loc _loc;
-                                          quote_const _loc
+                                        let e_loc = exp_ident _loc "_loc" in
+                                        quote_apply e_loc _loc
+                                          (pa_ast "loc_str")
+                                          [quote_location_t e_loc _loc _loc;
+                                          quote_const e_loc _loc
                                             (parsetree "Pstr_include")
-                                            [quote_record _loc
+                                            [quote_record e_loc _loc
                                                [((parsetree "pincl_loc"),
-                                                  (quote_location_t _loc _loc));
+                                                  (quote_location_t e_loc
+                                                     _loc _loc));
                                                ((parsetree "pincl_attributes"),
                                                  (quote_list quote_attribute
-                                                    _loc []));
+                                                    e_loc _loc []));
                                                ((parsetree "pincl_mod"),
-                                                 (quote_apply _loc
+                                                 (quote_apply e_loc _loc
                                                     (pa_ast "mexpr_loc")
-                                                    [quote_location_t _loc
-                                                       _loc;
-                                                    quote_const _loc
+                                                    [quote_location_t e_loc
+                                                       _loc _loc;
+                                                    quote_const e_loc _loc
                                                       (parsetree
                                                          "Pmod_structure")
                                                       [e]]))]]]
