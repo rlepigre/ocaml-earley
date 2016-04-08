@@ -383,8 +383,22 @@ let solo = fun ?(name=new_name ()) set s ->
   let j = Fixpoint.from_val i in
   (j, [(Next(j,name,false,Term (set, s),Idt,idtEmpty),new_cell ())])
 
-let greedy_solo = fun ?(name=new_name ()) i s ->
-  (i, [(Next(i,name,false,Greedy(i,s),Idt,idtEmpty),new_cell ())])
+let greedy_solo =
+  fun ?(name=new_name ()) i s ->
+    let cache = Hashtbl.create 101 in
+    let s = fun ptr blank b p b' p' ->
+      let key = (buf_ident b, p, buf_ident b', p') in
+      let l = try Hashtbl.find cache key with Not_found -> [] in
+      try
+        let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
+        r
+      with Not_found ->
+        let r = s ptr blank b p b' p' in
+        let l = (ptr,blank,r)::l in
+        Hashtbl.replace cache key l;
+        r
+    in
+    (i, [(Next(i,name,false,Greedy(i,s),Idt,idtEmpty),new_cell ())])
 
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in

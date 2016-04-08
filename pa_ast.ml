@@ -214,6 +214,9 @@ let pat_tuple _loc l =
 let pat_array _loc l =
   loc_pat _loc (Ppat_array l)
 
+let typ_tuple _loc l =
+  loc_typ _loc (Ptyp_tuple l)
+
 #ifversion >= 4.03
 let nolabel = Nolabel
 let labelled s = Labelled s

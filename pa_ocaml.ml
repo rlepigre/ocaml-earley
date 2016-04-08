@@ -74,6 +74,11 @@ let parser lident   =
   | olident
   | "$lid:" e:expression - '$' -> Quote.string_antiquotation _loc e
 
+let oident = ident
+let parser ident   =
+  | oident
+  | "$ident:" e:expression - '$' -> Quote.string_antiquotation _loc e
+
 (* FIXME ... !Main.a = !(Main.a) !main.a = (!main).a ... *)
 #ifversion >= 4.03
 let mk_unary_opp name _loc_name arg _loc_arg =
@@ -577,11 +582,6 @@ let _ = set_typexpr_lvl (fun lvl ->
       loc_typ _loc (Ptyp_class (cp, te::tes, o))
 #endif
 
-(* | dol:CHR('$') - t:{t:{STR("tuple") -> "tuple"} CHR(':') }? e:(expression_lvl App) - CHR('$') ->
-	 (match t with
-	   None -> Quote.make_antiquotation e
-   | Some _ -> Ptyp_tuple (Quote.make_antiquotation e))*)
-
   | te:(typexpr_lvl (next_type_prio ProdType))
     tes:{STR("*") te:(typexpr_lvl (next_type_prio ProdType)) -> te}+  when lvl = ProdType->
      loc_typ _loc (Ptyp_tuple (te::tes))
@@ -599,6 +599,22 @@ let _ = set_typexpr_lvl (fun lvl ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, [te], o))
 #endif
+  | '$' - aq:{''[a-z]+'' - ':'}?["type"] e:expression - '$' when lvl = AtomType ->
+     begin
+       let open Quote in
+       let e_loc = exp_ident _loc "_loc" in
+       let generic_antiquote e = function
+	 | Quote_ptyp -> e
+	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+       in
+       let f =
+	 match aq with
+	    | "type" -> generic_antiquote e
+	    | "tuple" -> generic_antiquote (quote_apply e_loc _loc (pa_ast "typ_tuple") [quote_location_t e_loc _loc _loc; e])
+	    | _ -> give_up "bad antiquotation"
+       in
+       Quote.ptyp_antiquotation _loc f
+     end
 )
 
 (****************************************************************************
