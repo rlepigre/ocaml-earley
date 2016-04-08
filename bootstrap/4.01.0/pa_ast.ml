@@ -107,6 +107,7 @@ let exp_lident _loc id = loc_expr _loc (Pexp_ident (id_loc id _loc))
 let pat_ident _loc id = loc_pat _loc (Ppat_var (id_loc id _loc))
 let pat_tuple _loc l = loc_pat _loc (Ppat_tuple l)
 let pat_array _loc l = loc_pat _loc (Ppat_array l)
+let typ_tuple _loc l = loc_typ _loc (Ptyp_tuple l)
 let nolabel = ""
 let labelled s = s
 let optional s = "?" ^ s

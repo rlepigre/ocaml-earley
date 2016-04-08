@@ -194,25 +194,22 @@ module Initial =
       grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl" 
     let typexpr = typexpr_lvl TopType 
     type pattern_prio =
-      | TopPat 
-      | AsPat 
       | AltPat 
       | TupPat 
       | ConsPat 
       | ConstrPat 
       | AtomPat 
+    let topPat = AltPat 
     let next_pat_prio =
       function
-      | TopPat  -> AsPat
-      | AsPat  -> AltPat
       | AltPat  -> TupPat
       | TupPat  -> ConsPat
       | ConsPat  -> ConstrPat
       | ConstrPat  -> AtomPat
       | AtomPat  -> AtomPat 
-    let ((pattern_lvl : pattern_prio -> pattern grammar),set_pattern_lvl) =
-      grammar_family "pattern_lvl" 
-    let pattern = pattern_lvl TopPat 
+    let ((pattern_lvl : (bool* pattern_prio) -> pattern grammar),set_pattern_lvl)
+      = grammar_family "pattern_lvl" 
+    let pattern = pattern_lvl (true, topPat) 
     let let_binding : value_binding list grammar =
       declare_grammar "let_binding" 
     let class_body : class_structure grammar = declare_grammar "class_body" 
@@ -222,7 +219,7 @@ module Initial =
       ((alm* expression_prio) -> expression grammar) list = [] 
     let extra_prefix_expressions : expression grammar list = [] 
     let extra_types : (type_prio -> core_type grammar) list = [] 
-    let extra_patterns : (pattern_prio -> pattern grammar) list = [] 
+    let extra_patterns : ((bool* pattern_prio) -> pattern grammar) list = [] 
     let extra_structure : structure_item list grammar list = [] 
     let extra_signature : signature_item list grammar list = [] 
     type record_field = (Longident.t Asttypes.loc* Parsetree.expression)

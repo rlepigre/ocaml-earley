@@ -505,8 +505,7 @@ module Ext(In:Extension) =
       Decap.set_grammar glr_binding
         (Decap.fsequence lident
            (Decap.fsequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x) (pattern_lvl AsPat)))
+              (Decap.option None (Decap.apply (fun x  -> Some x) pattern))
               (Decap.fsequence
                  (Decap.option None
                     (Decap.apply (fun x  -> Some x)
@@ -657,19 +656,19 @@ module Ext(In:Extension) =
            [Decap.fsequence (Decap.char '*' '*')
               (Decap.sequence glr_opt_expr
                  (Decap.option None
-                    (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                    (Decap.apply (fun x  -> Some x) (Decap.char '$' '$')))
                  (fun e  -> fun g  -> fun _  -> `Fixpoint (e, g)));
            Decap.fsequence (Decap.char '+' '+')
              (Decap.sequence glr_opt_expr
                 (Decap.option None
-                   (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                   (Decap.apply (fun x  -> Some x) (Decap.char '$' '$')))
                 (fun e  -> fun g  -> fun _  -> `Fixpoint1 (e, g)));
            Decap.fsequence (Decap.char '?' '?')
              (Decap.sequence glr_opt_expr
                 (Decap.option None
-                   (Decap.apply (fun x  -> Some x) (Decap.char '#' '#')))
+                   (Decap.apply (fun x  -> Some x) (Decap.char '$' '$')))
                 (fun e  -> fun g  -> fun _  -> `Option (e, g)));
-           Decap.apply (fun _  -> `Greedy) (Decap.char '#' '#');
+           Decap.apply (fun _  -> `Greedy) (Decap.char '$' '$');
            Decap.apply (fun _  -> `Once) (Decap.empty ())])
     let glr_sequence = Decap.declare_grammar "glr_sequence"
     let _ =
@@ -938,7 +937,8 @@ module Ext(In:Extension) =
     let _ =
       Decap.set_grammar glr_ident
         (Decap.alternatives
-           [Decap.sequence (pattern_lvl ConstrPat) (Decap.char ':' ':')
+           [Decap.sequence (pattern_lvl (true, ConstrPat))
+              (Decap.char ':' ':')
               (fun p  ->
                  fun _  ->
                    match p.ppat_desc with
@@ -966,29 +966,19 @@ module Ext(In:Extension) =
     let glr_left_member = Decap.declare_grammar "glr_left_member"
     let _ =
       Decap.set_grammar glr_left_member
-        (Decap.sequence
-           (Decap.fsequence glr_ident
-              (Decap.sequence glr_sequence glr_option
-                 (fun ((cst,s) as _default_0)  ->
-                    fun opt  ->
-                      fun ((cst',id) as _default_1)  ->
-                        `Normal
-                          (id, (fopt cst' ((opt <> `Once) || cst)), s, opt))))
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  -> fun y  -> x :: y)
-                    (Decap.alternatives
-                       [Decap.fsequence glr_ident
-                          (Decap.sequence glr_sequence glr_option
-                             (fun ((cst,s) as _default_0)  ->
-                                fun opt  ->
-                                  fun ((cst',id) as _default_1)  ->
-                                    `Normal
-                                      (id,
-                                        (fopt cst' ((opt <> `Once) || cst)),
-                                        s, opt)));
-                       Decap.apply (fun _default_0  -> `Ignore) dash]))))
-           (fun i  -> fun l  -> i :: l))
+        (Decap.apply List.rev
+           (Decap.fixpoint1 []
+              (Decap.apply (fun x  -> fun y  -> x :: y)
+                 (Decap.alternatives
+                    [Decap.fsequence glr_ident
+                       (Decap.sequence glr_sequence glr_option
+                          (fun ((cst,s) as _default_0)  ->
+                             fun opt  ->
+                               fun ((cst',id) as _default_1)  ->
+                                 `Normal
+                                   (id, (fopt cst' ((opt <> `Once) || cst)),
+                                     s, opt)));
+                    Decap.apply (fun _default_0  -> `Ignore) dash]))))
     let glr_let = Decap.declare_grammar "glr_let"
     let _ =
       Decap.set_grammar glr_let

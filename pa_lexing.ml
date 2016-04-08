@@ -369,7 +369,7 @@ let num_suffix =
   let no_suffix_cs = Decap.test Charset.full_charset
     (fun buf pos ->
       let c,_,_ = Input.read buf pos in
-      ((), not (Charset.mem suffix_cs c))) in
+      ((), c <> '.' && c <> 'e' && c <> 'E' && not (Charset.mem suffix_cs c))) in
   parser
   | s:(Decap.in_charset suffix_cs) -> Some s
   | no_suffix_cs -> None
@@ -457,7 +457,7 @@ let normal_string : string Decap.grammar =
     | c:'\n'                -> c
   in
   let internal = parser
-    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*") single_char*}* '"' ->
+    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*")$ single_char*}* '"' ->
       cs_to_string (List.flatten (cs :: css))
   in
   parser '"' - (Decap.change_layout internal Decap.no_blank)

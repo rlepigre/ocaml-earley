@@ -293,6 +293,9 @@ let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
+let print_pos ch (buf, pos) =
+  Printf.fprintf ch "%d:%d" (line_num buf) pos
+
 let print_final ch (D {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
@@ -303,7 +306,7 @@ let print_final ch (D {rest; full}) =
   in
   fn full;
   let (ae,set) = force (rule_info rest) in
-  Printf.fprintf ch "(%a %b)" print_charset set ae
+  if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" print_charset set ae
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
@@ -318,7 +321,7 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   | C {rest; full} ->
      fn rest full;
      let (ae,set) = force (rule_info rest) in
-     Printf.fprintf ch "(%a %b)" print_charset set ae
+     if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" print_charset set ae
   | B _ ->
     Printf.fprintf ch "B"
   | A ->
@@ -439,13 +442,13 @@ let merge_acts o n =
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
   fun info pos element old ->
-    let debut = debut pos element in
-    let oldl = try find_pos_tbl old debut with Not_found -> [] in
+    let deb = debut pos element in
+    let oldl = try find_pos_tbl old deb with Not_found -> [] in
     let rec fn acc = function
       | [] ->
 	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
-	   (char_pos debut) (char_pos pos);
-	add_pos_tbl old debut (element :: oldl); true
+	   (char_pos deb) (char_pos pos);
+	add_pos_tbl old deb (element :: oldl); true
       | e::es ->
 	 (match e, element with
 	   D {debut=d; rest; full; ignb; stack; acts},
@@ -458,7 +461,8 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            eq_pos d d', rest === r', full === fu', ignb=ignb', acts, acts' with
            | true, Eq, Eq, true, act, acts' ->
 	   if not (eq_closure acts acts') && !warn_merge then
-	     Printf.eprintf "\027[31mmerging %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos);
+	     Printf.eprintf "\027[31mmerging %a %a %a\027[0m\n%!" print_final element
+	       print_pos (debut pos element) print_pos pos;
 	     assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
 	   false
 	  | _ ->

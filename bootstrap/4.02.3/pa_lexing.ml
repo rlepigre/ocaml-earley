@@ -354,7 +354,10 @@ let num_suffix =
       (fun buf  ->
          fun pos  ->
            let (c,_,_) = Input.read buf pos in
-           ((), (not (Charset.mem suffix_cs c)))) in
+           ((),
+             ((c <> '.') &&
+                ((c <> 'e') &&
+                   ((c <> 'E') && (not (Charset.mem suffix_cs c))))))) in
   Decap.alternatives
     [Decap.apply (fun s  -> Some s) (Decap.in_charset suffix_cs);
     Decap.apply (fun _default_0  -> None) no_suffix_cs]
@@ -453,7 +456,8 @@ let normal_string: string Decap.grammar =
                (Decap.apply (fun x  -> fun y  -> x :: y)
                   (Decap.fsequence (Decap.string "\\\n" "\\\n")
                      (Decap.sequence
-                        (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0))
+                        (Decap.greedy
+                           (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0)))
                         (Decap.apply List.rev
                            (Decap.fixpoint []
                               (Decap.apply (fun x  -> fun y  -> x :: y)

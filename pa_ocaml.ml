@@ -907,25 +907,18 @@ let parser neg_constant =
      | _ -> assert false
 (* Patterns *)
 
-let pattern_prios = [ TopPat ; AsPat ; AltPat ; TupPat ; ConsPat ; ConstrPat
-                    ; AtomPat ]
-
-let next_pat_prio = function
-    TopPat -> AsPat
-  | AsPat -> AltPat
-  | AltPat -> TupPat
-  | TupPat -> ConsPat
-  | ConsPat -> ConstrPat
-  | ConstrPat -> AtomPat
-  | AtomPat -> AtomPat
-
 let parser extra_patterns_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_patterns))
 
-let _ = set_pattern_lvl (fun lvl ->
+let _ = set_pattern_lvl (fun (as_ok, lvl) ->
   parser
-  | e:(extra_patterns_grammar lvl) -> e
-  | p:(pattern_lvl (next_pat_prio lvl)) when lvl < AtomPat -> p
+  | e:(extra_patterns_grammar (as_ok, lvl)) -> e
+
+  | p:(pattern_lvl (as_ok, lvl)) as_kw vn:value_name when as_ok ->
+      loc_pat _loc (Ppat_alias(p, id_loc vn _loc_vn))
+
+   | p:(pattern_lvl (false, next_pat_prio lvl)) -> p
+
   | vn:value_name when lvl = AtomPat ->
       loc_pat _loc (Ppat_var (id_loc vn _loc_vn))
   | joker_kw when lvl = AtomPat ->
@@ -953,15 +946,15 @@ let _ = set_pattern_lvl (fun lvl ->
        | Some ty ->loc_pat _loc (Ppat_constraint(p, ty))
      in
      p
-  | lazy_kw p:(pattern_lvl ConstrPat) when lvl = ConstrPat ->
+  | lazy_kw p:(pattern_lvl (false,ConstrPat)) when lvl = ConstrPat ->
       let ast = Ppat_lazy(p) in
       loc_pat _loc ast
 #ifversion >= 4.02
-  | exception_kw p:(pattern_lvl ConstrPat) when lvl = ConstrPat ->
+  | exception_kw p:(pattern_lvl (false,ConstrPat)) when lvl = ConstrPat ->
       let ast = Ppat_exception(p) in
       loc_pat _loc ast
 #endif
-  | c:constr p:(pattern_lvl ConstrPat) when lvl = ConstrPat ->
+  | c:constr p:(pattern_lvl (false, ConstrPat)) when lvl = ConstrPat ->
       let ast = ppat_construct(id_loc c _loc_c, Some p) in
       loc_pat _loc ast
   | c:constr when lvl = AtomPat ->
@@ -970,7 +963,7 @@ let _ = set_pattern_lvl (fun lvl ->
   | b:bool_lit when lvl = AtomPat ->
       let fls = id_loc (Lident b) _loc in
       loc_pat _loc (ppat_construct (fls, None))
-  | c:tag_name p:(pattern_lvl ConstrPat) when lvl = ConstrPat ->
+  | c:tag_name p:(pattern_lvl (false, ConstrPat)) when lvl = ConstrPat ->
       loc_pat _loc (Ppat_variant (c, Some p))
   | c:tag_name when lvl = AtomPat ->
       loc_pat _loc (Ppat_variant (c, None))
@@ -1069,17 +1062,14 @@ let _ = set_pattern_lvl (fun lvl ->
       Quote.ppat_antiquotation _loc f
     end
 
-  | p:(pattern_lvl AsPat) as_kw vn:value_name when lvl = AsPat ->
-      loc_pat _loc (Ppat_alias(p, id_loc vn _loc_vn))
-
-  | p:(pattern_lvl AltPat) '|' p':(pattern_lvl (next_pat_prio AltPat)) when lvl = AltPat ->
+  | p:(pattern_lvl (true, AltPat)) '|' p':(pattern_lvl (false, next_pat_prio AltPat)) when lvl = AltPat ->
       loc_pat _loc (Ppat_or(p, p'))
 
-  | p:(pattern_lvl (next_pat_prio TupPat))
-      ps:{',' p:(pattern_lvl (next_pat_prio TupPat)) -> p}+ when lvl = TupPat ->
-      loc_pat _loc (Ppat_tuple(p::ps))
+  | ps:{ (pattern_lvl (true, next_pat_prio TupPat)) _:','}+
+      p:(pattern_lvl (false, next_pat_prio TupPat)) when lvl = TupPat ->
+      loc_pat _loc (Ppat_tuple(ps @ [p]))
 
-  | p:(pattern_lvl (next_pat_prio ConsPat)) c:"::" p':(pattern_lvl ConsPat) when lvl = ConsPat ->
+  | p:(pattern_lvl (true, next_pat_prio ConsPat)) c:"::" p':(pattern_lvl (false, ConsPat)) when lvl = ConsPat ->
        let cons = id_loc (Lident "::") _loc_c in
        let args = loc_pat (ghost _loc) (Ppat_tuple [p; p']) in
        loc_pat _loc (ppat_construct(cons, Some args)))
@@ -1171,7 +1161,7 @@ let parser argument =
 
 let _ = set_parameter (fun allow_new_type ->
   parser
-  | pat:(pattern_lvl AtomPat) -> `Arg (nolabel, None, pat)
+  | pat:(pattern_lvl (false,AtomPat)) -> `Arg (nolabel, None, pat)
   | '~' '(' id:lident t:{ STR":" t:typexpr }? STR")" -> (
       let pat =  loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
@@ -1232,7 +1222,7 @@ let parser eright_member =
 
 let _ = set_grammar let_binding (
   parser
-  | pat:(pattern_lvl AsPat) e:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  | pat:pattern e:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
      ( let loc = merge2 _loc_pat _loc_e in
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
   | vn:value_name e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->

@@ -195,7 +195,7 @@ struct
   let glr_binding = Decap.declare_grammar "glr_binding"
   let _ = Decap.set_grammar glr_binding (
     parser
-      name:lident arg:(pattern_lvl AsPat)? ty:{':' typexpr}? '=' r:glr_rules l:{_:and_kw glr_binding}?[[]] ->
+      name:lident arg:pattern? ty:{':' typexpr}? '=' r:glr_rules l:{_:and_kw glr_binding}?[[]] ->
     (name,arg,ty,r)::l)
 
   let parser glr_struct_item =
@@ -256,10 +256,10 @@ struct
       e:{ CHR('[') e:expression CHR(']') }? -> e
 
   let parser glr_option =
-    | '*' e:glr_opt_expr g:'#'? -> `Fixpoint(e,g)
-    | '+' e:glr_opt_expr g:'#'? -> `Fixpoint1(e,g)
-    | '?' e:glr_opt_expr g:'#'? -> `Option(e,g)
-    | '#'                -> `Greedy
+    | '*' e:glr_opt_expr g:'$'? -> `Fixpoint(e,g)
+    | '+' e:glr_opt_expr g:'$'? -> `Fixpoint1(e,g)
+    | '?' e:glr_opt_expr g:'$'? -> `Option(e,g)
+    | '$'                       -> `Greedy
     | EMPTY -> `Once
 
   let parser glr_sequence =
@@ -322,7 +322,7 @@ struct
     | "(" e:expression ")" -> (true, e)
 
   let parser glr_ident =
-    | p:(pattern_lvl ConstrPat) ':' ->
+    | p:(pattern_lvl (true,ConstrPat)) ':' ->
 	(match p.ppat_desc with
 	 | Ppat_alias(p, { txt = id }) -> (Some true, (id, Some p))
 	 | Ppat_var { txt = id } -> (Some (id <> "_"), (id, None))
@@ -344,8 +344,7 @@ struct
 
   let fopt x y = match x with Some x -> x | None -> y
   let parser glr_left_member =
-    | i:{(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt)}
-      l:{(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt) | dash -> `Ignore }* -> i::l
+     {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt) | dash -> `Ignore }+
 
   let glr_let = Decap.declare_grammar "glr_let"
   let _ = Decap.set_grammar glr_let (
