@@ -1505,6 +1505,12 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | mp:module_path STR(".") STR("(") e:expression STR(")") when lvl = Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, e))
+  | mp:module_path '.' '[' l:expression_list cl: ']' when lvl = Atom ->
+      let mp = id_loc mp _loc_mp in
+      loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (pexp_list _loc ~loc_cl:_loc_cl l).pexp_desc))
+  | mp:module_path '.' '{' e:{expression _:with_kw}? l:record_list '}' when lvl = Atom ->
+      let mp = id_loc mp _loc_mp in
+      loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (Pexp_record(l,e))))
   | e:(prefix_expression c) when allow_match alm && lvl < App -> e
 
   | e:(if_expression c) when (allow_let alm && lvl < App) || (lvl = If && alm <> MatchRight) -> e
