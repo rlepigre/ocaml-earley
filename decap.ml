@@ -454,16 +454,16 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
 	   D {debut=d; rest; full; ignb; stack; acts},
            D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'; acts = acts'}
 	 ->
-	 (* if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %b\n%!"
+	 (*if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %b\n%!"
             info print_final e print_final element (elt_pos pos e) (elt_pos pos element) (eq_pos d d')
-              (eq rest r') (eq full fu') (ignb=ignb');*)
+           (eq rest r') (eq full fu') (ignb=ignb');*)
 	 (match
            eq_pos d d', rest === r', full === fu', ignb=ignb', acts, acts' with
            | true, Eq, Eq, true, act, acts' ->
 	   if not (eq_closure acts acts') && !warn_merge then
 	     Printf.eprintf "\027[31mmerging %a %a %a\027[0m\n%!" print_final element
 	       print_pos (debut pos element) print_pos pos;
-	     assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
+	   assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
 	   false
 	  | _ ->
 	    fn (e::acc) es))
@@ -716,19 +716,18 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
+    let dlr = ref (ref []) in
     let prediction_production msg l =
       Hashtbl.clear elements;
-      let dlr = ref [] in
       let buf'', pos'' = blank !buf !pos in
       let c,_,_ = Input.read buf'' pos'' in
       let c',_,_ = Input.read !buf !pos in
       buf' := buf''; pos' := pos'';
       update_errpos errpos (buf'', pos'');
-      if !debug_lvl > 0 then Printf.eprintf "read blank: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" (line_num !buf) (line_num !buf') !pos !pos' c c';
+      if !debug_lvl > 0 then Printf.eprintf "read blank parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
-	one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
-      unset dlr
+	one_prediction_production errpos s elements !dlr (!buf,!pos) (!buf',!pos') c c') l;
     in
 
     prediction_production "I" [init];
@@ -743,8 +742,12 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
      let l =
        try
 	 let (buf', pos', l, forward') = pop_firsts_buf !forward in
-	 pos := pos';
-	 buf := buf';
+	 if not (eq_buf !buf buf' && !pos = pos') then (
+	   pos := pos';
+	   buf := buf';
+	   unset !dlr; (* reset stack memo only if lecture makes progress.
+                          this now allows for terminal parsing no input ! *)
+	   dlr := ref []);
 	 forward := forward';
 	 l
        with Not_found -> []
