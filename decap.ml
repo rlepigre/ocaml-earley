@@ -708,6 +708,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     let parse_id = incr c; !c in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
+    let last_success = ref [] in
     let r0 : a rule = grammar_to_rule main in
     let s0 : (a, a) element list ref = ref [B Idt] in
     let init = D {debut=None; acts = idt; stack=s0; rest=r0; full=r0;ignb=false} in
@@ -728,6 +729,17 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
 	one_prediction_production errpos s elements !dlr (!buf,!pos) (!buf',!pos') c c') l;
+      if internal then begin
+	try
+	  let found = ref false in
+	  List.iter (function D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} as elt ->
+	    if eq r0 r1 then (
+	      if not !found then last_success := [];
+	      last_success := elt :: !last_success)
+	  | _ -> ())
+	    (find_pos_tbl elements (buf0,pos0))
+	with Not_found -> ()
+      end;
     in
 
     prediction_production "I" [init];
@@ -765,7 +777,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> bool * a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} :: els ->
+      | D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} :: els when eq r0 r1 ->
 	 (try
 	   let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
 	   let rec gn : type a b.(unit -> bool * a) -> b -> (b,a) element list -> bool * a =
@@ -782,7 +794,8 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	  with Error -> fn els)
       | _ :: els -> fn els
     in
-    let ignb, a = (try fn (find_pos_tbl elements (buf0,pos0)) with Not_found -> parse_error ()) in
+    let ignb, a = (try fn (if internal then !last_success else find_pos_tbl elements (buf0,pos0))
+                   with Not_found -> parse_error ()) in
     if !debug_lvl > 0 then Printf.eprintf "exit parsing %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     if ignb then (a, !buf, !pos) else (a, !buf', !pos')
 
