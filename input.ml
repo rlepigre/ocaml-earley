@@ -338,7 +338,8 @@ let insert_buf buf pos x tbl =
      else if leq_buf buf pos buf' pos' then
        List.rev_append acc ((buf, pos, [x]) :: tbl)
      else fn (c::acc) rest
-  in fn [] tbl
+  in
+  fn [] tbl
 
 let pop_firsts_buf = function
   | [] -> raise Not_found

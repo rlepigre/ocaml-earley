@@ -444,7 +444,7 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
   fun info pos element old ->
     let deb = debut pos element in
     let oldl = try find_pos_tbl old deb with Not_found -> [] in
-    let rec fn acc = function
+    let rec fn = function
       | [] ->
 	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
 	   (char_pos deb) (char_pos pos);
@@ -466,8 +466,8 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
 	   assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
 	   false
 	  | _ ->
-	    fn (e::acc) es))
-    in fn [] oldl
+	    fn es))
+    in fn oldl
 
 let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone ->
   let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
@@ -599,8 +599,8 @@ let pop_final : type a. errpos -> a dep_pair_tbl -> position -> position -> a fi
 let taille_tables els forward =
   let adone = ref [] in
   let res = ref 0 in
-  Hashtbl.iter (fun _ els -> List.iter (fun el -> res := !res + taille el adone) els) els;
-  iter_buf forward (fun el -> res := !res + taille el adone);
+  Hashtbl.iter (fun _ els -> List.iter (fun el -> res := !res + 1 + taille el adone) els) els;
+  iter_buf forward (fun el -> res := !res + 1 + taille el adone);
   !res
 
 let good c i =
@@ -701,11 +701,12 @@ let rec one_prediction_production
 
 exception Parse_error of string * int * int * string list * string list
 
-let c = ref 0
+let count = ref 0
+let tmpc = ref 0
 let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
   fun errpos internal main blank buf0 pos0 ->
     Fixpoint.debug := !debug_lvl > 2;
-    let parse_id = incr c; !c in
+    let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
     let last_success = ref [] in
@@ -735,6 +736,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	  List.iter (function D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} as elt ->
 	    if eq r0 r1 then (
 	      if not !found then last_success := [];
+	      found := true;
 	      last_success := elt :: !last_success)
 	  | _ -> ())
 	    (find_pos_tbl elements (buf0,pos0))
