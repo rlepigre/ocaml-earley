@@ -709,6 +709,9 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
+    incr tmpc;
+    Printf.eprintf "ADD %d hashtbl\n%!" !tmpc;
+    Gc.finalise (fun _ -> decr tmpc; Printf.eprintf "GC %d hashtbl\n%!" !tmpc) elements;
     let last_success = ref [] in
     let r0 : a rule = grammar_to_rule main in
     let s0 : (a, a) element list ref = ref [B Idt] in
