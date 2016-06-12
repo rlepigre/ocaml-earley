@@ -334,16 +334,21 @@ let find (_,c) dlr =
   Obj.magic (List.assq dlr c.alr)
 
 let add (_,c) p dlr =
-  try
+(*  try
     let _ = List.assq dlr c.alr in
     assert false
   with
-    Not_found ->
+    Not_found ->*)
       dlr := c::!dlr; c.alr <- (dlr,Obj.repr p)::c.alr
 
 let unset dlr =
-  List.iter (fun c ->
-    c.alr <- List.filter (fun (d,_) -> d != dlr) c.alr) !dlr
+  dlr :=
+    List.filter (fun c ->
+      let l = List.filter (fun (d,_) -> d != dlr) c.alr in
+      let keep = l <> [] in
+      c.alr <- l;
+      keep
+    ) !dlr
 
 let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
@@ -441,14 +446,14 @@ let merge_acts o n =
 
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
-  fun info pos element old ->
+  fun info pos element elements ->
     let deb = debut pos element in
-    let oldl = try find_pos_tbl old deb with Not_found -> [] in
+    let oldl = try find_pos_tbl elements deb with Not_found -> [] in
     let rec fn = function
       | [] ->
 	 if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
 	   (char_pos deb) (char_pos pos);
-	add_pos_tbl old deb (element :: oldl); true
+	add_pos_tbl elements deb (element :: oldl); true
       | e::es ->
 	 (match e, element with
 	   D {debut=d; rest; full; ignb; stack; acts},
@@ -702,16 +707,13 @@ let rec one_prediction_production
 exception Parse_error of string * int * int * string list * string list
 
 let count = ref 0
-let tmpc = ref 0
+
 let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
   fun errpos internal main blank buf0 pos0 ->
     Fixpoint.debug := !debug_lvl > 2;
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
-    incr tmpc;
-    Printf.eprintf "ADD %d hashtbl\n%!" !tmpc;
-    Gc.finalise (fun _ -> decr tmpc; Printf.eprintf "GC %d hashtbl\n%!" !tmpc) elements;
     let last_success = ref [] in
     let r0 : a rule = grammar_to_rule main in
     let s0 : (a, a) element list ref = ref [B Idt] in
@@ -729,7 +731,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       let c',_,_ = Input.read !buf !pos in
       buf' := buf''; pos' := pos'';
       update_errpos errpos (buf'', pos'');
-      if !debug_lvl > 0 then Printf.eprintf "read blank parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
+      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
 	ignore (add msg (!buf,!pos) s elements);
 	one_prediction_production errpos s elements !dlr (!buf,!pos) (!buf',!pos') c c') l;
@@ -771,6 +773,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
      in
      if l = [] then continue := false else prediction_production "L" l;
     done;
+    unset !dlr; (* don't forget final cleaning of assoc cell !! *)
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
       if internal then
@@ -1090,12 +1093,12 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
     ) tbl)
 
 let blank_grammar grammar blank buf pos =
-  let save_debug = !debug_lvl in
-  debug_lvl := !debug_lvl / 10;
-  let (_,buf,pos) = internal_parse_buffer (ref(buf,pos)) grammar blank buf pos in
-  debug_lvl := save_debug;
-  if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
-  (buf,pos)
+    let save_debug = !debug_lvl in
+    debug_lvl := !debug_lvl / 10;
+    let (_,buf,pos) = internal_parse_buffer (ref(buf,pos)) grammar blank buf pos in
+    debug_lvl := save_debug;
+    if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
+    (buf,pos)
 
 let accept_empty grammar =
   try
