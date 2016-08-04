@@ -307,7 +307,9 @@ struct
 	  (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc id; nolabel, e; nolabel, exp_fun _loc "groupe" opt])
 	| _ ->
 	  (true, exp_apply _loc (exp_glr_fun _loc "regexp") [e; exp_fun _loc "groupe" opt]))
-
+    | STR("BLANK") opt:glr_opt_expr ->
+       let e = match opt with None -> exp_unit _loc | Some e -> e in
+       (opt <> None, exp_apply _loc (exp_glr_fun _loc "with_blank_test") [e])
     | s:regexp_litteral opt:glr_opt_expr ->
        let opt = match opt with
 	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
@@ -370,7 +372,11 @@ struct
 
       let rec fn first ids l = match l with
 	  [] -> assert false
-	| `Ignore::ls -> assert false
+	| `Ignore::ls ->
+	   let e =  exp_apply _loc (exp_glr_fun _loc "ignore_next_blank")
+	     [exp_apply _loc (exp_glr_fun _loc "success_test") [exp_unit _loc]]
+	   in
+	   fn first ids (`Normal(("",None),false,e,`Once,false)::ls)
 	| `Normal(id,cst,e,opt,oc)::`Ignore::ls ->
 	   let e =  exp_apply _loc (exp_glr_fun _loc "ignore_next_blank") [e] in
 	   fn first ids (`Normal(id,cst,e,opt,oc)::ls)

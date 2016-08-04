@@ -48,7 +48,7 @@ and _ symbol =
   (** terminal symbol just read the input buffer *)
   | Greedy : info Fixpoint.t * ((buffer * int) ref -> blank -> buffer -> int -> buffer -> int -> 'a * buffer * int) -> 'a symbol
   (** terminal symbol just read the input buffer *)
-  | Test : Charset.t * (buffer -> int -> 'a * bool) -> 'a symbol
+  | Test : Charset.t * (buffer -> int -> buffer -> int -> 'a * bool) -> 'a symbol
   (** test *)
   | NonTerm : info Fixpoint.t * 'a rule list -> 'a symbol
   (** non terminal *)
@@ -411,7 +411,17 @@ let greedy_solo =
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
+  (j, [(Next(j,name,false,Test (set, (fun _ _ -> f)),Idt,idtEmpty),new_cell ())])
+
+let blank_test = fun ?(name=new_name ()) set f ->
+  let i = (true,set) in
+  let j = Fixpoint.from_val i in
   (j, [(Next(j,name,false,Test (set, f),Idt,idtEmpty),new_cell ())])
+
+let success_test a = test ~name:"SUCCESS" full_charset (fun _ _ -> (a, true))
+
+let with_blank_test a = blank_test ~name:"BLANK" full_charset
+  (fun buf' pos' buf pos -> (a, not (eq_buf buf' buf) || pos' <> pos))
 
 let nonterm (i,s) = NonTerm(i,s)
 
@@ -693,7 +703,7 @@ let rec one_prediction_production
 	(try
 	  let j = if ignb then pos else pos_ab in
           if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element);
-	  let (a,b) = f (fst j) (snd j) in
+	  let (a,b) = f (fst pos) (snd pos) (fst j) (snd j) in
 	  if b then begin
 	    if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
 	    let nouveau = D {debut=i; stack; rest; full;ignb=ignb';
