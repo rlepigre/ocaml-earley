@@ -724,12 +724,12 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
-    let last_success = ref [] in
     let r0 : a rule = grammar_to_rule main in
     let s0 : (a, a) element list ref = ref [B Idt] in
     let init = D {debut=None; acts = idt; stack=s0; rest=r0; full=r0;ignb=false} in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
+    let last_success = ref [] in
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
@@ -750,9 +750,11 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	  let found = ref false in
 	  List.iter (function D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} as elt ->
 	    if eq r0 r1 then (
-	      if not !found then last_success := [];
+	      if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
 	      found := true;
-	      last_success := elt :: !last_success)
+	      assert (!last_success <> []);
+	      let (pos, l) = List.hd !last_success in
+	      last_success := (pos, (elt :: l)) :: List.tl !last_success)
 	  | _ -> ())
 	    (find_pos_tbl elements (buf0,pos0))
 	with Not_found -> ()
@@ -767,7 +769,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d (%d,%d)\n%!"
 	parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward)
         (line_num (fst !errpos)) (snd !errpos);
-     forward := lecture errpos blank parse_id (!buf, !pos) (!buf', !pos') elements !forward;
+      forward := lecture errpos blank parse_id (!buf, !pos) (!buf', !pos') elements !forward;
      let l =
        try
 	 let (buf', pos', l, forward') = pop_firsts_buf !forward in
@@ -812,10 +814,26 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	  with Error -> fn els)
       | _ :: els -> fn els
     in
-    let ignb, a = (try fn (if internal then !last_success else find_pos_tbl elements (buf0,pos0))
-                   with Not_found -> parse_error ()) in
-    if !debug_lvl > 0 then Printf.eprintf "exit parsing %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    if ignb then (a, !buf, !pos) else (a, !buf', !pos')
+    let a, buf, pos as result =
+      if internal then
+	let rec kn = function
+	  | [] -> parse_error ()
+	  | ((b,p,b',p'), elts) :: rest ->
+	     try
+	       let ignb, a = fn elts in
+	       if ignb then (a, b, p) else (a, b', p')
+	     with
+	       Not_found -> kn rest
+	in kn !last_success
+      else
+	try
+	  let ignb, a = fn (find_pos_tbl elements (buf0,pos0)) in
+	  if ignb then (a, !buf, !pos) else (a, !buf', !pos')
+	with Not_found -> parse_error ()
+    in
+    if !debug_lvl > 0 then
+      Printf.eprintf "exit parsing %d at line = %d, col = %d\n%!" parse_id (line_num buf) pos;
+    result
 
 let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
    = fun g bl buf pos ->
