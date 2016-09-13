@@ -583,7 +583,7 @@ let _ = set_typexpr_lvl (fun lvl ->
 #endif
 
   | te:(typexpr_lvl (next_type_prio ProdType))
-    tes:{STR("*") te:(typexpr_lvl (next_type_prio ProdType)) -> te}+  when lvl = ProdType->
+    tes:{_:{'*' | "×"} te:(typexpr_lvl (next_type_prio ProdType)) -> te}+  when lvl = ProdType->
      loc_typ _loc (Ptyp_tuple (te::tes))
 
   | te:(typexpr_lvl As) as_kw STR("'") id:ident when lvl = As ->
