@@ -714,7 +714,7 @@ let rec one_prediction_production
 	 with Error -> ())
      | _ -> ()
 
-exception Parse_error of string * int * int * string list * string list
+exception Parse_error of Input.buffer * int * string list * string list
 
 let count = ref 0
 
@@ -792,7 +792,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 	raise Error
       else
 	let buf, pos = !errpos in
-	raise (Parse_error (fname buf, line_num buf, pos, [], []))
+	raise (Parse_error (buf, pos, [], []))
     in
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> bool * a = function
@@ -1081,15 +1081,13 @@ let position g =
     (fname buf, line_num buf, pos, line_num buf', pos', a)) g
 
 let print_exception = function
-  | Parse_error(fname,l,n,msg, expected) ->
-     let expected =
-       if expected = [] then "" else
-	 Printf.sprintf "'%s' expected" (String.concat "|" expected)
-     in
-     let msg = if msg = [] then "" else (String.concat "," msg)
-     in
-     let sep = if msg <> "" && expected <> "" then ", " else "" in
-     Printf.eprintf "File %S, line %d, characters %d-%d:\nParse error:%s%s%s\n%!" fname l n n msg sep expected
+  | Parse_error(buf,pos,messages,expected) ->
+     let expected = String.concat "|" expected in
+     let messages = String.concat "," messages in
+     let sep = if messages <> "" && expected <> "" then ", " else "" in
+     Printf.eprintf "File %S, line %d, character %d:\n"
+       (fname buf) (line_num buf) (utf8_col_num buf pos);
+     Printf.eprintf "Parse error:%s%s%s\n%!" messages sep expected
   | _ -> assert false
 
 let handle_exception f a =
