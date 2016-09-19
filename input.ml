@@ -101,6 +101,9 @@ let line_beginning (lazy b) = b.loff
 (* Get the current line as a string. *)
 let line (lazy b) = b.data
 
+(* Get the length of the current line. *)
+let line_length (lazy b) = b.llen
+
 (* Get the utf8 column number corresponding to the given position. *)
 let utf8_col_num (lazy {data}) i =
   let rec find num pos =

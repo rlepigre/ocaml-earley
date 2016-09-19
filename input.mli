@@ -107,8 +107,11 @@ val line_num : buffer -> int
    line number in the buffer [buf]. *)
 val line_beginning : buffer -> int
 
-(** [line buf] returns the contents of the buffer [buf]. *)
+(** [line buf] returns the current [buf] line. *)
 val line : buffer -> string
+
+(** [line_length buf] returns the length of the current line in [buf]. *)
+val line_length : buffer -> int
 
 (** [utf8_col_num buf pos] compute the utf8 column position corresponding to
     the position [pos] in [buf]. *)
