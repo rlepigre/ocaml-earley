@@ -9,6 +9,7 @@ let _ = Printexc.record_backtrace true
 exception Error
 
 let give_up s = raise Error
+let error () = raise Error
 
 type blank = buffer -> int -> buffer * int
 

@@ -64,6 +64,8 @@ exception Parse_error of buffer * int * string list * string list
   this exception, in order for DeCaP to provide useful error messages. *)
 val give_up : string -> 'a
 
+val error : unit -> 'a
+
 (** {2 Blank functions} *)
 
 (** Type of functions that are used to parse "blanks" (i.e. parts of the input
