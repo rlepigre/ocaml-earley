@@ -1,4 +1,4 @@
-export OCAMLVERSION=$(shell ocamlc -version)
+export OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
 DECAP=..
 PA_OCAML=$(DECAP)/pa_ocaml
 OCAMLOPT=ocamlfind ocamlopt -package bytes

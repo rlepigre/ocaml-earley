@@ -93,8 +93,7 @@ let string_antiquotation _loc e =
 let quote_option :
   'a .
     (expression -> Location.t -> 'a -> expression) ->
-      expression -> Location.t -> 'a option -> expression
-  =
+      expression -> Location.t -> 'a option -> expression=
   fun qe  ->
     fun e_loc  ->
       fun _loc  ->
@@ -107,8 +106,7 @@ let quote_option :
 let quote_list :
   'a .
     (expression -> Location.t -> 'a -> expression) ->
-      expression -> Location.t -> 'a list -> expression
-  =
+      expression -> Location.t -> 'a list -> expression=
   fun qe  ->
     fun e_loc  ->
       fun _loc  ->
@@ -164,7 +162,7 @@ let rec quote_longident :
             quote_const e_loc _loc (longident "Lapply") [l; l']
   
 let quote_record :
-  expression -> Location.t -> (Longident.t* expression) list -> expression =
+  expression -> Location.t -> (Longident.t * expression) list -> expression =
   fun _  -> Pa_ast.exp_record 
 let quote_position :
   expression -> Location.t -> Lexing.position -> expression =
@@ -292,11 +290,11 @@ and quote_core_type_desc e_loc _loc x = match x with
   | Ptyp_arrow(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_arrow")) [ quote_arg_label e_loc _loc x1; quote_core_type e_loc _loc x2; quote_core_type e_loc _loc x3;]
   | Ptyp_tuple(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_tuple")) [(quote_list quote_core_type) e_loc _loc x]
   | Ptyp_constr(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_constr")) [ (quote_loc quote_longident) e_loc _loc x1; (quote_list quote_core_type) e_loc _loc x2;]
-  | Ptyp_object(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_object")) [ (quote_list (fun e_loc _loc (x1,x2,x3) -> quote_tuple e_loc _loc [quote_string e_loc _loc x1;quote_attributes e_loc _loc x2;quote_core_type e_loc _loc x3;])) e_loc _loc x1; quote_closed_flag e_loc _loc x2;]
+  | Ptyp_object(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_object")) [ (quote_list (fun e_loc _loc (x1,x2,x3) -> quote_tuple e_loc _loc [(quote_loc quote_string) e_loc _loc x1;quote_attributes e_loc _loc x2;quote_core_type e_loc _loc x3;])) e_loc _loc x1; quote_closed_flag e_loc _loc x2;]
   | Ptyp_class(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_class")) [ (quote_loc quote_longident) e_loc _loc x1; (quote_list quote_core_type) e_loc _loc x2;]
   | Ptyp_alias(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_alias")) [ quote_core_type e_loc _loc x1; quote_string e_loc _loc x2;]
   | Ptyp_variant(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_variant")) [ (quote_list quote_row_field) e_loc _loc x1; quote_closed_flag e_loc _loc x2; (quote_option (quote_list quote_label)) e_loc _loc x3;]
-  | Ptyp_poly(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_poly")) [ (quote_list quote_string) e_loc _loc x1; quote_core_type e_loc _loc x2;]
+  | Ptyp_poly(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_poly")) [ (quote_list (quote_loc quote_string)) e_loc _loc x1; quote_core_type e_loc _loc x2;]
   | Ptyp_package(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_package")) [quote_package_type e_loc _loc x]
   | Ptyp_extension(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ptyp_extension")) [quote_extension e_loc _loc x]
 
@@ -331,6 +329,7 @@ and quote_pattern_desc e_loc _loc x = match x with
   | Ppat_unpack(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ppat_unpack")) [(quote_loc quote_string) e_loc _loc x]
   | Ppat_exception(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ppat_exception")) [quote_pattern e_loc _loc x]
   | Ppat_extension(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ppat_extension")) [quote_extension e_loc _loc x]
+  | Ppat_open(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Ppat_open")) [ (quote_loc quote_longident) e_loc _loc x1; quote_pattern e_loc _loc x2;]
 
 and quote_expression e_loc _loc r = if is_antiquotation r.pexp_loc then try (Hashtbl.find anti_table r.pexp_loc) Quote_pexp with Not_found -> failwith "antiquotation not in a quotation" else
   quote_record e_loc _loc [
@@ -362,16 +361,17 @@ and quote_expression_desc e_loc _loc x = match x with
   | Pexp_for(x1,x2,x3,x4,x5) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_for")) [ quote_pattern e_loc _loc x1; quote_expression e_loc _loc x2; quote_expression e_loc _loc x3; quote_direction_flag e_loc _loc x4; quote_expression e_loc _loc x5;]
   | Pexp_constraint(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_constraint")) [ quote_expression e_loc _loc x1; quote_core_type e_loc _loc x2;]
   | Pexp_coerce(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_coerce")) [ quote_expression e_loc _loc x1; (quote_option quote_core_type) e_loc _loc x2; quote_core_type e_loc _loc x3;]
-  | Pexp_send(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_send")) [ quote_expression e_loc _loc x1; quote_string e_loc _loc x2;]
+  | Pexp_send(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_send")) [ quote_expression e_loc _loc x1; (quote_loc quote_string) e_loc _loc x2;]
   | Pexp_new(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_new")) [(quote_loc quote_longident) e_loc _loc x]
   | Pexp_setinstvar(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_setinstvar")) [ (quote_loc quote_string) e_loc _loc x1; quote_expression e_loc _loc x2;]
   | Pexp_override(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_override")) [(quote_list (fun e_loc _loc (x1,x2) -> quote_tuple e_loc _loc [(quote_loc quote_string) e_loc _loc x1;quote_expression e_loc _loc x2;])) e_loc _loc x]
   | Pexp_letmodule(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_letmodule")) [ (quote_loc quote_string) e_loc _loc x1; quote_module_expr e_loc _loc x2; quote_expression e_loc _loc x3;]
+  | Pexp_letexception(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_letexception")) [ quote_extension_constructor e_loc _loc x1; quote_expression e_loc _loc x2;]
   | Pexp_assert(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_assert")) [quote_expression e_loc _loc x]
   | Pexp_lazy(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_lazy")) [quote_expression e_loc _loc x]
   | Pexp_poly(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_poly")) [ quote_expression e_loc _loc x1; (quote_option quote_core_type) e_loc _loc x2;]
   | Pexp_object(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_object")) [quote_class_structure e_loc _loc x]
-  | Pexp_newtype(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_newtype")) [ quote_string e_loc _loc x1; quote_expression e_loc _loc x2;]
+  | Pexp_newtype(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_newtype")) [ (quote_loc quote_string) e_loc _loc x1; quote_expression e_loc _loc x2;]
   | Pexp_pack(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_pack")) [quote_module_expr e_loc _loc x]
   | Pexp_open(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_open")) [ quote_override_flag e_loc _loc x1; (quote_loc quote_longident) e_loc _loc x2; quote_expression e_loc _loc x3;]
   | Pexp_extension(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pexp_extension")) [quote_extension e_loc _loc x]
@@ -476,8 +476,8 @@ and pctf_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.ad
 
 and quote_class_type_field_desc e_loc _loc x = match x with
   | Pctf_inherit(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_inherit")) [quote_class_type e_loc _loc x]
-  | Pctf_val(x1,x2,x3,x4) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_val")) [ quote_string e_loc _loc x1; quote_mutable_flag e_loc _loc x2; quote_virtual_flag e_loc _loc x3; quote_core_type e_loc _loc x4;]
-  | Pctf_method(x1,x2,x3,x4) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_method")) [ quote_string e_loc _loc x1; quote_private_flag e_loc _loc x2; quote_virtual_flag e_loc _loc x3; quote_core_type e_loc _loc x4;]
+  | Pctf_val(x1,x2,x3,x4) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_val")) [ (quote_loc quote_string) e_loc _loc x1; quote_mutable_flag e_loc _loc x2; quote_virtual_flag e_loc _loc x3; quote_core_type e_loc _loc x4;]
+  | Pctf_method(x1,x2,x3,x4) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_method")) [ (quote_loc quote_string) e_loc _loc x1; quote_private_flag e_loc _loc x2; quote_virtual_flag e_loc _loc x3; quote_core_type e_loc _loc x4;]
   | Pctf_constraint(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_constraint")) [ quote_core_type e_loc _loc x1; quote_core_type e_loc _loc x2;]
   | Pctf_attribute(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_attribute")) [quote_attribute e_loc _loc x]
   | Pctf_extension(x) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pctf_extension")) [quote_extension e_loc _loc x]
@@ -526,7 +526,7 @@ and quote_class_field e_loc _loc r = if is_antiquotation r.pcf_loc then try (Has
 and pcf_antiquotation _loc f = let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; loc_pcf _loc (dummy_pcf)
 
 and quote_class_field_desc e_loc _loc x = match x with
-  | Pcf_inherit(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pcf_inherit")) [ quote_override_flag e_loc _loc x1; quote_class_expr e_loc _loc x2; (quote_option quote_string) e_loc _loc x3;]
+  | Pcf_inherit(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pcf_inherit")) [ quote_override_flag e_loc _loc x1; quote_class_expr e_loc _loc x2; (quote_option (quote_loc quote_string)) e_loc _loc x3;]
   | Pcf_val(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pcf_val")) [ (quote_loc quote_string) e_loc _loc x1; quote_mutable_flag e_loc _loc x2; quote_class_field_kind e_loc _loc x3;]
   | Pcf_method(x1,x2,x3) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pcf_method")) [ (quote_loc quote_string) e_loc _loc x1; quote_private_flag e_loc _loc x2; quote_class_field_kind e_loc _loc x3;]
   | Pcf_constraint(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pcf_constraint")) [ quote_core_type e_loc _loc x1; quote_core_type e_loc _loc x2;]

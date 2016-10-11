@@ -1,7 +1,7 @@
 OCAMLFIND = ocamlfind
 OCAMLC = $(OCAMLFIND) ocamlc -package bytes
 OCAMLOPT = $(OCAMLFIND) ocamlopt -package bytes -intf-suffix .cmi
-BINDIR = /usr/local/bin
+BINDIR = $(dir $(shell which ocamlc))
 
 # do not add decap.cm(x)a because decap in bootstrap is
 # does not contain pa_ocaml_prelude and adding decap.cm(x)a
@@ -12,7 +12,7 @@ BINDIR = /usr/local/bin
 INSTALLED = ahash.cmi ahash.cmo ahash.mli ahash.cmx decap.cmi decap.cmo decap.mli decap.cmx charset.cmi charset.cmo charset.mli charset.cmx input.cmi input.cmo input.mli input.cmx decap.cma decap.cmxa decap.a pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx pa_parser.cmi pa_parser.cmx pa_parser.cmo pa_main.cmi pa_main.cmx pa_main.cmo decap_ocaml.cmxa decap_ocaml.cma decap.a decap_ocaml.a pa_ast.cmx pa_ast.cmo pa_ast.cmi pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
 
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
-OCAMLVERSION=$(shell ocamlc -version)
+OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
 BOOTDIR=./bootstrap/$(OCAMLVERSION)
 export OCAMLFIND_IGNORE_DUPS_IN = $(BOOTDIR)
 

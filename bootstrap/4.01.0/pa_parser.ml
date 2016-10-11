@@ -729,6 +729,16 @@ module Ext(In:Extension) =
                        (true,
                          (exp_apply _loc (exp_glr_fun _loc "regexp")
                             [e; exp_fun _loc "groupe" opt]))));
+           Decap.sequence_position (Decap.string "BLANK" "BLANK")
+             glr_opt_expr
+             (fun _  opt  __loc__start__buf  __loc__start__pos 
+                __loc__end__buf  __loc__end__pos  ->
+                let _loc =
+                  locate __loc__start__buf __loc__start__pos __loc__end__buf
+                    __loc__end__pos in
+                let e = match opt with | None  -> exp_unit _loc | Some e -> e in
+                ((opt <> None),
+                  (exp_apply _loc (exp_glr_fun _loc "with_blank_test") [e])));
            Decap.sequence_position
              (Decap.apply_position
                 (fun x  str  pos  str'  pos'  ->
@@ -856,7 +866,13 @@ module Ext(In:Extension) =
       let rec fn first ids l =
         match l with
         | [] -> assert false
-        | `Ignore::ls -> assert false
+        | `Ignore::ls ->
+            let e =
+              exp_apply _loc (exp_glr_fun _loc "ignore_next_blank")
+                [exp_apply _loc (exp_glr_fun _loc "success_test")
+                   [exp_unit _loc]] in
+            fn first ids ((`Normal (("", None), false, e, `Once, false)) ::
+              ls)
         | (`Normal (id,cst,e,opt,oc))::`Ignore::ls ->
             let e = exp_apply _loc (exp_glr_fun _loc "ignore_next_blank") [e] in
             fn first ids ((`Normal (id, cst, e, opt, oc)) :: ls)

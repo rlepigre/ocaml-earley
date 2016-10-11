@@ -34,7 +34,7 @@ else
     exit 1
 fi
 
-for v in 4.03.0+trunk 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0; do
+for v in 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0 ; do
     build $v $1
     cp -f pa_ocaml pa_ocaml-$v
 done
