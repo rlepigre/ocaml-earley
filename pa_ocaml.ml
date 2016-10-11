@@ -529,7 +529,11 @@ let _ = set_typexpr_lvl (fun lvl ->
   | '(' te:typexpr ')' when lvl = AtomType ->
       te
   | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl = Arr ->
-      loc_typ _loc (Ptyp_arrow (ln, mkoption _loc_te te, te'))
+#if version <= 4.03
+    loc_typ _loc (Ptyp_arrow (ln, te, te'))
+#else
+    loc_typ _loc (Ptyp_arrow (ln, mkoption _loc_te te, te'))
+#endif
   | ln:label_name ':' te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl = Arr ->
       loc_typ _loc (Ptyp_arrow (labelled ln, te, te'))
 
@@ -834,7 +838,7 @@ let parser class_type =
         match lab with
         | None   -> pcty_loc _loc (Pcty_arrow (nolabel, te, acc))
 #ifversion >= 4.03
-        | Some l -> pcty_loc _loc (Pcty_arrow (l, (match l with Optional _ -> mkoption _loc_tes te | _ -> te), acc))
+        | Some l -> pcty_loc _loc (Pcty_arrow (l, (match l with Optional _ -> te | _ -> te), acc))
 #else
         | Some l -> pcty_loc _loc (Pcty_arrow (l, (if l.[0] = '?' then mkoption _loc_tes te else te), acc))
 #endif
