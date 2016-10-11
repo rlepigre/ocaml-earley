@@ -29,7 +29,7 @@ PP=
 all: pa_ocaml decap.cmxa $(B)/decap_ocaml.cmxa
 endif
 
-MAJOR = 20160307
+MAJOR = 20161011
 MINOR = alpha
 VERSION = $(MAJOR).$(MINOR)
 ASCII =
@@ -157,7 +157,7 @@ asttools: decap.cmxa decap_ocaml.cmxa
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
 boot:
 	- if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
-	- if [ ! -d $(BACKUP) ] ; then \
+	- if [ ! -d $(BACKUP) ] ; then \b
 	     mkdir $(BACKUP) ; \
 	     cp $(BOOTDIR)/*.ml $(BACKUP) ; \
 	fi
@@ -169,9 +169,6 @@ boot:
 	./pa_ocaml --ascii pa_ast.ml > $(BOOTDIR)/pa_ast.ml ;\
 	./pa_ocaml --ascii pa_main.ml > $(BOOTDIR)/pa_main.ml ;\
 	./pa_ocaml --ascii pa_default.ml > $(BOOTDIR)/pa_default.ml
-
-opam: opam.tmpl
-	sed -e s/__VERSION__/$(VERSION)/g $< > $@
 
 install: uninstall $(INSTALLED)
 	install -m 755 -d $(BINDIR)

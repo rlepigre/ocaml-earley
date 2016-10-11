@@ -1,0 +1,16 @@
+opam-version: "1.2"
+maintainer: "Christophe Raffalli <raffalli@univ-savoie.fr>"
+bug-reports:  "http://lama.univ-savoie.fr/mantis/search.php?project_id=2"
+available:  [ ocaml-version >= "4.1.0" ]
+authors:
+  "Christophe Raffalli <raffalli@univ-savoie.fr>,
+   Rdolphe Lepigre <rodolphe.lepigre@univ-savoie.fr>"
+homepage: "http://lama.univ-savoie.fr/~raffalli/decap"
+license: "LGPL-3.0"
+dev-repo: "darcs://lama.univ-savoie.fr/~raffalli/decap/repos"
+build: [[make "distclean"] [make] [make]]
+install: [make "install"]
+remove: ["ocamlfind" "remove" "decap"]
+depends: [
+  "ocamlfind" {build}
+]
