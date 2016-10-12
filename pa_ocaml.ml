@@ -529,7 +529,7 @@ let _ = set_typexpr_lvl (fun lvl ->
   | '(' te:typexpr ')' when lvl = AtomType ->
       te
   | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl = Arr ->
-#if version <= 4.03
+#if version >= 4.03
     loc_typ _loc (Ptyp_arrow (ln, te, te'))
 #else
     loc_typ _loc (Ptyp_arrow (ln, mkoption _loc_te te, te'))
