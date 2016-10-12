@@ -188,6 +188,33 @@ distclean: clean
 	- rm -f pa_ocaml pa_ocaml.byt *~ \#*\#
 	$(MAKE) -e -j 1 -C ast_tools distclean
 
-doc: decap.mli charset.mli input.mli
+URLSSH=lama.univ-savoie.fr:WWW
+URL=https://lama.univ-savoie.fr/~raffalli/decap
+
+doc: charset.mli input.mli fixpoint.mli decap.mli decap.cmxa
 	mkdir -p html
 	ocamldoc -d html -html decap.mli charset.mli input.mli
+
+tar: doc clean
+	cd ../decap_tar; darcs pull; make distclean; make; make; make distclean
+	cd ..; tar cvfz decap-$(VERSION).tar.gz --exclude=_darcs --transform "s,decap_tar,decap-$(VERSION),"  decap_tar
+
+distrib: clean tar doc
+	darcs push lama.univ-savoie.fr:WWW/repos/decap/
+	scp ../decap-$(VERSION).tar.gz $(URLSSH)/decap/
+	rsync -r --delete ../decap_tar/examples/ $(URLSSH)/decap/examples/
+	ssh lama.univ-savoie.fr "cd WWW/decap; ln -sf decap-$(VERSION).tar.gz decap-latest.tar.gz"
+	rsync -r www/ $(URLSSH)/
+
+OPAMREPO=$(HOME)/Caml/opam-repository/packages/decap
+
+opam_git: opam distrib
+	mkdir -p $(OPAMREPO)/decap.$(VERSION)
+	cp opam $(OPAMREPO)/decap.$(VERSION)/opam
+	cp description.txt $(OPAMREPO)/decap.$(VERSION)/descr
+	echo -n "archive: \""  > $(OPAMREPO)/decap.$(VERSION)/url
+	echo -n "$(URL)/decap-$(VERSION).tar.gz" >> $(OPAMREPO)/decap.$(VERSION)/url
+	echo "\"" >> $(OPAMREPO)/decap.$(VERSION)/url
+	echo -n "checksum: \"" >> $(OPAMREPO)/decap.$(VERSION)/url
+	echo -n `md5sum ../decap-$(VERSION).tar.gz | cut -b -32` >> $(OPAMREPO)/decap.$(VERSION)/url
+	echo "\"" >> $(OPAMREPO)/decap.$(VERSION)/url
