@@ -130,6 +130,76 @@ let lexing_position str pos =
           ; pos_cnum  = loff +pos
           ; pos_bol   = loff })
 
+module Regexp =
+  struct
+    type regexp =
+      | Chr of char        (* Single character.                *)
+      | Set of Charset.t   (* Any character in a charset.      *)
+      | Seq of regexp list (* Sequence of regular expressions. *)
+      | Alt of regexp list (* Alternative between regexps.     *)
+      | Opt of regexp      (* Optional regexp.                 *)
+      | Str of regexp      (* Zero or more times the regexp.   *)
+      | Pls of regexp      (* One  or more times the regexp.   *)
+
+    exception Regexp_error of buffer * int
+    let regexp_error : type a. buffer -> int -> a = fun buf pos ->
+      raise (Regexp_error(buf, pos))
+
+    let string_of_char_list : char list -> string = fun cs ->
+      let b = Buffer.create 10 in
+      List.iter (Buffer.add_char b) cs;
+      Buffer.contents b
+
+    let read_regexp : regexp -> buffer -> int -> string * buffer * int =
+      fun re buf pos ->
+        let rec read_regexp re buf pos cs =
+          match re with
+          | Chr(ch)    ->
+              begin
+                let (c, buf, pos) = read buf pos in
+                if c = ch then (c :: cs, buf, pos)
+                else regexp_error buf pos
+              end
+          | Set(chs)   ->
+              begin
+                let (c, buf, pos) = read buf pos in
+                if Charset.mem chs c then (c :: cs, buf, pos)
+                else regexp_error buf pos
+              end
+          | Seq(r::rs) ->
+              begin
+                let (cs, buf, pos) = read_regexp re buf pos cs in
+                read_regexp (Seq(rs)) buf pos cs
+              end
+          | Seq([])    -> (cs, buf, pos)
+          | Alt(r::rs) ->
+              begin
+                try read_regexp r buf pos cs
+                with Regexp_error(_,_) -> read_regexp (Alt(rs)) buf pos cs
+              end
+          | Alt([])    -> regexp_error buf pos
+          | Opt(r)     ->
+              begin
+                try read_regexp r buf pos cs
+                with Regexp_error(_,_) -> (cs, buf, pos)
+              end
+          | Str(r)     ->
+              begin
+                try
+                  let (cs, buf, pos) = read_regexp r buf pos cs in
+                  read_regexp (Str(r)) buf pos cs
+                with Regexp_error(_,_) -> (cs, buf, pos)
+              end
+          | Pls(r)     ->
+              begin
+                let (cs, buf, pos) = read_regexp r buf pos cs in
+                read_regexp (Str(r)) buf pos cs
+              end
+        in
+        let (cs, buf, pos) = read_regexp re buf pos [] in
+        (string_of_char_list (List.rev cs), buf, pos)
+  end
+
 let line_num_directive =
   Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
 
