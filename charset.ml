@@ -54,8 +54,12 @@ let mask, shift, size =
   | 64 -> 31, 5, 256 / 32
   | _  -> assert false (* Cannot happen... *)
 
-let empty_charset = Array.make size 0
-let full_charset  = Array.make size (-1)
+let empty = Array.make size 0
+let full  = Array.make size (-1)
+
+(* TODO remove after bootstrap *)
+let empty_charset = empty
+let full_charset  = full
 
 let complement = Array.map ((lxor) (-1))
 
@@ -74,7 +78,7 @@ let add cs c =
   cs
 
 let range cmin cmax =
-  let res = ref empty_charset in
+  let res = ref empty in
   for i = Char.code cmin to Char.code cmax do
     res := add !res (Char.chr i)
   done; !res
@@ -93,7 +97,7 @@ let union cs1 cs2 =
   Array.mapi (fun i x -> x lor cs2.(i)) cs1
 
 let singleton =
-  let tbl = Array.init 256 (fun i -> add empty_charset (Char.chr i)) in
+  let tbl = Array.init 256 (fun i -> add empty (Char.chr i)) in
   fun c -> tbl.(Char.code c)
 
 let copy = Array.copy
@@ -107,7 +111,7 @@ let list_of_charset cs =
   !res
 
 let print_charset oc cs =
-  if cs = full_charset then output_string oc "<FULL>"
+  if cs = full then output_string oc "<FULL>"
   else begin
     let has_range min max =
       let has_all = ref true in

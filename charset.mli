@@ -56,10 +56,14 @@ type t = charset
 (** {2 Constant charsets} *)
 
 (** The empty character set. *)
-val empty_charset :charset
+val empty : charset
 
 (** The full character set. *)
-val full_charset :charset
+val full  : charset
+
+(* TODO remove after bootstrap *)
+val empty_charset : charset
+val full_charset  : charset
 
 (** {2 Manipulating charsets} *)
 

@@ -255,8 +255,8 @@ let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
 let force = Fixpoint.force
 
-let empty = Fixpoint.from_val (true, Charset.empty_charset)
-let any = Fixpoint.from_val (true, full_charset)
+let empty = Fixpoint.from_val (true, Charset.empty)
+let any = Fixpoint.from_val (true, Charset.full)
 
 let pre_rule (x,_) = x
 
@@ -286,7 +286,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
     (accept_empty1 || accept_empty2, Charset.union c1 c2)
   in
   let g = List.map rule_info g in
-  Fixpoint.from_funl g (false, Charset.empty_charset) or_info
+  Fixpoint.from_funl g (false, Charset.empty) or_info
 
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
     match pre_rule rule with
@@ -419,9 +419,9 @@ let blank_test = fun ?(name=new_name ()) set f ->
   let j = Fixpoint.from_val i in
   (j, [(Next(j,name,false,Test (set, f),Idt,idtEmpty),new_cell ())])
 
-let success_test a = test ~name:"SUCCESS" full_charset (fun _ _ -> (a, true))
+let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
-let with_blank_test a = blank_test ~name:"BLANK" full_charset
+let with_blank_test a = blank_test ~name:"BLANK" Charset.full
   (fun buf' pos' buf pos -> (a, not (eq_buf buf' buf) || pos' <> pos))
 
 let nonterm (i,s) = NonTerm(i,s)
@@ -893,14 +893,14 @@ let parse_file grammar blank filename  =
 let fail : 'b -> 'a grammar
   = fun msg ->
     let fn buf pos = raise Error in
-    solo Charset.empty_charset fn (* make sure we have the message *)
+    solo Charset.empty fn (* make sure we have the message *)
 
 let unset : string -> 'a grammar
   = fun msg ->
     let fn buf pos =
       failwith msg
     in
-    solo Charset.empty_charset fn (* make sure we have the message *)
+    solo Charset.empty fn (* make sure we have the message *)
 
 let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
@@ -953,21 +953,21 @@ let not_in_charset : ?name:string -> charset -> unit grammar
     test ~name (Charset.complement cs) fn
 
 let relax : unit grammar =
-  test Charset.full_charset (fun _ _ -> (),true)
+  test Charset.full (fun _ _ -> (),true)
 
 let any : char grammar
   = let fn buf pos =
       let c', buf', pos' = read buf pos in
       (c',buf',pos')
     in
-    solo ~name:"ANY" Charset.full_charset fn
+    solo ~name:"ANY" Charset.full fn
 
 let debug msg : unit grammar
     = let fn buf pos =
 	Printf.eprintf "%s file:%s line:%d col:%d\n%!" msg (fname buf) (line_num buf) pos;
 	((), true)
       in
-      test ~name:msg Charset.empty_charset fn
+      test ~name:msg Charset.empty fn
 
 let string : ?name:string -> string -> 'a -> 'a grammar
   = fun ?name s a ->
@@ -993,7 +993,7 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
   = fun ?name r0  a ->
     let r = Str.regexp r0 in
     let name = match name with None -> String.escaped r0 | Some n -> n in
-    let set = Charset.copy empty_charset in
+    let set = Charset.copy Charset.empty in
     let found = ref false in
     for i = 0 to 254 do
       let s = String.make 1 (Char.chr i) in
@@ -1135,11 +1135,11 @@ let accept_empty grammar =
 
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a grammar -> blank -> 'a grammar
   = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
-    let i = Fixpoint.from_val (false, full_charset) in
-    (* compose with a test with a full_charset to pass the final charset test in
+    let i = Fixpoint.from_val (false, Charset.full) in
+    (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
     let ignb = not new_blank_after in
-    let l1 = mk_grammar [next ~ignb l1 Idt (next ~ignb (test full_charset (fun _ _ -> (), true))
+    let l1 = mk_grammar [next ~ignb l1 Idt (next ~ignb (test Charset.full (fun _ _ -> (), true))
 			       (Simple (fun _ a -> a)) idtEmpty)] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
@@ -1150,9 +1150,9 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
 
 let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
-    (* compose with a test with a full_charset to pass the final charset test in
+    (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = mk_grammar [next ~ignb:true l1 Idt (next ~ignb:true (test full_charset (fun _ _ -> (), true))
+    let l1 = mk_grammar [next ~ignb:true l1 Idt (next ~ignb:true (test Charset.full (fun _ _ -> (), true))
 						   (Simple (fun _ a -> a)) idtEmpty)] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
     let fn errpos blank buf pos _ _ =
