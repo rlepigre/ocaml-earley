@@ -78,6 +78,7 @@ module Regexp :
       | Opt of regexp      (* Optional regexp.                 *)
       | Str of regexp      (* Zero or more times the regexp.   *)
       | Pls of regexp      (* One  or more times the regexp.   *)
+      | Sav of regexp * string ref     (* save what is read    *)
 
     (** Exception that is raised when a regexp cannot be read. *)
     exception Regexp_error of buffer * int
@@ -87,7 +88,7 @@ module Regexp :
         a triple of the parsed string, the buffer after parsing and the
         position after parsing. The exception [Regexp_error(err_buf, err_pos]
         is raised in case of failure at the given position. *)
-    val read_regexp : regexp -> buffer -> int -> string * buffer * int
+    val read_regexp : regexp -> buffer -> int -> buffer * int
   end
 
 (** {2 Creating a buffer} *)

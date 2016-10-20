@@ -133,13 +133,29 @@ let lexing_position str pos =
 module Regexp =
   struct
     type regexp =
-      | Chr of char        (* Single character.                *)
-      | Set of Charset.t   (* Any character in a charset.      *)
-      | Seq of regexp list (* Sequence of regular expressions. *)
-      | Alt of regexp list (* Alternative between regexps.     *)
-      | Opt of regexp      (* Optional regexp.                 *)
-      | Str of regexp      (* Zero or more times the regexp.   *)
-      | Pls of regexp      (* One  or more times the regexp.   *)
+      | Chr of char        (* Single character.                 *)
+      | Set of Charset.t   (* Any character in a charset.       *)
+      | Seq of regexp list (* Sequence of regular expressions.  *)
+      | Alt of regexp list (* Alternative between regexps.      *)
+      | Opt of regexp      (* Optional regexp.                  *)
+      | Str of regexp      (* Zero or more times the regexp.    *)
+      | Pls of regexp      (* One  or more times the regexp.    *)
+      | Sav of regexp * string ref (* Save what is read.        *)
+
+    let rec print_regexp ch = function
+      | Chr c -> Printf.fprintf ch "Chr(%C)" c
+      | Set s -> Printf.fprintf ch "Set(%a)" Charset.print_charset s
+      | Seq l -> Printf.fprintf ch "Seq(%a)" print_regexps l
+      | Alt l -> Printf.fprintf ch "Alt(%a)" print_regexps l
+      | Opt r -> Printf.fprintf ch "Opt(%a)" print_regexp r
+      | Str r -> Printf.fprintf ch "Str(%a)" print_regexp r
+      | Pls r -> Printf.fprintf ch "Pls(%a)" print_regexp r
+      | Sav (r, _) -> Printf.fprintf ch "Sav(%a)" print_regexp r
+
+    and print_regexps ch = function
+      | [] -> ()
+      | [x] -> print_regexp ch x
+      | x::l -> Printf.fprintf ch "%a,%a" print_regexp x print_regexps l
 
     exception Regexp_error of buffer * int
     let regexp_error : type a. buffer -> int -> a = fun buf pos ->
@@ -150,54 +166,119 @@ module Regexp =
       List.iter (Buffer.add_char b) cs;
       Buffer.contents b
 
-    let read_regexp : regexp -> buffer -> int -> string * buffer * int =
+    let read_regexp : regexp -> buffer -> int -> buffer * int =
       fun re buf pos ->
-        let rec read_regexp re buf pos cs =
+        let rec sread_regexp re buf pos cs =
+          (*Printf.eprintf "%d:%d -> %a -> %C\n%!" (line_num buf) pos print_regexp re (get buf pos);*)
           match re with
           | Chr(ch)    ->
               begin
                 let (c, buf, pos) = read buf pos in
-                if c = ch then (c :: cs, buf, pos)
+                if c = ch then (c::cs, buf, pos)
                 else regexp_error buf pos
               end
           | Set(chs)   ->
               begin
                 let (c, buf, pos) = read buf pos in
-                if Charset.mem chs c then (c :: cs, buf, pos)
+                if Charset.mem chs c then (c::cs, buf, pos)
                 else regexp_error buf pos
               end
           | Seq(r::rs) ->
               begin
-                let (cs, buf, pos) = read_regexp re buf pos cs in
-                read_regexp (Seq(rs)) buf pos cs
+                let (cs, buf, pos) = sread_regexp r buf pos cs in
+                sread_regexp (Seq(rs)) buf pos cs
               end
           | Seq([])    -> (cs, buf, pos)
           | Alt(r::rs) ->
               begin
-                try read_regexp r buf pos cs
-                with Regexp_error(_,_) -> read_regexp (Alt(rs)) buf pos cs
+                try sread_regexp r buf pos cs
+                with Regexp_error(_,_) -> sread_regexp (Alt(rs)) buf pos cs
               end
           | Alt([])    -> regexp_error buf pos
           | Opt(r)     ->
               begin
-                try read_regexp r buf pos cs
+                try sread_regexp r buf pos cs
                 with Regexp_error(_,_) -> (cs, buf, pos)
               end
           | Str(r)     ->
               begin
                 try
-                  let (cs, buf, pos) = read_regexp r buf pos cs in
-                  read_regexp (Str(r)) buf pos cs
+                  let (cs, buf, pos) = sread_regexp r buf pos cs in
+                  sread_regexp re buf pos cs
                 with Regexp_error(_,_) -> (cs, buf, pos)
               end
           | Pls(r)     ->
               begin
-                let (cs, buf, pos) = read_regexp r buf pos cs in
-                read_regexp (Str(r)) buf pos cs
+                let (cs, buf, pos) = sread_regexp r buf pos cs in
+                sread_regexp (Str(r)) buf pos cs
               end
+          | Sav(r,ptr) ->
+             begin
+               let cs0 = cs in
+               let rec fn acc = function
+                 | cs when cs == cs0 -> string_of_char_list acc
+                 | c::cs -> fn (c::acc) cs
+                 | [] -> assert false
+               in
+               let (cs, _, _ as res) = sread_regexp r buf pos cs in
+               ptr := fn [] cs;
+               res
+              end
+
         in
-        let (cs, buf, pos) = read_regexp re buf pos [] in
-        (string_of_char_list (List.rev cs), buf, pos)
+        let rec read_regexp re buf pos =
+          (*Printf.eprintf "%d:%d -> %a -> %C\n%!" (line_num buf) pos print_regexp re (get buf pos);*)
+          match re with
+          | Chr(ch)    ->
+              begin
+                let (c, buf, pos) = read buf pos in
+                if c = ch then (buf, pos)
+                else regexp_error buf pos
+              end
+          | Set(chs)   ->
+              begin
+                let (c, buf, pos) = read buf pos in
+                if Charset.mem chs c then (buf, pos)
+                else regexp_error buf pos
+              end
+          | Seq(r::rs) ->
+              begin
+                let (buf, pos) = read_regexp r buf pos in
+                read_regexp (Seq(rs)) buf pos
+              end
+          | Seq([])    -> (buf, pos)
+          | Alt(r::rs) ->
+              begin
+                try read_regexp r buf pos
+                with Regexp_error(_,_) -> read_regexp (Alt(rs)) buf pos
+              end
+          | Alt([])    -> regexp_error buf pos
+          | Opt(r)     ->
+              begin
+                try read_regexp r buf pos
+                with Regexp_error(_,_) -> (buf, pos)
+              end
+          | Str(r)     ->
+              begin
+                try
+                  let (buf, pos) = read_regexp r buf pos in
+                  read_regexp re buf pos
+                with Regexp_error(_,_) -> (buf, pos)
+              end
+          | Pls(r)     ->
+              begin
+                let (buf, pos) = read_regexp r buf pos in
+                read_regexp (Str(r)) buf pos
+              end
+          | Sav(r,ptr) ->
+             begin
+               let (cs, buf, pos) = sread_regexp r buf pos [] in
+               ptr := string_of_char_list (List.rev cs);
+               (buf, pos)
+              end
+
+        in
+        read_regexp re buf pos
   end
 
 let line_num_directive =
