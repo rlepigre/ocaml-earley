@@ -163,6 +163,85 @@ module Regexp =
       in
       pregexp ch re
 
+    let regexp_from_string : string -> regexp * string ref array = fun s ->
+      let cs =
+        let cs = ref [] in
+        for i = String.length s - 1 downto 0 do
+          cs := s.[i] :: !cs
+        done; !cs
+      in
+
+      let read_range cs =
+        let rec read_range acc = function
+          | []              -> invalid_arg "Regexp: open charset."
+          | ']'::cs         -> (acc, cs)
+          | c1::'-'::c2::cs -> let r = Charset.range c1 c2 in
+                               read_range (Charset.union acc r) cs
+          | c::cs           -> read_range (Charset.add acc c) cs
+        in read_range Charset.empty cs
+      in
+      let rec tokens cs =
+        let is_spe c = List.mem c ['\\';'.';'*';'+';'?';'[';']'] in
+        match cs with
+        | '.' ::cs            -> `Set(Charset.full) :: tokens cs
+        | '*' ::cs            -> `Str :: tokens cs
+        | '+' ::cs            -> `Pls :: tokens cs
+        | '?' ::cs            -> `Opt :: tokens cs
+        | '\\'::'('::cs       -> `Opn :: tokens cs
+        | '\\'::')'::cs       -> `Cls :: tokens cs
+        | '\\'::'|'::cs       -> `Alt :: tokens cs
+        | '\\'::c  ::cs       -> if is_spe c then `Chr(c) :: tokens cs
+                                 else invalid_arg "Regexp: invalid escape."
+        | '\\'::[]            -> invalid_arg "Regexp: nothing to escape."
+        | '[' ::'^':: ']'::cs -> let (rng, cs) = read_range cs in
+                                 let rng = Charset.add rng ']' in
+                                 `Set(Charset.complement rng) :: tokens cs
+        | '[' ::']':: cs      -> let (rng, cs) = read_range cs in
+                                 `Set(Charset.add rng ']') :: tokens cs
+        | '[' ::'^'::cs       -> let (rng, cs) = read_range cs in
+                                 `Set(Charset.complement rng) :: tokens cs
+        | '[' ::cs            -> let (rng, cs) = read_range cs in
+                                 `Set(rng) :: tokens cs
+        | c   ::cs            -> `Chr(c) :: tokens cs
+        | []                  -> []
+      in
+      let ts = tokens cs in
+
+      let refs = ref [] in
+      let rec build_re stk acc ts =
+        match (stk, acc, ts) with
+        | (stk   , acc    , `Chr(c)::ts) -> build_re stk (Chr(c)::acc) ts
+        | (stk   , acc    , `Set(s)::ts) -> build_re stk (Set(s)::acc) ts
+        | (stk   , re::acc, `Str   ::ts) -> build_re stk (Str(re)::acc) ts
+        | (stk   , re::acc, `Pls   ::ts) -> build_re stk (Pls(re)::acc) ts
+        | (stk   , re::acc, `Opt   ::ts) -> build_re stk (Opt(re)::acc) ts
+        | (stk   , []     , `Str   ::_ )
+        | (stk   , []     , `Pls   ::_ )
+        | (stk   , []     , `Opt   ::_ ) ->
+            invalid_arg "Regexp: modifier error."
+        | (stk   , acc    , `Opn   ::ts) -> build_re (acc::stk) [] ts
+        | ([]    , _      , `Cls   ::_ ) ->
+            invalid_arg "Regexp: group not opened."
+        | (s::stk, acc    , `Cls   ::ts) ->
+            let re =
+              match List.rev acc with
+              | [re] -> re
+              | l    -> Seq(l)
+            in
+            let r = ref "" in refs := r :: !refs;
+            build_re stk (Sav(re,r)::s) ts
+        | (stk   , acc    , `Alt   ::ts) -> assert false (* TODO *)
+        | ([]    , acc    , []         ) ->
+            begin
+              match List.rev acc with
+              | [re] -> re
+              | l    -> Seq(l)
+            end
+        | (_     , _      , []         ) -> invalid_arg "Regexp: group error."
+      in
+      let re = build_re [] [] ts in
+      (re, Array.of_list (List.rev !refs))
+
     (** Exception raised when a regexp cannot be parsed. *)
     exception Regexp_error of buffer * int
 
