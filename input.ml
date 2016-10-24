@@ -163,6 +163,24 @@ module Regexp =
       in
       pregexp ch re
 
+    type construction =
+        Acc of regexp list
+      | Par of regexp list * regexp list
+
+    let push x = function
+      | Acc l -> Acc (x::l)
+      | Par (l1, l2) -> Acc(Alt(x :: l1)::l2)
+
+    let push_alt x = function
+      | Acc(Seq l1 :: l2) -> Par(l1,l2)
+      | Acc(x :: l2) -> Par([x], l2)
+      | Acc([]) -> assert false
+      | Par(_) -> assert false
+
+    let pop = function
+      | Acc l -> l
+      | Par _ -> invalid_arg "Regexp: final bar."
+
     let regexp_from_string : string -> regexp * string ref array = fun s ->
       let cs =
         let cs = ref [] in
@@ -210,36 +228,41 @@ module Regexp =
       let refs = ref [] in
       let rec build_re stk acc ts =
         match (stk, acc, ts) with
-        | (stk   , acc    , `Chr(c)::ts) -> build_re stk (Chr(c)::acc) ts
-        | (stk   , acc    , `Set(s)::ts) -> build_re stk (Set(s)::acc) ts
-        | (stk   , re::acc, `Str   ::ts) -> build_re stk (Str(re)::acc) ts
-        | (stk   , re::acc, `Pls   ::ts) -> build_re stk (Pls(re)::acc) ts
-        | (stk   , re::acc, `Opt   ::ts) -> build_re stk (Opt(re)::acc) ts
-        | (stk   , []     , `Str   ::_ )
-        | (stk   , []     , `Pls   ::_ )
-        | (stk   , []     , `Opt   ::_ ) ->
+        | (stk   , acc    , `Chr(c)::ts) -> build_re stk (push (Chr c) acc) ts
+        | (stk   , acc    , `Set(s)::ts) -> build_re stk (push (Set s) acc) ts
+        | (stk   , Acc(Alt (re::l)::acc), `Str   ::ts) -> build_re stk (Acc(Alt(Str re::l) :: acc)) ts
+        | (stk   , Acc(Alt (re::l)::acc), `Pls   ::ts) -> build_re stk (Acc(Alt(Pls re::l) :: acc)) ts
+        | (stk   , Acc(Alt (re::l)::acc), `Opt   ::ts) -> build_re stk (Acc(Alt(Opt re::l) :: acc)) ts
+        | (stk   , Acc(re::acc), `Str   ::ts) -> build_re stk (Acc(Str re :: acc)) ts
+        | (stk   , Acc(re::acc), `Pls   ::ts) -> build_re stk (Acc(Pls re :: acc)) ts
+        | (stk   , Acc(re::acc), `Opt   ::ts) -> build_re stk (Acc(Opt re :: acc)) ts
+        | (stk   , _     , `Str   ::_ )
+        | (stk   , _     , `Pls   ::_ )
+        | (stk   , _     , `Opt   ::_ ) ->
             invalid_arg "Regexp: modifier error."
-        | (stk   , acc    , `Opn   ::ts) -> build_re (acc::stk) [] ts
+        | (stk   , acc    , `Opn   ::ts) -> build_re (pop acc::stk) (Acc []) ts
         | ([]    , _      , `Cls   ::_ ) ->
             invalid_arg "Regexp: group not opened."
         | (s::stk, acc    , `Cls   ::ts) ->
             let re =
-              match List.rev acc with
+              match List.rev (pop acc) with
               | [re] -> re
               | l    -> Seq(l)
             in
             let r = ref "" in refs := r :: !refs;
-            build_re stk (Sav(re,r)::s) ts
-        | (stk   , acc    , `Alt   ::ts) -> assert false (* TODO *)
+            build_re stk (Acc(Sav(re,r)::s)) ts
+        | (stk   , Acc(re::acc), `Alt   ::ts) -> build_re stk (Par([re],acc)) ts
+        | (stk   , Acc []      , `Alt   ::ts) -> invalid_arg "Regexp: initial bar."
+        | (stk   , Par _       , `Alt   ::ts) -> invalid_arg "Regexp: consecutive bar."
         | ([]    , acc    , []         ) ->
             begin
-              match List.rev acc with
+              match List.rev (pop acc) with
               | [re] -> re
               | l    -> Seq(l)
             end
         | (_     , _      , []         ) -> invalid_arg "Regexp: group error."
       in
-      let re = build_re [] [] ts in
+      let re = build_re [] (Acc []) ts in
       (re, Array.of_list (List.rev !refs))
 
     (** Exception raised when a regexp cannot be parsed. *)
