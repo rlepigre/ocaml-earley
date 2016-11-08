@@ -157,7 +157,7 @@ asttools: decap.cmxa decap_ocaml.cmxa
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
 boot:
 	- if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
-	- if [ ! -d $(BACKUP) ] ; then \b
+	- if [ ! -d $(BACKUP) ] ; then \
 	     mkdir $(BACKUP) ; \
 	     cp $(BOOTDIR)/*.ml $(BACKUP) ; \
 	fi
