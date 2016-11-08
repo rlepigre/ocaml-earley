@@ -82,7 +82,7 @@ let no_ident_char c =
   match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> false | _ -> true
 let test_end_kw =
   let f buf pos = let (c,_,_) = Input.read buf pos in ((), (no_ident_char c)) in
-  Decap.test ~name:"test_end_kw" Charset.full_charset f
+  Decap.test ~name:"test_end_kw" Charset.full f
 let key_word s =
   if (String.length s) <= 0
   then invalid_arg "Pa_lexing.key_word (empty keyword)";
@@ -146,20 +146,20 @@ let no_keyword s =
     if i >= len
     then ((), (not (no_ident_char c)))
     else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos in
-  Decap.test ~name:("no_" ^ s) Charset.full_charset (fn 0)
+  Decap.test ~name:("no_" ^ s) Charset.full (fn 0)
 let no_else = no_keyword "else"
 let no_false = no_keyword "false"
 let no_parser = no_keyword "parser"
 let no_with = no_keyword "with"
 let no_as = no_keyword "as"
 let no_dot =
-  Decap.test ~name:"no_dot" Charset.full_charset
+  Decap.test ~name:"no_dot" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos in
          if c <> '.' then ((), true) else ((), false))
 let no_semi =
-  Decap.test ~name:"no_semi" Charset.full_charset
+  Decap.test ~name:"no_semi" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos in
@@ -169,7 +169,7 @@ let no_semi =
            (let (c,buf,pos) = Input.read buf pos in
             if c = ';' then ((), true) else ((), false)))
 let no_colon =
-  Decap.test ~name:"no_colon" Charset.full_charset
+  Decap.test ~name:"no_colon" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos in
@@ -286,7 +286,7 @@ let (is_reserved_id,add_reserved_id) = make_reserved reserved_ids
 let (is_reserved_symb,add_reserved_symb) = make_reserved reserved_symbs
 let not_special =
   let special = "!$%&*+./:<=>?@^|~-" in
-  let cs = ref Charset.empty_charset in
+  let cs = ref Charset.empty in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
   Decap.not_in_charset ~name:"not_special" (!cs)
 let ident = Decap.declare_grammar "ident"
@@ -350,7 +350,7 @@ let _ =
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
   let no_suffix_cs =
-    Decap.test Charset.full_charset
+    Decap.test Charset.full
       (fun buf  ->
          fun pos  ->
            let (c,_,_) = Input.read buf pos in
