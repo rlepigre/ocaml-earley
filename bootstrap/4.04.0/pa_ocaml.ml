@@ -157,7 +157,7 @@ module Make(Initial:Extension) =
       set_grammar string_litteral (Decap.apply fst Pa_lexing.string_litteral) 
     let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral 
     type tree =
-      | Node of tree* tree 
+      | Node of tree * tree 
       | Leaf of string 
     let string_of_tree (t : tree) =
       (let b = Buffer.create 101  in
@@ -1441,19 +1441,11 @@ module Make(Initial:Extension) =
                         then
                           (Decap.fsequence_position ty_opt_label
                              (Decap.fsequence
-                                (Decap.apply_position
-                                   (fun x  ->
-                                      fun str  ->
-                                        fun pos  ->
-                                          fun str'  ->
-                                            fun pos'  ->
-                                              ((locate str pos str' pos'), x))
-                                   (typexpr_lvl (next_type_prio Arr)))
+                                (typexpr_lvl (next_type_prio Arr))
                                 (Decap.sequence arrow_re (typexpr_lvl Arr)
                                    (fun _default_0  ->
                                       fun te'  ->
                                         fun te  ->
-                                          let (_loc_te,te) = te  in
                                           fun ln  ->
                                             fun __loc__start__buf  ->
                                               fun __loc__start__pos  ->
@@ -1468,9 +1460,7 @@ module Make(Initial:Extension) =
                                                        in
                                                     loc_typ _loc
                                                       (Ptyp_arrow
-                                                         (ln,
-                                                           (mkoption _loc_te
-                                                              te), te'))))))
+                                                         (ln, te, te'))))))
                           :: y
                         else y  in
                       if lvl = AtomType
@@ -2082,23 +2072,16 @@ module Make(Initial:Extension) =
     let class_type = Decap.declare_grammar "class_type" 
     ;;Decap.set_grammar class_type
         (Decap.sequence_position
-           (Decap.apply_position
-              (fun x  ->
-                 fun str  ->
-                   fun pos  ->
-                     fun str'  ->
-                       fun pos'  -> ((locate str pos str' pos'), x))
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  -> fun y  -> x :: y)
-                       (Decap.fsequence
-                          (Decap.option None
-                             (Decap.apply (fun x  -> Some x) maybe_opt_label))
-                          (Decap.sequence (Decap.string ":" ":") typexpr
-                             (fun _  -> fun te  -> fun l  -> (l, te))))))))
+           (Decap.apply List.rev
+              (Decap.fixpoint []
+                 (Decap.apply (fun x  -> fun y  -> x :: y)
+                    (Decap.fsequence
+                       (Decap.option None
+                          (Decap.apply (fun x  -> Some x) maybe_opt_label))
+                       (Decap.sequence (Decap.string ":" ":") typexpr
+                          (fun _  -> fun te  -> fun l  -> (l, te)))))))
            class_body_type
            (fun tes  ->
-              let (_loc_tes,tes) = tes  in
               fun cbt  ->
                 fun __loc__start__buf  ->
                   fun __loc__start__pos  ->
@@ -2117,7 +2100,7 @@ module Make(Initial:Extension) =
                                 (Pcty_arrow
                                    (l,
                                      (match l with
-                                      | Optional _ -> mkoption _loc_tes te
+                                      | Optional _ -> te
                                       | _ -> te), acc))
                            in
                         List.fold_left app cbt (List.rev tes)))

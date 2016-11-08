@@ -24,11 +24,11 @@ let locate str pos str' pos' =
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
   
 type entry_point =
-  | Implementation of Parsetree.structure_item list grammar* blank 
-  | Interface of Parsetree.signature_item list grammar* blank 
+  | Implementation of Parsetree.structure_item list grammar * blank 
+  | Interface of Parsetree.signature_item list grammar * blank 
 module Initial =
   struct
-    let spec : (Arg.key* Arg.spec* Arg.doc) list =
+    let spec : (Arg.key * Arg.spec * Arg.doc) list =
       [("--ascii", (Arg.Set ascii),
          "Output ASCII text instead of serialized AST.");
       ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
@@ -148,7 +148,7 @@ module Initial =
          | Prefix  -> "Prefix"
          | Atom  -> "Atom")
       
-    let ((expression_lvl : (alm* expression_prio) -> expression grammar),set_expression_lvl)
+    let ((expression_lvl : (alm * expression_prio) -> expression grammar),set_expression_lvl)
       = grammar_family ~param_to_string:string_exp "expression_lvl" 
     let expression = expression_lvl (Match, Seq) 
     let structure_item : structure_item list grammar =
@@ -157,7 +157,7 @@ module Initial =
       declare_grammar "signature_item" 
     let ((parameter :
            bool ->
-             [ `Arg of (arg_label* expression option* pattern) 
+             [ `Arg of (arg_label * expression option * pattern) 
              | `Type of string ] grammar),set_parameter)
       = grammar_family "parameter" 
     let structure = structure_item 
@@ -212,7 +212,7 @@ module Initial =
       | ConsPat  -> ConstrPat
       | ConstrPat  -> AtomPat
       | AtomPat  -> AtomPat 
-    let ((pattern_lvl : (bool* pattern_prio) -> pattern grammar),set_pattern_lvl)
+    let ((pattern_lvl : (bool * pattern_prio) -> pattern grammar),set_pattern_lvl)
       = grammar_family "pattern_lvl" 
     let pattern = pattern_lvl (true, topPat) 
     let let_binding : value_binding list grammar =
@@ -221,13 +221,13 @@ module Initial =
     let class_expr : class_expr grammar = declare_grammar "class_expr" 
     let value_path : Longident.t grammar = declare_grammar "value_path" 
     let extra_expressions :
-      ((alm* expression_prio) -> expression grammar) list = [] 
+      ((alm * expression_prio) -> expression grammar) list = [] 
     let extra_prefix_expressions : expression grammar list = [] 
     let extra_types : (type_prio -> core_type grammar) list = [] 
-    let extra_patterns : ((bool* pattern_prio) -> pattern grammar) list = [] 
+    let extra_patterns : ((bool * pattern_prio) -> pattern grammar) list = [] 
     let extra_structure : structure_item list grammar list = [] 
     let extra_signature : signature_item list grammar list = [] 
-    type record_field = (Longident.t Asttypes.loc* Parsetree.expression)
+    type record_field = (Longident.t Asttypes.loc * Parsetree.expression)
     let constr_decl_list : constructor_declaration list grammar =
       declare_grammar "constr_decl_list" 
     let field_decl_list : label_declaration list grammar =
@@ -443,7 +443,7 @@ module Initial =
         (Decap.alternatives
            [Decap.apply (fun _default_0  -> Upto) to_kw;
            Decap.apply (fun _default_0  -> Downto) downto_kw])
-    let entry_points : (string* entry_point) list =
+    let entry_points : (string * entry_point) list =
       [(".mli", (Interface (signature, ocaml_blank)));
       (".ml", (Implementation (structure, ocaml_blank)))] 
   end

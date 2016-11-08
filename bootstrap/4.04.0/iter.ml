@@ -86,7 +86,7 @@ and iter_core_type_desc c1 =
   | Ptyp_any -> ()
   | Ptyp_var(x) -> (fun _ -> ()) x
   | Ptyp_arrow(x1,x2,x3) -> () ; (iter_arg_label x1) ; (iter_core_type x2) ; (iter_core_type x3)  | Ptyp_tuple(x) -> (iter_list iter_core_type) x
-  | Ptyp_constr(x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_list iter_core_type) x2)  | Ptyp_object(x1,x2) -> () ; ((iter_list (fun (x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_attributes x2) ; (iter_core_type x3))) x1) ; (iter_closed_flag x2)  | Ptyp_class(x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_list iter_core_type) x2)  | Ptyp_alias(x1,x2) -> () ; (iter_core_type x1) ; ((fun _ -> ()) x2)  | Ptyp_variant(x1,x2,x3) -> () ; ((iter_list iter_row_field) x1) ; (iter_closed_flag x2) ; ((iter_option (iter_list iter_label)) x3)  | Ptyp_poly(x1,x2) -> () ; ((iter_list (iter_loc (fun _ -> ()))) x1) ; (iter_core_type x2)  | Ptyp_package(x) -> iter_package_type x
+  | Ptyp_constr(x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_list iter_core_type) x2)  | Ptyp_object(x1,x2) -> () ; ((iter_list (fun (x1,x2,x3) -> () ; ((fun _ -> ()) x1) ; (iter_attributes x2) ; (iter_core_type x3))) x1) ; (iter_closed_flag x2)  | Ptyp_class(x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_list iter_core_type) x2)  | Ptyp_alias(x1,x2) -> () ; (iter_core_type x1) ; ((fun _ -> ()) x2)  | Ptyp_variant(x1,x2,x3) -> () ; ((iter_list iter_row_field) x1) ; (iter_closed_flag x2) ; ((iter_option (iter_list iter_label)) x3)  | Ptyp_poly(x1,x2) -> () ; ((iter_list (fun _ -> ())) x1) ; (iter_core_type x2)  | Ptyp_package(x) -> iter_package_type x
   | Ptyp_extension(x) -> iter_extension x
 
 and iter_package_type c1 = (fun (x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_list (fun (x1,x2) -> () ; ((iter_loc iter_longident) x1) ; (iter_core_type x2))) x2)) c1
@@ -116,12 +116,12 @@ and iter_expression_desc c1 =
   | Pexp_let(x1,x2,x3) -> () ; (iter_rec_flag x1) ; ((iter_list iter_value_binding) x2) ; (iter_expression x3)  | Pexp_function(x) -> (iter_list iter_case) x
   | Pexp_fun(x1,x2,x3,x4) -> () ; (iter_arg_label x1) ; ((iter_option iter_expression) x2) ; (iter_pattern x3) ; (iter_expression x4)  | Pexp_apply(x1,x2) -> () ; (iter_expression x1) ; ((iter_list (fun (x1,x2) -> () ; (iter_arg_label x1) ; (iter_expression x2))) x2)  | Pexp_match(x1,x2) -> () ; (iter_expression x1) ; ((iter_list iter_case) x2)  | Pexp_try(x1,x2) -> () ; (iter_expression x1) ; ((iter_list iter_case) x2)  | Pexp_tuple(x) -> (iter_list iter_expression) x
   | Pexp_construct(x1,x2) -> () ; ((iter_loc iter_longident) x1) ; ((iter_option iter_expression) x2)  | Pexp_variant(x1,x2) -> () ; (iter_label x1) ; ((iter_option iter_expression) x2)  | Pexp_record(x1,x2) -> () ; ((iter_list (fun (x1,x2) -> () ; ((iter_loc iter_longident) x1) ; (iter_expression x2))) x1) ; ((iter_option iter_expression) x2)  | Pexp_field(x1,x2) -> () ; (iter_expression x1) ; ((iter_loc iter_longident) x2)  | Pexp_setfield(x1,x2,x3) -> () ; (iter_expression x1) ; ((iter_loc iter_longident) x2) ; (iter_expression x3)  | Pexp_array(x) -> (iter_list iter_expression) x
-  | Pexp_ifthenelse(x1,x2,x3) -> () ; (iter_expression x1) ; (iter_expression x2) ; ((iter_option iter_expression) x3)  | Pexp_sequence(x1,x2) -> () ; (iter_expression x1) ; (iter_expression x2)  | Pexp_while(x1,x2) -> () ; (iter_expression x1) ; (iter_expression x2)  | Pexp_for(x1,x2,x3,x4,x5) -> () ; (iter_pattern x1) ; (iter_expression x2) ; (iter_expression x3) ; (iter_direction_flag x4) ; (iter_expression x5)  | Pexp_constraint(x1,x2) -> () ; (iter_expression x1) ; (iter_core_type x2)  | Pexp_coerce(x1,x2,x3) -> () ; (iter_expression x1) ; ((iter_option iter_core_type) x2) ; (iter_core_type x3)  | Pexp_send(x1,x2) -> () ; (iter_expression x1) ; ((iter_loc (fun _ -> ())) x2)  | Pexp_new(x) -> (iter_loc iter_longident) x
+  | Pexp_ifthenelse(x1,x2,x3) -> () ; (iter_expression x1) ; (iter_expression x2) ; ((iter_option iter_expression) x3)  | Pexp_sequence(x1,x2) -> () ; (iter_expression x1) ; (iter_expression x2)  | Pexp_while(x1,x2) -> () ; (iter_expression x1) ; (iter_expression x2)  | Pexp_for(x1,x2,x3,x4,x5) -> () ; (iter_pattern x1) ; (iter_expression x2) ; (iter_expression x3) ; (iter_direction_flag x4) ; (iter_expression x5)  | Pexp_constraint(x1,x2) -> () ; (iter_expression x1) ; (iter_core_type x2)  | Pexp_coerce(x1,x2,x3) -> () ; (iter_expression x1) ; ((iter_option iter_core_type) x2) ; (iter_core_type x3)  | Pexp_send(x1,x2) -> () ; (iter_expression x1) ; ((fun _ -> ()) x2)  | Pexp_new(x) -> (iter_loc iter_longident) x
   | Pexp_setinstvar(x1,x2) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_expression x2)  | Pexp_override(x) -> (iter_list (fun (x1,x2) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_expression x2))) x
   | Pexp_letmodule(x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_module_expr x2) ; (iter_expression x3)  | Pexp_letexception(x1,x2) -> () ; (iter_extension_constructor x1) ; (iter_expression x2)  | Pexp_assert(x) -> iter_expression x
   | Pexp_lazy(x) -> iter_expression x
   | Pexp_poly(x1,x2) -> () ; (iter_expression x1) ; ((iter_option iter_core_type) x2)  | Pexp_object(x) -> iter_class_structure x
-  | Pexp_newtype(x1,x2) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_expression x2)  | Pexp_pack(x) -> iter_module_expr x
+  | Pexp_newtype(x1,x2) -> () ; ((fun _ -> ()) x1) ; (iter_expression x2)  | Pexp_pack(x) -> iter_module_expr x
   | Pexp_open(x1,x2,x3) -> () ; (iter_override_flag x1) ; ((iter_loc iter_longident) x2) ; (iter_expression x3)  | Pexp_extension(x) -> iter_extension x
   | Pexp_unreachable -> ()
 
@@ -159,7 +159,7 @@ and iter_class_type_field = fun r1 -> () ; iter_class_type_field_desc r1.pctf_de
 and iter_class_type_field_desc c1 =
   match c1 with
   | Pctf_inherit(x) -> iter_class_type x
-  | Pctf_val(x1,x2,x3,x4) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_mutable_flag x2) ; (iter_virtual_flag x3) ; (iter_core_type x4)  | Pctf_method(x1,x2,x3,x4) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_private_flag x2) ; (iter_virtual_flag x3) ; (iter_core_type x4)  | Pctf_constraint(x1,x2) -> () ; (iter_core_type x1) ; (iter_core_type x2)  | Pctf_attribute(x) -> iter_attribute x
+  | Pctf_val(x1,x2,x3,x4) -> () ; ((fun _ -> ()) x1) ; (iter_mutable_flag x2) ; (iter_virtual_flag x3) ; (iter_core_type x4)  | Pctf_method(x1,x2,x3,x4) -> () ; ((fun _ -> ()) x1) ; (iter_private_flag x2) ; (iter_virtual_flag x3) ; (iter_core_type x4)  | Pctf_constraint(x1,x2) -> () ; (iter_core_type x1) ; (iter_core_type x2)  | Pctf_attribute(x) -> iter_attribute x
   | Pctf_extension(x) -> iter_extension x
 
 and iter_class_infos : 'a. ('a -> unit) -> 'a class_infos -> unit = fun iter_a r1 -> () ; iter_virtual_flag r1.pci_virt  ; (iter_list (fun (x1,x2) -> () ; (iter_core_type x1) ; (iter_variance x2))) r1.pci_params  ; (iter_loc (fun _ -> ())) r1.pci_name  ; iter_a r1.pci_expr  ; (fun _ -> ()) r1.pci_loc  ; iter_attributes r1.pci_attributes 
@@ -175,7 +175,7 @@ and iter_class_structure = fun r1 -> () ; iter_pattern r1.pcstr_self  ; (iter_li
 and iter_class_field = fun r1 -> () ; iter_class_field_desc r1.pcf_desc  ; (fun _ -> ()) r1.pcf_loc  ; iter_attributes r1.pcf_attributes 
 and iter_class_field_desc c1 =
   match c1 with
-  | Pcf_inherit(x1,x2,x3) -> () ; (iter_override_flag x1) ; (iter_class_expr x2) ; ((iter_option (iter_loc (fun _ -> ()))) x3)  | Pcf_val(x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_mutable_flag x2) ; (iter_class_field_kind x3)  | Pcf_method(x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_private_flag x2) ; (iter_class_field_kind x3)  | Pcf_constraint(x1,x2) -> () ; (iter_core_type x1) ; (iter_core_type x2)  | Pcf_initializer(x) -> iter_expression x
+  | Pcf_inherit(x1,x2,x3) -> () ; (iter_override_flag x1) ; (iter_class_expr x2) ; ((iter_option (fun _ -> ())) x3)  | Pcf_val(x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_mutable_flag x2) ; (iter_class_field_kind x3)  | Pcf_method(x1,x2,x3) -> () ; ((iter_loc (fun _ -> ())) x1) ; (iter_private_flag x2) ; (iter_class_field_kind x3)  | Pcf_constraint(x1,x2) -> () ; (iter_core_type x1) ; (iter_core_type x2)  | Pcf_initializer(x) -> iter_expression x
   | Pcf_attribute(x) -> iter_attribute x
   | Pcf_extension(x) -> iter_extension x
 
