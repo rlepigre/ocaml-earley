@@ -12,12 +12,12 @@ function build {
     echo $PATH
     which ocamlopt.opt
     touch pa_ocaml.ml
-    if [ $2 = "--cold" ]; then \
+    if [ "$2" = "--all" ] ; then \
 	 $MAKE distclean && $MAKE && $MAKE
     else
-	cp pa_ocaml-$1 pa_ocaml && $MAKE clean && $MAKE
+	cp pa_ocaml-$1 pa_ocaml && $MAKE clean && $MAKE ASCII=--ascii
     fi &&\
-    $MAKE ASCII=--ascii clean boot asttools &&\
+    $MAKE clean boot asttools &&\
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
     $MAKE distclean &&\
     $MAKE && $MAKE
@@ -25,16 +25,19 @@ function build {
     # ./tests_pa_ocaml.sh
 }
 
-if [ $1 = "--cold" ]; then
-    echo COLD: bootstraping from bootstraped file
-elif [ $1 = "--hot" ]; then
-    echo HOT: bootstraping from previous version
+if [ "$1" = "--all" ] ; then
+    VERSIONS="4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
+    echo ALL: bootstraping all version \($VERSIONS\) from file in bootstrap
+elif [ "$1" = "--new" ] ; then
+    echo NEW: bootstraping $2 from previous version
+    VERSIONS=$2
 else
-    echo you must tell --hot or --cold
+    echo you give option --new VERSION or --all
     exit 1
 fi
 
-for v in 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0 ; do
+
+for v in $VERSIONS; do
     build $v $1
     cp -f pa_ocaml pa_ocaml-$v
 done
