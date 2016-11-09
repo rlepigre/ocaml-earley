@@ -398,10 +398,10 @@ let prefix_prios = [ Opp; Prefix ]
 let parser infix_symbol prio =
   | "::" when prio = Cons -> "::"
   | sym:RE(infix_symb_re prio) - not_special when prio <> Cons ->
-     (if is_reserved_symb sym then give_up ("The infix symbol "^sym^"is reserved..."); sym)
+     (if is_reserved_symb sym then give_up (); sym)
 
 let parser prefix_symbol prio =
-    sym:RE(prefix_symb_re prio) - not_special -> (if is_reserved_symb sym || sym = "!=" then give_up ("The prefix symbol "^sym^"is reserved..."); sym)
+    sym:RE(prefix_symb_re prio) - not_special -> (if is_reserved_symb sym || sym = "!=" then give_up (); sym)
 
 (****************************************************************************
  * Several flags                                                            *

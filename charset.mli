@@ -61,10 +61,6 @@ val empty : charset
 (** The full character set. *)
 val full  : charset
 
-(* TODO remove after bootstrap *)
-val empty_charset : charset
-val full_charset  : charset
-
 (** {2 Manipulating charsets} *)
 
 (** [mem cs c] tests whether the character [c] appears in the charset [cs]. *)

@@ -57,10 +57,6 @@ let mask, shift, size =
 let empty = Array.make size 0
 let full  = Array.make size (-1)
 
-(* TODO remove after bootstrap *)
-let empty_charset = empty
-let full_charset  = full
-
 let complement = Array.map ((lxor) (-1))
 
 let mem cs c =

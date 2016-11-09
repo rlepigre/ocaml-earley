@@ -289,7 +289,7 @@ struct
     | s:string_litteral opt:glr_opt_expr ->
        (opt <> None,
         (if String.length s = 0 then
-	  Decap.give_up "Empty string litteral in rule.";
+	  Decap.give_up ();
 	let e = exp_string _loc_s s in
 	let opt = match opt with None -> e | Some e -> e in
 	exp_apply _loc (exp_glr_fun _loc "string") [e; opt]))
@@ -337,10 +337,9 @@ struct
        let c,str',pos' = Input.read str pos in
        if c = '-' then
          let c',_,_ = Input.read str' pos' in
-         if c' = '>' then Decap.give_up "\'-\' expected"
-         else (), str', pos'
+         if c' = '>' then Decap.give_up () else (), str', pos'
       else
-        Decap.give_up "\'-\' expexted"
+        Decap.give_up ()
     ) (Charset.singleton '-') false ("-")
 
 
@@ -367,7 +366,7 @@ struct
            true, (match cond with
 		 | None -> def a
 		 | Some cond ->
-		    def (loc_expr _loc (Pexp_ifthenelse(cond,a,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""])))))
+		    def (loc_expr _loc (Pexp_ifthenelse(cond,a,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc])))))
       in
 
       let rec fn first ids l = match l with
@@ -438,11 +437,11 @@ struct
     match cond with
       None -> def e
     | Some c ->
-      def (loc_expr _loc (Pexp_ifthenelse(c,e,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]))))
+      def (loc_expr _loc (Pexp_ifthenelse(c,e,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc]))))
 
   let build_alternatives _loc ls =
     match ls with
-    | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]
+    | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc]
     | [r] -> apply_def_cond _loc r
     | elt1::elt2::_ ->
         let l = List.fold_right (fun r y ->

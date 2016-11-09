@@ -878,7 +878,7 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     _ ->
                                                                     give_up
-                                                                    "bad antiquotation" in
+                                                                    () in
                                                                     Quote.ptyp_antiquotation
                                                                     _loc f))))
                                                       :: y
@@ -1743,10 +1743,8 @@ module Make(Initial:Extension) =
               (Decap.sequence field_decl_list (Decap.string "}" "}")
                  (fun fds  -> fun _  -> fun _  -> Ptype_record fds));
            Decap.apply
-             (fun cds  ->
-                if cds = []
-                then give_up "Illegal empty constructors declaration";
-                Ptype_variant cds) constr_decl_list])
+             (fun cds  -> if cds = [] then give_up (); Ptype_variant cds)
+             constr_decl_list])
     let type_information = Decap.declare_grammar "type_information"
     let _ =
       Decap.set_grammar type_information
@@ -1800,7 +1798,7 @@ module Make(Initial:Extension) =
                               match te with
                               | None  -> (pri, None)
                               | Some (Private ,te) ->
-                                  (if pri = Private then give_up "";
+                                  (if pri = Private then give_up ();
                                    (Private, (Some te)))
                               | Some (_,te) -> (pri, (Some te)) in
                             ((id_loc tcn _loc_tcn),
@@ -2244,8 +2242,7 @@ module Make(Initial:Extension) =
               | Some 'l' -> const_int32 (Int32.of_string s)
               | Some 'L' -> const_int64 (Int64.of_string s)
               | Some 'n' -> const_nativeint (Nativeint.of_string s)
-              | Some _ -> Decap.give_up "Invalid integer litteral suffix...")
-           int_litteral)
+              | Some _ -> Decap.give_up ()) int_litteral)
     let constant = Decap.declare_grammar "constant"
     let _ =
       Decap.set_grammar constant
@@ -2688,7 +2685,7 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     _ ->
                                                                     give_up
-                                                                    "bad antiquotation" in
+                                                                    () in
                                                                     Quote.ppat_antiquotation
                                                                     _loc f))))
                                                                :: y
@@ -2718,7 +2715,7 @@ module Make(Initial:Extension) =
                                                                     Not_found
                                                                      ->
                                                                     give_up
-                                                                    ""))
+                                                                    ()))
                                                              :: y
                                                            else y in
                                                          if lvl = AtomPat
@@ -3273,7 +3270,7 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     _ ->
                                                                     give_up
-                                                                    "" in
+                                                                    () in
                                                                     (lab,
                                                                     (loc_pat
                                                                     lab.loc
@@ -4830,7 +4827,7 @@ module Make(Initial:Extension) =
                                                         if
                                                           (ps = []) &&
                                                             (te <> None)
-                                                        then give_up "";
+                                                        then give_up ();
                                                         (let mn =
                                                            id_loc mn _loc_mn in
                                                          let e =
@@ -5281,7 +5278,7 @@ module Make(Initial:Extension) =
                                                                     e _loc_e)
                                                                     else
                                                                     Decap.fail
-                                                                    "")
+                                                                    ())
                                                                     prefix_prios);
                                                                     alternatives
                                                                     (List.map
@@ -5391,7 +5388,7 @@ module Make(Initial:Extension) =
                                                                     e)]))))
                                                                     else
                                                                     Decap.fail
-                                                                    "")
+                                                                    ())
                                                                     infix_prios)] in
                                                                     if
                                                                     lvl = App
@@ -6319,9 +6316,7 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     _ ->
                                                                     give_up
-                                                                    (Printf.sprintf
-                                                                    "Invalid antiquotation %s."
-                                                                    aq) in
+                                                                    () in
                                                                     Quote.pexp_antiquotation
                                                                     _loc f))))
                                                                     :: y
@@ -6389,7 +6384,7 @@ module Make(Initial:Extension) =
                                                                     Not_found
                                                                      ->
                                                                     give_up
-                                                                    ""))) ::
+                                                                    ()))) ::
                                                                     y
                                                                     else y in
                                                                     if
@@ -9016,7 +9011,7 @@ module Make(Initial:Extension) =
                                                        __loc__end__pos in
                                                    let l = List.length ls in
                                                    if (l < 1) || (l > 3)
-                                                   then give_up "";
+                                                   then give_up ();
                                                    loc_str _loc
                                                      (Pstr_primitive
                                                         {
@@ -9509,7 +9504,7 @@ module Make(Initial:Extension) =
                                                        __loc__end__pos in
                                                    let l = List.length ls in
                                                    if (l < 1) || (l > 3)
-                                                   then give_up "";
+                                                   then give_up ();
                                                    loc_sig _loc
                                                      (psig_value
                                                         ~attributes:(

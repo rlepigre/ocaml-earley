@@ -615,7 +615,7 @@ let _ = set_typexpr_lvl (fun lvl ->
 	 match aq with
 	    | "type" -> generic_antiquote e
 	    | "tuple" -> generic_antiquote (quote_apply e_loc _loc (pa_ast "typ_tuple") [quote_location_t e_loc _loc _loc; e])
-	    | _ -> give_up "bad antiquotation"
+	    | _ -> give_up ()
        in
        Quote.ptyp_antiquotation _loc f
      end
@@ -694,7 +694,7 @@ let _ = set_grammar field_decl_list (
 
 let parser type_representation =
   | STR("{") fds:field_decl_list STR("}") -> Ptype_record fds
-  | cds:constr_decl_list -> if cds = [] then give_up "Illegal empty constructors declaration"; Ptype_variant (cds)
+  | cds:constr_decl_list -> if cds = [] then give_up (); Ptype_variant (cds)
 
 let parser type_information =
   | te:type_equation? ptr:{CHR('=') pri:private_flag tr:type_representation}?
@@ -717,7 +717,7 @@ let typedef_gen = (fun attach constr filter ->
       let pri, te = match te with
 	  None -> pri, None
 	| Some(Private, te) ->
-	   if pri = Private then give_up "" (* FIXME *); (* ty = private ty' = private A | B is not legal *)
+	   if pri = Private then give_up (); (* ty = private ty' = private A | B is not legal *)
 	   Private, Some te
 	| Some(_, te) -> pri, Some te
       in
@@ -884,7 +884,7 @@ let parser integer_litteral = (s,co):int_litteral ->
   | Some 'l' -> const_int32 (Int32.of_string s)
   | Some 'L' -> const_int64 (Int64.of_string s)
   | Some 'n' -> const_nativeint (Nativeint.of_string s)
-  | Some _   -> Decap.give_up "Invalid integer litteral suffix..."
+  | Some _   -> Decap.give_up ()
 #endif
 
 (* Constants *)
@@ -983,7 +983,7 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
         | None   ->
 	   let slab = match lab.txt with
                                | Lident s -> id_loc s lab.loc
-                               | _        -> give_up "" (* FIXME *)
+                               | _        -> give_up ()
                     in (lab, loc_pat lab.loc (Ppat_var slab))
       in
       let all = List.map f all in
@@ -1018,7 +1018,7 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
   | '$' - c:uident when lvl = AtomPat ->
      (try let str = Sys.getenv c in
 	  parse_string ~filename:("ENV:"^c) pattern ocaml_blank str
-      with Not_found -> give_up "" (* FIXME *))
+      with Not_found -> give_up ())
 
   | '$' - aq:{''[a-z]+'' - ':'}?["pat"] e:expression - '$' when lvl = AtomPat ->
      begin
@@ -1061,7 +1061,7 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
 	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_tuple") [quote_location_t e_loc _loc _loc; e])
 	    | "array"      ->
 	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_array") [quote_location_t e_loc _loc _loc; e])
-	    | _ -> give_up "bad antiquotation"
+	    | _ -> give_up ()
       in
       Quote.ppat_antiquotation _loc f
     end
@@ -1379,7 +1379,7 @@ let parser class_field =
 #endif
   | method_kw o:override_flag p:private_flag mn:method_name ps:{p:(parameter true) -> p,_loc_p}*
       te:{STR(":") te:typexpr}? CHR('=') e:expression ->
-      if ps = [] && te <> None then give_up "";
+      if ps = [] && te <> None then give_up ();
       let mn = id_loc mn _loc_mn in
       let e =
 	match te with
@@ -1674,7 +1674,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       | _ ->
 	 try let str = Sys.getenv c in
 	     parse_string ~filename:("ENV:"^c) expression ocaml_blank str
-	 with Not_found -> give_up "" (* FIXME *))
+	 with Not_found -> give_up ())
 
   | '$' - aq:{''[a-z]+'' - ':'}?["expr"] e:expression - '$' when lvl = Atom ->
     let f =
@@ -1717,7 +1717,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_tuple") [quote_location_t e_loc _loc _loc; e])
       | "array"      ->
 	generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_array") [quote_location_t e_loc _loc _loc; e])
-      | _      -> give_up (Printf.sprintf "Invalid antiquotation %s." aq)
+      | _      -> give_up ()
     in Quote.pexp_antiquotation _loc f
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+ e':(expression_lvl (right_alm alm, next_exp Tupl))
@@ -1895,7 +1895,7 @@ let parser structure_item_base =
        | _                                           -> Pstr_value (r, l))
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral*  a:post_item_attributes ->
       let l = List.length ls in
-      if l < 1 || l > 3 then give_up "" (* FIXME *);
+      if l < 1 || l > 3 then give_up ();
 #ifversion >= 4.02
      loc_str _loc (Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
 		      pval_attributes = attach_attrib _loc a }))
@@ -2010,7 +2010,7 @@ let parser signature_item_base =
      loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty [])
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
       let l = List.length ls in
-      if l < 1 || l > 3 then give_up "" (* FIXME *);
+      if l < 1 || l > 3 then give_up ();
       loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls)
   | td:type_definition ->
 #ifversion >= 4.03

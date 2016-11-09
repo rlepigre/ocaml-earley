@@ -864,9 +864,7 @@ module Ext(In:Extension) =
                               __loc__end__buf __loc__end__pos
                              in
                           ((opt <> None),
-                            (if (String.length s) = 0
-                             then
-                               Decap.give_up "Empty string litteral in rule.";
+                            (if (String.length s) = 0 then Decap.give_up ();
                              (let e = exp_string _loc_s s  in
                               let opt =
                                 match opt with | None  -> e | Some e -> e  in
@@ -1018,11 +1016,8 @@ module Ext(In:Extension) =
              if c = '-'
              then
                let (c',_,_) = Input.read str' pos'  in
-               (if c' = '>'
-                then Decap.give_up "'-' expected"
-                else ((), str', pos'))
-             else Decap.give_up "'-' expexted") (Charset.singleton '-') false
-        "-"
+               (if c' = '>' then Decap.give_up () else ((), str', pos'))
+             else Decap.give_up ()) (Charset.singleton '-') false "-"
       
     let fopt x y = match x with | Some x -> x | None  -> y 
     let glr_left_member = Decap.declare_grammar "glr_left_member" 
@@ -1089,7 +1084,7 @@ module Ext(In:Extension) =
                             (cond, a,
                               (Some
                                  (exp_apply _loc (exp_glr_fun _loc "fail")
-                                    [exp_string _loc ""]))))))))
+                                    [exp_unit _loc]))))))))
          in
       let rec fn first ids l =
         match l with
@@ -1227,11 +1222,11 @@ module Ext(In:Extension) =
                   (c, e,
                     (Some
                        (exp_apply _loc (exp_glr_fun _loc "fail")
-                          [exp_string _loc ""])))))
+                          [exp_unit _loc])))))
       
     let build_alternatives _loc ls =
       match ls with
-      | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_string _loc ""]
+      | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc]
       | r::[] -> apply_def_cond _loc r
       | elt1::elt2::_ ->
           let l =

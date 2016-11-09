@@ -62,7 +62,7 @@ exception Parse_error of buffer * int * string list * string list
 (** [give_up msg] can be called when a parsing rule needs to be rejected. It
   is strongly advised to provide a very explicit message [msg] while raising
   this exception, in order for DeCaP to provide useful error messages. *)
-val give_up : string -> 'a
+val give_up : 'b -> 'a
 
 val error : unit -> 'a
 
@@ -148,9 +148,12 @@ val empty : 'a -> 'a grammar
 val debug : string -> unit grammar
 val active_debug : bool ref
 
-(** [fail msg] always fails, adding [msg] to the list of messages int the
-    list of messages to be reported by [Parse_error]. *)
-val fail : string -> 'a grammar
+(** [fail ()] always fails. *)
+val fail : unit -> 'a grammar
+
+(** [error_message msg] always fails, adding [msg ()] to the list of messages
+    in the list of messages to be reported by [Parse_error]. *)
+val error_message : (unit -> string) -> 'a grammar
 
 (** [black_box fn cs accept_empty name] is a grammar that parses the input
     buffer using the the provided function [fn]. [fn buf pos] should start

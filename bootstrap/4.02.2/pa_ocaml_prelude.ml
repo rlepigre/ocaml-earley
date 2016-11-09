@@ -383,11 +383,7 @@ module Initial =
                            (fun groupe  -> groupe 0))) not_special
                      (fun sym  ->
                         fun _default_0  ->
-                          if is_reserved_symb sym
-                          then
-                            give_up
-                              ("The infix symbol " ^ (sym ^ "is reserved..."));
-                          sym))
+                          if is_reserved_symb sym then give_up (); sym))
                   :: y
                 else y in
               if prio = Cons
@@ -405,9 +401,7 @@ module Initial =
              not_special
              (fun sym  ->
                 fun _default_0  ->
-                  if (is_reserved_symb sym) || (sym = "!=")
-                  then
-                    give_up ("The prefix symbol " ^ (sym ^ "is reserved..."));
+                  if (is_reserved_symb sym) || (sym = "!=") then give_up ();
                   sym))
     let mutable_flag = Decap.declare_grammar "mutable_flag"
     let _ =

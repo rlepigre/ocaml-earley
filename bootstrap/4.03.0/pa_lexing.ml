@@ -302,18 +302,12 @@ let not_special =
   Decap.not_in_charset ~name:"not_special" (!cs) 
 let ident = Decap.declare_grammar "ident" 
 ;;Decap.set_grammar ident
-    (Decap.apply
-       (fun id  ->
-          if is_reserved_id id then Decap.give_up (id ^ " is a keyword...");
-          id)
+    (Decap.apply (fun id  -> if is_reserved_id id then Decap.give_up (); id)
        (Decap.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
           "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
 let lident = Decap.declare_grammar "lident" 
 ;;Decap.set_grammar lident
-    (Decap.apply
-       (fun id  ->
-          if is_reserved_id id then Decap.give_up (id ^ " is a keyword...");
-          id)
+    (Decap.apply (fun id  -> if is_reserved_id id then Decap.give_up (); id)
        (Decap.regexp
           ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
           "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
@@ -332,8 +326,8 @@ let single_char c =
     if c' = c
     then
       let (c'',_,_) = Input.read str' pos'  in
-      (if c'' = c then Decap.give_up "" else ((), str', pos'))
-    else Decap.give_up ""  in
+      (if c'' = c then Decap.give_up () else ((), str', pos'))
+    else Decap.give_up ()  in
   Decap.black_box f (Charset.singleton c) false s 
 let double_char c =
   let s = String.make 2 c  in
@@ -342,8 +336,8 @@ let double_char c =
     if c' = c
     then
       let (c'',str',pos') = Input.read str' pos'  in
-      (if c'' <> c then Decap.give_up "" else ((), str', pos'))
-    else Decap.give_up ""  in
+      (if c'' <> c then Decap.give_up () else ((), str', pos'))
+    else Decap.give_up ()  in
   Decap.black_box f (Charset.singleton c) false s 
 let semi_col = single_char ';' 
 let double_semi_col = double_char ';' 
@@ -439,17 +433,17 @@ let quoted_string : (string* string option) Decap.grammar =
       | (`Opn l,'a'..'z')|(`Opn l,'_') -> fn (`Opn (c :: l)) str buf' pos'
       | (`Opn l,'|') -> fn (`Cnt (List.rev l)) str buf' pos'
       | (`Cnt l,'|') -> fn (`Cls (l, [], l)) str buf' pos'
-      | (`Cnt l,'\255') -> Decap.give_up ""
+      | (`Cnt l,'\255') -> Decap.give_up ()
       | (`Cnt _,_) -> fn st (c :: str) buf' pos'
       | (`Cls ([],_,l),'}') -> (str, l, buf', pos')
-      | (`Cls ([],_,_),'\255') -> Decap.give_up ""
+      | (`Cls ([],_,_),'\255') -> Decap.give_up ()
       | (`Cls ([],b,l),_) -> fn (`Cnt l) (b @ str) buf' pos'
-      | (`Cls (_::_,_,_),'\255') -> Decap.give_up ""
+      | (`Cls (_::_,_,_),'\255') -> Decap.give_up ()
       | (`Cls (x::y,b,l),_) ->
           if x = c
           then fn (`Cls (y, (x :: b), l)) str buf' pos'
           else fn (`Cnt l) (List.append b str) buf' pos'
-      | (_,_) -> Decap.give_up ""  in
+      | (_,_) -> Decap.give_up ()  in
     let (cs,id,buf,pos) = fn `Ini [] buf pos  in
     let r = ((cs_to_string cs), (Some (cs_to_string id)))  in (r, buf, pos)
      in
