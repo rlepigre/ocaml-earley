@@ -382,8 +382,71 @@ module Regexp =
         read_regexp re buf pos
   end
 
-let line_num_directive =
-  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
+
+exception Preprocessor_error of string * string
+let pp_error : type a. string -> string -> a =
+  fun name msg -> raise (Preprocessor_error (name, msg))
+
+module type Preprocessor =
+  sig
+    (** Type for the internal state of the preprocessor. *)
+    type state
+
+    (** Initial state of the preprocessor. *)
+    val initial_state : state
+
+    (** [update st name lnum line] takes as input the state [st] of the
+        preprocessor, the file name [name], the number of the next input
+        line [lnum] and the next input line [line] itself. It returns a
+        couple of the new state and a boolean. The boolean is [true] if
+        the line should be part of the input (i.e. it is not a specific
+        preprocessor line) and [false] if it should be ignored. The
+        function may raise [Preprocessor_error msg] in case of error. *)
+    val update : state -> string -> int -> string -> state * bool
+
+    (** [check_final st name] check that [st] indeed is a correct state
+        of the preprocessor for the end of input of file [name]. If it
+        is not the case, then the exception [Preprocessor_error msg] is
+        raised. *)
+    val check_final : state -> string -> unit
+  end
+
+module Make(PP : Preprocessor) =
+  struct
+    let from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer =
+      fun finalise name get_line file ->
+        let rec fn name lnum loff st cont =
+          let lnum = lnum + 1 in
+          try
+            let data = get_line file in
+            let (st, take) = PP.update st name lnum data in
+            if take then
+              let llen = String.length data in
+              { is_eof = false ; lnum ; loff ; llen ; data ; name
+              ; next = lazy (fn name lnum (loff + llen) st cont)
+              ; uid = new_uid () }
+            else
+              fn name lnum loff st cont
+          with End_of_file -> finalise file; cont name lnum loff st
+        in
+        lazy
+          begin
+            let cont name lnum loff st =
+              PP.check_final st name;
+              Lazy.force (empty_buffer name lnum loff)
+            in
+            fn name 0 0 PP.initial_state cont
+          end
+  end
+
+module NoPP : Preprocessor =
+  struct
+    type state = unit
+    let initial_state   = ()
+    let update st _ _ _ = (st, true)
+    let check_final _ _ = ()
+  end
+
 
 let define_directive =
   Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*"
@@ -399,6 +462,15 @@ let ifundef_directive =
 
 let ifversion_directive =
   Str.regexp "[ \t]*if[ \t]*version[ \t]*\\([<>=]*\\)[ \t]*\\([0-9]+\\)[.]\\([0-9]+\\)[ \t]*"
+
+let else_directive =
+  Str.regexp "[ \t]*else[ \t]*"
+
+let elif_directive =
+  Str.regexp "[ \t]*elif[ \t]*"
+
+let endif_directive =
+  Str.regexp "[ \t]*endif[ \t]*"
 
 let test_directive fname num line =
   if Str.string_match ifdef_directive line 1 then
@@ -440,14 +512,54 @@ let test_directive fname num line =
     Printf.eprintf "file: %s, line %d: unknown #if directive\n%!" fname num;
     exit 1)
 
-let else_directive =
-  Str.regexp "[ \t]*else[ \t]*"
+module OCamlPP : Preprocessor =
+  struct
+    type state = bool list
 
-let elif_directive =
-  Str.regexp "[ \t]*elif[ \t]*"
+    let initial_state = []
 
-let endif_directive =
-  Str.regexp "[ \t]*endif[ \t]*"
+    let active : state -> bool = fun st -> not (List.mem false st)
+
+    let update st name lnum line =
+      if line <> "" && line.[0] = '#' then
+        let st =
+          if Str.string_match define_directive line 1 && active st then
+            let macro_name = Str.matched_group 1 line in
+            let value = Str.matched_group 2 line in
+            Unix.putenv macro_name value; st
+          else if Str.string_match if_directive line 1 then
+            test_directive name lnum line :: st
+          else if Str.string_match elif_directive line 1 then
+            match st with
+            | []      -> pp_error name "unexpected elif directive"
+            | _ :: st -> test_directive name lnum line :: st
+          else if Str.string_match else_directive line 1 then
+            match st with
+            | []      -> pp_error name "unexpected else directive"
+            | b :: st -> not b :: st
+          else if Str.string_match endif_directive line 1 then
+            match st with
+            | []      -> pp_error name "unexpected endif directive"
+            | _ :: st -> st
+          else
+            pp_error name "unexpected directive"
+        in (st, false)
+      else (st, active st)
+
+    let check_final st name =
+      match st with
+      | [] -> ()
+      | _  -> pp_error name "unclosed conditionals"
+  end
+
+module DefaultPP = Make(OCamlPP)
+let buffer_from_fun' ?(finalise=(fun _ -> ())) fname get_line data =
+  DefaultPP.from_fun finalise fname get_line data
+
+
+
+let line_num_directive =
+  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
 
 type cont_info =
     Else | Endif | EndOfFile | Elif of bool
@@ -528,6 +640,11 @@ let buffer_from_fun ?(finalise=(fun _ -> ())) fname get_line data =
      exit 1
   | EndOfFile ->
      Lazy.force (empty_buffer fname line loff)))
+
+(* NOTE Uncomment to test. *)
+(*
+let buffer_from_fun = buffer_from_fun'
+*)
 
 external unsafe_input : in_channel -> string -> int -> int -> int
                       = "caml_ml_input"
