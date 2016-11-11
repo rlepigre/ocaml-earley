@@ -45,11 +45,21 @@ let make_antiquotation loc =
     let open Location in
       let f pos = { pos with pos_fname = ("$" ^ (pos.pos_fname ^ "$")) } in
       { loc with loc_start = (f loc.loc_start); loc_end = (f loc.loc_end) }
+let make_list_antiquotation loc qtyp =
+  let rec l = (Obj.magic (make_antiquotation loc)) :: qtyp :: l in l
 let is_antiquotation loc =
   let open Lexing in
     let open Location in
       let s = (loc.loc_start).pos_fname in
       ((String.length s) > 0) && ((s.[0]) = '$')
+let is_list_antiquotation l =
+  match l with
+  | loc::qtyp::l' when l == l' ->
+      let loc = Obj.magic loc in
+      if is_antiquotation (Obj.magic loc)
+      then Some (loc, (Obj.magic qtyp : quotation ))
+      else None
+  | _ -> None
 let anti_table: (Location.t,quotation -> expression) Hashtbl.t =
   Hashtbl.create 101
 let string_anti_table: (string,expression) Hashtbl.t = Hashtbl.create 101
@@ -85,7 +95,12 @@ let quote_list :
     (expression -> Location.t -> 'a -> expression) ->
       expression -> Location.t -> 'a list -> expression=
   fun qe  e_loc  _loc  el  ->
-    let el = List.map (qe e_loc _loc) el in Pa_ast.exp_list _loc el
+    match is_list_antiquotation el with
+    | Some (loc,qtyp) ->
+        (try (Hashtbl.find anti_table loc) qtyp
+         with | Not_found  -> failwith "antiquotation not in a quotation")
+    | None  ->
+        let el = List.map (qe e_loc _loc) el in Pa_ast.exp_list _loc el
 let quote_tuple: expression -> Location.t -> expression list -> expression =
   fun _  -> Pa_ast.exp_tuple
 let quote_apply:
