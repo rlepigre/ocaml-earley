@@ -58,6 +58,51 @@ module type Final = sig
   val top_phrase : Parsetree.toplevel_phrase Decap.grammar
 end
 
+module OCamlPP : Input.Preprocessor =
+  struct
+    type state = bool list
+
+    let initial_state = []
+
+    let active : state -> bool = fun st -> not (List.mem false st)
+
+    let update st name lnum line =
+      if line <> "" && line.[0] = '#' then
+        if Str.string_match define_directive line 1 && active st then
+          let macro_name = Str.matched_group 1 line in
+          let value = Str.matched_group 2 line in
+          Unix.putenv macro_name value;
+          (st, name, lnum, false)
+        else if Str.string_match if_directive line 1 then
+          (test_directive name lnum line :: st, name, lnum, false)
+        else if Str.string_match elif_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected elif directive"
+          | _ :: st -> (test_directive name lnum line :: st, name, lnum, false)
+        else if Str.string_match else_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected else directive"
+          | b :: st -> (not b :: st, name, lnum, false)
+        else if Str.string_match endif_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected endif directive"
+          | _ :: st -> (st, name, lnum, false)
+        else if Str.string_match line_num_directive line 1 then
+          let lnum = int_of_string (Str.matched_group 1 line) in
+          let name = try Str.matched_group 3 line with Not_found -> name in
+          (st, name, lnum, false)
+        else
+          pp_error name "unexpected directive"
+      else (st, name, lnum, active st)
+
+    let check_final st name =
+      match st with
+      | [] -> ()
+      | _  -> pp_error name "unclosed conditionals"
+  end
+
+module PP = Decap.WithPP(OCamlPP)
+
 module Start = functor (Main : Final) -> struct
   let anon_fun s = file := Some s
   let _ = Arg.parse Main.spec anon_fun (Printf.sprintf "usage: %s [options] file" Sys.argv.(0))
@@ -86,8 +131,8 @@ module Start = functor (Main : Final) -> struct
     in
     try
       match entry with
-      | Implementation (g, blank) -> `Struct (parse_channel ~filename g blank ch)
-      | Interface      (g, blank) -> `Sig    (parse_channel ~filename g blank ch)
+      | Implementation (g, blank) -> `Struct (PP.parse_channel ~filename g blank ch)
+      | Interface      (g, blank) -> `Sig    (PP.parse_channel ~filename g blank ch)
     with
     | Decap.Parse_error _ as e ->
        Decap.print_exception e;
