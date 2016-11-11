@@ -40,13 +40,18 @@ let dummy_psig =
 let dummy_pstr =
   Pstr_open (Fresh, (id_loc (Lident "$Antiquotation$") Location.none))
 let dummy_pfield = Obj.magic (Some None)
+let anti_table: (Location.t,quotation -> expression) Hashtbl.t =
+  Hashtbl.create 101
+let string_anti_table: (string,expression) Hashtbl.t = Hashtbl.create 101
 let make_antiquotation loc =
   let open Lexing in
     let open Location in
       let f pos = { pos with pos_fname = ("$" ^ (pos.pos_fname ^ "$")) } in
       { loc with loc_start = (f loc.loc_start); loc_end = (f loc.loc_end) }
-let make_list_antiquotation loc qtyp =
-  let rec l = (Obj.magic (make_antiquotation loc)) :: qtyp :: l in l
+let make_list_antiquotation loc qtyp f =
+  let loc = make_antiquotation loc in
+  Hashtbl.add anti_table loc f;
+  (let rec l = (Obj.magic loc) :: (Obj.magic qtyp) :: l in l)
 let is_antiquotation loc =
   let open Lexing in
     let open Location in
@@ -60,9 +65,6 @@ let is_list_antiquotation l =
       then Some (loc, (Obj.magic qtyp : quotation ))
       else None
   | _ -> None
-let anti_table: (Location.t,quotation -> expression) Hashtbl.t =
-  Hashtbl.create 101
-let string_anti_table: (string,expression) Hashtbl.t = Hashtbl.create 101
 let quote_bool: expression -> Location.t -> bool -> expression =
   fun _  -> Pa_ast.exp_bool
 let quote_int: expression -> Location.t -> int -> expression =

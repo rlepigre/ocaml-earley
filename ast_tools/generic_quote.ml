@@ -55,14 +55,19 @@ let dummy_pstr   = Pstr_open { popen_lid = id_loc (Lident "$Antiquotation$")  Lo
 			       popen_attributes = [] }
 #endif
 
+let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
+let string_anti_table = (Hashtbl.create 101 : (string,expression) Hashtbl.t)
+
 let make_antiquotation loc =
   let open Lexing in
   let open Location in
   let f pos = { pos with pos_fname = "$"^pos.pos_fname^"$" } in
   { loc with loc_start = f loc.loc_start; loc_end = f loc.loc_end }
 
-let make_list_antiquotation loc qtyp =
-  let rec l = Obj.magic (make_antiquotation loc) :: qtyp :: l in
+let make_list_antiquotation loc qtyp f =
+  let loc = make_antiquotation loc in
+  Hashtbl.add anti_table loc f;
+  let rec l = Obj.magic loc :: Obj.magic qtyp :: l in
   l
 
 let is_antiquotation loc =
@@ -78,9 +83,6 @@ let is_list_antiquotation l =
      if is_antiquotation (Obj.magic loc) then Some(loc, (Obj.magic qtyp : quotation))
      else None
   | _ -> None
-
-let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
-let string_anti_table = (Hashtbl.create 101 : (string,expression) Hashtbl.t)
 
 (* Generic functions *)
 let quote_bool : expression -> Location.t -> bool -> expression = fun _ ->
