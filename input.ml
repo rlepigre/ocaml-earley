@@ -123,6 +123,7 @@ let rec normalize (lazy b as str) pos =
     if b.is_eof then str, 0 else normalize b.next (pos - b.llen)
   else str, pos
 
+(* TODO remove after bootstrap *)
 let lexing_position str pos =
   let loff = line_beginning str in
   Lexing.({ pos_fname = fname str
@@ -157,9 +158,9 @@ module Regexp =
         | Pls(r)   -> Printf.fprintf ch "Pls(%a)" pregexp r
         | Sav(r,_) -> Printf.fprintf ch "Sav(%a,<ref>)" pregexp r
       and pregexps ch = function
-        | [] -> ()
-        | [x] -> pregexp ch x
-        | x::l -> Printf.fprintf ch "%a;%a" pregexp x pregexps l
+        | []    -> ()
+        | [r]   -> pregexp ch r
+        | r::rs -> Printf.fprintf ch "%a;%a" pregexp r pregexps rs
       in
       pregexp ch re
 

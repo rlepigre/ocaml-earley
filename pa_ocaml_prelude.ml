@@ -72,6 +72,13 @@ let string_location {Location.loc_start = s ; Location.loc_end = e} =
     s.pos_lnum (s.pos_cnum - s.pos_bol)
     e.pos_lnum (e.pos_cnum - e.pos_bol)
 
+let lexing_position str pos =
+  let loff = line_beginning str in
+  Lexing.({ pos_fname = fname str
+          ; pos_lnum  = line_num str
+          ; pos_cnum  = loff +pos
+          ; pos_bol   = loff })
+
 (* Location function. *)
 let locate str pos str' pos' =
   Lexing.(

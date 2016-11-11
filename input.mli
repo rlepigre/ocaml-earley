@@ -116,10 +116,7 @@ val buffer_from_string : ?filename:string -> string -> buffer
    of the current line. *)
 val empty_buffer : string -> int -> int -> buffer
 
-(** {2 Managing positions} *)
-
-(** [lexing_position buf pos]: return a record of type [Lexing.position] from
-   a buffer and a position in this buffer. *)
+(* TODO remove after bootstrap *)
 val lexing_position : buffer -> int -> Lexing.position
 
 (** {2 Accessing the internal content of a buffer} *)
