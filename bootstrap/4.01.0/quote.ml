@@ -24,6 +24,7 @@ type quotation =
   | Quote_pmod
   | Quote_pstr
   | Quote_loc
+  | Quote_cases
   | Quote_pfield 
 let dummy_pexp = (exp_ident Location.none "$Antiquotation$").pexp_desc
 let dummy_ppat = (pat_ident Location.none "$Antiquotation$").ppat_desc

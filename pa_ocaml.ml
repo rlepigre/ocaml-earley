@@ -1255,12 +1255,25 @@ let _ = set_grammar let_binding (
 let parser match_case c =
   | pat:pattern  w:{_:when_kw expression }? arrow_re e:(expression_lvl c) ->
     make_case pat e w
-(*  | dol:CHR('$') - STR("cases") CHR(':') (_,e):(expression_lvl App) - CHR('$')  -> push_pop_cases (start_pos _loc_dol).Lexing.pos_cnum e*)
 
 let _ = set_grammar match_cases (
   parser
   | '|'? l:{(match_case (Let, Seq)) '|'}* x:(match_case (Match, Seq)) no_semi -> l @ [x]
   | EMPTY -> []
+  | '$' - aq:{c:"cases" ":" -> c}?["cases"] e:expression - '$' ->
+     begin
+       let open Quote in
+       let generic_antiquote e = function
+	 | Quote_loc -> e
+	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+       in
+       let f =
+	 match aq with
+	    | "cases" -> generic_antiquote e
+	    | _ -> give_up ()
+       in
+       make_list_antiquotation _loc Quote_loc f
+    end
   )
 
 let parser type_coercion =
@@ -1478,20 +1491,20 @@ let parser extra_expressions_grammar lvl =
 let structure_item_simple = declare_grammar "structure_item_simple"
 
 let parser prefix_expression c =
-  | function_kw l:match_cases -> loc_expr _loc (pexp_function l)
+  | function_kw l:match_cases -> <:expr< function $l$>>
 
-  | match_kw e:expression with_kw l:match_cases -> loc_expr _loc (Pexp_match(e, l))
+  | match_kw e:expression with_kw l:match_cases -> <:expr< match $e$ with $l$>>
 
-  | try_kw e:expression with_kw l:match_cases -> loc_expr _loc (Pexp_try(e, l))
+  | try_kw e:expression with_kw l:match_cases -> <:expr< try $e$ with $l$>>
 
   | e:(alternatives extra_prefix_expressions) -> e
 
 let parser if_expression (alm,lvl) =
   | if_kw c:expression then_kw e:(expression_lvl(Match, next_exp Seq)) else_kw e':(expression_lvl (alm, next_exp Seq)) ->
-     loc_expr _loc (Pexp_ifthenelse(c,e,Some e'))
+     <:expr< if $c$ then $e$ else $e'$>>
 
   | if_kw c:expression then_kw e:(expression_lvl (alm, next_exp Seq)) no_else ->
-     loc_expr _loc (Pexp_ifthenelse(c,e,None))
+     <:expr< if $c$ then $e$>>
 
 let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
@@ -1562,7 +1575,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       -> (loc_expr _loc e)
 
   | lazy_kw e:(expression_lvl (NoMatch, next_exp App)) when lvl = App ->
-     loc_expr _loc (Pexp_lazy(e))
+     <:expr< lazy e >>
 
   | c:constructor no_dot when lvl = Atom ->
 	loc_expr _loc (pexp_construct(id_loc c _loc_c, None))

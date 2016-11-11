@@ -26,6 +26,7 @@ type quotation =
   | Quote_pmod
   | Quote_pstr
   | Quote_loc
+  | Quote_cases
 #ifversion <= 4.01
   | Quote_pfield (* for 4.01.0 *)
 #endif

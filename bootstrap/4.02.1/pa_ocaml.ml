@@ -4314,7 +4314,40 @@ module Make(Initial:Extension) =
                     (fun x  ->
                        fun _default_0  ->
                          fun l  -> fun _default_1  -> l @ [x])));
-           Decap.apply (fun _  -> []) (Decap.empty ())])
+           Decap.apply (fun _  -> []) (Decap.empty ());
+           Decap.fsequence_position
+             (Decap.ignore_next_blank (Decap.char '$' '$'))
+             (Decap.fsequence
+                (Decap.option "cases"
+                   (Decap.sequence (Decap.string "cases" "cases")
+                      (Decap.string ":" ":") (fun c  -> fun _  -> c)))
+                (Decap.sequence (Decap.ignore_next_blank expression)
+                   (Decap.char '$' '$')
+                   (fun e  ->
+                      fun _  ->
+                        fun aq  ->
+                          fun _  ->
+                            fun __loc__start__buf  ->
+                              fun __loc__start__pos  ->
+                                fun __loc__end__buf  ->
+                                  fun __loc__end__pos  ->
+                                    let _loc =
+                                      locate __loc__start__buf
+                                        __loc__start__pos __loc__end__buf
+                                        __loc__end__pos in
+                                    let open Quote in
+                                      let generic_antiquote e =
+                                        function
+                                        | Quote_loc  -> e
+                                        | _ ->
+                                            failwith
+                                              "invalid antiquotation type" in
+                                      let f =
+                                        match aq with
+                                        | "cases" -> generic_antiquote e
+                                        | _ -> give_up () in
+                                      make_list_antiquotation _loc Quote_loc
+                                        f)))])
     let type_coercion = Decap.declare_grammar "type_coercion"
     let _ =
       Decap.set_grammar type_coercion
@@ -5167,7 +5200,12 @@ module Make(Initial:Extension) =
                              let _loc =
                                locate __loc__start__buf __loc__start__pos
                                  __loc__end__buf __loc__end__pos in
-                             loc_expr _loc (pexp_function l));
+                             {
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_function l);
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             });
              Decap.fsequence_position match_kw
                (Decap.fsequence expression
                   (Decap.sequence with_kw match_cases
@@ -5183,7 +5221,12 @@ module Make(Initial:Extension) =
                                         locate __loc__start__buf
                                           __loc__start__pos __loc__end__buf
                                           __loc__end__pos in
-                                      loc_expr _loc (Pexp_match (e, l)))));
+                                      {
+                                        Parsetree.pexp_desc =
+                                          (Parsetree.Pexp_match (e, l));
+                                        Parsetree.pexp_loc = _loc;
+                                        Parsetree.pexp_attributes = []
+                                      })));
              Decap.fsequence_position try_kw
                (Decap.fsequence expression
                   (Decap.sequence with_kw match_cases
@@ -5199,7 +5242,12 @@ module Make(Initial:Extension) =
                                         locate __loc__start__buf
                                           __loc__start__pos __loc__end__buf
                                           __loc__end__pos in
-                                      loc_expr _loc (Pexp_try (e, l)))));
+                                      {
+                                        Parsetree.pexp_desc =
+                                          (Parsetree.Pexp_try (e, l));
+                                        Parsetree.pexp_loc = _loc;
+                                        Parsetree.pexp_attributes = []
+                                      })));
              alternatives extra_prefix_expressions])
     let (if_expression,if_expression__set__grammar) =
       Decap.grammar_family "if_expression"
@@ -5229,9 +5277,14 @@ module Make(Initial:Extension) =
                                                      __loc__start__pos
                                                      __loc__end__buf
                                                      __loc__end__pos in
-                                                 loc_expr _loc
-                                                   (Pexp_ifthenelse
-                                                      (c, e, (Some e'))))))));
+                                                 {
+                                                   Parsetree.pexp_desc =
+                                                     (Parsetree.Pexp_ifthenelse
+                                                        (c, e, (Some e')));
+                                                   Parsetree.pexp_loc = _loc;
+                                                   Parsetree.pexp_attributes
+                                                     = []
+                                                 })))));
              Decap.fsequence_position if_kw
                (Decap.fsequence expression
                   (Decap.fsequence then_kw
@@ -5251,8 +5304,13 @@ module Make(Initial:Extension) =
                                                __loc__start__pos
                                                __loc__end__buf
                                                __loc__end__pos in
-                                           loc_expr _loc
-                                             (Pexp_ifthenelse (c, e, None))))))])
+                                           {
+                                             Parsetree.pexp_desc =
+                                               (Parsetree.Pexp_ifthenelse
+                                                  (c, e, None));
+                                             Parsetree.pexp_loc = _loc;
+                                             Parsetree.pexp_attributes = []
+                                           }))))])
     let _ =
       set_expression_lvl
         (fun ((alm,lvl) as c)  ->
@@ -7898,8 +7956,32 @@ module Make(Initial:Extension) =
                                                                   __loc__start__pos
                                                                   __loc__end__buf
                                                                   __loc__end__pos in
-                                                              loc_expr _loc
-                                                                (Pexp_lazy e)))
+                                                              {
+                                                                Parsetree.pexp_desc
+                                                                  =
+                                                                  (Parsetree.Pexp_lazy
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "e");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                Parsetree.pexp_loc
+                                                                  = _loc;
+                                                                Parsetree.pexp_attributes
+                                                                  = []
+                                                              }))
                                               :: y
                                             else y in
                                           if lvl = App
