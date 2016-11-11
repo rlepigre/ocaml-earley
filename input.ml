@@ -90,13 +90,13 @@ let rec get (lazy l) i =
   else get l.next (i - l.llen)
 
 (* Get the name of a buffer. *)
-let fname (lazy b) = b.name
+let filename (lazy b) = b.name
 
 (* Get the current line number of a buffer. *)
 let line_num (lazy b) = b.lnum
 
 (* Get the offset of the current line in the full buffer. *)
-let line_beginning (lazy b) = b.loff
+let line_offset (lazy b) = b.loff
 
 (* Get the current line as a string. *)
 let line (lazy b) = b.data
@@ -118,16 +118,21 @@ let utf8_col_num (lazy {data}) i =
     else num
   in find 0 0
 
+(* Ensure that the given position is in the current line of the buffer. *)
 let rec normalize (lazy b as str) pos =
   if pos >= b.llen then
-    if b.is_eof then str, 0 else normalize b.next (pos - b.llen)
-  else str, pos
+    if b.is_eof then (str, 0)
+    else normalize b.next (pos - b.llen)
+  else (str, pos)
 
-let eq_buf (lazy b1) (lazy b2) = b1.uid = b2.uid
+(* Equality of buffers. *)
+let buffer_equal (lazy b1) (lazy b2) = b1.uid = b2.uid
 
-let cmp_buf (lazy b1) (lazy b2) = b1.uid - b2.uid
+(* Comparison of buffers. *)
+let buffer_compare (lazy b1) (lazy b2) = b1.uid - b2.uid
 
-let buf_ident (lazy buf) = buf.uid
+(* Get the unique identifier of the buffer. *)
+let buffer_uid (lazy buf) = buf.uid
 
 module type MinimalInput =
   sig
@@ -219,8 +224,7 @@ include GenericInput(
           end
   end)
 
-
-
+(* Exception to be raised on errors in custom preprocessors. *)
 exception Preprocessor_error of string * string
 let pp_error : type a. string -> string -> a =
   fun name msg -> raise (Preprocessor_error (name, msg))

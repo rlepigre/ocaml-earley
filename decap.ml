@@ -150,7 +150,7 @@ let eq_closure : type a b. a -> b -> bool =
 let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
 
 let eq_pos p1 p2 = match p1, p2 with
-  | Some((buf,pos),_), Some((buf',pos'),_) -> eq_buf buf buf' && pos = pos'
+  | Some((buf,pos),_), Some((buf',pos'),_) -> buffer_equal buf buf' && pos = pos'
   | None, None -> true
   | _ -> false
 
@@ -404,7 +404,7 @@ let greedy_solo =
   fun ?(name=new_name ()) i s ->
     let cache = Hashtbl.create 101 in
     let s = fun ptr blank b p b' p' ->
-      let key = (buf_ident b, p, buf_ident b', p') in
+      let key = (buffer_uid b, p, buffer_uid b', p') in
       let l = try Hashtbl.find cache key with Not_found -> [] in
       try
         let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
@@ -430,7 +430,7 @@ let blank_test = fun ?(name=new_name ()) set f ->
 let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
 let with_blank_test a = blank_test ~name:"BLANK" Charset.full
-  (fun buf' pos' buf pos -> (a, not (eq_buf buf' buf) || pos' <> pos))
+  (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
 
 let nonterm (i,s) = NonTerm(i,s)
 
@@ -452,9 +452,9 @@ let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> func
 
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
-let find_pos_tbl t (buf,pos) = Hashtbl.find t (buf_ident buf, pos)
-let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buf_ident buf, pos) v
-let char_pos (buf,pos) = line_beginning buf + pos
+let find_pos_tbl t (buf,pos) = Hashtbl.find t (buffer_uid buf, pos)
+let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buffer_uid buf, pos) v
+let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
 let merge_acts o n =
@@ -486,7 +486,7 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            | true, Eq, Eq, true, act, acts' ->
            if not (eq_closure acts acts') && !warn_merge then
        Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!" print_final
-         element print_pos (debut pos element) print_pos pos (fname (fst pos));
+         element print_pos (debut pos element) print_pos pos (filename (fst pos));
            assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
            false
           | _ ->
@@ -511,7 +511,7 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
 let update_errpos errpos (buf, pos as p) =
   let buf', pos' = errpos.position in
   if
-    (match Input.cmp_buf buf' buf with
+    (match buffer_compare buf' buf with
     | 0 -> pos' < pos
     | c -> c < 0)
   then (
@@ -521,7 +521,7 @@ let update_errpos errpos (buf, pos as p) =
 
 let add_errmsg errpos buf pos (msg:unit->string) =
   let buf', pos' = errpos.position in
-  if Input.eq_buf buf buf' && pos' = pos then
+  if buffer_equal buf buf' && pos' = pos then
     if not (List.memq msg errpos.messages) then
       errpos.messages <- msg :: errpos.messages
 
@@ -788,7 +788,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
      let l =
        try
          let (buf', pos', l, forward') = pop_firsts_buf !forward in
-         if not (eq_buf !buf buf' && !pos = pos') then (
+         if not (buffer_equal !buf buf' && !pos = pos') then (
            pos := pos';
            buf := buf';
            unset !dlr; (* reset stack memo only if lecture makes progress.
@@ -1012,7 +1012,7 @@ let any : char grammar
 
 let debug msg : unit grammar
     = let fn buf pos =
-        Printf.eprintf "%s file:%s line:%d col:%d\n%!" msg (fname buf) (line_num buf) pos;
+        Printf.eprintf "%s file:%s line:%d col:%d\n%!" msg (filename buf) (line_num buf) pos;
         ((), true)
       in
       test ~name:msg Charset.empty fn
@@ -1127,13 +1127,13 @@ let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
 (* FIXME: optimisation: modify g inside when possible *)
 let position g =
   apply_position (fun a buf pos buf' pos' ->
-    (fname buf, line_num buf, pos, line_num buf', pos', a)) g
+    (filename buf, line_num buf, pos, line_num buf', pos', a)) g
 
 let print_exception = function
   | Parse_error(buf,pos,messages) ->
      let messages = String.concat "," messages in
      Printf.eprintf "File %S, line %d, character %d:\n"
-       (fname buf) (line_num buf) (utf8_col_num buf pos);
+       (filename buf) (line_num buf) (utf8_col_num buf pos);
      Printf.eprintf "Parse error:%s\n%!" messages
   | _ -> assert false
 
