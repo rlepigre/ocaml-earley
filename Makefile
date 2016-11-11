@@ -9,7 +9,7 @@ BINDIR = $(dir $(shell which ocamlc))
 # a more complete all is given below when pa_ocaml binary
 # is present
 
-INSTALLED = ahash.cmi ahash.cmo ahash.mli ahash.cmx decap.cmi decap.cmo decap.mli decap.cmx charset.cmi charset.cmo charset.mli charset.cmx input.cmi input.cmo input.mli input.cmx decap.cma decap.cmxa decap.a pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx pa_parser.cmi pa_parser.cmx pa_parser.cmo pa_main.cmi pa_main.cmx pa_main.cmo decap_ocaml.cmxa decap_ocaml.cma decap.a decap_ocaml.a pa_ast.cmx pa_ast.cmo pa_ast.cmi pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
+INSTALLED = ahash.cmi ahash.cmo ahash.mli ahash.cmx decap.cmi decap.cmo decap.mli decap.cmx charset.cmi charset.cmo charset.mli charset.cmx regexp.cmi regexp.cmo regexp.mli regexp.cmx input.cmi input.cmo input.mli input.cmx decap.cma decap.cmxa decap.a pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx pa_parser.cmi pa_parser.cmx pa_parser.cmo pa_main.cmi pa_main.cmx pa_main.cmo decap_ocaml.cmxa decap_ocaml.cma decap.a decap_ocaml.a pa_ast.cmx pa_ast.cmo pa_ast.cmi pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
 
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
 OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
@@ -60,16 +60,16 @@ ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 %.cmx: %.ml %.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) -c $<
 
-decap.cmi: charset.cmi input.cmi ahash.cmi fixpoint.cmi
+decap.cmi: charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
 
-decap.cmo: charset.cmi input.cmi ahash.cmi fixpoint.cmi
+decap.cmo: charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
 
-decap.cmx: charset.cmx charset.cmi input.cmx input.cmi ahash.cmi ahash.cmx fixpoint.cmx
+decap.cmx: charset.cmx charset.cmi regexp.cmx regexp.cmi input.cmx input.cmi ahash.cmi ahash.cmx fixpoint.cmx
 
-decap.cmxa: charset.cmx input.cmx ahash.cmx fixpoint.cmx decap.cmx
+decap.cmxa: charset.cmx input.cmx regexp.cmx ahash.cmx fixpoint.cmx decap.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
-decap.cma: charset.cmo input.cmo ahash.cmo fixpoint.cmo decap.cmo
+decap.cma: charset.cmo input.cmo regexp.cmo ahash.cmo fixpoint.cmo decap.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
 $(B)/decap_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
