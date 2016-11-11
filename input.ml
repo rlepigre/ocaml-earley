@@ -205,8 +205,7 @@ module GenericInput(M : MinimalInput) =
         from_fun ignore filename get_string_line (str, ref 0)
   end
 
-
-module NoPP = GenericInput(
+include GenericInput(
   struct
     let from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer =
       fun finalise name get_line file ->
@@ -403,8 +402,8 @@ module OCamlPP : Preprocessor =
       | _  -> pp_error name "unclosed conditionals"
   end
 
-module DefaultPP = WithPP(OCamlPP)
-include DefaultPP
+(* TODO remove *)
+include WithPP(OCamlPP)
 
 type 'a buf_table = (line * int * 'a list) list
 

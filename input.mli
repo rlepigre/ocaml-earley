@@ -138,27 +138,6 @@ val iter_buf : 'a buf_table -> ('a -> unit) -> unit
 
 
 
-module type MinimalInput =
-  sig
-    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
-  end
-
-module GenericInput : functor (M : MinimalInput) ->
-  sig
-    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
-    val from_channel : ?filename:string -> in_channel -> buffer
-    val from_file : string -> buffer
-    val from_string : ?filename:string -> string -> buffer
-  end
-
-module NoPP :
-  sig
-    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
-    val from_channel : ?filename:string -> in_channel -> buffer
-    val from_file : string -> buffer
-    val from_string : ?filename:string -> string -> buffer
-  end
-
 exception Preprocessor_error of string * string
 val pp_error : string -> string -> 'a
 
