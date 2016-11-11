@@ -286,6 +286,8 @@ struct
     | STR("STR") e:(expression_lvl (NoMatch, next_exp App)) opt:glr_opt_expr ->
        let o = match opt with None -> e | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "string") [e; o])
+    | STR("ERROR") e:(expression_lvl (NoMatch, next_exp App)) ->
+       (true, <:expr< Decap.error_message (fun () -> $e$)>>)
     | s:string_litteral opt:glr_opt_expr ->
        (opt <> None,
         (if String.length s = 0 then

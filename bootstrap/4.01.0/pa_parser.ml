@@ -681,6 +681,48 @@ module Ext(In:Extension) =
                    let o = match opt with | None  -> e | Some e -> e in
                    ((opt <> None),
                      (exp_apply _loc (exp_glr_fun _loc "string") [e; o]))));
+           Decap.sequence_position (Decap.string "ERROR" "ERROR")
+             (expression_lvl (NoMatch, (next_exp App)))
+             (fun _  e  __loc__start__buf  __loc__start__pos  __loc__end__buf
+                 __loc__end__pos  ->
+                let _loc =
+                  locate __loc__start__buf __loc__start__pos __loc__end__buf
+                    __loc__end__pos in
+                (true,
+                  {
+                    Parsetree.pexp_desc =
+                      (Parsetree.Pexp_apply
+                         ({
+                            Parsetree.pexp_desc =
+                              (Parsetree.Pexp_ident
+                                 {
+                                   Asttypes.txt =
+                                     (Longident.Ldot
+                                        ((Longident.Lident "Decap"),
+                                          "error_message"));
+                                   Asttypes.loc = _loc
+                                 });
+                            Parsetree.pexp_loc = _loc
+                          },
+                           [("",
+                              {
+                                Parsetree.pexp_desc =
+                                  (Parsetree.Pexp_function
+                                     ("", None,
+                                       [({
+                                           Parsetree.ppat_desc =
+                                             (Parsetree.Ppat_construct
+                                                ({
+                                                   Asttypes.txt =
+                                                     (Longident.Lident "()");
+                                                   Asttypes.loc = _loc
+                                                 }, None, false));
+                                           Parsetree.ppat_loc = _loc
+                                         }, e)]));
+                                Parsetree.pexp_loc = _loc
+                              })]));
+                    Parsetree.pexp_loc = _loc
+                  }));
            Decap.sequence_position
              (Decap.apply_position
                 (fun x  str  pos  str'  pos'  ->

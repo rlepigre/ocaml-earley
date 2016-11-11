@@ -844,6 +844,60 @@ module Ext(In:Extension) =
                                ((opt <> None),
                                  (exp_apply _loc (exp_glr_fun _loc "string")
                                     [e; o]))));
+           Decap.sequence_position (Decap.string "ERROR" "ERROR")
+             (expression_lvl (NoMatch, (next_exp App)))
+             (fun _  ->
+                fun e  ->
+                  fun __loc__start__buf  ->
+                    fun __loc__start__pos  ->
+                      fun __loc__end__buf  ->
+                        fun __loc__end__pos  ->
+                          let _loc =
+                            locate __loc__start__buf __loc__start__pos
+                              __loc__end__buf __loc__end__pos
+                             in
+                          (true,
+                            {
+                              Parsetree.pexp_desc =
+                                (Parsetree.Pexp_apply
+                                   ({
+                                      Parsetree.pexp_desc =
+                                        (Parsetree.Pexp_ident
+                                           {
+                                             Asttypes.txt =
+                                               (Longident.Ldot
+                                                  ((Longident.Lident "Decap"),
+                                                    "error_message"));
+                                             Asttypes.loc = _loc
+                                           });
+                                      Parsetree.pexp_loc = _loc;
+                                      Parsetree.pexp_attributes = []
+                                    },
+                                     [(Asttypes.Nolabel,
+                                        {
+                                          Parsetree.pexp_desc =
+                                            (Parsetree.Pexp_fun
+                                               (Asttypes.Nolabel, None,
+                                                 {
+                                                   Parsetree.ppat_desc =
+                                                     (Parsetree.Ppat_construct
+                                                        ({
+                                                           Asttypes.txt =
+                                                             (Longident.Lident
+                                                                "()");
+                                                           Asttypes.loc =
+                                                             _loc
+                                                         }, None));
+                                                   Parsetree.ppat_loc = _loc;
+                                                   Parsetree.ppat_attributes
+                                                     = []
+                                                 }, e));
+                                          Parsetree.pexp_loc = _loc;
+                                          Parsetree.pexp_attributes = []
+                                        })]));
+                              Parsetree.pexp_loc = _loc;
+                              Parsetree.pexp_attributes = []
+                            }));
            Decap.sequence_position
              (Decap.apply_position
                 (fun x  ->

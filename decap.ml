@@ -35,7 +35,12 @@ type assoc_cell = { mutable alr : (assoc_cell list ref * Obj.t) list }
 
 type position = buffer * int
 
-type errpos = position ref * (unit -> string) list ref
+type errpos = {
+  mutable position : position;
+  mutable messages : (unit -> string) list
+}
+
+let init_errpos buf pos = { position = (buf, pos); messages = [] }
 
 type _ pos =
   | Idt : ('a -> 'a) pos
@@ -503,19 +508,22 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
   in
   match el with D {stack} -> fn (cast_elements !stack); !res
 
-let update_errpos ({contents=(buf',pos')} as errpos, errmsgs) (buf, pos as p) =
+let update_errpos errpos (buf, pos as p) =
+  let buf', pos' = errpos.position in
   if
     (match Input.cmp_buf buf' buf with
     | 0 -> pos' < pos
     | c -> c < 0)
   then (
     if !debug_lvl > 0 then Printf.eprintf "update error: %d %d\n%!" (line_num buf) pos;
-    errpos := p;
-    errmsgs := [])
+    errpos.position <- p;
+    errpos.messages <- [])
 
-let add_errmsg ({contents=(buf',pos')}, errmsgs) buf pos (msg:unit->string) =
+let add_errmsg errpos buf pos (msg:unit->string) =
+  let buf', pos' = errpos.position in
   if Input.eq_buf buf buf' && pos' = pos then
-    errmsgs := msg :: !errmsgs
+    if not (List.memq msg errpos.messages) then
+      errpos.messages <- msg :: errpos.messages
 
 let protect errpos f a =
   try
@@ -721,7 +729,7 @@ let rec one_prediction_production
          with Error -> ())
      | _ -> ()
 
-exception Parse_error of Input.buffer * int * string list * string list
+exception Parse_error of Input.buffer * int * string list
 
 let count = ref 0
 
@@ -775,7 +783,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     while !continue do
       if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d (%d,%d)\n%!"
         parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward)
-        (line_num (fst !(fst errpos))) (snd !(fst errpos));
+        (line_num (fst errpos.position)) (snd errpos.position);
       forward := lecture errpos blank parse_id (!buf, !pos) (!buf', !pos') elements !forward;
      let l =
        try
@@ -798,9 +806,9 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       if internal then
         raise Error
       else
-        let { contents = (buf, pos)}, { contents } = errpos in
-        let msgs = List.map (fun f -> f ()) contents in
-        raise (Parse_error (buf, pos, msgs, []))
+        let buf, pos = errpos.position in
+        let msgs = List.map (fun f -> f ()) errpos.messages in
+        raise (Parse_error (buf, pos, msgs))
     in
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> bool * a = function
@@ -845,7 +853,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
 
 let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
    = fun g bl buf pos ->
-       parse_buffer_aux (ref(buf,pos),ref []) false g bl buf pos
+       parse_buffer_aux (init_errpos buf pos) false g bl buf pos
 
 let internal_parse_buffer : type a.errpos -> a grammar -> blank -> buffer -> int -> a * buffer * int
   = fun errpos g bl buf pos -> parse_buffer_aux errpos true g bl buf pos
@@ -908,7 +916,7 @@ let error_message : (unit -> string) -> 'a grammar
        internal_parse_buffer *)
     let i = (false,Charset.full) in
     let j = Fixpoint.from_val i in
-    let fn errpos blank buf pos _ _ =
+    let fn errpos blank _ _ buf pos =
       add_errmsg errpos buf pos msg;
       raise Error
     in
@@ -1101,13 +1109,11 @@ let position g =
     (fname buf, line_num buf, pos, line_num buf', pos', a)) g
 
 let print_exception = function
-  | Parse_error(buf,pos,messages,expected) ->
-     let expected = String.concat "|" expected in
+  | Parse_error(buf,pos,messages) ->
      let messages = String.concat "," messages in
-     let sep = if messages <> "" && expected <> "" then ", " else "" in
      Printf.eprintf "File %S, line %d, character %d:\n"
        (fname buf) (line_num buf) (utf8_col_num buf pos);
-     Printf.eprintf "Parse error:%s%s%s\n%!" messages sep expected
+     Printf.eprintf "Parse error:%s\n%!" messages
   | _ -> assert false
 
 let handle_exception f a =
@@ -1141,7 +1147,7 @@ let grammar_family ?(param_to_string=fun _ -> "X") name =
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
     debug_lvl := !debug_lvl / 10;
-    let (_,buf,pos) = internal_parse_buffer (ref(buf,pos), ref []) grammar blank buf pos in
+    let (_,buf,pos) = internal_parse_buffer (init_errpos buf pos) grammar blank buf pos in
     debug_lvl := save_debug;
     if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
     (buf,pos)

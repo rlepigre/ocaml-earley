@@ -21,17 +21,17 @@ let parser expr =
   | '-' e:(expr_lvl Pow) -> (Pow, -. e)
   | '+' e:(expr_lvl Pow) -> (Pow, e)
   | (conditional_sequence expr
-       (fun (p,e) -> if p <= Pow then give_up ""; e)
+       (fun (p,e) -> if p <= Pow then give_up (); e)
        (parser _:"**" (expr_lvl Pow)) (fun e e' -> (Pow, e ** e')))
   | (conditional_sequence expr
-       (fun (p,e) -> if p < Prod then give_up ""; e)
+       (fun (p,e) -> if p < Prod then give_up (); e)
        (parser prod_sym (expr_lvl Pow)) (fun e (fn, e') -> (Prod, fn e e')))
   | (conditional_sequence expr
-       (fun (p,e) -> if p < Sum then give_up ""; e)
+       (fun (p,e) -> if p < Sum then give_up (); e)
        (parser sum_sym (expr_lvl Prod)) (fun e (fn, e') -> (Sum, fn e e')))
 
 and expr_lvl p =
-    | (p',e):expr -> if p' < p then give_up ""; e
+    | (p',e):expr -> if p' < p then give_up (); e
 
 
 (* The main loop *)
