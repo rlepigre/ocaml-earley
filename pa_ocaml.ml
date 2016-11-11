@@ -1126,17 +1126,17 @@ let untuplify exp =
   | Pexp_tuple es -> es
   | _             -> [exp]
 
-let bigarray_get loc arr arg =
+let bigarray_get _loc arr arg =
   let get = if !fast then "unsafe_get" else "get" in
   match untuplify arg with
   | [c1] ->
-      exp_apply loc (bigarray_function loc "Array1" get) [arr; c1]
+      <:expr<Bigarry.Array1.$lid:get$ $arr$ $c1$ >>
   | [c1;c2] ->
-      exp_apply loc (bigarray_function loc "Array2" get) [arr; c1; c2]
+      <:expr<Bigarry.Array2.$lid:get$ $arr$ $c1$ $c2$ >>
   | [c1;c2;c3] ->
-      exp_apply loc (bigarray_function loc "Array3" get) [arr; c1; c2; c3]
+      <:expr<Bigarry.Array3.$lid:get$ $arr$ $c1$ $c2$ $c3$ >>
   | coords ->
-      exp_apply loc (bigarray_function loc "Genarray" "get") [arr; loc_expr loc (Pexp_array coords)]
+      <:expr<Bigarry.Genarray.$lid:get$ $arr$ $array:coords$ >>
 
 let bigarray_set loc arr arg newval =
   let set = if !fast then "unsafe_set" else "set" in
@@ -1709,8 +1709,12 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_bool") [quote_location_t e_loc _loc _loc; e])
       | "int"       ->
 	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_int") [quote_location_t e_loc _loc _loc; e])
+      | "float"     ->
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_float") [quote_location_t e_loc _loc _loc; e])
       | "string"    ->
 	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_string") [quote_location_t e_loc _loc _loc; e])
+      | "char"      ->
+	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_char") [quote_location_t e_loc _loc _loc; e])
       | "list"      ->
 	 generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_list") [quote_location_t e_loc _loc _loc; e])
       | "tuple"      ->

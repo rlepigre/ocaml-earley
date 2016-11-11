@@ -62,7 +62,7 @@ ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 
 decap.cmi: charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
 
-decap.cmo: charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
+decap.cmo: decap.cmi charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
 
 decap.cmx: charset.cmx charset.cmi regexp.cmx regexp.cmi input.cmx input.cmi ahash.cmi ahash.cmx fixpoint.cmx
 

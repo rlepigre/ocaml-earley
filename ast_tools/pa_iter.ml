@@ -26,7 +26,7 @@ type ast = item list
 (* Parser *)
 let reserved = [ "bool"; "int32"; "int64"; "int"; "char"; "string"; "nativeint" ]
 
-let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Decap.give_up ""; s
+let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Decap.give_up (); s
 let parser uid = | ''[A-Z][_a-zA-Z0-9]*''
 let parser arg = | '\'' - RE("[a-z]+")
 

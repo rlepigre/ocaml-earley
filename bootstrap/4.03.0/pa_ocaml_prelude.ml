@@ -17,6 +17,21 @@ let print_location ch { Location.loc_start = s; Location.loc_end = e } =
     Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
       (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
   
+let string_location { Location.loc_start = s; Location.loc_end = e } =
+  let open Lexing in
+    Printf.sprintf "Position %d:%d to %d:%d%!" s.pos_lnum
+      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
+  
+let lexing_position str pos =
+  let loff = line_beginning str  in
+  let open Lexing in
+    {
+      pos_fname = (fname str);
+      pos_lnum = (line_num str);
+      pos_cnum = (loff + pos);
+      pos_bol = loff
+    }
+  
 let locate str pos str' pos' =
   let open Lexing in
     let s = Input.lexing_position str pos  in

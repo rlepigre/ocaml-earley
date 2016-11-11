@@ -3683,19 +3683,93 @@ module Make(Initial:Extension) =
       loc_expr loc (Pexp_ident (id_loc lid loc))
     let untuplify exp =
       match exp.pexp_desc with | Pexp_tuple es -> es | _ -> [exp]
-    let bigarray_get loc arr arg =
+    let bigarray_get _loc arr arg =
       let get = if !fast then "unsafe_get" else "get" in
       match untuplify arg with
       | c1::[] ->
-          exp_apply loc (bigarray_function loc "Array1" get) [arr; c1]
+          {
+            Parsetree.pexp_desc =
+              (Parsetree.Pexp_apply
+                 ({
+                    Parsetree.pexp_desc =
+                      (Parsetree.Pexp_ident
+                         {
+                           Asttypes.txt =
+                             (Longident.Ldot
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Bigarry"), "Array1")),
+                                  get));
+                           Asttypes.loc = _loc
+                         });
+                    Parsetree.pexp_loc = _loc;
+                    Parsetree.pexp_attributes = []
+                  }, [("", arr); ("", c1)]));
+            Parsetree.pexp_loc = _loc;
+            Parsetree.pexp_attributes = []
+          }
       | c1::c2::[] ->
-          exp_apply loc (bigarray_function loc "Array2" get) [arr; c1; c2]
+          {
+            Parsetree.pexp_desc =
+              (Parsetree.Pexp_apply
+                 ({
+                    Parsetree.pexp_desc =
+                      (Parsetree.Pexp_ident
+                         {
+                           Asttypes.txt =
+                             (Longident.Ldot
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Bigarry"), "Array2")),
+                                  get));
+                           Asttypes.loc = _loc
+                         });
+                    Parsetree.pexp_loc = _loc;
+                    Parsetree.pexp_attributes = []
+                  }, [("", arr); ("", c1); ("", c2)]));
+            Parsetree.pexp_loc = _loc;
+            Parsetree.pexp_attributes = []
+          }
       | c1::c2::c3::[] ->
-          exp_apply loc (bigarray_function loc "Array3" get)
-            [arr; c1; c2; c3]
+          {
+            Parsetree.pexp_desc =
+              (Parsetree.Pexp_apply
+                 ({
+                    Parsetree.pexp_desc =
+                      (Parsetree.Pexp_ident
+                         {
+                           Asttypes.txt =
+                             (Longident.Ldot
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Bigarry"), "Array3")),
+                                  get));
+                           Asttypes.loc = _loc
+                         });
+                    Parsetree.pexp_loc = _loc;
+                    Parsetree.pexp_attributes = []
+                  }, [("", arr); ("", c1); ("", c2); ("", c3)]));
+            Parsetree.pexp_loc = _loc;
+            Parsetree.pexp_attributes = []
+          }
       | coords ->
-          exp_apply loc (bigarray_function loc "Genarray" "get")
-            [arr; loc_expr loc (Pexp_array coords)]
+          {
+            Parsetree.pexp_desc =
+              (Parsetree.Pexp_apply
+                 ({
+                    Parsetree.pexp_desc =
+                      (Parsetree.Pexp_ident
+                         {
+                           Asttypes.txt =
+                             (Longident.Ldot
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Bigarry"),
+                                      "Genarray")), get));
+                           Asttypes.loc = _loc
+                         });
+                    Parsetree.pexp_loc = _loc;
+                    Parsetree.pexp_attributes = []
+                  }, [("", arr); ("", (Pa_ast.exp_array _loc coords))]));
+            Parsetree.pexp_loc = _loc;
+            Parsetree.pexp_attributes = []
+          }
     let bigarray_set loc arr arg newval =
       let set = if !fast then "unsafe_set" else "set" in
       match untuplify arg with
@@ -6259,6 +6333,20 @@ module Make(Initial:Extension) =
                                                                     _loc _loc;
                                                                     e])
                                                                     | 
+                                                                    "float"
+                                                                    ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    e_loc
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_float")
+                                                                    [
+                                                                    quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
                                                                     "string"
                                                                     ->
                                                                     generic_antiquote
@@ -6267,6 +6355,19 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (pa_ast
                                                                     "exp_string")
+                                                                    [
+                                                                    quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc;
+                                                                    e])
+                                                                    | 
+                                                                    "char" ->
+                                                                    generic_antiquote
+                                                                    (quote_apply
+                                                                    e_loc
+                                                                    _loc
+                                                                    (pa_ast
+                                                                    "exp_char")
                                                                     [
                                                                     quote_location_t
                                                                     e_loc
