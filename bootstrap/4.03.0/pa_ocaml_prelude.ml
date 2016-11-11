@@ -34,8 +34,8 @@ let lexing_position str pos =
   
 let locate str pos str' pos' =
   let open Lexing in
-    let s = Input.lexing_position str pos  in
-    let e = Input.lexing_position str' pos'  in
+    let s = lexing_position str pos  in
+    let e = lexing_position str' pos'  in
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
   
 type entry_point =

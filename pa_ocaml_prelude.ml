@@ -82,8 +82,8 @@ let lexing_position str pos =
 (* Location function. *)
 let locate str pos str' pos' =
   Lexing.(
-    let s = Input.lexing_position str pos in
-    let e = Input.lexing_position str' pos' in
+    let s = lexing_position str pos in
+    let e = lexing_position str' pos' in
     Location.({loc_start = s; loc_end = e; loc_ghost = false}))
 
 #define LOCATE locate

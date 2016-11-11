@@ -89,9 +89,6 @@ val from_string : ?filename:string -> string -> buffer
    of the current line. *)
 val empty_buffer : string -> int -> int -> buffer
 
-(* TODO remove after bootstrap *)
-val lexing_position : buffer -> int -> Lexing.position
-
 (** {2 Accessing the internal content of a buffer} *)
 
 (** [is_empty buf] test whether the buffer [buf] is empty. *)

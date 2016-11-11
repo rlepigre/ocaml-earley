@@ -129,15 +129,6 @@ let cmp_buf (lazy b1) (lazy b2) = b1.uid - b2.uid
 
 let buf_ident (lazy buf) = buf.uid
 
-(* TODO remove after bootstrap *)
-let lexing_position str pos =
-  let loff = line_beginning str in
-  Lexing.({ pos_fname = fname str
-          ; pos_lnum  = line_num str
-          ; pos_cnum  = loff +pos
-          ; pos_bol   = loff })
-
-
 module type MinimalInput =
   sig
     (** [from_fun finalise name get_line file] build a buffer from the
