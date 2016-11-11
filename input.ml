@@ -118,7 +118,7 @@ let utf8_col_num (lazy {data}) i =
     else num
   in find 0 0
 
-(* Ensure that the given position is in the current line of the buffer. *)
+(* Ensure that the given position is in the current line. *)
 let rec normalize (lazy b as str) pos =
   if pos >= b.llen then
     if b.is_eof then (str, 0)
@@ -136,11 +136,8 @@ let buffer_uid (lazy buf) = buf.uid
 
 module type MinimalInput =
   sig
-    (** [from_fun finalise name get_line file] build a buffer from the
-        object [file] using the [get_line] function. The provided [name]
-        is used for error messages and the [finalise] function is used
-        to perform some actions after the end of input is reached. *)
-    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+    val from_fun : ('a -> unit) -> string -> ('a -> string)
+                     -> 'a -> buffer
   end
 
 external unsafe_input : in_channel -> string -> int -> int -> int =
@@ -203,25 +200,24 @@ module GenericInput(M : MinimalInput) =
 
 include GenericInput(
   struct
-    let from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer =
-      fun finalise name get_line file ->
-        let rec fn name lnum loff cont =
-          let lnum = lnum + 1 in
-          try
-            let data = get_line file in
-            let llen = String.length data in
-            { is_eof = false ; lnum ; loff ; llen ; data ; name
-            ; next = lazy (fn name lnum (loff + llen) cont)
-            ; uid = new_uid () }
-          with End_of_file -> finalise file; cont name lnum loff
-        in
-        lazy
-          begin
-            let cont name lnum loff =
-              Lazy.force (empty_buffer name lnum loff)
-            in
-            fn name 0 0 cont
-          end
+    let from_fun finalise name get_line file =
+      let rec fn name lnum loff cont =
+        let lnum = lnum + 1 in
+        try
+          let data = get_line file in
+          let llen = String.length data in
+          { is_eof = false ; lnum ; loff ; llen ; data ; name
+          ; next = lazy (fn name lnum (loff + llen) cont)
+          ; uid = new_uid () }
+        with End_of_file -> finalise file; cont name lnum loff
+      in
+      lazy
+        begin
+          let cont name lnum loff =
+            Lazy.force (empty_buffer name lnum loff)
+          in
+          fn name 0 0 cont
+        end
   end)
 
 (* Exception to be raised on errors in custom preprocessors. *)
@@ -231,57 +227,38 @@ let pp_error : type a. string -> string -> a =
 
 module type Preprocessor =
   sig
-    (** Type for the internal state of the preprocessor. *)
     type state
-
-    (** Initial state of the preprocessor. *)
     val initial_state : state
-
-    (** [update st name lnum line] takes as input the state [st] of the
-        preprocessor, the file name [name], the number of the next input
-        line [lnum] and the next input line [line] itself. It returns a
-        tuple of the new state, the new file name, the new line number,
-        and a boolean. The new file name and line number can be used to
-        implement line number directives. The boolean is [true] if the
-        line should be part of the input (i.e. it is not a specific
-        preprocessor line) and [false] if it should be ignored. The
-        function may raise [Preprocessor_error msg] in case of error. *)
     val update : state -> string -> int -> string
                  -> state * string * int * bool
-
-    (** [check_final st name] check that [st] indeed is a correct state
-        of the preprocessor for the end of input of file [name]. If it
-        is not the case, then the exception [Preprocessor_error msg] is
-        raised. *)
     val check_final : state -> string -> unit
   end
 
 module Make(PP : Preprocessor) =
   struct
-    let from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer =
-      fun finalise name get_line file ->
-        let rec fn name lnum loff st cont =
-          let lnum = lnum + 1 in
-          try
-            let data = get_line file in
-            let (st, name, lnum, take) = PP.update st name lnum data in
-            if take then
-              let llen = String.length data in
-              { is_eof = false ; lnum ; loff ; llen ; data ; name
-              ; next = lazy (fn name lnum (loff + llen) st cont)
-              ; uid = new_uid () }
-            else
-              fn name lnum loff st cont
-          with End_of_file -> finalise file; cont name lnum loff st
-        in
-        lazy
-          begin
-            let cont name lnum loff st =
-              PP.check_final st name;
-              Lazy.force (empty_buffer name lnum loff)
-            in
-            fn name 0 0 PP.initial_state cont
-          end
+    let from_fun finalise name get_line file =
+      let rec fn name lnum loff st cont =
+        let lnum = lnum + 1 in
+        try
+          let data = get_line file in
+          let (st, name, lnum, take) = PP.update st name lnum data in
+          if take then
+            let llen = String.length data in
+            { is_eof = false ; lnum ; loff ; llen ; data ; name
+            ; next = lazy (fn name lnum (loff + llen) st cont)
+            ; uid = new_uid () }
+          else
+            fn name lnum loff st cont
+        with End_of_file -> finalise file; cont name lnum loff st
+      in
+      lazy
+        begin
+          let cont name lnum loff st =
+            PP.check_final st name;
+            Lazy.force (empty_buffer name lnum loff)
+          in
+          fn name 0 0 PP.initial_state cont
+        end
   end
 
 module WithPP(PP : Preprocessor) = GenericInput(Make(PP))
