@@ -138,6 +138,99 @@ let lexing_position str pos =
           ; pos_bol   = loff })
 
 
+module type MinimalInput =
+  sig
+    (** [from_fun finalise name get_line file] build a buffer from the
+        object [file] using the [get_line] function. The provided [name]
+        is used for error messages and the [finalise] function is used
+        to perform some actions after the end of input is reached. *)
+    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+  end
+
+external unsafe_input : in_channel -> string -> int -> int -> int =
+  "caml_ml_input"
+
+external input_scan_line : in_channel -> int =
+  "caml_ml_input_scan_line"
+
+let input_line ch =
+  let rec build_result buf pos = function
+    | []       -> buf
+    | hd :: tl -> let len = String.length hd in
+                  String.blit hd 0 buf (pos - len) len;
+                  build_result buf (pos - len) tl
+  in
+  let rec scan accu len =
+    let n = input_scan_line ch in
+    if n = 0 then (* n = 0: we are at EOF *)
+      match accu with
+      | [] -> raise End_of_file
+      | _  -> build_result (Bytes.create len) len accu
+    else if n > 0 then (* n > 0: newline found in buffer *)
+      let res = Bytes.create n in
+      ignore (unsafe_input ch res 0 n);
+      match accu with
+      | [] -> res
+      |  _ -> let len = len + n in
+              build_result (Bytes.create len) len (res :: accu)
+    else (* n < 0: newline not found *)
+      let beg = Bytes.create (-n) in
+      ignore(unsafe_input ch beg 0 (-n));
+      scan (beg :: accu) (len - n)
+  in scan [] 0
+
+module GenericInput(M : MinimalInput) =
+  struct
+    include M
+
+    let from_channel : string -> in_channel -> buffer = fun name ch ->
+      from_fun ignore name input_line ch
+
+    let from_file : string -> buffer = fun name ->
+      let ch = open_in name in
+      from_fun close_in name input_line ch
+
+    let from_string : string -> string -> buffer = fun name str ->
+      let get_string_line (str, p) =
+        let len = String.length str in
+        let start = !p in
+          if start >= len then raise End_of_file;
+          while (!p < len && str.[!p] <> '\n') do
+            incr p
+          done;
+          if !p < len then incr p;
+          let len' = !p - start in
+          String.sub str start len'
+      in
+      from_fun ignore name get_string_line (str, ref 0)
+  end
+
+
+module NoPP = GenericInput(
+  struct
+    let from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer =
+      fun finalise name get_line file ->
+        let rec fn name lnum loff cont =
+          let lnum = lnum + 1 in
+          try
+            let data = get_line file in
+            let llen = String.length data in
+            { is_eof = false ; lnum ; loff ; llen ; data ; name
+            ; next = lazy (fn name lnum (loff + llen) cont)
+            ; uid = new_uid () }
+          with End_of_file -> finalise file; cont name lnum loff
+        in
+        lazy
+          begin
+            let cont name lnum loff =
+              Lazy.force (empty_buffer name lnum loff)
+            in
+            fn name 0 0 cont
+          end
+  end)
+
+
+
 exception Preprocessor_error of string * string
 let pp_error : type a. string -> string -> a =
   fun name msg -> raise (Preprocessor_error (name, msg))
@@ -197,13 +290,7 @@ module Make(PP : Preprocessor) =
           end
   end
 
-module NoPP : Preprocessor =
-  struct
-    type state = unit
-    let initial_state = ()
-    let update st fname lnum _ = (st, fname, lnum, true)
-    let check_final _ _ = ()
-  end
+module WithPP(PP : Preprocessor) = GenericInput(Make(PP))
 
 
 let define_directive =
@@ -316,64 +403,16 @@ module OCamlPP : Preprocessor =
       | _  -> pp_error name "unclosed conditionals"
   end
 
-module DefaultPP = Make(OCamlPP)
+module DefaultPP = WithPP(OCamlPP)
+
 let buffer_from_fun ?(finalise=(fun _ -> ())) fname get_line data =
   DefaultPP.from_fun finalise fname get_line data
-
-
-external unsafe_input : in_channel -> string -> int -> int -> int
-                      = "caml_ml_input"
-
-external input_scan_line : in_channel -> int = "caml_ml_input_scan_line"
-
-let input_line chan =
-  let rec build_result buf pos = function
-    [] -> buf
-  | hd :: tl ->
-      let len = String.length hd in
-      String.blit hd 0 buf (pos - len) len;
-      build_result buf (pos - len) tl in
-  let rec scan accu len =
-    let n = input_scan_line chan in
-    if n = 0 then begin                   (* n = 0: we are at EOF *)
-      match accu with
-        [] -> raise End_of_file
-      | _  -> build_result (Bytes.create len) len accu
-    end else if n > 0 then begin          (* n > 0: newline found in buffer *)
-      let res = Bytes.create n in
-      ignore (unsafe_input chan res 0 n);
-      match accu with
-        [] -> res
-      |  _ -> let len = len + n in
-              build_result (Bytes.create len) len (res :: accu)
-    end else begin                        (* n < 0: newline not found *)
-      let beg = Bytes.create (-n) in
-      ignore(unsafe_input chan beg 0 (-n));
-      scan (beg :: accu) (len - n)
-    end
-  in scan [] 0
-
 let buffer_from_channel ?(filename="") ch =
-  buffer_from_fun filename input_line ch
-
+  DefaultPP.from_channel filename ch
 let buffer_from_file filename =
-  let ch = open_in filename in
-  buffer_from_fun ~finalise:close_in filename input_line ch
-
-let get_string_line (str, p) =
-  let len = String.length str in
-  let start = !p in
-  if start >= len then raise End_of_file;
-  while (!p < len && str.[!p] <> '\n') do
-    incr p
-  done;
-  if !p < len then incr p;
-  let len' = !p - start in
-  String.sub str start len'
-
+  DefaultPP.from_file filename
 let buffer_from_string ?(filename="") str =
-  let data = (str, ref 0) in
-  buffer_from_fun filename get_string_line data
+  DefaultPP.from_string filename str
 
 type 'a buf_table = (line * int * 'a list) list
 
