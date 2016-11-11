@@ -183,26 +183,26 @@ module GenericInput(M : MinimalInput) =
   struct
     include M
 
-    let from_channel : string -> in_channel -> buffer = fun name ch ->
-      from_fun ignore name input_line ch
+    let from_channel : ?filename:string -> in_channel -> buffer =
+      fun ?(filename="") ch -> from_fun ignore filename input_line ch
 
-    let from_file : string -> buffer = fun name ->
-      let ch = open_in name in
-      from_fun close_in name input_line ch
+    let from_file : string -> buffer =
+      fun fname -> from_fun close_in fname input_line (open_in fname)
 
-    let from_string : string -> string -> buffer = fun name str ->
-      let get_string_line (str, p) =
-        let len = String.length str in
-        let start = !p in
-          if start >= len then raise End_of_file;
-          while (!p < len && str.[!p] <> '\n') do
-            incr p
-          done;
-          if !p < len then incr p;
-          let len' = !p - start in
-          String.sub str start len'
-      in
-      from_fun ignore name get_string_line (str, ref 0)
+    let from_string : ?filename:string -> string -> buffer =
+      fun ?(filename="") str ->
+        let get_string_line (str, p) =
+          let len = String.length str in
+          let start = !p in
+            if start >= len then raise End_of_file;
+            while (!p < len && str.[!p] <> '\n') do
+              incr p
+            done;
+            if !p < len then incr p;
+            let len' = !p - start in
+            String.sub str start len'
+        in
+        from_fun ignore filename get_string_line (str, ref 0)
   end
 
 
@@ -404,15 +404,7 @@ module OCamlPP : Preprocessor =
   end
 
 module DefaultPP = WithPP(OCamlPP)
-
-let buffer_from_fun ?(finalise=(fun _ -> ())) fname get_line data =
-  DefaultPP.from_fun finalise fname get_line data
-let buffer_from_channel ?(filename="") ch =
-  DefaultPP.from_channel filename ch
-let buffer_from_file filename =
-  DefaultPP.from_file filename
-let buffer_from_string ?(filename="") str =
-  DefaultPP.from_string filename str
+include DefaultPP
 
 type 'a buf_table = (line * int * 'a list) list
 

@@ -69,19 +69,19 @@ val get : buffer -> int -> char
 
 (** {2 Creating a buffer} *)
 
-(** [buffer_from_channel fn ic] constructs a buffer using the input channel
+(** [from_channel fn ic] constructs a buffer using the input channel
    [ic]. The optional file name [fn] is only provided to name the buffer in
    exceptions. *)
-val buffer_from_channel : ?filename:string -> in_channel -> buffer
+val from_channel : ?filename:string -> in_channel -> buffer
 
-(** [buffer_from_file fn] constructs a buffer using the file [fn]. The file
+(** [from_file fn] constructs a buffer using the file [fn]. The file
    is open for reading, and the function [buffer_from_channel] is called. *)
-val buffer_from_file : string -> buffer
+val from_file : string -> buffer
 
-(** [buffer_from_string fn s] constructs a buffer using the string [s]. The
+(** [from_string fn s] constructs a buffer using the string [s]. The
    optional file name [fn] is only provided to name the buffer in
    exceptions. *)
-val buffer_from_string : ?filename:string -> string -> buffer
+val from_string : ?filename:string -> string -> buffer
 
 (** [empty_buffer fn lnum bol] constructs an empty buffer. The file name [fn]
    is used to name the buffer in exceptions. The integer [lnum] and [bol] give

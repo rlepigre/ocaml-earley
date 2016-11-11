@@ -890,19 +890,19 @@ let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
     a
 
 let parse_string ?(filename="") grammar blank str =
-  let str = buffer_from_string ~filename str in
+  let str = Input.from_string ~filename str in
   parse_buffer grammar blank str
 
 let partial_parse_string ?(filename="") grammar blank str =
-  let str = buffer_from_string ~filename str in
+  let str = Input.from_string ~filename str in
   partial_parse_buffer grammar blank str
 
 let parse_channel ?(filename="") grammar blank ic  =
-  let str = buffer_from_channel ~filename ic in
+  let str = Input.from_channel ~filename ic in
   parse_buffer grammar blank str
 
 let parse_file grammar blank filename  =
-  let str = buffer_from_file filename in
+  let str = Input.from_file filename in
   parse_buffer grammar blank str
 
 let fail : unit -> 'a grammar
