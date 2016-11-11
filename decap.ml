@@ -905,6 +905,27 @@ let parse_file grammar blank filename  =
   let str = Input.from_file filename in
   parse_buffer grammar blank str
 
+module WithPP(PP : Preprocessor) =
+  struct
+    module InPP = Input.WithPP(PP)
+
+    let parse_string ?(filename="") grammar blank str =
+      let str = InPP.from_string ~filename str in
+      parse_buffer grammar blank str
+
+    let partial_parse_string ?(filename="") grammar blank str =
+      let str = InPP.from_string ~filename str in
+      partial_parse_buffer grammar blank str
+
+    let parse_channel ?(filename="") grammar blank ic  =
+      let str = InPP.from_channel ~filename ic in
+      parse_buffer grammar blank str
+
+    let parse_file grammar blank filename  =
+      let str = InPP.from_file filename in
+      parse_buffer grammar blank str
+  end
+
 let fail : unit -> 'a grammar
   = fun () ->
     let fn buf pos = raise Error in

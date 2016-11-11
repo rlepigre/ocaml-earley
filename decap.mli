@@ -124,6 +124,15 @@ val partial_parse_buffer : 'a grammar -> blank -> buffer -> int
 val partial_parse_string : ?filename:string -> 'a grammar -> blank -> string
   -> int -> 'a * buffer * int
 
+module WithPP : functor (PP : Preprocessor) ->
+  sig
+    val parse_string : ?filename:string -> 'a grammar -> blank -> string -> 'a
+    val partial_parse_string : ?filename:string -> 'a grammar -> blank
+                                 -> string -> int -> 'a * buffer * int
+    val parse_channel : ?filename:string -> 'a grammar -> blank -> in_channel -> 'a
+    val parse_file : 'a grammar -> blank -> string -> 'a
+  end
+
 (** {2 Atomic parsers} *)
 
 (** [eof v] is a grammar that parses the end of file character [EOF], and
