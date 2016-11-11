@@ -4,6 +4,8 @@ export MAKE="make"
 
 set -v
 
+GOOD_BOOTSTRAPS=""
+
 function build {
     opam switch $1
     eval `opam config env`
@@ -13,14 +15,17 @@ function build {
     which ocamlopt.opt
     touch pa_ocaml.ml
     if [ "$2" = "--all" ] ; then \
-	 $MAKE distclean && $MAKE && $MAKE
+	 $MAKE distclean && $MAKE -j 8 && $MAKE -j 8
     else
 	cp pa_ocaml-$1 pa_ocaml && $MAKE clean && $MAKE ASCII=--ascii
     fi &&\
     $MAKE clean boot asttools &&\
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
     $MAKE distclean &&\
-    $MAKE && $MAKE
+    $MAKE -j 8 && $MAKE -j 8 &&\
+    GOOD_BOOTSTRAPS="$1 , $GOOD_BOOTSTRAPS"
+    echo ==========================================================
+    echo GOOD_BOOTSTRAPS: $GOOD_BOOTSTRAPS
     echo ==========================================================
     # ./tests_pa_ocaml.sh
 }
@@ -43,3 +48,5 @@ for v in $VERSIONS; do
 done
 
 $MAKE distclean
+
+echo GOOD_BOOTSTRAPS: $GOOD_BOOTSTRAPS
