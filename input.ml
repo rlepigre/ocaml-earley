@@ -398,11 +398,14 @@ module type Preprocessor =
     (** [update st name lnum line] takes as input the state [st] of the
         preprocessor, the file name [name], the number of the next input
         line [lnum] and the next input line [line] itself. It returns a
-        couple of the new state and a boolean. The boolean is [true] if
-        the line should be part of the input (i.e. it is not a specific
+        tuple of the new state, the new file name, the new line number,
+        and a boolean. The new file name and line number can be used to
+        implement line number directives. The boolean is [true] if the
+        line should be part of the input (i.e. it is not a specific
         preprocessor line) and [false] if it should be ignored. The
         function may raise [Preprocessor_error msg] in case of error. *)
-    val update : state -> string -> int -> string -> state * bool
+    val update : state -> string -> int -> string
+                 -> state * string * int * bool
 
     (** [check_final st name] check that [st] indeed is a correct state
         of the preprocessor for the end of input of file [name]. If it
@@ -419,7 +422,7 @@ module Make(PP : Preprocessor) =
           let lnum = lnum + 1 in
           try
             let data = get_line file in
-            let (st, take) = PP.update st name lnum data in
+            let (st, name, lnum, take) = PP.update st name lnum data in
             if take then
               let llen = String.length data in
               { is_eof = false ; lnum ; loff ; llen ; data ; name
@@ -442,8 +445,8 @@ module Make(PP : Preprocessor) =
 module NoPP : Preprocessor =
   struct
     type state = unit
-    let initial_state   = ()
-    let update st _ _ _ = (st, true)
+    let initial_state = ()
+    let update st fname lnum _ = (st, fname, lnum, true)
     let check_final _ _ = ()
   end
 
@@ -471,6 +474,9 @@ let elif_directive =
 
 let endif_directive =
   Str.regexp "[ \t]*endif[ \t]*"
+
+let line_num_directive =
+  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
 
 let test_directive fname num line =
   if Str.string_match ifdef_directive line 1 then
@@ -522,29 +528,32 @@ module OCamlPP : Preprocessor =
 
     let update st name lnum line =
       if line <> "" && line.[0] = '#' then
-        let st =
-          if Str.string_match define_directive line 1 && active st then
-            let macro_name = Str.matched_group 1 line in
-            let value = Str.matched_group 2 line in
-            Unix.putenv macro_name value; st
-          else if Str.string_match if_directive line 1 then
-            test_directive name lnum line :: st
-          else if Str.string_match elif_directive line 1 then
-            match st with
-            | []      -> pp_error name "unexpected elif directive"
-            | _ :: st -> test_directive name lnum line :: st
-          else if Str.string_match else_directive line 1 then
-            match st with
-            | []      -> pp_error name "unexpected else directive"
-            | b :: st -> not b :: st
-          else if Str.string_match endif_directive line 1 then
-            match st with
-            | []      -> pp_error name "unexpected endif directive"
-            | _ :: st -> st
-          else
-            pp_error name "unexpected directive"
-        in (st, false)
-      else (st, active st)
+        if Str.string_match define_directive line 1 && active st then
+          let macro_name = Str.matched_group 1 line in
+          let value = Str.matched_group 2 line in
+          Unix.putenv macro_name value;
+          (st, name, lnum, false)
+        else if Str.string_match if_directive line 1 then
+          (test_directive name lnum line :: st, name, lnum, false)
+        else if Str.string_match elif_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected elif directive"
+          | _ :: st -> (test_directive name lnum line :: st, name, lnum, false)
+        else if Str.string_match else_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected else directive"
+          | b :: st -> (not b :: st, name, lnum, false)
+        else if Str.string_match endif_directive line 1 then
+          match st with
+          | []      -> pp_error name "unexpected endif directive"
+          | _ :: st -> (st, name, lnum, false)
+        else if Str.string_match line_num_directive line 1 then
+          let lnum = int_of_string (Str.matched_group 1 line) in
+          let name = try Str.matched_group 3 line with Not_found -> name in
+          (st, name, lnum, false)
+        else
+          pp_error name "unexpected directive"
+      else (st, name, lnum, active st)
 
     let check_final st name =
       match st with
@@ -553,98 +562,9 @@ module OCamlPP : Preprocessor =
   end
 
 module DefaultPP = Make(OCamlPP)
-let buffer_from_fun' ?(finalise=(fun _ -> ())) fname get_line data =
+let buffer_from_fun ?(finalise=(fun _ -> ())) fname get_line data =
   DefaultPP.from_fun finalise fname get_line data
 
-
-
-let line_num_directive =
-  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
-
-type cont_info =
-    Else | Endif | EndOfFile | Elif of bool
-
-let buffer_from_fun ?(finalise=(fun _ -> ())) fname get_line data =
-  let rec fn fname active num loff cont =
-    begin
-      let num = num + 1 in
-      try
-        let line = get_line data in
-        let len = String.length line in
-        let loff' = loff + len in
-        (fun () ->
-           if len > 0 && line.[0] = '#' then
-             if Str.string_match line_num_directive line 1 then
-               let num =
-                 int_of_string (Str.matched_group 1 line)
-               in
-               let fname =
-                 try Str.matched_group 3 line with Not_found -> fname
-               in
-               fn fname active num loff' cont
-             else if Str.string_match define_directive line 1 then
-               let macro_name = Str.matched_group 1 line in
-               let value = Str.matched_group 2 line in
-               Unix.putenv macro_name value;
-               fn fname active num loff' cont
-             else if Str.string_match if_directive line 1 then
-               let b = test_directive fname num line in
-               fn fname (b && active) num loff' (
-                    let rec cont' b = fun fname (status:cont_info) num loff ->
-                      match status with
-                      | EndOfFile ->
-                         Printf.eprintf "file: %s, line %d: expecting '#else' or '#endif'" fname num;
-                         exit 1
-                      | Endif -> fn fname active num loff cont
-                      | Else ->
-                         fn fname (not b && active) num loff
-                            (fun fname (status:cont_info) num loff ->
-                             match status with
-                             | Elif _ | Else | EndOfFile ->
-                                                  Printf.eprintf "file: %s, line %d: expecting '#endif'" fname num;
-                                                  exit 1
-                             | Endif -> fn fname active num loff cont)
-                      | Elif b' ->
-                         fn fname (not b && b' && active) num loff (cont' (b || b'))
-                    in
-                    cont' b)
-             else if Str.string_match elif_directive line 1 then
-               let b = test_directive fname num line in
-               cont fname (Elif b) num loff'
-             else if Str.string_match else_directive line 1 then
-               cont fname Else num loff'
-             else if Str.string_match endif_directive line 1 then
-               cont fname Endif num loff'
-             else if active then (
-               { is_eof = false; name = fname; lnum = num; loff; llen = len ; data = line ;
-                 next = lazy (fn fname active num loff' cont); uid = new_uid () })
-             else fn fname active num  loff' cont
-           else if active then (
-               { is_eof = false; name = fname; lnum = num; loff; llen = len ; data = line ;
-                 next = lazy (fn fname active num loff' cont); uid = new_uid () })
-           else fn fname active num loff' cont)
-      with
-        End_of_file -> fun () -> finalise data; cont fname EndOfFile num loff
-    end ()
-  in
-  lazy (fn fname true 0 0 (fun fname status line loff ->
-  match status with
-  | Else ->
-     Printf.eprintf "file: %s, extra '#else'" fname;
-     exit 1
-  | Elif _ ->
-     Printf.eprintf "file: %s, extra '#elif'" fname;
-     exit 1
-  | Endif ->
-     Printf.eprintf "file: %s, extra '#endif'" fname;
-     exit 1
-  | EndOfFile ->
-     Lazy.force (empty_buffer fname line loff)))
-
-(* NOTE Uncomment to test. *)
-(*
-let buffer_from_fun = buffer_from_fun'
-*)
 
 external unsafe_input : in_channel -> string -> int -> int -> int
                       = "caml_ml_input"
