@@ -15,14 +15,14 @@ function build {
     which ocamlopt.opt
     touch pa_ocaml.ml
     if [ "$2" = "--all" ] ; then \
-	 $MAKE distclean && $MAKE -j 8 && $MAKE -j 8
+	 $MAKE distclean && $MAKE && $MAKE
     else
 	cp pa_ocaml-$1 pa_ocaml && $MAKE clean && $MAKE ASCII=--ascii
     fi &&\
     $MAKE clean boot asttools &&\
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
     $MAKE distclean &&\
-    $MAKE -j 8 && $MAKE -j 8 &&\
+    $MAKE && $MAKE &&\
     GOOD_BOOTSTRAPS="$1 , $GOOD_BOOTSTRAPS"
     echo ==========================================================
     echo GOOD_BOOTSTRAPS: $GOOD_BOOTSTRAPS
