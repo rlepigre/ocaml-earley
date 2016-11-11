@@ -135,3 +135,46 @@ val insert_buf : buffer -> int -> 'a -> 'a buf_table -> 'a buf_table
 val pop_firsts_buf : 'a buf_table -> buffer * int * 'a list * 'a buf_table
 
 val iter_buf : 'a buf_table -> ('a -> unit) -> unit
+
+
+
+module type MinimalInput =
+  sig
+    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+  end
+
+module GenericInput : functor (M : MinimalInput) ->
+  sig
+    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+    val from_channel : ?filename:string -> in_channel -> buffer
+    val from_file : string -> buffer
+    val from_string : ?filename:string -> string -> buffer
+  end
+
+module NoPP :
+  sig
+    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+    val from_channel : ?filename:string -> in_channel -> buffer
+    val from_file : string -> buffer
+    val from_string : ?filename:string -> string -> buffer
+  end
+
+exception Preprocessor_error of string * string
+val pp_error : string -> string -> 'a
+
+module type Preprocessor =
+  sig
+    type state
+    val initial_state : state
+    val update : state -> string -> int -> string
+                   -> state * string * int * bool
+    val check_final : state -> string -> unit
+  end
+
+module WithPP : functor (PP : Preprocessor) ->
+  sig
+    val from_fun : ('a -> unit) -> string -> ('a -> string) -> 'a -> buffer
+    val from_channel : ?filename:string -> in_channel -> buffer
+    val from_file : string -> buffer
+    val from_string : ?filename:string -> string -> buffer
+  end
