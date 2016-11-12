@@ -63,7 +63,7 @@ type regexp =
 let print_regexp ch re =
   let rec pregexp ch = function
     | Chr(c)   -> Printf.fprintf ch "Chr(%C)" c
-    | Set(s)   -> Printf.fprintf ch "Set(%a)" Charset.print_charset s
+    | Set(s)   -> Printf.fprintf ch "Set(%a)" Charset.print s
     | Seq(l)   -> Printf.fprintf ch "Seq([%a])" pregexps l
     | Alt(l)   -> Printf.fprintf ch "Alt([%a])" pregexps l
     | Opt(r)   -> Printf.fprintf ch "Opt(%a)" pregexp r

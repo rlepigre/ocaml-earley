@@ -1,4 +1,3 @@
-open Charset
 open Input
 open Str
 
@@ -315,7 +314,7 @@ let print_final ch (D {rest; full}) =
   in
   fn full;
   let (ae,set) = force (rule_info rest) in
-  if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" print_charset set ae
+  if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
@@ -330,7 +329,7 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   | C {rest; full} ->
      fn rest full;
      let (ae,set) = force (rule_info rest) in
-     if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" print_charset set ae
+     if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
   | B _ ->
     Printf.fprintf ch "B"
   | A ->
@@ -635,7 +634,7 @@ let taille_tables els forward =
 
 let good c i =
   let (ae,set) = force i in
-  if !debug_lvl > 4 then Printf.eprintf "good %c %b %a" c ae Charset.print_charset set;
+  if !debug_lvl > 4 then Printf.eprintf "good %c %b %a" c ae Charset.print set;
   let res = ae || Charset.mem set c in
   if !debug_lvl > 4 then Printf.eprintf " => %b\n%!" res;
   res
@@ -962,7 +961,7 @@ let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
      (match f === Idt, e === idtEmpty with
      | Eq, Eq -> ptr := snd p2; Fixpoint.update i;
      | _ -> invalid_arg "set_grammar")
-  (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print_charset set;*)
+  (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
   | _ -> invalid_arg "set_grammar"
 
 let grammar_name : type a.a grammar -> string = fun p1 ->
@@ -980,23 +979,23 @@ let char : ?name:string -> char -> 'a -> 'a grammar
     in
     solo ~name (Charset.singleton c) fn
 
-let in_charset : ?name:string -> charset -> char grammar
+let in_charset : ?name:string -> Charset.t -> char grammar
   = fun ?name cs ->
-    let msg = Printf.sprintf "%s" (String.concat "|" (list_of_charset cs)) in
+    let msg = Printf.sprintf "[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
       let c, buf', pos' = read buf pos in
-      if mem cs c then (c,buf',pos') else give_up ()
+      if Charset.mem cs c then (c,buf',pos') else give_up ()
     in
     solo ~name cs fn
 
-let not_in_charset : ?name:string -> charset -> unit grammar
+let not_in_charset : ?name:string -> Charset.t -> unit grammar
   = fun ?name cs ->
-    let msg = Printf.sprintf "^%s" (String.concat "|" (list_of_charset cs)) in
+    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
       let c, buf', pos' = read buf pos in
-      if mem cs c then ((), false) else ((), true)
+      if Charset.mem cs c then ((), false) else ((), true)
     in
     test ~name (Charset.complement cs) fn
 
@@ -1046,7 +1045,7 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
     for i = 0 to 254 do
       let s = String.make 1 (Char.chr i) in
       if Str.string_partial_match r s 0 && Str.match_end () > 0 then
-        (found := true; addq set (Char.chr i))
+        (found := true; Charset.addq set (Char.chr i))
     done;
     if not !found then failwith "regexp: illegal empty regexp";
     (*let ae = Str.string_match r "" 0 in*)
@@ -1070,7 +1069,7 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
       solo ~name set fn
 
 (* charset is now useless ... will be suppressed soon *)
-let black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool -> string -> 'a grammar
+let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
   = fun fn set ae name -> solo ~name set fn
 
 let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), new_cell ())])

@@ -44,68 +44,83 @@
   knowledge of the CeCILL-B license and that you accept its terms.
   ======================================================================
 *)
-
-(** A module implementing character sets efficiently. *)
+(** A module providing efficient character sets. *)
 
 (** {2 Type} *)
 
 (** The abstract type for a character set. *)
 type charset
+
+(** Synonym of [charset]. *)
 type t = charset
 
-(** {2 Constant charsets} *)
+(** {2 Charset construction} *)
 
 (** The empty character set. *)
 val empty : charset
 
 (** The full character set. *)
-val full  : charset
+val full : charset
 
-(** {2 Manipulating charsets} *)
+(** [singleton c] returns a charset containing only [c]. *)
+val singleton : char -> charset
 
-(** [mem cs c] tests whether the character [c] appears in the charset [cs]. *)
-val mem : charset -> char -> bool
-
-(** [addq cs c] adds the character [c] to the charset [cs]. *)
-val addq : charset -> char -> unit
-
-(** [add cs c] adds the character [c] to the charset [cs] and returns the new
-   charset. *)
-val add : charset -> char -> charset
-
-(** [delq cs c] deletes the character [c] in the charset [cs] if it is
-   appears. *)
-val delq : charset -> char -> unit
-
-(** [delq cs c] deletes the character [c] in the charset [cs] if it is
-   appears, and returns the new charset. *)
-val del : charset -> char -> charset
-
-(** [union cs1 cs2] returns a charset that is the union of charset [cs1] and
-   charset [cs2]. *)
-val union : charset -> charset -> charset
-
-(** [complement cs] returns the charset that contains exactly the characters
-   that were not in [cs]. *)
-val complement : charset -> charset
-
-(** [range cmin cmax] returns the charset containing all the characters
-   between [cmin] and [cmax]. *)
+(** [range cmin cmax] returns the charset containing all the  characters
+    between [cmin] and [cmax]. *)
 val range : char -> char -> charset
 
-(** [singleton c] returns a charset containing only character [c]. *)
-val singleton : char -> charset
+(** [union cs1 cs2] builds a new charset that contins the union  of  the
+    characters of [cs1] and [cs2]. *)
+val union : charset -> charset -> charset
+
+(** [complement cs] returns a new charset containing exactly  characters
+    that are not in [cs]. *)
+val complement : charset -> charset
+
+(** [add cs c] returns a new charset containing the characters  of  [cs]
+    and the character [c]. *)
+val add : charset -> char -> charset
+
+(** [del cs c] returns a new charset containing the characters  of  [cs]
+    but not the character [c]. *)
+val del : charset -> char -> charset
+
+(** {2 Membership test} *)
+
+(** [mem cs c] tests whether the charset [cs] contains [c]. *)
+val mem : charset -> char -> bool
+
+(** {2 Printing and string representation} *)
+
+(** [print oc cs] prints the charset [cs] to the output channel [oc].  A
+    compact format is used for printing: common ranges are used and full
+    and empty charsets are abreviated. *)
+val print : out_channel -> charset -> unit
+
+(** [print_full oc cs] is the same as [print oc cs] but it does not  use
+    abreviations (i.e. all characters are displayed). *)
+val print_full : out_channel -> charset -> unit
+
+(** [show oc cs] builds a string representing the charset [cs] using the
+    same compact format as [print]. *)
+val show : charset -> string
+
+(** [show_full oc cs] is the same as [show oc cs] but it  does  not  use
+    abreviations (i.e. all characters appear). *)
+val show_full : charset -> string
+
+(** {2 Manipulating charsets imperatively} *)
 
 (** [copy cs] make a copy of the charset [cs]. *)
 val copy : charset -> charset
 
-(** [print_charset oc cs] prints the charset [cs] on the output channel [oc].
-   If no charset is provided, ["None"] is printed. *)
-val print_charset : out_channel -> charset -> unit
+(** [addq cs c] adds the character [c] to the charset [cs].  Users  must
+    be particularly careful when using this function. In particular,  it
+    should not be used directly on [empty], [full] or the result of  the
+    [singleton] function as it would change their value permanently.  It
+    is advisable to prefer the use of [add] or to work on a [copy]. *)
+val addq : charset -> char -> unit
 
-(** Same as [print_charset], but do not use abreviations such as [a-z]. *)
-val print_raw_charset : out_channel -> charset -> unit
-
-(** [list_of_charset cs] transforms a charset into a list of strings, each
-   containing an escaped character. *)
-val list_of_charset : charset -> string list
+(** [delq cs c] deletes the character [c] from the charset [cs]. Similar
+    recomendatiosn as for [addq] apply. *)
+val delq : charset -> char -> unit

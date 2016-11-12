@@ -54,7 +54,6 @@ type line =
   ; mutable next : buffer (* Following line                          *)
   ; name         : string (* The name of the buffer (e.g. file name) *)
   ; uid          : int }  (* Unique identifier                       *)
-
 and buffer = line Lazy.t
 
 (* Generate a unique identifier. *)
