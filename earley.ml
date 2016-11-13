@@ -40,203 +40,79 @@
   ======================================================================
 *)
 
-open Input
+(* Custom hash table module. [Hashtbl] won't  do  because  it  does  not
+   accept keys that contain closures. Here a custom  comparing  function
+   can be provided at the creation of the hash table. *)
+module EqHashtbl :
+  sig
+    type ('a, 'b) t
 
-module Ahash =
+    val create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t
+
+    val add : ('a, 'b) t -> 'a -> 'b -> unit
+
+    val find : ('a, 'b) t -> 'a -> 'b
+
+    val iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
+  end =
   struct
-    (* This is part of OCaml, we just changed the comparison for
-       polymorphic hashtbl for it to work on function, where
-       we use physical equality. 
-    
-       This is only useful when the hash function produces collision
-     *)
-    
-    let compare x y =
-      try Pervasives.compare x y = 0 with _ -> x == y
-    					      
-    let hash x = Hashtbl.hash x
-    let hash_param n1 n2 x = Hashtbl.hash_param n1 n2 x
-    
-    (* We do dynamic hashing, and resize the table and rehash the elements
-       when buckets become too long. *)
-    
     type ('a, 'b) t =
-      { mutable size: int;                        (* number of entries *)
-        mutable data: ('a, 'b) bucketlist array;  (* the buckets *)
-        mutable seed: int;                        (* for randomization *)
-        initial_size: int;                        (* initial array size *)
-      }
-    
-    and ('a, 'b) bucketlist =
-        Empty
-      | Cons of 'a * 'b * ('a, 'b) bucketlist
-    
-    (* To pick random seeds if requested *)
-    
-    let randomized_default =
-      let params =
-        try Sys.getenv "OCAMLRUNPARAM" with Not_found ->
-        try Sys.getenv "CAMLRUNPARAM" with Not_found -> "" in
-      String.contains params 'R'
-    
-    let randomized = ref randomized_default
-    
-    let randomize () = randomized := true
-    
-    let prng = lazy (Random.State.make_self_init())
-    
-    (* Creating a fresh, empty table *)
-    
-    let rec power_2_above x n =
-      if x >= n then x
-      else if x * 2 > Sys.max_array_length then x
-      else power_2_above (x * 2) n
-    
-    let create ?(random = !randomized) initial_size =
-      let s = power_2_above 16 initial_size in
-      let seed = if random then Random.State.bits (Lazy.force prng) else 0 in
-      { initial_size = s; size = 0; seed = seed; data = Array.make s Empty }
-    
-    let clear h =
-      h.size <- 0;
-      let len = Array.length h.data in
-      for i = 0 to len - 1 do
-        h.data.(i) <- Empty
-      done
-    
-    let reset h =
-      let len = Array.length h.data in
-      if Obj.size (Obj.repr h) < 4 (* compatibility with old hash tables *)
-        || len = h.initial_size then
-        clear h
-      else begin
-        h.size <- 0;
-        h.data <- Array.make h.initial_size Empty
-      end
-    
-    let copy h = { h with data = Array.copy h.data }
-    
-    let length h = h.size
-    
-    let resize indexfun h =
-      let odata = h.data in
-      let osize = Array.length odata in
-      let nsize = osize * 2 in
-      if nsize < Sys.max_array_length then begin
-        let ndata = Array.make nsize Empty in
-        h.data <- ndata;          (* so that indexfun sees the new bucket count *)
-        let rec insert_bucket = function
-            Empty -> ()
-          | Cons(key, data, rest) ->
-              insert_bucket rest; (* preserve original order of elements *)
-              let nidx = indexfun h key in
-              ndata.(nidx) <- Cons(key, data, ndata.(nidx)) in
-        for i = 0 to osize - 1 do
-          insert_bucket odata.(i)
-        done
-      end
-    
-    let key_index h key =
-      (hash_param 10 100 key) land (Array.length h.data - 1)
-    
-    let add h key info =
-      let i = key_index h key in
-      let bucket = Cons(key, info, h.data.(i)) in
-      h.data.(i) <- bucket;
-      h.size <- h.size + 1;
-      if h.size > Array.length h.data lsl 1 then resize key_index h
-    
-    let remove h key =
-      let rec remove_bucket = function
-        | Empty ->
-            Empty
-        | Cons(k, i, next) ->
-            if compare k key
-            then begin h.size <- h.size - 1; next end
-            else Cons(k, i, remove_bucket next) in
-      let i = key_index h key in
-      h.data.(i) <- remove_bucket h.data.(i)
-    
-    let rec find_rec key = function
-      | Empty ->
-          raise Not_found
-      | Cons(k, d, rest) ->
-          if compare key k then d else find_rec key rest
-    
-    let find h key =
-      match h.data.(key_index h key) with
-      | Empty -> raise Not_found
-      | Cons(k1, d1, rest1) ->
-          if compare key k1 then d1 else
-          match rest1 with
-          | Empty -> raise Not_found
-          | Cons(k2, d2, rest2) ->
-              if compare key k2 then d2 else
-              match rest2 with
-              | Empty -> raise Not_found
-              | Cons(k3, d3, rest3) ->
-                  if compare key k3 then d3 else find_rec key rest3
-    
-    let find_all h key =
-      let rec find_in_bucket = function
-      | Empty ->
-          []
-      | Cons(k, d, rest) ->
-          if compare k key
-          then d :: find_in_bucket rest
-          else find_in_bucket rest in
-      find_in_bucket h.data.(key_index h key)
-    
-    let replace h key info =
-      let rec replace_bucket = function
-        | Empty ->
-            raise Not_found
-        | Cons(k, i, next) ->
-            if compare k key
-            then Cons(key, info, next)
-            else Cons(k, i, replace_bucket next) in
-      let i = key_index h key in
-      let l = h.data.(i) in
-      try
-        h.data.(i) <- replace_bucket l
-      with Not_found ->
-        h.data.(i) <- Cons(key, info, l);
-        h.size <- h.size + 1;
-        if h.size > Array.length h.data lsl 1 then resize key_index h
-    
-    let mem h key =
-      let rec mem_in_bucket = function
-      | Empty ->
-          false
-      | Cons(k, d, rest) ->
-          compare k key || mem_in_bucket rest in
-      mem_in_bucket h.data.(key_index h key)
-    
-    let iter f h =
-      let rec do_bucket = function
-        | Empty ->
-            ()
-        | Cons(k, d, rest) ->
-            f k d; do_bucket rest in
-      let d = h.data in
-      for i = 0 to Array.length d - 1 do
-        do_bucket d.(i)
-      done
-    
-    let fold f h init =
-      let rec do_bucket b accu =
-        match b with
-          Empty ->
-            accu
-        | Cons(k, d, rest) ->
-            do_bucket rest (f k d accu) in
-      let d = h.data in
-      let accu = ref init in
-      for i = 0 to Array.length d - 1 do
-        accu := do_bucket d.(i) !accu
-      done;
-      !accu
+      { equal               : 'a -> 'a -> bool
+      ; mutable nb_buckets  : int
+      ; mutable size        : int
+      ; mutable buckets     : ('a * 'b) list array }
+
+    (* The functions enforce the invariant that a key only appears  once
+       in a bucket, and thus in a hash table. *)
+
+    let create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t =
+      fun ?(equal=(=)) nb_buckets ->
+        let nb_buckets = max nb_buckets 8 in
+        let buckets = Array.make nb_buckets [] in
+        { equal ; nb_buckets ; size = 0; buckets }
+
+    let iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit =
+      fun fn h ->
+        Array.iter (List.iter (fun (k,v) -> fn k v)) h.buckets
+
+    let hash = Hashtbl.hash
+
+    let find_bucket : ('a, 'b) t -> 'a -> int =
+      fun h k -> hash k mod h.nb_buckets
+
+    (* Always replaces the mapped value (if any). *)
+    let rec add : ('a, 'b) t -> 'a -> 'b -> unit =
+      fun h k v ->
+        if h.size > h.nb_buckets then grow h;
+        let i = find_bucket h k in
+        h.size <- h.size - (List.length h.buckets.(i));
+        let fn (kv, _) = not (h.equal k kv) in
+        h.buckets.(i) <- (k,v) :: List.filter fn h.buckets.(i);
+        h.size <- h.size + (List.length h.buckets.(i))
+
+    (* Could be made more efficient by avoiding the use [add]. *)
+    and grow : ('a, 'b) t -> unit =
+      fun h ->
+        let hh = create ~equal:h.equal (2 * h.nb_buckets) in
+        iter (add hh) h;
+        h.nb_buckets <- hh.nb_buckets;
+        h.buckets <- hh.buckets
+
+    let find : ('a, 'b) t -> 'a -> 'b =
+      fun h k ->
+        let i = find_bucket h k in
+        let rec find = function
+          | []         -> raise Not_found
+          | (kv,v)::xs -> if h.equal k kv then v else find xs
+        in find h.buckets.(i)
   end
+
+(* Comparison function accepting to compare everything. Be careful as it
+   compares everything containing a closure with physical equality  only
+   (even if closure appear deep in the compared structure). *)
+let closure_eq x y = try x = y with _ -> x == y
+
+open Input
 
 module Fixpoint =
   struct
@@ -812,7 +688,7 @@ let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> func
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
 let find_pos_tbl t (buf,pos) = Hashtbl.find t (buffer_uid buf, pos)
-let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buffer_uid buf, pos) v
+let add_pos_tbl t (buf,pos) v = Hashtbl.add t (buffer_uid buf, pos) v
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
@@ -1458,14 +1334,14 @@ let handle_exception f a =
       failwith "No parse."
     end
 
-let grammar_family ?(param_to_string=fun _ -> "...") name =
-  let tbl = Ahash.create 31 in
+let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
+  let tbl = EqHashtbl.create ~equal:closure_eq 31 in
   let is_set = ref None in
   (fun p ->
-    try Ahash.find tbl p
+    try EqHashtbl.find tbl p
     with Not_found ->
       let g = declare_grammar (name^"_"^param_to_string p) in
-      Ahash.replace tbl p g;
+      EqHashtbl.add tbl p g;
       (match !is_set with None -> ()
       | Some f ->
          set_grammar g (f p);
@@ -1474,7 +1350,7 @@ let grammar_family ?(param_to_string=fun _ -> "...") name =
   (fun f ->
     (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     is_set := Some f;
-    Ahash.iter (fun p r ->
+    EqHashtbl.iter (fun p r ->
       set_grammar r (f p);
     ) tbl)
 
@@ -1528,12 +1404,12 @@ let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
 
 let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
   = fun l1 f2 ->
-    let tbl = Ahash.create 31 in
+    let tbl = EqHashtbl.create ~equal:closure_eq 31 in
           mk_grammar [next l1 Idt (Dep (fun a ->
-              try Ahash.find tbl a
+              try EqHashtbl.find tbl a
               with Not_found ->
                 let res = grammar_to_rule (f2 a) in
-                Ahash.add tbl a res; res
+                EqHashtbl.add tbl a res; res
           ), new_cell ())]
 
 let iter : 'a grammar grammar -> 'a grammar
