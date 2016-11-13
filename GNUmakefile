@@ -29,6 +29,12 @@ earleyStr.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
 earleyStr.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
 	ocamlbuild $(FLAGS) $@
 
+.PHONY: doc
+doc: earley.docdir/index.html
+
+earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
+	ocamlbuild $@
+
 uninstall:
 	@ocamlfind remove earley
 
