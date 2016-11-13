@@ -1,0 +1,13 @@
+name="earley"
+version="0.1"
+description="Earley parser combinator library (to use with pa_ocaml)"
+archive(byte)="earley.cma"
+archive(native)="earley.cmxa"
+
+package "str" (
+  version="0.1"
+  requires="earley,str"
+  description="Str support for Earley"
+  archive(byte)="earleyStr.cma"
+  archive(native)="earleyStr.cmxa"
+)

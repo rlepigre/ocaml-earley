@@ -1,4 +1,3 @@
-OCAMLBUILD := ocamlbuild
 FLAGS      := -use-ocamlfind
 IMPLFILES  := $(wildcard *.ml)
 INTFFILES  := $(wildcard *.mli)
@@ -19,19 +18,34 @@ ifndef OCAMLF
 endif
 
 earley.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $(FLAGS) $@
+	ocamlbuild $(FLAGS) $@
 
 earley.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $(FLAGS) $@
+	ocamlbuild $(FLAGS) $@
 
 earleyStr.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $(FLAGS) $@
+	ocamlbuild $(FLAGS) $@
 
 earleyStr.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $(FLAGS) $@
+	ocamlbuild $(FLAGS) $@
+
+uninstall:
+	@ocamlfind remove earley
+
+IMPL := $(addprefix _build/,$(IMPLFILES))
+INTF := $(addprefix _build/,$(INTFFILES))
+CMX  := $(IMPL:.ml=.cmx)
+CMO  := $(IMPL:.ml=.cmo)
+CMI  := $(IMPL:.ml=.cmi)
+OBJ  := $(IMPL:.ml=.o)
+LIB  := _build/earley.cma _build/earley.cmxa _build/earley.a \
+	      _build/earleyStr.cma _build/earleyStr.cmxa _build/earleyStr.a
+
+install: all uninstall META
+	ocamlfind install earley $(INTF) $(CMX) $(CMO) $(CMI) $(OBJ) $(LIB) META
 
 clean:
-	$(OCAMLBUILD) -clean
+	ocamlbuild -clean
 
 distclean: clean
 	rm -f *~
