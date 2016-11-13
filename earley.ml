@@ -1,3 +1,45 @@
+(*
+  ======================================================================
+  Copyright Christophe Raffalli & Rodolphe Lepigre
+  LAMA, UMR 5127 CNRS, Université Savoie Mont Blanc
+
+  christophe.raffalli@univ-savoie.fr
+  rodolphe.lepigre@univ-savoie.fr
+
+  This software contains a parser combinator library for the OCaml lang-
+  uage. It is intended to be used in conjunction with pa_ocaml (an OCaml
+  parser and syntax extention mechanism) to provide  a  fully-integrated
+  way of building parsers using an extention of OCaml's syntax.
+
+  This software is governed by the CeCILL-B license under French law and
+  abiding by the rules of distribution of free software.  You  can  use, 
+  modify and/or redistribute the software under the terms of the CeCILL-
+  B license as circulated by CEA, CNRS and INRIA at the following URL.
+
+      http://www.cecill.info 
+
+  As a counterpart to the access to the source code and  rights to copy,
+  modify and redistribute granted by the  license,  users  are  provided
+  only with a limited warranty  and the software's author, the holder of
+  the economic rights, and the successive licensors  have  only  limited
+  liability. 
+
+  In this respect, the user's attention is drawn to the risks associated
+  with loading, using, modifying and/or developing  or  reproducing  the
+  software by the user in light of its specific status of free software,
+  that may mean that it is complicated  to  manipulate,  and  that  also
+  therefore means that it is reserved  for  developers  and  experienced
+  professionals having in-depth computer knowledge. Users are  therefore
+  encouraged to load and test  the  software's  suitability  as  regards
+  their requirements in conditions enabling the security of  their  sys-
+  tems and/or data to be ensured and, more generally, to use and operate
+  it in the same conditions as regards security. 
+
+  The fact that you are presently reading this means that you  have  had
+  knowledge of the CeCILL-B license and that you accept its terms.
+  ======================================================================
+*)
+
 open Input
 
 module Ahash =
@@ -1210,10 +1252,6 @@ let parse_string ?(filename="") grammar blank str =
   let str = Input.from_string ~filename str in
   parse_buffer grammar blank str
 
-let partial_parse_string ?(filename="") grammar blank str =
-  let str = Input.from_string ~filename str in
-  partial_parse_buffer grammar blank str
-
 let parse_channel ?(filename="") grammar blank ic  =
   let str = Input.from_channel ~filename ic in
   parse_buffer grammar blank str
@@ -1229,10 +1267,6 @@ module WithPP(PP : Preprocessor) =
     let parse_string ?(filename="") grammar blank str =
       let str = InPP.from_string ~filename str in
       parse_buffer grammar blank str
-
-    let partial_parse_string ?(filename="") grammar blank str =
-      let str = InPP.from_string ~filename str in
-      partial_parse_buffer grammar blank str
 
     let parse_channel ?(filename="") grammar blank ic  =
       let str = InPP.from_channel ~filename ic in
@@ -1355,8 +1389,8 @@ let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
 
 (* charset is now useless ... will be suppressed soon *)
-let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
-  = fun fn set ae name -> solo ~name set fn
+let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> 'a grammar
+  = fun fn set name -> solo ~name set fn
 
 let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), new_cell ())])
 
@@ -1414,20 +1448,17 @@ let position g =
   apply_position (fun a buf pos buf' pos' ->
     (filename buf, line_num buf, pos, line_num buf', pos', a)) g
 
-let print_exception = function
-  | Parse_error(buf,pos,messages) ->
-     let messages = String.concat "," messages in
-     Printf.eprintf "File %S, line %d, character %d:\n"
-       (filename buf) (line_num buf) (utf8_col_num buf pos);
-     Printf.eprintf "Parse error:%s\n%!" messages
-  | _ -> assert false
-
 let handle_exception f a =
-  try f a with Parse_error _ as e -> print_exception e; failwith "No parse."
+  try f a with Parse_error(buf, pos, msgs) ->
+    begin
+      Printf.eprintf "File %S, line %d, character %d:\n"
+        (filename buf) (line_num buf) (utf8_col_num buf pos);
+      Printf.eprintf "Parse error:\n%!";
+      List.iter (Printf.eprintf " - %s\n%!") msgs;
+      failwith "No parse."
+    end
 
-let active_debug = ref true
-
-let grammar_family ?(param_to_string=fun _ -> "X") name =
+let grammar_family ?(param_to_string=fun _ -> "...") name =
   let tbl = Ahash.create 31 in
   let is_set = ref None in
   (fun p ->
