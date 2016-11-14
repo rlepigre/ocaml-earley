@@ -145,12 +145,12 @@ module Start(Main:Final) =
         match !file with
         | None  -> ("stdin", stdin)
         | Some name -> (name, (open_in name)) in
-      try
+      let run () =
         match entry with
         | Implementation (g,blank) ->
             `Struct (PP.parse_channel ~filename g blank ch)
-        | Interface (g,blank) -> `Sig (PP.parse_channel ~filename g blank ch)
-      with | Earley.Parse_error _ as e -> (Earley.print_exception e; exit 1)
+        | Interface (g,blank) -> `Sig (PP.parse_channel ~filename g blank ch) in
+      Earley.handle_exception run ()
     let _ =
       if !ascii
       then
