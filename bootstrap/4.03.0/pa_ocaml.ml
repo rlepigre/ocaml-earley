@@ -8109,8 +8109,32 @@ module Make(Initial:Extension) =
                                                                   __loc__end__buf
                                                                   __loc__end__pos
                                                                  in
-                                                              loc_expr _loc
-                                                                (Pexp_lazy e)))
+                                                              {
+                                                                Parsetree.pexp_desc
+                                                                  =
+                                                                  (Parsetree.Pexp_lazy
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "e");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                Parsetree.pexp_loc
+                                                                  = _loc;
+                                                                Parsetree.pexp_attributes
+                                                                  = []
+                                                              }))
                                               :: y
                                             else y  in
                                           if lvl = App

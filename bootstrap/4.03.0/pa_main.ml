@@ -116,7 +116,7 @@ module OCamlPP : Preprocessor =
                         try Str.matched_group 3 line
                         with | Not_found  -> name  in
                       (st, name, lnum, false))
-                   else pp_error name "unexpected directive")
+                   else (st, name, lnum, (active st)))
       else (st, name, lnum, (active st)) 
     let check_final st name =
       match st with | [] -> () | _ -> pp_error name "unclosed conditionals" 
