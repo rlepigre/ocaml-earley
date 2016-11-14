@@ -1265,8 +1265,12 @@ let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
 
 (* charset is now useless ... will be suppressed soon *)
+(*
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> 'a grammar
   = fun fn set name -> solo ~name set fn
+*)
+let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
+  = fun fn set _ name -> solo ~name set fn
 
 let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), new_cell ())])
 

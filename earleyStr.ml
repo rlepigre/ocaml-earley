@@ -90,6 +90,6 @@ let regexp : ?name:string -> string -> ((int -> string) -> 'a) -> 'a grammar =
     in
     if Str.string_match r "" 0 then
       let f n = Str.matched_group n "" in
-      option (a f) (black_box fn set name)
+      option (a f) (black_box fn set false name)
     else
-      black_box fn set name
+      black_box fn set false name

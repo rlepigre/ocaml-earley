@@ -134,7 +134,11 @@ val error_message : (unit -> string) -> 'a grammar
     by [fn], and no less. The [name] argument is used for  reference  in
     error messages. Note that the functon [fn] should  use  [give_up ()]
     in case of a parse error. *)
+(*
 val  black_box : (buffer -> int -> 'a * buffer * int) -> charset
+                   -> string -> 'a grammar
+*)
+val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
                    -> string -> 'a grammar
 
 (** [debug msg] is a dummy grammar that always succeeds and prints [msg]
