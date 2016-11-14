@@ -82,10 +82,10 @@ module Default = Pa_ocaml.Make(ParserExt)
 
 (* pa_ocaml (DeCaP) *)
 let rec parse_implementation path =
-  Decap.handle_exception (Decap.parse_file Default.structure Pa_lexing.ocaml_blank) path
+  Earley.handle_exception (Earley.parse_file Default.structure Pa_lexing.ocaml_blank) path
 
 let rec parse_interface path =
-  Decap.handle_exception (Decap.parse_file Default.signature Pa_lexing.ocaml_blank) path
+  Earley.handle_exception (Earley.parse_file Default.signature Pa_lexing.ocaml_blank) path
 
 (* OCaml *)
 let parse_implementation_orig f =

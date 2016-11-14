@@ -1,14 +1,14 @@
 open Pa_ocaml_prelude
 open Pa_ocaml
 open Input
-open Decap
+open Earley
 open Format
 open Pa_lexing
 module type Final =
   sig
     include Extension
     exception Top_Exit
-    val top_phrase : Parsetree.toplevel_phrase Decap.grammar
+    val top_phrase : Parsetree.toplevel_phrase Earley.grammar
   end
 let define_directive =
   Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*"
@@ -119,7 +119,7 @@ module OCamlPP : Preprocessor =
     let check_final st name =
       match st with | [] -> () | _ -> pp_error name "unclosed conditionals"
   end 
-module PP = Decap.WithPP(OCamlPP)
+module PP = Earley.WithPP(OCamlPP)
 module Start(Main:Final) =
   struct
     let anon_fun s = file := (Some s)
@@ -150,7 +150,7 @@ module Start(Main:Final) =
         | Implementation (g,blank) ->
             `Struct (PP.parse_channel ~filename g blank ch)
         | Interface (g,blank) -> `Sig (PP.parse_channel ~filename g blank ch)
-      with | Decap.Parse_error _ as e -> (Decap.print_exception e; exit 1)
+      with | Earley.Parse_error _ as e -> (Earley.print_exception e; exit 1)
     let _ =
       if !ascii
       then

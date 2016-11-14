@@ -1,5 +1,5 @@
 open Input
-open Decap
+open Earley
 open Charset
 open Asttypes
 open Parsetree
@@ -11,14 +11,14 @@ module Make(Initial:Extension) =
   struct
     include Initial
     let ouident = uident
-    let uident = Decap.declare_grammar "uident"
+    let uident = Earley.declare_grammar "uident"
     let _ =
-      Decap.set_grammar uident
-        (Decap.alternatives
+      Earley.set_grammar uident
+        (Earley.alternatives
            [ouident;
-           Decap.fsequence_position (Decap.string "$uid:" "$uid:")
-             (Decap.sequence (Decap.ignore_next_blank expression)
-                (Decap.char '$' '$')
+           Earley.fsequence_position (Earley.string "$uid:" "$uid:")
+             (Earley.sequence (Earley.ignore_next_blank expression)
+                (Earley.char '$' '$')
                 (fun e  _  _  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -26,14 +26,14 @@ module Make(Initial:Extension) =
                        __loc__end__buf __loc__end__pos in
                    Quote.string_antiquotation _loc e))])
     let olident = lident
-    let lident = Decap.declare_grammar "lident"
+    let lident = Earley.declare_grammar "lident"
     let _ =
-      Decap.set_grammar lident
-        (Decap.alternatives
+      Earley.set_grammar lident
+        (Earley.alternatives
            [olident;
-           Decap.fsequence_position (Decap.string "$lid:" "$lid:")
-             (Decap.sequence (Decap.ignore_next_blank expression)
-                (Decap.char '$' '$')
+           Earley.fsequence_position (Earley.string "$lid:" "$lid:")
+             (Earley.sequence (Earley.ignore_next_blank expression)
+                (Earley.char '$' '$')
                 (fun e  _  _  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -41,14 +41,14 @@ module Make(Initial:Extension) =
                        __loc__end__buf __loc__end__pos in
                    Quote.string_antiquotation _loc e))])
     let oident = ident
-    let ident = Decap.declare_grammar "ident"
+    let ident = Earley.declare_grammar "ident"
     let _ =
-      Decap.set_grammar ident
-        (Decap.alternatives
+      Earley.set_grammar ident
+        (Earley.alternatives
            [oident;
-           Decap.fsequence_position (Decap.string "$ident:" "$ident:")
-             (Decap.sequence (Decap.ignore_next_blank expression)
-                (Decap.char '$' '$')
+           Earley.fsequence_position (Earley.string "$ident:" "$ident:")
+             (Earley.sequence (Earley.ignore_next_blank expression)
+                (Earley.char '$' '$')
                 (fun e  _  _  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -137,10 +137,11 @@ module Make(Initial:Extension) =
       (exp,
         (loc_typ _loc
            (Ptyp_poly (newtypes, (varify_constructors newtypes core_type)))))
-    let float_litteral = Decap.apply fst Pa_lexing.float_litteral
+    let float_litteral = Earley.apply fst Pa_lexing.float_litteral
     let _ = set_grammar char_litteral Pa_lexing.char_litteral
     let _ =
-      set_grammar string_litteral (Decap.apply fst Pa_lexing.string_litteral)
+      set_grammar string_litteral
+        (Earley.apply fst Pa_lexing.string_litteral)
     let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
     type tree =  
       | Node of tree* tree
@@ -153,64 +154,64 @@ module Make(Initial:Extension) =
          | Node (a,b) -> (fn a; fn b) in
        fn t; Buffer.contents b : string )
     let label_name = lident
-    let label = Decap.declare_grammar "label"
+    let label = Earley.declare_grammar "label"
     let _ =
-      Decap.set_grammar label
-        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '~' '~'))
-           (Decap.sequence (Decap.ignore_next_blank label_name) no_colon
+      Earley.set_grammar label
+        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '~' '~'))
+           (Earley.sequence (Earley.ignore_next_blank label_name) no_colon
               (fun ln  _default_0  _  -> ln)))
-    let opt_label = Decap.declare_grammar "opt_label"
+    let opt_label = Earley.declare_grammar "opt_label"
     let _ =
-      Decap.set_grammar opt_label
-        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '?' '?'))
-           (Decap.sequence (Decap.ignore_next_blank label_name) no_colon
+      Earley.set_grammar opt_label
+        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '?' '?'))
+           (Earley.sequence (Earley.ignore_next_blank label_name) no_colon
               (fun ln  _default_0  _  -> ln)))
-    let ty_label = Decap.declare_grammar "ty_label"
+    let ty_label = Earley.declare_grammar "ty_label"
     let _ =
-      Decap.set_grammar ty_label
-        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '~' '~'))
-           (Decap.sequence (Decap.ignore_next_blank lident)
-              (Decap.char ':' ':') (fun s  _  _  -> labelled s)))
-    let ty_opt_label = Decap.declare_grammar "ty_opt_label"
+      Earley.set_grammar ty_label
+        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '~' '~'))
+           (Earley.sequence (Earley.ignore_next_blank lident)
+              (Earley.char ':' ':') (fun s  _  _  -> labelled s)))
+    let ty_opt_label = Earley.declare_grammar "ty_opt_label"
     let _ =
-      Decap.set_grammar ty_opt_label
-        (Decap.fsequence (Decap.ignore_next_blank (Decap.char '?' '?'))
-           (Decap.sequence (Decap.ignore_next_blank lident)
-              (Decap.char ':' ':') (fun s  _  _  -> optional s)))
-    let maybe_opt_label = Decap.declare_grammar "maybe_opt_label"
+      Earley.set_grammar ty_opt_label
+        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '?' '?'))
+           (Earley.sequence (Earley.ignore_next_blank lident)
+              (Earley.char ':' ':') (fun s  _  _  -> optional s)))
+    let maybe_opt_label = Earley.declare_grammar "maybe_opt_label"
     let _ =
-      Decap.set_grammar maybe_opt_label
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x) (Decap.string "?" "?")))
+      Earley.set_grammar maybe_opt_label
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x) (Earley.string "?" "?")))
            label_name
            (fun o  ln  -> if o = None then labelled ln else optional ln))
-    let operator_name = Decap.declare_grammar "operator_name"
+    let operator_name = Earley.declare_grammar "operator_name"
     let _ =
-      Decap.set_grammar operator_name
-        (Decap.alternatives
+      Earley.set_grammar operator_name
+        (Earley.alternatives
            [alternatives (List.map infix_symbol infix_prios);
            alternatives (List.map prefix_symbol prefix_prios)])
-    let value_name = Decap.declare_grammar "value_name"
+    let value_name = Earley.declare_grammar "value_name"
     let _ =
-      Decap.set_grammar value_name
-        (Decap.alternatives
+      Earley.set_grammar value_name
+        (Earley.alternatives
            [lident;
-           Decap.fsequence (Decap.char '(' '(')
-             (Decap.sequence operator_name (Decap.char ')' ')')
+           Earley.fsequence (Earley.char '(' '(')
+             (Earley.sequence operator_name (Earley.char ')' ')')
                 (fun op  _  _  -> op))])
     let constr_name = uident
-    let tag_name = Decap.declare_grammar "tag_name"
+    let tag_name = Earley.declare_grammar "tag_name"
     let _ =
-      Decap.set_grammar tag_name
-        (Decap.sequence (Decap.string "`" "`") ident (fun _  c  -> c))
+      Earley.set_grammar tag_name
+        (Earley.sequence (Earley.string "`" "`") ident (fun _  c  -> c))
     let typeconstr_name = lident
     let field_name = lident
     let smodule_name = uident
-    let module_name = Decap.declare_grammar "module_name"
+    let module_name = Earley.declare_grammar "module_name"
     let _ =
-      Decap.set_grammar module_name
-        (Decap.apply_position
+      Earley.set_grammar module_name
+        (Earley.apply_position
            (fun u  __loc__start__buf  __loc__start__pos  __loc__end__buf 
               __loc__end__pos  ->
               let _loc =
@@ -226,132 +227,133 @@ module Make(Initial:Extension) =
     let (module_path_suit,set_module_path_suit) =
       grammar_family "module_path_suit"
     let (module_path_suit_aux,module_path_suit_aux__set__grammar) =
-      Decap.grammar_family "module_path_suit_aux"
+      Earley.grammar_family "module_path_suit_aux"
     let _ =
       module_path_suit_aux__set__grammar
         (fun allow_app  ->
-           Decap.alternatives
+           Earley.alternatives
              (let y =
-                [Decap.sequence (Decap.string "." ".") smodule_name
+                [Earley.sequence (Earley.string "." ".") smodule_name
                    (fun _  m  acc  -> Ldot (acc, m))] in
               if allow_app
               then
-                (Decap.fsequence (Decap.string "(" "(")
-                   (Decap.sequence (module_path_gen true)
-                      (Decap.string ")" ")")
+                (Earley.fsequence (Earley.string "(" "(")
+                   (Earley.sequence (module_path_gen true)
+                      (Earley.string ")" ")")
                       (fun m'  _  _  a  -> Lapply (a, m'))))
                 :: y
               else y))
     let _ =
       set_module_path_suit
         (fun allow_app  ->
-           Decap.alternatives
-             [Decap.sequence (module_path_suit_aux allow_app)
+           Earley.alternatives
+             [Earley.sequence (module_path_suit_aux allow_app)
                 (module_path_suit allow_app) (fun f  g  acc  -> g (f acc));
-             Decap.apply (fun _  acc  -> acc) (Decap.empty ())])
+             Earley.apply (fun _  acc  -> acc) (Earley.empty ())])
     let _ =
       set_module_path_gen
         (fun allow_app  ->
-           Decap.sequence smodule_name (module_path_suit allow_app)
+           Earley.sequence smodule_name (module_path_suit allow_app)
              (fun m  s  -> s (Lident m)))
     let module_path = module_path_gen false
     let extended_module_path = module_path_gen true
     let _ =
       set_grammar value_path
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence module_path (Decap.string "." ".")
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence module_path (Earley.string "." ".")
                     (fun m  _  -> m)))) value_name
            (fun mp  vn  ->
               match mp with | None  -> Lident vn | Some p -> Ldot (p, vn)))
-    let constr = Decap.declare_grammar "constr"
+    let constr = Earley.declare_grammar "constr"
     let _ =
-      Decap.set_grammar constr
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence module_path (Decap.string "." ".")
+      Earley.set_grammar constr
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence module_path (Earley.string "." ".")
                     (fun m  _  -> m)))) constr_name
            (fun mp  cn  ->
               match mp with | None  -> Lident cn | Some p -> Ldot (p, cn)))
-    let typeconstr = Decap.declare_grammar "typeconstr"
+    let typeconstr = Earley.declare_grammar "typeconstr"
     let _ =
-      Decap.set_grammar typeconstr
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence extended_module_path (Decap.string "." ".")
-                    (fun m  _  -> m)))) typeconstr_name
+      Earley.set_grammar typeconstr
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence extended_module_path
+                    (Earley.string "." ".") (fun m  _  -> m))))
+           typeconstr_name
            (fun mp  tcn  ->
               match mp with | None  -> Lident tcn | Some p -> Ldot (p, tcn)))
-    let field = Decap.declare_grammar "field"
+    let field = Earley.declare_grammar "field"
     let _ =
-      Decap.set_grammar field
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence module_path (Decap.string "." ".")
+      Earley.set_grammar field
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence module_path (Earley.string "." ".")
                     (fun m  _  -> m)))) field_name
            (fun mp  fn  ->
               match mp with | None  -> Lident fn | Some p -> Ldot (p, fn)))
-    let class_path = Decap.declare_grammar "class_path"
+    let class_path = Earley.declare_grammar "class_path"
     let _ =
-      Decap.set_grammar class_path
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence module_path (Decap.string "." ".")
+      Earley.set_grammar class_path
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence module_path (Earley.string "." ".")
                     (fun m  _  -> m)))) class_name
            (fun mp  cn  ->
               match mp with | None  -> Lident cn | Some p -> Ldot (p, cn)))
-    let modtype_path = Decap.declare_grammar "modtype_path"
+    let modtype_path = Earley.declare_grammar "modtype_path"
     let _ =
-      Decap.set_grammar modtype_path
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence extended_module_path (Decap.string "." ".")
-                    (fun m  _  -> m)))) modtype_name
+      Earley.set_grammar modtype_path
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence extended_module_path
+                    (Earley.string "." ".") (fun m  _  -> m)))) modtype_name
            (fun mp  mtn  ->
               match mp with | None  -> Lident mtn | Some p -> Ldot (p, mtn)))
-    let classtype_path = Decap.declare_grammar "classtype_path"
+    let classtype_path = Earley.declare_grammar "classtype_path"
     let _ =
-      Decap.set_grammar classtype_path
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence extended_module_path (Decap.string "." ".")
-                    (fun m  _  -> m)))) class_name
+      Earley.set_grammar classtype_path
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence extended_module_path
+                    (Earley.string "." ".") (fun m  _  -> m)))) class_name
            (fun mp  cn  ->
               match mp with | None  -> Lident cn | Some p -> Ldot (p, cn)))
-    let opt_variance = Decap.declare_grammar "opt_variance"
+    let opt_variance = Earley.declare_grammar "opt_variance"
     let _ =
-      Decap.set_grammar opt_variance
-        (Decap.apply
+      Earley.set_grammar opt_variance
+        (Earley.apply
            (fun v  ->
               match v with
               | None  -> (false, false)
               | Some "+" -> (true, false)
               | Some "-" -> (false, true)
               | _ -> assert false)
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.regexp "[+-]" (fun groupe  -> groupe 0)))))
-    let override_flag = Decap.declare_grammar "override_flag"
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.regexp "[+-]" (fun groupe  -> groupe 0)))))
+    let override_flag = Earley.declare_grammar "override_flag"
     let _ =
-      Decap.set_grammar override_flag
-        (Decap.apply (fun o  -> if o <> None then Override else Fresh)
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x) (Decap.string "!" "!"))))
-    let attr_id = Decap.declare_grammar "attr_id"
+      Earley.set_grammar override_flag
+        (Earley.apply (fun o  -> if o <> None then Override else Fresh)
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x) (Earley.string "!" "!"))))
+    let attr_id = Earley.declare_grammar "attr_id"
     let _ =
-      Decap.set_grammar attr_id
-        (Decap.sequence_position ident
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.sequence (Decap.char '.' '.') ident
+      Earley.set_grammar attr_id
+        (Earley.sequence_position ident
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.sequence (Earley.char '.' '.') ident
                        (fun _  id  -> id)))))
            (fun id  l  __loc__start__buf  __loc__start__pos  __loc__end__buf 
               __loc__end__pos  ->
@@ -363,143 +365,145 @@ module Make(Initial:Extension) =
       | PStr of structure_item list
       | PTyp of core_type
       | PPat of pattern* expression option 
-    let payload = Decap.declare_grammar "payload"
+    let payload = Earley.declare_grammar "payload"
     let _ =
-      Decap.set_grammar payload
-        (Decap.alternatives
-           [Decap.apply (fun s  -> PStr s) structure;
-           Decap.sequence (Decap.char ':' ':') typexpr (fun _  t  -> PTyp t);
-           Decap.fsequence (Decap.char '?' '?')
-             (Decap.sequence pattern
-                (Decap.option None
-                   (Decap.apply (fun x  -> Some x)
-                      (Decap.sequence (Decap.string "when" "when") expression
-                         (fun _  e  -> e)))) (fun p  e  _  -> PPat (p, e)))])
-    let attribute = Decap.declare_grammar "attribute"
+      Earley.set_grammar payload
+        (Earley.alternatives
+           [Earley.apply (fun s  -> PStr s) structure;
+           Earley.sequence (Earley.char ':' ':') typexpr
+             (fun _  t  -> PTyp t);
+           Earley.fsequence (Earley.char '?' '?')
+             (Earley.sequence pattern
+                (Earley.option None
+                   (Earley.apply (fun x  -> Some x)
+                      (Earley.sequence (Earley.string "when" "when")
+                         expression (fun _  e  -> e))))
+                (fun p  e  _  -> PPat (p, e)))])
+    let attribute = Earley.declare_grammar "attribute"
     let _ =
-      Decap.set_grammar attribute
-        (Decap.fsequence (Decap.string "[@" "[@")
-           (Decap.sequence attr_id payload (fun id  p  _  -> (id, p))))
-    let attributes = Decap.declare_grammar "attributes"
+      Earley.set_grammar attribute
+        (Earley.fsequence (Earley.string "[@" "[@")
+           (Earley.sequence attr_id payload (fun id  p  _  -> (id, p))))
+    let attributes = Earley.declare_grammar "attributes"
     let _ =
-      Decap.set_grammar attributes
-        (Decap.apply List.rev
-           (Decap.fixpoint [] (Decap.apply (fun x  y  -> x :: y) attribute)))
-    let ext_attributes = Decap.declare_grammar "ext_attributes"
+      Earley.set_grammar attributes
+        (Earley.apply List.rev
+           (Earley.fixpoint [] (Earley.apply (fun x  y  -> x :: y) attribute)))
+    let ext_attributes = Earley.declare_grammar "ext_attributes"
     let _ =
-      Decap.set_grammar ext_attributes
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence (Decap.char '%' '%') attribute
+      Earley.set_grammar ext_attributes
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence (Earley.char '%' '%') attribute
                     (fun _  a  -> a)))) attributes (fun a  l  -> (a, l)))
-    let post_item_attributes = Decap.declare_grammar "post_item_attributes"
+    let post_item_attributes = Earley.declare_grammar "post_item_attributes"
     let _ =
-      Decap.set_grammar post_item_attributes
-        (Decap.apply List.rev
-           (Decap.fixpoint []
-              (Decap.apply (fun x  y  -> x :: y)
-                 (Decap.fsequence (Decap.string "[@@" "[@@")
-                    (Decap.fsequence attr_id
-                       (Decap.sequence payload (Decap.char ']' ']')
+      Earley.set_grammar post_item_attributes
+        (Earley.apply List.rev
+           (Earley.fixpoint []
+              (Earley.apply (fun x  y  -> x :: y)
+                 (Earley.fsequence (Earley.string "[@@" "[@@")
+                    (Earley.fsequence attr_id
+                       (Earley.sequence payload (Earley.char ']' ']')
                           (fun p  _  id  _  -> (id, p))))))))
-    let ext_attributes = Decap.declare_grammar "ext_attributes"
+    let ext_attributes = Earley.declare_grammar "ext_attributes"
     let _ =
-      Decap.set_grammar ext_attributes
-        (Decap.apply List.rev
-           (Decap.fixpoint []
-              (Decap.apply (fun x  y  -> x :: y)
-                 (Decap.fsequence (Decap.string "[@@@" "[@@@")
-                    (Decap.fsequence attr_id
-                       (Decap.sequence payload (Decap.char ']' ']')
+      Earley.set_grammar ext_attributes
+        (Earley.apply List.rev
+           (Earley.fixpoint []
+              (Earley.apply (fun x  y  -> x :: y)
+                 (Earley.fsequence (Earley.string "[@@@" "[@@@")
+                    (Earley.fsequence attr_id
+                       (Earley.sequence payload (Earley.char ']' ']')
                           (fun p  _  id  _  -> (id, p))))))))
-    let extension = Decap.declare_grammar "extension"
+    let extension = Earley.declare_grammar "extension"
     let _ =
-      Decap.set_grammar extension
-        (Decap.fsequence (Decap.string "[%" "[%")
-           (Decap.fsequence attr_id
-              (Decap.sequence payload (Decap.char ']' ']')
+      Earley.set_grammar extension
+        (Earley.fsequence (Earley.string "[%" "[%")
+           (Earley.fsequence attr_id
+              (Earley.sequence payload (Earley.char ']' ']')
                  (fun p  _  id  _  -> (id, p)))))
-    let item_extension = Decap.declare_grammar "item_extension"
+    let item_extension = Earley.declare_grammar "item_extension"
     let _ =
-      Decap.set_grammar item_extension
-        (Decap.fsequence (Decap.string "[%%" "[%%")
-           (Decap.fsequence attr_id
-              (Decap.sequence payload (Decap.char ']' ']')
+      Earley.set_grammar item_extension
+        (Earley.fsequence (Earley.string "[%%" "[%%")
+           (Earley.fsequence attr_id
+              (Earley.sequence payload (Earley.char ']' ']')
                  (fun p  _  id  _  -> (id, p)))))
-    let only_poly_typexpr = Decap.declare_grammar "only_poly_typexpr"
+    let only_poly_typexpr = Earley.declare_grammar "only_poly_typexpr"
     let _ =
-      Decap.set_grammar only_poly_typexpr
-        (Decap.fsequence_position
-           (Decap.apply List.rev
-              (Decap.fixpoint1 []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.sequence (Decap.string "'" "'") ident
+      Earley.set_grammar only_poly_typexpr
+        (Earley.fsequence_position
+           (Earley.apply List.rev
+              (Earley.fixpoint1 []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.sequence (Earley.string "'" "'") ident
                        (fun _  id  -> id)))))
-           (Decap.sequence (Decap.string "." ".") typexpr
+           (Earley.sequence (Earley.string "." ".") typexpr
               (fun _  te  ids  __loc__start__buf  __loc__start__pos 
                  __loc__end__buf  __loc__end__pos  ->
                  let _loc =
                    locate __loc__start__buf __loc__start__pos __loc__end__buf
                      __loc__end__pos in
                  loc_typ _loc (Ptyp_poly (ids, te)))))
-    let poly_typexpr = Decap.declare_grammar "poly_typexpr"
+    let poly_typexpr = Earley.declare_grammar "poly_typexpr"
     let _ =
-      Decap.set_grammar poly_typexpr
-        (Decap.alternatives
-           [Decap.fsequence_position
-              (Decap.apply List.rev
-                 (Decap.fixpoint1 []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.sequence (Decap.string "'" "'") ident
+      Earley.set_grammar poly_typexpr
+        (Earley.alternatives
+           [Earley.fsequence_position
+              (Earley.apply List.rev
+                 (Earley.fixpoint1 []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.sequence (Earley.string "'" "'") ident
                           (fun _  id  -> id)))))
-              (Decap.sequence (Decap.string "." ".") typexpr
+              (Earley.sequence (Earley.string "." ".") typexpr
                  (fun _  te  ids  __loc__start__buf  __loc__start__pos 
                     __loc__end__buf  __loc__end__pos  ->
                     let _loc =
                       locate __loc__start__buf __loc__start__pos
                         __loc__end__buf __loc__end__pos in
                     loc_typ _loc (Ptyp_poly (ids, te))));
-           Decap.apply_position
+           Earley.apply_position
              (fun te  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                 __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_typ _loc (Ptyp_poly ([], te))) typexpr])
-    let poly_syntax_typexpr = Decap.declare_grammar "poly_syntax_typexpr"
+    let poly_syntax_typexpr = Earley.declare_grammar "poly_syntax_typexpr"
     let _ =
-      Decap.set_grammar poly_syntax_typexpr
-        (Decap.fsequence type_kw
-           (Decap.fsequence
-              (Decap.apply List.rev
-                 (Decap.fixpoint1 []
-                    (Decap.apply (fun x  y  -> x :: y) typeconstr_name)))
-              (Decap.sequence (Decap.string "." ".") typexpr
+      Earley.set_grammar poly_syntax_typexpr
+        (Earley.fsequence type_kw
+           (Earley.fsequence
+              (Earley.apply List.rev
+                 (Earley.fixpoint1 []
+                    (Earley.apply (fun x  y  -> x :: y) typeconstr_name)))
+              (Earley.sequence (Earley.string "." ".") typexpr
                  (fun _  te  ids  _default_0  -> (ids, te)))))
-    let method_type = Decap.declare_grammar "method_type"
+    let method_type = Earley.declare_grammar "method_type"
     let _ =
-      Decap.set_grammar method_type
-        (Decap.fsequence_position method_name
-           (Decap.sequence (Decap.string ":" ":") poly_typexpr
+      Earley.set_grammar method_type
+        (Earley.fsequence_position method_name
+           (Earley.sequence (Earley.string ":" ":") poly_typexpr
               (fun _  pte  mn  __loc__start__buf  __loc__start__pos 
                  __loc__end__buf  __loc__end__pos  ->
                  let _loc =
                    locate __loc__start__buf __loc__start__pos __loc__end__buf
                      __loc__end__pos in
                  { pfield_desc = (Pfield (mn, pte)); pfield_loc = _loc })))
-    let tag_spec = Decap.declare_grammar "tag_spec"
+    let tag_spec = Earley.declare_grammar "tag_spec"
     let _ =
-      Decap.set_grammar tag_spec
-        (Decap.alternatives
-           [Decap.sequence tag_name
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x)
-                    (Decap.fsequence of_kw
-                       (Decap.sequence
-                          (Decap.option None
-                             (Decap.apply (fun x  -> Some x)
-                                (Decap.char '&' '&'))) typexpr
+      Earley.set_grammar tag_spec
+        (Earley.alternatives
+           [Earley.sequence tag_name
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x)
+                    (Earley.fsequence of_kw
+                       (Earley.sequence
+                          (Earley.option None
+                             (Earley.apply (fun x  -> Some x)
+                                (Earley.char '&' '&'))) typexpr
                           (fun _default_1  _default_0  _  ->
                              (_default_1, _default_0))))))
               (fun tn  te  ->
@@ -508,19 +512,19 @@ module Make(Initial:Extension) =
                    | None  -> (true, [])
                    | Some (amp,l) -> ((amp <> None), [l]) in
                  Rtag (tn, amp, t));
-           Decap.apply (fun te  -> Rinherit te) typexpr])
-    let tag_spec_first = Decap.declare_grammar "tag_spec_first"
+           Earley.apply (fun te  -> Rinherit te) typexpr])
+    let tag_spec_first = Earley.declare_grammar "tag_spec_first"
     let _ =
-      Decap.set_grammar tag_spec_first
-        (Decap.alternatives
-           [Decap.sequence tag_name
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x)
-                    (Decap.fsequence of_kw
-                       (Decap.sequence
-                          (Decap.option None
-                             (Decap.apply (fun x  -> Some x)
-                                (Decap.char '&' '&'))) typexpr
+      Earley.set_grammar tag_spec_first
+        (Earley.alternatives
+           [Earley.sequence tag_name
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x)
+                    (Earley.fsequence of_kw
+                       (Earley.sequence
+                          (Earley.option None
+                             (Earley.apply (fun x  -> Some x)
+                                (Earley.char '&' '&'))) typexpr
                           (fun _default_1  _default_0  _  ->
                              (_default_1, _default_0))))))
               (fun tn  te  ->
@@ -529,47 +533,48 @@ module Make(Initial:Extension) =
                    | None  -> (true, [])
                    | Some (amp,l) -> ((amp <> None), [l]) in
                  [Rtag (tn, amp, t)]);
-           Decap.fsequence
-             (Decap.option None (Decap.apply (fun x  -> Some x) typexpr))
-             (Decap.sequence (Decap.string "|" "|") tag_spec
+           Earley.fsequence
+             (Earley.option None (Earley.apply (fun x  -> Some x) typexpr))
+             (Earley.sequence (Earley.string "|" "|") tag_spec
                 (fun _  ts  te  ->
                    match te with
                    | None  -> [ts]
                    | Some te -> [Rinherit te; ts]))])
-    let tag_spec_full = Decap.declare_grammar "tag_spec_full"
+    let tag_spec_full = Earley.declare_grammar "tag_spec_full"
     let _ =
-      Decap.set_grammar tag_spec_full
-        (Decap.alternatives
-           [Decap.sequence tag_name
-              (Decap.option (true, [])
-                 (Decap.fsequence of_kw
-                    (Decap.fsequence
-                       (Decap.option None
-                          (Decap.apply (fun x  -> Some x)
-                             (Decap.char '&' '&')))
-                       (Decap.sequence typexpr
-                          (Decap.apply List.rev
-                             (Decap.fixpoint []
-                                (Decap.apply (fun x  y  -> x :: y)
-                                   (Decap.sequence (Decap.string "&" "&")
+      Earley.set_grammar tag_spec_full
+        (Earley.alternatives
+           [Earley.sequence tag_name
+              (Earley.option (true, [])
+                 (Earley.fsequence of_kw
+                    (Earley.fsequence
+                       (Earley.option None
+                          (Earley.apply (fun x  -> Some x)
+                             (Earley.char '&' '&')))
+                       (Earley.sequence typexpr
+                          (Earley.apply List.rev
+                             (Earley.fixpoint []
+                                (Earley.apply (fun x  y  -> x :: y)
+                                   (Earley.sequence (Earley.string "&" "&")
                                       typexpr (fun _  te  -> te)))))
                           (fun te  tes  amp  _default_0  ->
                              ((amp <> None), (te :: tes)))))))
               (fun tn  ((amp,tes) as _default_0)  -> Rtag (tn, amp, tes));
-           Decap.apply (fun te  -> Rinherit te) typexpr])
+           Earley.apply (fun te  -> Rinherit te) typexpr])
     let polymorphic_variant_type : core_type grammar=
-      Decap.declare_grammar "polymorphic_variant_type"
+      Earley.declare_grammar "polymorphic_variant_type"
     let _ =
-      Decap.set_grammar polymorphic_variant_type
-        (Decap.alternatives
-           [Decap.fsequence_position (Decap.string "[" "[")
-              (Decap.fsequence tag_spec_first
-                 (Decap.sequence
-                    (Decap.apply List.rev
-                       (Decap.fixpoint []
-                          (Decap.apply (fun x  y  -> x :: y)
-                             (Decap.sequence (Decap.string "|" "|") tag_spec
-                                (fun _  ts  -> ts))))) (Decap.string "]" "]")
+      Earley.set_grammar polymorphic_variant_type
+        (Earley.alternatives
+           [Earley.fsequence_position (Earley.string "[" "[")
+              (Earley.fsequence tag_spec_first
+                 (Earley.sequence
+                    (Earley.apply List.rev
+                       (Earley.fixpoint []
+                          (Earley.apply (fun x  y  -> x :: y)
+                             (Earley.sequence (Earley.string "|" "|")
+                                tag_spec (fun _  ts  -> ts)))))
+                    (Earley.string "]" "]")
                     (fun tss  _  tsf  _  __loc__start__buf  __loc__start__pos
                         __loc__end__buf  __loc__end__pos  ->
                        let _loc =
@@ -577,15 +582,16 @@ module Make(Initial:Extension) =
                            __loc__end__buf __loc__end__pos in
                        let flag = true in
                        loc_typ _loc (Ptyp_variant ((tsf @ tss), flag, None)))));
-           Decap.fsequence_position (Decap.string "[>" "[>")
-             (Decap.fsequence
-                (Decap.option None (Decap.apply (fun x  -> Some x) tag_spec))
-                (Decap.sequence
-                   (Decap.apply List.rev
-                      (Decap.fixpoint []
-                         (Decap.apply (fun x  y  -> x :: y)
-                            (Decap.sequence (Decap.string "|" "|") tag_spec
-                               (fun _  ts  -> ts))))) (Decap.string "]" "]")
+           Earley.fsequence_position (Earley.string "[>" "[>")
+             (Earley.fsequence
+                (Earley.option None
+                   (Earley.apply (fun x  -> Some x) tag_spec))
+                (Earley.sequence
+                   (Earley.apply List.rev
+                      (Earley.fixpoint []
+                         (Earley.apply (fun x  y  -> x :: y)
+                            (Earley.sequence (Earley.string "|" "|") tag_spec
+                               (fun _  ts  -> ts))))) (Earley.string "]" "]")
                    (fun tss  _  ts  _  __loc__start__buf  __loc__start__pos 
                       __loc__end__buf  __loc__end__pos  ->
                       let _loc =
@@ -595,25 +601,25 @@ module Make(Initial:Extension) =
                         match ts with | None  -> tss | Some ts -> ts :: tss in
                       let flag = false in
                       loc_typ _loc (Ptyp_variant (tss, flag, None)))));
-           Decap.fsequence_position (Decap.string "[<" "[<")
-             (Decap.fsequence
-                (Decap.option None
-                   (Decap.apply (fun x  -> Some x) (Decap.string "|" "|")))
-                (Decap.fsequence tag_spec_full
-                   (Decap.fsequence
-                      (Decap.apply List.rev
-                         (Decap.fixpoint []
-                            (Decap.apply (fun x  y  -> x :: y)
-                               (Decap.sequence (Decap.string "|" "|")
+           Earley.fsequence_position (Earley.string "[<" "[<")
+             (Earley.fsequence
+                (Earley.option None
+                   (Earley.apply (fun x  -> Some x) (Earley.string "|" "|")))
+                (Earley.fsequence tag_spec_full
+                   (Earley.fsequence
+                      (Earley.apply List.rev
+                         (Earley.fixpoint []
+                            (Earley.apply (fun x  y  -> x :: y)
+                               (Earley.sequence (Earley.string "|" "|")
                                   tag_spec_full (fun _  tsf  -> tsf)))))
-                      (Decap.sequence
-                         (Decap.option []
-                            (Decap.sequence (Decap.string ">" ">")
-                               (Decap.apply List.rev
-                                  (Decap.fixpoint1 []
-                                     (Decap.apply (fun x  y  -> x :: y)
+                      (Earley.sequence
+                         (Earley.option []
+                            (Earley.sequence (Earley.string ">" ">")
+                               (Earley.apply List.rev
+                                  (Earley.fixpoint1 []
+                                     (Earley.apply (fun x  y  -> x :: y)
                                         tag_name))) (fun _  tns  -> tns)))
-                         (Decap.string "]" "]")
+                         (Earley.string "]" "]")
                          (fun tns  _  tfss  tfs  _default_0  _ 
                             __loc__start__buf  __loc__start__pos 
                             __loc__end__buf  __loc__end__pos  ->
@@ -623,49 +629,49 @@ module Make(Initial:Extension) =
                             let flag = true in
                             loc_typ _loc
                               (Ptyp_variant ((tfs :: tfss), flag, (Some tns))))))))])
-    let package_constraint = Decap.declare_grammar "package_constraint"
+    let package_constraint = Earley.declare_grammar "package_constraint"
     let _ =
-      Decap.set_grammar package_constraint
-        (Decap.fsequence type_kw
-           (Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar package_constraint
+        (Earley.fsequence type_kw
+           (Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) typeconstr)
-              (Decap.sequence (Decap.char '=' '=') typexpr
+              (Earley.sequence (Earley.char '=' '=') typexpr
                  (fun _  te  tc  ->
                     let (_loc_tc,tc) = tc in
                     fun _default_0  -> let tc = id_loc tc _loc_tc in (tc, te)))))
-    let package_type = Decap.declare_grammar "package_type"
+    let package_type = Earley.declare_grammar "package_type"
     let _ =
-      Decap.set_grammar package_type
-        (Decap.sequence
-           (Decap.apply_position
+      Earley.set_grammar package_type
+        (Earley.sequence
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x)) modtype_path)
-           (Decap.option []
-              (Decap.fsequence with_kw
-                 (Decap.sequence package_constraint
-                    (Decap.apply List.rev
-                       (Decap.fixpoint []
-                          (Decap.apply (fun x  y  -> x :: y)
-                             (Decap.sequence and_kw package_constraint
+           (Earley.option []
+              (Earley.fsequence with_kw
+                 (Earley.sequence package_constraint
+                    (Earley.apply List.rev
+                       (Earley.fixpoint []
+                          (Earley.apply (fun x  y  -> x :: y)
+                             (Earley.sequence and_kw package_constraint
                                 (fun _  _default_0  -> _default_0)))))
                     (fun pc  pcs  _default_0  -> pc :: pcs))))
            (fun mtp  ->
               let (_loc_mtp,mtp) = mtp in
               fun cs  ->
                 let mtp = id_loc mtp _loc_mtp in Ptyp_package (mtp, cs)))
-    let opt_present = Decap.declare_grammar "opt_present"
+    let opt_present = Earley.declare_grammar "opt_present"
     let _ =
-      Decap.set_grammar opt_present
-        (Decap.alternatives
-           [Decap.fsequence (Decap.string "[>" "[>")
-              (Decap.sequence
-                 (Decap.apply List.rev
-                    (Decap.fixpoint1 []
-                       (Decap.apply (fun x  y  -> x :: y) tag_name)))
-                 (Decap.string "]" "]") (fun l  _  _  -> l));
-           Decap.apply (fun _  -> []) (Decap.empty ())])
+      Earley.set_grammar opt_present
+        (Earley.alternatives
+           [Earley.fsequence (Earley.string "[>" "[>")
+              (Earley.sequence
+                 (Earley.apply List.rev
+                    (Earley.fixpoint1 []
+                       (Earley.apply (fun x  y  -> x :: y) tag_name)))
+                 (Earley.string "]" "]") (fun l  _  _  -> l));
+           Earley.apply (fun _  -> []) (Earley.empty ())])
     let mkoption loc d =
       let loc = ghost loc in
       loc_typ loc
@@ -676,7 +682,7 @@ module Make(Initial:Extension) =
     let _ =
       set_typexpr_lvl
         (fun lvl  ->
-           Decap.alternatives ((extra_types_grammar lvl) ::
+           Earley.alternatives ((extra_types_grammar lvl) ::
              (let y =
                 let y =
                   let y =
@@ -699,32 +705,32 @@ module Make(Initial:Extension) =
                                                     let y = [] in
                                                     if lvl = AtomType
                                                     then
-                                                      (Decap.fsequence_position
-                                                         (Decap.ignore_next_blank
-                                                            (Decap.char '$'
+                                                      (Earley.fsequence_position
+                                                         (Earley.ignore_next_blank
+                                                            (Earley.char '$'
                                                                '$'))
-                                                         (Decap.fsequence
-                                                            (Decap.option
+                                                         (Earley.fsequence
+                                                            (Earley.option
                                                                "type"
-                                                               (Decap.sequence
-                                                                  (Decap.ignore_next_blank
-                                                                    (Decap.regexp
+                                                               (Earley.sequence
+                                                                  (Earley.ignore_next_blank
+                                                                    (Earley.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
                                                                     groupe 0)))
-                                                                  (Decap.char
+                                                                  (Earley.char
                                                                     ':' ':')
                                                                   (fun
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0)))
-                                                            (Decap.sequence
-                                                               (Decap.ignore_next_blank
+                                                            (Earley.sequence
+                                                               (Earley.ignore_next_blank
                                                                   expression)
-                                                               (Decap.char
+                                                               (Earley.char
                                                                   '$' '$')
                                                                (fun e  _  aq 
                                                                   _ 
@@ -786,13 +792,13 @@ module Make(Initial:Extension) =
                                                     else y in
                                                   if lvl = DashType
                                                   then
-                                                    (Decap.fsequence_position
+                                                    (Earley.fsequence_position
                                                        (typexpr_lvl DashType)
-                                                       (Decap.fsequence
-                                                          (Decap.string "#"
+                                                       (Earley.fsequence
+                                                          (Earley.string "#"
                                                              "#")
-                                                          (Decap.sequence
-                                                             (Decap.apply_position
+                                                          (Earley.sequence
+                                                             (Earley.apply_position
                                                                 (fun x  str 
                                                                    pos  str' 
                                                                    pos'  ->
@@ -830,11 +836,11 @@ module Make(Initial:Extension) =
                                                   else y in
                                                 if lvl = As
                                                 then
-                                                  (Decap.fsequence_position
+                                                  (Earley.fsequence_position
                                                      (typexpr_lvl As)
-                                                     (Decap.fsequence as_kw
-                                                        (Decap.sequence
-                                                           (Decap.string "'"
+                                                     (Earley.fsequence as_kw
+                                                        (Earley.sequence
+                                                           (Earley.string "'"
                                                               "'") ident
                                                            (fun _  id 
                                                               _default_0  te 
@@ -856,28 +862,28 @@ module Make(Initial:Extension) =
                                                 else y in
                                               if lvl = ProdType
                                               then
-                                                (Decap.sequence_position
+                                                (Earley.sequence_position
                                                    (typexpr_lvl
                                                       (next_type_prio
                                                          ProdType))
-                                                   (Decap.apply List.rev
-                                                      (Decap.fixpoint1 []
-                                                         (Decap.apply
+                                                   (Earley.apply List.rev
+                                                      (Earley.fixpoint1 []
+                                                         (Earley.apply
                                                             (fun x  y  -> x
                                                                :: y)
-                                                            (Decap.sequence
-                                                               (Decap.alternatives
-                                                                  [Decap.apply
+                                                            (Earley.sequence
+                                                               (Earley.alternatives
+                                                                  [Earley.apply
                                                                     (fun _ 
                                                                     -> ())
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     '*' '*');
-                                                                  Decap.apply
+                                                                  Earley.apply
                                                                     (
                                                                     fun _  ->
                                                                     ())
                                                                     (
-                                                                    Decap.string
+                                                                    Earley.string
                                                                     "\195\151"
                                                                     "\195\151")])
                                                                (typexpr_lvl
@@ -903,29 +909,29 @@ module Make(Initial:Extension) =
                                               else y in
                                             if lvl = AtomType
                                             then
-                                              (Decap.fsequence_position
-                                                 (Decap.string "(" "(")
-                                                 (Decap.fsequence typexpr
-                                                    (Decap.fsequence
-                                                       (Decap.apply List.rev
-                                                          (Decap.fixpoint []
-                                                             (Decap.apply
+                                              (Earley.fsequence_position
+                                                 (Earley.string "(" "(")
+                                                 (Earley.fsequence typexpr
+                                                    (Earley.fsequence
+                                                       (Earley.apply List.rev
+                                                          (Earley.fixpoint []
+                                                             (Earley.apply
                                                                 (fun x  y  ->
                                                                    x :: y)
-                                                                (Decap.sequence
-                                                                   (Decap.string
+                                                                (Earley.sequence
+                                                                   (Earley.string
                                                                     "," ",")
                                                                    typexpr
                                                                    (fun _  te
                                                                      -> te)))))
-                                                       (Decap.fsequence
-                                                          (Decap.string ")"
+                                                       (Earley.fsequence
+                                                          (Earley.string ")"
                                                              ")")
-                                                          (Decap.fsequence
-                                                             (Decap.string
+                                                          (Earley.fsequence
+                                                             (Earley.string
                                                                 "#" "#")
-                                                             (Decap.sequence
-                                                                (Decap.apply_position
+                                                             (Earley.sequence
+                                                                (Earley.apply_position
                                                                    (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -968,10 +974,10 @@ module Make(Initial:Extension) =
                                             else y in
                                           if lvl = AtomType
                                           then
-                                            (Decap.fsequence_position
-                                               (Decap.string "#" "#")
-                                               (Decap.sequence
-                                                  (Decap.apply_position
+                                            (Earley.fsequence_position
+                                               (Earley.string "#" "#")
+                                               (Earley.sequence
+                                                  (Earley.apply_position
                                                      (fun x  str  pos  str' 
                                                         pos'  ->
                                                         ((locate str pos str'
@@ -999,43 +1005,43 @@ module Make(Initial:Extension) =
                                           else y in
                                         if lvl = AtomType
                                         then
-                                          (Decap.fsequence_position
-                                             (Decap.string "<" "<")
-                                             (Decap.fsequence method_type
-                                                (Decap.fsequence
-                                                   (Decap.apply List.rev
-                                                      (Decap.fixpoint []
-                                                         (Decap.apply
+                                          (Earley.fsequence_position
+                                             (Earley.string "<" "<")
+                                             (Earley.fsequence method_type
+                                                (Earley.fsequence
+                                                   (Earley.apply List.rev
+                                                      (Earley.fixpoint []
+                                                         (Earley.apply
                                                             (fun x  y  -> x
                                                                :: y)
-                                                            (Decap.sequence
+                                                            (Earley.sequence
                                                                semi_col
                                                                method_type
                                                                (fun _  mt  ->
                                                                   mt)))))
-                                                   (Decap.sequence
-                                                      (Decap.apply_position
+                                                   (Earley.sequence
+                                                      (Earley.apply_position
                                                          (fun x  str  pos 
                                                             str'  pos'  ->
                                                             ((locate str pos
                                                                 str' pos'),
                                                               x))
-                                                         (Decap.option None
-                                                            (Decap.apply
+                                                         (Earley.option None
+                                                            (Earley.apply
                                                                (fun x  ->
                                                                   Some x)
-                                                               (Decap.sequence
+                                                               (Earley.sequence
                                                                   semi_col
-                                                                  (Decap.option
+                                                                  (Earley.option
                                                                     None
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ".." "..")))
                                                                   (fun _  rv 
                                                                     -> rv)))))
-                                                      (Decap.char '>' '>')
+                                                      (Earley.char '>' '>')
                                                       (fun rv  ->
                                                          let (_loc_rv,rv) =
                                                            rv in
@@ -1074,20 +1080,20 @@ module Make(Initial:Extension) =
                                         else y in
                                       if lvl = AtomType
                                       then
-                                        (Decap.fsequence_position
-                                           (Decap.char '<' '<')
-                                           (Decap.sequence
-                                              (Decap.apply_position
+                                        (Earley.fsequence_position
+                                           (Earley.char '<' '<')
+                                           (Earley.sequence
+                                              (Earley.apply_position
                                                  (fun x  str  pos  str'  pos'
                                                      ->
                                                     ((locate str pos str'
                                                         pos'), x))
-                                                 (Decap.option None
-                                                    (Decap.apply
+                                                 (Earley.option None
+                                                    (Earley.apply
                                                        (fun x  -> Some x)
-                                                       (Decap.string ".."
+                                                       (Earley.string ".."
                                                           ".."))))
-                                              (Decap.char '>' '>')
+                                              (Earley.char '>' '>')
                                               (fun rv  ->
                                                  let (_loc_rv,rv) = rv in
                                                  fun _  _  __loc__start__buf 
@@ -1118,9 +1124,9 @@ module Make(Initial:Extension) =
                                     else y in
                                   if lvl = AppType
                                   then
-                                    (Decap.sequence_position
+                                    (Earley.sequence_position
                                        (typexpr_lvl AppType)
-                                       (Decap.apply_position
+                                       (Earley.apply_position
                                           (fun x  str  pos  str'  pos'  ->
                                              ((locate str pos str' pos'), x))
                                           typeconstr)
@@ -1142,21 +1148,21 @@ module Make(Initial:Extension) =
                                   else y in
                                 if lvl = AppType
                                 then
-                                  (Decap.fsequence_position
-                                     (Decap.char '(' '(')
-                                     (Decap.fsequence typexpr
-                                        (Decap.fsequence
-                                           (Decap.apply List.rev
-                                              (Decap.fixpoint1 []
-                                                 (Decap.apply
+                                  (Earley.fsequence_position
+                                     (Earley.char '(' '(')
+                                     (Earley.fsequence typexpr
+                                        (Earley.fsequence
+                                           (Earley.apply List.rev
+                                              (Earley.fixpoint1 []
+                                                 (Earley.apply
                                                     (fun x  y  -> x :: y)
-                                                    (Decap.sequence
-                                                       (Decap.char ',' ',')
+                                                    (Earley.sequence
+                                                       (Earley.char ',' ',')
                                                        typexpr
                                                        (fun _  te  -> te)))))
-                                           (Decap.sequence
-                                              (Decap.char ')' ')')
-                                              (Decap.apply_position
+                                           (Earley.sequence
+                                              (Earley.char ')' ')')
+                                              (Earley.apply_position
                                                  (fun x  str  pos  str'  pos'
                                                      ->
                                                     ((locate str pos str'
@@ -1182,7 +1188,7 @@ module Make(Initial:Extension) =
                                 else y in
                               if lvl = AtomType
                               then
-                                (Decap.apply_position
+                                (Earley.apply_position
                                    (fun tc  ->
                                       let (_loc_tc,tc) = tc in
                                       fun __loc__start__buf 
@@ -1195,7 +1201,7 @@ module Make(Initial:Extension) =
                                         loc_typ _loc
                                           (Ptyp_constr
                                              ((id_loc tc _loc_tc), [])))
-                                   (Decap.apply_position
+                                   (Earley.apply_position
                                       (fun x  str  pos  str'  pos'  ->
                                          ((locate str pos str' pos'), x))
                                       typeconstr))
@@ -1203,9 +1209,9 @@ module Make(Initial:Extension) =
                               else y in
                             if lvl = Arr
                             then
-                              (Decap.fsequence_position
+                              (Earley.fsequence_position
                                  (typexpr_lvl (next_type_prio Arr))
-                                 (Decap.sequence arrow_re (typexpr_lvl Arr)
+                                 (Earley.sequence arrow_re (typexpr_lvl Arr)
                                     (fun _default_0  te'  te 
                                        __loc__start__buf  __loc__start__pos 
                                        __loc__end__buf  __loc__end__pos  ->
@@ -1219,11 +1225,11 @@ module Make(Initial:Extension) =
                             else y in
                           if lvl = Arr
                           then
-                            (Decap.fsequence_position label_name
-                               (Decap.fsequence (Decap.char ':' ':')
-                                  (Decap.fsequence
+                            (Earley.fsequence_position label_name
+                               (Earley.fsequence (Earley.char ':' ':')
+                                  (Earley.fsequence
                                      (typexpr_lvl (next_type_prio Arr))
-                                     (Decap.sequence arrow_re
+                                     (Earley.sequence arrow_re
                                         (typexpr_lvl Arr)
                                         (fun _default_0  te'  te  _  ln 
                                            __loc__start__buf 
@@ -1241,13 +1247,13 @@ module Make(Initial:Extension) =
                           else y in
                         if lvl = Arr
                         then
-                          (Decap.fsequence_position ty_opt_label
-                             (Decap.fsequence
-                                (Decap.apply_position
+                          (Earley.fsequence_position ty_opt_label
+                             (Earley.fsequence
+                                (Earley.apply_position
                                    (fun x  str  pos  str'  pos'  ->
                                       ((locate str pos str' pos'), x))
                                    (typexpr_lvl (next_type_prio Arr)))
-                                (Decap.sequence arrow_re (typexpr_lvl Arr)
+                                (Earley.sequence arrow_re (typexpr_lvl Arr)
                                    (fun _default_0  te'  te  ->
                                       let (_loc_te,te) = te in
                                       fun ln  __loc__start__buf 
@@ -1264,16 +1270,17 @@ module Make(Initial:Extension) =
                         else y in
                       if lvl = AtomType
                       then
-                        (Decap.fsequence (Decap.char '(' '(')
-                           (Decap.sequence typexpr (Decap.char ')' ')')
+                        (Earley.fsequence (Earley.char '(' '(')
+                           (Earley.sequence typexpr (Earley.char ')' ')')
                               (fun te  _  _  -> te)))
                         :: y
                       else y in
                     if lvl = AtomType
                     then
-                      (Decap.fsequence_position (Decap.char '(' '(')
-                         (Decap.fsequence module_kw
-                            (Decap.sequence package_type (Decap.char ')' ')')
+                      (Earley.fsequence_position (Earley.char '(' '(')
+                         (Earley.fsequence module_kw
+                            (Earley.sequence package_type
+                               (Earley.char ')' ')')
                                (fun pt  _  _default_0  _  __loc__start__buf 
                                   __loc__start__pos  __loc__end__buf 
                                   __loc__end__pos  ->
@@ -1286,7 +1293,7 @@ module Make(Initial:Extension) =
                     else y in
                   if lvl = AtomType
                   then
-                    (Decap.apply_position
+                    (Earley.apply_position
                        (fun _default_0  __loc__start__buf  __loc__start__pos 
                           __loc__end__buf  __loc__end__pos  ->
                           let _loc =
@@ -1297,7 +1304,7 @@ module Make(Initial:Extension) =
                   else y in
                 if lvl = AtomType
                 then
-                  (Decap.sequence_position (Decap.string "'" "'") ident
+                  (Earley.sequence_position (Earley.string "'" "'") ident
                      (fun _  id  __loc__start__buf  __loc__start__pos 
                         __loc__end__buf  __loc__end__pos  ->
                         let _loc =
@@ -1309,49 +1316,49 @@ module Make(Initial:Extension) =
               if lvl < AtomType
               then (typexpr_lvl (next_type_prio lvl)) :: y
               else y)))
-    let type_param = Decap.declare_grammar "type_param"
+    let type_param = Earley.declare_grammar "type_param"
     let _ =
-      Decap.set_grammar type_param
-        (Decap.alternatives
-           [Decap.fsequence opt_variance
-              (Decap.sequence (Decap.char '\'' '\'')
-                 (Decap.apply_position
+      Earley.set_grammar type_param
+        (Earley.alternatives
+           [Earley.fsequence opt_variance
+              (Earley.sequence (Earley.char '\'' '\'')
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) ident)
                  (fun _  id  ->
                     let (_loc_id,id) = id in
                     fun var  -> ((Some (id_loc id _loc_id)), var)));
-           Decap.sequence opt_variance (Decap.char '_' '_')
+           Earley.sequence opt_variance (Earley.char '_' '_')
              (fun var  _  -> (None, var))])
-    let type_params = Decap.declare_grammar "type_params"
+    let type_params = Earley.declare_grammar "type_params"
     let _ =
-      Decap.set_grammar type_params
-        (Decap.alternatives
-           [Decap.apply (fun tp  -> [tp]) type_param;
-           Decap.fsequence (Decap.string "(" "(")
-             (Decap.fsequence type_param
-                (Decap.sequence
-                   (Decap.apply List.rev
-                      (Decap.fixpoint []
-                         (Decap.apply (fun x  y  -> x :: y)
-                            (Decap.sequence (Decap.string "," ",") type_param
-                               (fun _  tp  -> tp))))) (Decap.string ")" ")")
-                   (fun tps  _  tp  _  -> tp :: tps)))])
-    let type_equation = Decap.declare_grammar "type_equation"
+      Earley.set_grammar type_params
+        (Earley.alternatives
+           [Earley.apply (fun tp  -> [tp]) type_param;
+           Earley.fsequence (Earley.string "(" "(")
+             (Earley.fsequence type_param
+                (Earley.sequence
+                   (Earley.apply List.rev
+                      (Earley.fixpoint []
+                         (Earley.apply (fun x  y  -> x :: y)
+                            (Earley.sequence (Earley.string "," ",")
+                               type_param (fun _  tp  -> tp)))))
+                   (Earley.string ")" ")") (fun tps  _  tp  _  -> tp :: tps)))])
+    let type_equation = Earley.declare_grammar "type_equation"
     let _ =
-      Decap.set_grammar type_equation
-        (Decap.fsequence (Decap.char '=' '=')
-           (Decap.sequence private_flag typexpr (fun p  te  _  -> (p, te))))
-    let type_constraint = Decap.declare_grammar "type_constraint"
+      Earley.set_grammar type_equation
+        (Earley.fsequence (Earley.char '=' '=')
+           (Earley.sequence private_flag typexpr (fun p  te  _  -> (p, te))))
+    let type_constraint = Earley.declare_grammar "type_constraint"
     let _ =
-      Decap.set_grammar type_constraint
-        (Decap.fsequence_position constraint_kw
-           (Decap.fsequence (Decap.string "'" "'")
-              (Decap.fsequence
-                 (Decap.apply_position
+      Earley.set_grammar type_constraint
+        (Earley.fsequence_position constraint_kw
+           (Earley.fsequence (Earley.string "'" "'")
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) ident)
-                 (Decap.sequence (Decap.char '=' '=') typexpr
+                 (Earley.sequence (Earley.char '=' '=') typexpr
                     (fun _  te  id  ->
                        let (_loc_id,id) = id in
                        fun _  _default_0  __loc__start__buf 
@@ -1361,22 +1368,22 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos in
                          ((loc_typ _loc_id (Ptyp_var id)), te, _loc))))))
-    let constr_name2 = Decap.declare_grammar "constr_name2"
+    let constr_name2 = Earley.declare_grammar "constr_name2"
     let _ =
-      Decap.set_grammar constr_name2
-        (Decap.alternatives
+      Earley.set_grammar constr_name2
+        (Earley.alternatives
            [constr_name;
-           Decap.sequence (Decap.string "(" "(") (Decap.string ")" ")")
+           Earley.sequence (Earley.string "(" "(") (Earley.string ")" ")")
              (fun _  _  -> "()")])
-    let constr_decl = Decap.declare_grammar "constr_decl"
+    let constr_decl = Earley.declare_grammar "constr_decl"
     let _ =
-      Decap.set_grammar constr_decl
-        (Decap.sequence_position
-           (Decap.apply_position
+      Earley.set_grammar constr_decl
+        (Earley.sequence_position
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x)) constr_name2)
-           (Decap.alternatives
-              [Decap.apply
+           (Earley.alternatives
+              [Earley.apply
                  (fun te  ->
                     let tes =
                       match te with
@@ -1385,20 +1392,20 @@ module Make(Initial:Extension) =
                           tes
                       | Some t -> [t] in
                     (tes, None))
-                 (Decap.option None
-                    (Decap.apply (fun x  -> Some x)
-                       (Decap.sequence of_kw typexpr
+                 (Earley.option None
+                    (Earley.apply (fun x  -> Some x)
+                       (Earley.sequence of_kw typexpr
                           (fun _  _default_0  -> _default_0))));
-              Decap.fsequence (Decap.char ':' ':')
-                (Decap.sequence
-                   (Decap.option []
-                      (Decap.fsequence
+              Earley.fsequence (Earley.char ':' ':')
+                (Earley.sequence
+                   (Earley.option []
+                      (Earley.fsequence
                          (typexpr_lvl (next_type_prio ProdType))
-                         (Decap.sequence
-                            (Decap.apply List.rev
-                               (Decap.fixpoint []
-                                  (Decap.apply (fun x  y  -> x :: y)
-                                     (Decap.sequence (Decap.char '*' '*')
+                         (Earley.sequence
+                            (Earley.apply List.rev
+                               (Earley.fixpoint []
+                                  (Earley.apply (fun x  y  -> x :: y)
+                                     (Earley.sequence (Earley.char '*' '*')
                                         (typexpr_lvl
                                            (next_type_prio ProdType))
                                         (fun _  _default_0  -> _default_0)))))
@@ -1416,15 +1423,15 @@ module Make(Initial:Extension) =
                 constructor_declaration
                   ~attributes:(attach_attrib ~local:true _loc []) _loc c tes
                   te))
-    let field_decl = Decap.declare_grammar "field_decl"
+    let field_decl = Earley.declare_grammar "field_decl"
     let _ =
-      Decap.set_grammar field_decl
-        (Decap.fsequence_position mutable_flag
-           (Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar field_decl
+        (Earley.fsequence_position mutable_flag
+           (Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) field_name)
-              (Decap.sequence (Decap.string ":" ":") poly_typexpr
+              (Earley.sequence (Earley.string ":" ":") poly_typexpr
                  (fun _  pte  fn  ->
                     let (_loc_fn,fn) = fn in
                     fun m  __loc__start__buf  __loc__start__pos 
@@ -1433,62 +1440,63 @@ module Make(Initial:Extension) =
                         locate __loc__start__buf __loc__start__pos
                           __loc__end__buf __loc__end__pos in
                       label_declaration _loc (id_loc fn _loc_fn) m pte))))
-    let all_constr_decl = Decap.declare_grammar "all_constr_decl"
+    let all_constr_decl = Earley.declare_grammar "all_constr_decl"
     let _ =
-      Decap.set_grammar all_constr_decl
-        (Decap.apply (fun cd  -> [cd]) constr_decl)
+      Earley.set_grammar all_constr_decl
+        (Earley.apply (fun cd  -> [cd]) constr_decl)
     let _ =
       set_grammar constr_decl_list
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x) (Decap.string "|" "|")))
-              (Decap.sequence all_constr_decl
-                 (Decap.apply List.rev
-                    (Decap.fixpoint []
-                       (Decap.apply (fun x  y  -> x :: y)
-                          (Decap.sequence (Decap.string "|" "|")
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x) (Earley.string "|" "|")))
+              (Earley.sequence all_constr_decl
+                 (Earley.apply List.rev
+                    (Earley.fixpoint []
+                       (Earley.apply (fun x  y  -> x :: y)
+                          (Earley.sequence (Earley.string "|" "|")
                              all_constr_decl (fun _  cd  -> cd)))))
                  (fun cd  cds  _default_0  -> List.flatten (cd :: cds)));
-           Decap.apply (fun _  -> []) (Decap.empty ())])
-    let field_decl_aux = Decap.declare_grammar "field_decl_aux"
+           Earley.apply (fun _  -> []) (Earley.empty ())])
+    let field_decl_aux = Earley.declare_grammar "field_decl_aux"
     let _ =
-      Decap.set_grammar field_decl_aux
-        (Decap.alternatives
-           [Decap.apply (fun _  -> []) (Decap.empty ());
-           Decap.fsequence field_decl_aux
-             (Decap.sequence field_decl semi_col
+      Earley.set_grammar field_decl_aux
+        (Earley.alternatives
+           [Earley.apply (fun _  -> []) (Earley.empty ());
+           Earley.fsequence field_decl_aux
+             (Earley.sequence field_decl semi_col
                 (fun fd  _default_0  fs  -> fd :: fs))])
     let _ =
       set_grammar field_decl_list
-        (Decap.alternatives
-           [Decap.apply (fun fs  -> List.rev fs) field_decl_aux;
-           Decap.sequence field_decl_aux field_decl
+        (Earley.alternatives
+           [Earley.apply (fun fs  -> List.rev fs) field_decl_aux;
+           Earley.sequence field_decl_aux field_decl
              (fun fs  fd  -> List.rev (fd :: fs))])
-    let type_representation = Decap.declare_grammar "type_representation"
+    let type_representation = Earley.declare_grammar "type_representation"
     let _ =
-      Decap.set_grammar type_representation
-        (Decap.alternatives
-           [Decap.fsequence (Decap.string "{" "{")
-              (Decap.sequence field_decl_list (Decap.string "}" "}")
+      Earley.set_grammar type_representation
+        (Earley.alternatives
+           [Earley.fsequence (Earley.string "{" "{")
+              (Earley.sequence field_decl_list (Earley.string "}" "}")
                  (fun fds  _  _  -> Ptype_record fds));
-           Decap.apply
+           Earley.apply
              (fun cds  -> if cds = [] then give_up (); Ptype_variant cds)
              constr_decl_list])
-    let type_information = Decap.declare_grammar "type_information"
+    let type_information = Earley.declare_grammar "type_information"
     let _ =
-      Decap.set_grammar type_information
-        (Decap.fsequence
-           (Decap.option None (Decap.apply (fun x  -> Some x) type_equation))
-           (Decap.sequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x)
-                    (Decap.fsequence (Decap.char '=' '=')
-                       (Decap.sequence private_flag type_representation
+      Earley.set_grammar type_information
+        (Earley.fsequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x) type_equation))
+           (Earley.sequence
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x)
+                    (Earley.fsequence (Earley.char '=' '=')
+                       (Earley.sequence private_flag type_representation
                           (fun pri  tr  _  -> (pri, tr))))))
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y) type_constraint)))
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y) type_constraint)))
               (fun ptr  cstrs  te  ->
                  let (pri,tkind) =
                    match ptr with
@@ -1496,9 +1504,9 @@ module Make(Initial:Extension) =
                    | Some c -> c in
                  (pri, te, tkind, cstrs))))
     let typedef_gen attach constr filter =
-      Decap.fsequence_position (Decap.option [] type_params)
-        (Decap.sequence
-           (Decap.apply_position
+      Earley.fsequence_position (Earley.option [] type_params)
+        (Earley.sequence
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x)) constr) type_information
            (fun tcn  ->
@@ -1531,28 +1539,29 @@ module Make(Initial:Extension) =
       apply (fun f  -> f None)
         (typedef_gen true typeconstr_name (fun x  -> x))
     let typedef_in_constraint = typedef_gen false typeconstr Longident.last
-    let type_definition = Decap.declare_grammar "type_definition"
+    let type_definition = Earley.declare_grammar "type_definition"
     let _ =
-      Decap.set_grammar type_definition
-        (Decap.fsequence type_kw
-           (Decap.sequence typedef
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.sequence and_kw typedef
+      Earley.set_grammar type_definition
+        (Earley.fsequence type_kw
+           (Earley.sequence typedef
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.sequence and_kw typedef
                           (fun _default_0  td  -> td)))))
               (fun td  tds  _default_0  -> td :: tds)))
-    let exception_declaration = Decap.declare_grammar "exception_declaration"
+    let exception_declaration =
+      Earley.declare_grammar "exception_declaration"
     let _ =
-      Decap.set_grammar exception_declaration
-        (Decap.fsequence_position exception_kw
-           (Decap.sequence
-              (Decap.apply_position
+      Earley.set_grammar exception_declaration
+        (Earley.fsequence_position exception_kw
+           (Earley.sequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) constr_name)
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x)
-                    (Decap.sequence of_kw typexpr
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x)
+                    (Earley.sequence of_kw typexpr
                        (fun _  _default_0  -> _default_0))))
               (fun cn  ->
                  let (_loc_cn,cn) = cn in
@@ -1568,17 +1577,17 @@ module Make(Initial:Extension) =
                          tes
                      | Some t -> [t] in
                    ((id_loc cn _loc_cn), tes, _loc))))
-    let exception_definition = Decap.declare_grammar "exception_definition"
+    let exception_definition = Earley.declare_grammar "exception_definition"
     let _ =
-      Decap.set_grammar exception_definition
-        (Decap.alternatives
-           [Decap.fsequence exception_kw
-              (Decap.fsequence
-                 (Decap.apply_position
+      Earley.set_grammar exception_definition
+        (Earley.alternatives
+           [Earley.fsequence exception_kw
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) constr_name)
-                 (Decap.sequence (Decap.char '=' '=')
-                    (Decap.apply_position
+                 (Earley.sequence (Earley.char '=' '=')
+                    (Earley.apply_position
                        (fun x  str  pos  str'  pos'  ->
                           ((locate str pos str' pos'), x)) constr)
                     (fun _  c  ->
@@ -1589,39 +1598,39 @@ module Make(Initial:Extension) =
                            let name = id_loc cn _loc_cn in
                            let ex = id_loc c _loc_c in
                            Pstr_exn_rebind (name, ex))));
-           Decap.apply
+           Earley.apply
              (fun ((name,ed,_loc') as _default_0)  ->
                 Pstr_exception (name, ed)) exception_declaration])
     let class_field_spec = declare_grammar "class_field_spec"
     let class_body_type = declare_grammar "class_body_type"
-    let virt_mut = Decap.declare_grammar "virt_mut"
+    let virt_mut = Earley.declare_grammar "virt_mut"
     let _ =
-      Decap.set_grammar virt_mut
-        (Decap.alternatives
-           [Decap.sequence virtual_flag mutable_flag (fun v  m  -> (v, m));
-           Decap.sequence mutable_kw virtual_kw
+      Earley.set_grammar virt_mut
+        (Earley.alternatives
+           [Earley.sequence virtual_flag mutable_flag (fun v  m  -> (v, m));
+           Earley.sequence mutable_kw virtual_kw
              (fun _default_1  _default_0  -> (Virtual, Mutable))])
-    let virt_priv = Decap.declare_grammar "virt_priv"
+    let virt_priv = Earley.declare_grammar "virt_priv"
     let _ =
-      Decap.set_grammar virt_priv
-        (Decap.alternatives
-           [Decap.sequence virtual_flag private_flag (fun v  p  -> (v, p));
-           Decap.sequence private_kw virtual_kw
+      Earley.set_grammar virt_priv
+        (Earley.alternatives
+           [Earley.sequence virtual_flag private_flag (fun v  p  -> (v, p));
+           Earley.sequence private_kw virtual_kw
              (fun _default_1  _default_0  -> (Virtual, Private))])
     let _ =
       set_grammar class_field_spec
-        (Decap.alternatives
-           [Decap.sequence_position inherit_kw class_body_type
+        (Earley.alternatives
+           [Earley.sequence_position inherit_kw class_body_type
               (fun _default_0  cbt  __loc__start__buf  __loc__start__pos 
                  __loc__end__buf  __loc__end__pos  ->
                  let _loc =
                    locate __loc__start__buf __loc__start__pos __loc__end__buf
                      __loc__end__pos in
                  pctf_loc _loc (Pctf_inher cbt));
-           Decap.fsequence_position val_kw
-             (Decap.fsequence virt_mut
-                (Decap.fsequence inst_var_name
-                   (Decap.sequence (Decap.string ":" ":") typexpr
+           Earley.fsequence_position val_kw
+             (Earley.fsequence virt_mut
+                (Earley.fsequence inst_var_name
+                   (Earley.sequence (Earley.string ":" ":") typexpr
                       (fun _  te  ivn  ((vir,mut) as _default_0)  _default_1 
                          __loc__start__buf  __loc__start__pos 
                          __loc__end__buf  __loc__end__pos  ->
@@ -1629,10 +1638,10 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos in
                          pctf_loc _loc (Pctf_val (ivn, mut, vir, te))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence virt_priv
-                (Decap.fsequence method_name
-                   (Decap.sequence (Decap.string ":" ":") poly_typexpr
+           Earley.fsequence_position method_kw
+             (Earley.fsequence virt_priv
+                (Earley.fsequence method_name
+                   (Earley.sequence (Earley.string ":" ":") poly_typexpr
                       (fun _  te  mn  ((v,pri) as _default_0)  _default_1 
                          __loc__start__buf  __loc__start__pos 
                          __loc__end__buf  __loc__end__pos  ->
@@ -1642,9 +1651,9 @@ module Make(Initial:Extension) =
                          if v = Concrete
                          then pctf_loc _loc (Pctf_meth (mn, pri, te))
                          else pctf_loc _loc (Pctf_virt (mn, pri, te))))));
-           Decap.fsequence_position constraint_kw
-             (Decap.fsequence typexpr
-                (Decap.sequence (Decap.char '=' '=') typexpr
+           Earley.fsequence_position constraint_kw
+             (Earley.fsequence typexpr
+                (Earley.sequence (Earley.char '=' '=') typexpr
                    (fun _  te'  te  _default_0  __loc__start__buf 
                       __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                       let _loc =
@@ -1653,24 +1662,24 @@ module Make(Initial:Extension) =
                       pctf_loc _loc (Pctf_cstr (te, te')))))])
     let _ =
       set_grammar class_body_type
-        (Decap.alternatives
-           [Decap.fsequence_position object_kw
-              (Decap.fsequence
-                 (Decap.apply_position
+        (Earley.alternatives
+           [Earley.fsequence_position object_kw
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x))
-                    (Decap.option None
-                       (Decap.apply (fun x  -> Some x)
-                          (Decap.fsequence (Decap.string "(" "(")
-                             (Decap.sequence typexpr (Decap.string ")" ")")
+                    (Earley.option None
+                       (Earley.apply (fun x  -> Some x)
+                          (Earley.fsequence (Earley.string "(" "(")
+                             (Earley.sequence typexpr (Earley.string ")" ")")
                                 (fun te  _  _  -> te))))))
-                 (Decap.sequence
-                    (Decap.apply_position
+                 (Earley.sequence
+                    (Earley.apply_position
                        (fun x  str  pos  str'  pos'  ->
                           ((locate str pos str' pos'), x))
-                       (Decap.apply List.rev
-                          (Decap.fixpoint []
-                             (Decap.apply (fun x  y  -> x :: y)
+                       (Earley.apply List.rev
+                          (Earley.fixpoint []
+                             (Earley.apply (fun x  y  -> x :: y)
                                 class_field_spec)))) end_kw
                     (fun cfs  ->
                        let (_loc_cfs,cfs) = cfs in
@@ -1692,19 +1701,19 @@ module Make(Initial:Extension) =
                                pcsig_loc = (merge2 _loc_te _loc_cfs)
                              } in
                            pcty_loc _loc (Pcty_signature sign))));
-           Decap.sequence_position
-             (Decap.option []
-                (Decap.fsequence (Decap.string "[" "[")
-                   (Decap.fsequence typexpr
-                      (Decap.sequence
-                         (Decap.apply List.rev
-                            (Decap.fixpoint []
-                               (Decap.apply (fun x  y  -> x :: y)
-                                  (Decap.sequence (Decap.string "," ",")
+           Earley.sequence_position
+             (Earley.option []
+                (Earley.fsequence (Earley.string "[" "[")
+                   (Earley.fsequence typexpr
+                      (Earley.sequence
+                         (Earley.apply List.rev
+                            (Earley.fixpoint []
+                               (Earley.apply (fun x  y  -> x :: y)
+                                  (Earley.sequence (Earley.string "," ",")
                                      typexpr (fun _  te  -> te)))))
-                         (Decap.string "]" "]")
+                         (Earley.string "]" "]")
                          (fun tes  _  te  _  -> te :: tes)))))
-             (Decap.apply_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) classtype_path)
              (fun tes  ctp  ->
@@ -1716,20 +1725,20 @@ module Make(Initial:Extension) =
                       __loc__end__buf __loc__end__pos in
                   let ctp = id_loc ctp _loc_ctp in
                   pcty_loc _loc (Pcty_constr (ctp, tes)))])
-    let class_type = Decap.declare_grammar "class_type"
+    let class_type = Earley.declare_grammar "class_type"
     let _ =
-      Decap.set_grammar class_type
-        (Decap.sequence_position
-           (Decap.apply_position
+      Earley.set_grammar class_type
+        (Earley.sequence_position
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x))
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.fsequence
-                          (Decap.option None
-                             (Decap.apply (fun x  -> Some x) maybe_opt_label))
-                          (Decap.sequence (Decap.string ":" ":") typexpr
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.fsequence
+                          (Earley.option None
+                             (Earley.apply (fun x  -> Some x) maybe_opt_label))
+                          (Earley.sequence (Earley.string ":" ":") typexpr
                              (fun _  te  l  -> (l, te)))))))) class_body_type
            (fun tes  ->
               let (_loc_tes,tes) = tes in
@@ -1749,32 +1758,33 @@ module Make(Initial:Extension) =
                               then mkoption _loc_tes te
                               else te), acc)) in
                 List.fold_left app cbt (List.rev tes)))
-    let type_parameters = Decap.declare_grammar "type_parameters"
+    let type_parameters = Earley.declare_grammar "type_parameters"
     let _ =
-      Decap.set_grammar type_parameters
-        (Decap.sequence type_param
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.sequence (Decap.string "," ",") type_param
+      Earley.set_grammar type_parameters
+        (Earley.sequence type_param
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.sequence (Earley.string "," ",") type_param
                        (fun _  i2  -> i2))))) (fun i1  l  -> i1 :: l))
-    let class_spec = Decap.declare_grammar "class_spec"
+    let class_spec = Earley.declare_grammar "class_spec"
     let _ =
-      Decap.set_grammar class_spec
-        (Decap.fsequence_position virtual_flag
-           (Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar class_spec
+        (Earley.fsequence_position virtual_flag
+           (Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x))
-                 (Decap.option []
-                    (Decap.fsequence (Decap.string "[" "[")
-                       (Decap.sequence type_parameters (Decap.string "]" "]")
+                 (Earley.option []
+                    (Earley.fsequence (Earley.string "[" "[")
+                       (Earley.sequence type_parameters
+                          (Earley.string "]" "]")
                           (fun params  _  _  -> params)))))
-              (Decap.fsequence
-                 (Decap.apply_position
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) class_name)
-                 (Decap.sequence (Decap.string ":" ":") class_type
+                 (Earley.sequence (Earley.string ":" ":") class_type
                     (fun _  ct  cn  ->
                        let (_loc_cn,cn) = cn in
                        fun params  ->
@@ -1787,33 +1797,33 @@ module Make(Initial:Extension) =
                            class_type_declaration
                              ~attributes:(attach_attrib _loc []) _loc_params
                              _loc (id_loc cn _loc_cn) params v ct)))))
-    let class_specification = Decap.declare_grammar "class_specification"
+    let class_specification = Earley.declare_grammar "class_specification"
     let _ =
-      Decap.set_grammar class_specification
-        (Decap.sequence class_spec
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.sequence and_kw class_spec
+      Earley.set_grammar class_specification
+        (Earley.sequence class_spec
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.sequence and_kw class_spec
                        (fun _  _default_0  -> _default_0)))))
            (fun cs  css  -> cs :: css))
-    let classtype_def = Decap.declare_grammar "classtype_def"
+    let classtype_def = Earley.declare_grammar "classtype_def"
     let _ =
-      Decap.set_grammar classtype_def
-        (Decap.fsequence_position virtual_flag
-           (Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar classtype_def
+        (Earley.fsequence_position virtual_flag
+           (Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x))
-                 (Decap.option []
-                    (Decap.fsequence (Decap.string "[" "[")
-                       (Decap.sequence type_parameters (Decap.string "]" "]")
-                          (fun tp  _  _  -> tp)))))
-              (Decap.fsequence
-                 (Decap.apply_position
+                 (Earley.option []
+                    (Earley.fsequence (Earley.string "[" "[")
+                       (Earley.sequence type_parameters
+                          (Earley.string "]" "]") (fun tp  _  _  -> tp)))))
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) class_name)
-                 (Decap.sequence (Decap.char '=' '=') class_body_type
+                 (Earley.sequence (Earley.char '=' '=') class_body_type
                     (fun _  cbt  cn  ->
                        let (_loc_cn,cn) = cn in
                        fun params  ->
@@ -1826,47 +1836,47 @@ module Make(Initial:Extension) =
                            class_type_declaration
                              ~attributes:(attach_attrib _loc []) _loc_params
                              _loc (id_loc cn _loc_cn) params v cbt)))))
-    let classtype_definition = Decap.declare_grammar "classtype_definition"
+    let classtype_definition = Earley.declare_grammar "classtype_definition"
     let _ =
-      Decap.set_grammar classtype_definition
-        (Decap.fsequence type_kw
-           (Decap.sequence classtype_def
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.sequence and_kw classtype_def
+      Earley.set_grammar classtype_definition
+        (Earley.fsequence type_kw
+           (Earley.sequence classtype_def
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.sequence and_kw classtype_def
                           (fun _  _default_0  -> _default_0)))))
               (fun cd  cds  _default_0  -> cd :: cds)))
-    let integer_litteral = Decap.declare_grammar "integer_litteral"
+    let integer_litteral = Earley.declare_grammar "integer_litteral"
     let _ =
-      Decap.set_grammar integer_litteral
-        (Decap.apply
+      Earley.set_grammar integer_litteral
+        (Earley.apply
            (fun ((s,co) as _default_0)  ->
               match co with
               | None  -> const_int (int_of_string s)
               | Some 'l' -> const_int32 (Int32.of_string s)
               | Some 'L' -> const_int64 (Int64.of_string s)
               | Some 'n' -> const_nativeint (Nativeint.of_string s)
-              | Some _ -> Decap.give_up ()) int_litteral)
-    let constant = Decap.declare_grammar "constant"
+              | Some _ -> Earley.give_up ()) int_litteral)
+    let constant = Earley.declare_grammar "constant"
     let _ =
-      Decap.set_grammar constant
-        (Decap.alternatives
-           [Decap.apply (fun f  -> const_float f) float_litteral;
-           Decap.apply (fun c  -> const_char c) char_litteral;
-           Decap.apply (fun s  -> const_string s) string_litteral;
-           Decap.apply (fun s  -> const_string s) regexp_litteral;
+      Earley.set_grammar constant
+        (Earley.alternatives
+           [Earley.apply (fun f  -> const_float f) float_litteral;
+           Earley.apply (fun c  -> const_char c) char_litteral;
+           Earley.apply (fun s  -> const_string s) string_litteral;
+           Earley.apply (fun s  -> const_string s) regexp_litteral;
            integer_litteral])
-    let neg_constant = Decap.declare_grammar "neg_constant"
+    let neg_constant = Earley.declare_grammar "neg_constant"
     let _ =
-      Decap.set_grammar neg_constant
-        (Decap.alternatives
-           [Decap.sequence
-              (Decap.alternatives
-                 [Decap.apply (fun _  -> ()) (Decap.char '-' '-');
-                 Decap.apply (fun _  -> ()) (Decap.string "-." "-.")])
+      Earley.set_grammar neg_constant
+        (Earley.alternatives
+           [Earley.sequence
+              (Earley.alternatives
+                 [Earley.apply (fun _  -> ()) (Earley.char '-' '-');
+                 Earley.apply (fun _  -> ()) (Earley.string "-." "-.")])
               float_litteral (fun _default_0  f  -> const_float ("-" ^ f));
-           Decap.sequence (Decap.char '-' '-') integer_litteral
+           Earley.sequence (Earley.char '-' '-') integer_litteral
              (fun _  i  ->
                 match i with
                 | Const_int i -> const_int (- i)
@@ -1875,14 +1885,14 @@ module Make(Initial:Extension) =
                 | Const_nativeint i -> const_nativeint (Nativeint.neg i)
                 | _ -> assert false)])
     let (extra_patterns_grammar,extra_patterns_grammar__set__grammar) =
-      Decap.grammar_family "extra_patterns_grammar"
+      Earley.grammar_family "extra_patterns_grammar"
     let _ =
       extra_patterns_grammar__set__grammar
         (fun lvl  -> alternatives (List.map (fun g  -> g lvl) extra_patterns))
     let _ =
       set_pattern_lvl
         (fun (as_ok,lvl)  ->
-           Decap.alternatives ((extra_patterns_grammar (as_ok, lvl)) ::
+           Earley.alternatives ((extra_patterns_grammar (as_ok, lvl)) ::
              (let y = (pattern_lvl (false, (next_pat_prio lvl))) ::
                 (let y =
                    let y =
@@ -1913,13 +1923,13 @@ module Make(Initial:Extension) =
                                                                    lvl =
                                                                     ConsPat
                                                                  then
-                                                                   (Decap.fsequence_position
+                                                                   (Earley.fsequence_position
                                                                     (pattern_lvl
                                                                     (true,
                                                                     (next_pat_prio
                                                                     ConsPat)))
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -1928,7 +1938,7 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     "::" "::"))
                                                                     (pattern_lvl
                                                                     (false,
@@ -1975,22 +1985,22 @@ module Make(Initial:Extension) =
                                                                if
                                                                  lvl = TupPat
                                                                then
-                                                                 (Decap.sequence_position
+                                                                 (Earley.sequence_position
                                                                     (
-                                                                    Decap.apply
+                                                                    Earley.apply
                                                                     List.rev
-                                                                    (Decap.fixpoint1
+                                                                    (Earley.fixpoint1
                                                                     []
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x  y
                                                                      -> x ::
                                                                     y)
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     (pattern_lvl
                                                                     (true,
                                                                     (next_pat_prio
                                                                     TupPat)))
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ',' ',')
                                                                     (fun
                                                                     _default_0
@@ -2023,12 +2033,12 @@ module Make(Initial:Extension) =
                                                                else y in
                                                              if lvl = AltPat
                                                              then
-                                                               (Decap.fsequence_position
+                                                               (Earley.fsequence_position
                                                                   (pattern_lvl
                                                                     (true,
                                                                     AltPat))
-                                                                  (Decap.sequence
-                                                                    (Decap.char
+                                                                  (Earley.sequence
+                                                                    (Earley.char
                                                                     '|' '|')
                                                                     (pattern_lvl
                                                                     (false,
@@ -2056,32 +2066,32 @@ module Make(Initial:Extension) =
                                                              else y in
                                                            if lvl = AtomPat
                                                            then
-                                                             (Decap.fsequence_position
-                                                                (Decap.ignore_next_blank
-                                                                   (Decap.char
+                                                             (Earley.fsequence_position
+                                                                (Earley.ignore_next_blank
+                                                                   (Earley.char
                                                                     '$' '$'))
-                                                                (Decap.fsequence
-                                                                   (Decap.option
+                                                                (Earley.fsequence
+                                                                   (Earley.option
                                                                     "pat"
-                                                                    (Decap.sequence
-                                                                    (Decap.ignore_next_blank
-                                                                    (Decap.regexp
+                                                                    (Earley.sequence
+                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
                                                                     groupe 0)))
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ':' ':')
                                                                     (fun
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0)))
-                                                                   (Decap.sequence
-                                                                    (Decap.ignore_next_blank
+                                                                   (Earley.sequence
+                                                                    (Earley.ignore_next_blank
                                                                     expression)
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     '$' '$')
                                                                     (fun e  _
                                                                      aq  _ 
@@ -2240,9 +2250,9 @@ module Make(Initial:Extension) =
                                                            else y in
                                                          if lvl = AtomPat
                                                          then
-                                                           (Decap.sequence
-                                                              (Decap.ignore_next_blank
-                                                                 (Decap.char
+                                                           (Earley.sequence
+                                                              (Earley.ignore_next_blank
+                                                                 (Earley.char
                                                                     '$' '$'))
                                                               uident
                                                               (fun _  c  ->
@@ -2266,13 +2276,13 @@ module Make(Initial:Extension) =
                                                          else y in
                                                        if lvl = AtomPat
                                                        then
-                                                         (Decap.fsequence_position
-                                                            (Decap.char '('
+                                                         (Earley.fsequence_position
+                                                            (Earley.char '('
                                                                '(')
-                                                            (Decap.fsequence
+                                                            (Earley.fsequence
                                                                module_kw
-                                                               (Decap.fsequence
-                                                                  (Decap.apply_position
+                                                               (Earley.fsequence
+                                                                  (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -2282,8 +2292,8 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     module_name)
-                                                                  (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                  (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -2292,18 +2302,18 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                    (Decap.option
+                                                                    (Earley.option
                                                                     None
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     ":" ":")
                                                                     package_type
                                                                     (fun _ 
                                                                     pt  -> pt)))))
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ')' ')')
                                                                     (fun pt 
                                                                     ->
@@ -2358,7 +2368,7 @@ module Make(Initial:Extension) =
                                                        else y in
                                                      if lvl = AtomPat
                                                      then
-                                                       (Decap.sequence_position
+                                                       (Earley.sequence_position
                                                           begin_kw end_kw
                                                           (fun _default_1 
                                                              _default_0 
@@ -2384,9 +2394,11 @@ module Make(Initial:Extension) =
                                                      else y in
                                                    if lvl = AtomPat
                                                    then
-                                                     (Decap.sequence_position
-                                                        (Decap.string "(" "(")
-                                                        (Decap.string ")" ")")
+                                                     (Earley.sequence_position
+                                                        (Earley.string "("
+                                                           "(")
+                                                        (Earley.string ")"
+                                                           ")")
                                                         (fun _  _ 
                                                            __loc__start__buf 
                                                            __loc__start__pos 
@@ -2410,9 +2422,11 @@ module Make(Initial:Extension) =
                                                    else y in
                                                  if lvl = AtomPat
                                                  then
-                                                   (Decap.sequence_position
-                                                      (Decap.string "[|" "[|")
-                                                      (Decap.string "|]" "|]")
+                                                   (Earley.sequence_position
+                                                      (Earley.string "[|"
+                                                         "[|")
+                                                      (Earley.string "|]"
+                                                         "|]")
                                                       (fun _  _ 
                                                          __loc__start__buf 
                                                          __loc__start__pos 
@@ -2430,31 +2444,31 @@ module Make(Initial:Extension) =
                                                  else y in
                                                if lvl = AtomPat
                                                then
-                                                 (Decap.fsequence_position
-                                                    (Decap.string "[|" "[|")
-                                                    (Decap.fsequence pattern
-                                                       (Decap.fsequence
-                                                          (Decap.apply
+                                                 (Earley.fsequence_position
+                                                    (Earley.string "[|" "[|")
+                                                    (Earley.fsequence pattern
+                                                       (Earley.fsequence
+                                                          (Earley.apply
                                                              List.rev
-                                                             (Decap.fixpoint
+                                                             (Earley.fixpoint
                                                                 []
-                                                                (Decap.apply
+                                                                (Earley.apply
                                                                    (fun x  y 
                                                                     -> x :: y)
-                                                                   (Decap.sequence
+                                                                   (Earley.sequence
                                                                     semi_col
                                                                     pattern
                                                                     (fun
                                                                     _default_0
                                                                      p  -> p)))))
-                                                          (Decap.sequence
-                                                             (Decap.option
+                                                          (Earley.sequence
+                                                             (Earley.option
                                                                 None
-                                                                (Decap.apply
+                                                                (Earley.apply
                                                                    (fun x  ->
                                                                     Some x)
                                                                    semi_col))
-                                                             (Decap.string
+                                                             (Earley.string
                                                                 "|]" "|]")
                                                              (fun _default_0 
                                                                 _  ps  p  _ 
@@ -2476,9 +2490,9 @@ module Make(Initial:Extension) =
                                                else y in
                                              if lvl = AtomPat
                                              then
-                                               (Decap.sequence_position
-                                                  (Decap.string "[" "[")
-                                                  (Decap.string "]" "]")
+                                               (Earley.sequence_position
+                                                  (Earley.string "[" "[")
+                                                  (Earley.string "]" "]")
                                                   (fun _  _ 
                                                      __loc__start__buf 
                                                      __loc__start__pos 
@@ -2500,28 +2514,28 @@ module Make(Initial:Extension) =
                                              else y in
                                            if lvl = AtomPat
                                            then
-                                             (Decap.fsequence_position
-                                                (Decap.string "[" "[")
-                                                (Decap.fsequence pattern
-                                                   (Decap.fsequence
-                                                      (Decap.apply List.rev
-                                                         (Decap.fixpoint []
-                                                            (Decap.apply
+                                             (Earley.fsequence_position
+                                                (Earley.string "[" "[")
+                                                (Earley.fsequence pattern
+                                                   (Earley.fsequence
+                                                      (Earley.apply List.rev
+                                                         (Earley.fixpoint []
+                                                            (Earley.apply
                                                                (fun x  y  ->
                                                                   x :: y)
-                                                               (Decap.sequence
+                                                               (Earley.sequence
                                                                   semi_col
                                                                   pattern
                                                                   (fun
                                                                     _default_0
                                                                      p  -> p)))))
-                                                      (Decap.sequence
-                                                         (Decap.option None
-                                                            (Decap.apply
+                                                      (Earley.sequence
+                                                         (Earley.option None
+                                                            (Earley.apply
                                                                (fun x  ->
                                                                   Some x)
                                                                semi_col))
-                                                         (Decap.string "]"
+                                                         (Earley.string "]"
                                                             "]")
                                                          (fun _default_0  _ 
                                                             ps  p  _ 
@@ -2542,32 +2556,32 @@ module Make(Initial:Extension) =
                                            else y in
                                          if lvl = AtomPat
                                          then
-                                           (Decap.fsequence_position
-                                              (Decap.char '{' '{')
-                                              (Decap.fsequence
-                                                 (Decap.apply_position
+                                           (Earley.fsequence_position
+                                              (Earley.char '{' '{')
+                                              (Earley.fsequence
+                                                 (Earley.apply_position
                                                     (fun x  str  pos  str' 
                                                        pos'  ->
                                                        ((locate str pos str'
                                                            pos'), x)) field)
-                                                 (Decap.fsequence
-                                                    (Decap.option None
-                                                       (Decap.apply
+                                                 (Earley.fsequence
+                                                    (Earley.option None
+                                                       (Earley.apply
                                                           (fun x  -> Some x)
-                                                          (Decap.sequence
-                                                             (Decap.char '='
+                                                          (Earley.sequence
+                                                             (Earley.char '='
                                                                 '=') pattern
                                                              (fun _  p  -> p))))
-                                                    (Decap.fsequence
-                                                       (Decap.apply List.rev
-                                                          (Decap.fixpoint []
-                                                             (Decap.apply
+                                                    (Earley.fsequence
+                                                       (Earley.apply List.rev
+                                                          (Earley.fixpoint []
+                                                             (Earley.apply
                                                                 (fun x  y  ->
                                                                    x :: y)
-                                                                (Decap.fsequence
+                                                                (Earley.fsequence
                                                                    semi_col
-                                                                   (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                   (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -2576,13 +2590,13 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x)) field)
-                                                                    (Decap.option
+                                                                    (Earley.option
                                                                     None
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
-                                                                    (Decap.sequence
-                                                                    (Decap.char
+                                                                    (Earley.sequence
+                                                                    (Earley.char
                                                                     '=' '=')
                                                                     pattern
                                                                     (fun _  p
@@ -2598,26 +2612,26 @@ module Make(Initial:Extension) =
                                                                     ((id_loc
                                                                     f _loc_f),
                                                                     p)))))))
-                                                       (Decap.fsequence
-                                                          (Decap.option None
-                                                             (Decap.apply
+                                                       (Earley.fsequence
+                                                          (Earley.option None
+                                                             (Earley.apply
                                                                 (fun x  ->
                                                                    Some x)
-                                                                (Decap.sequence
+                                                                (Earley.sequence
                                                                    semi_col
                                                                    joker_kw
                                                                    (fun
                                                                     _default_1
                                                                      _default_0
                                                                      -> ()))))
-                                                          (Decap.sequence
-                                                             (Decap.option
+                                                          (Earley.sequence
+                                                             (Earley.option
                                                                 None
-                                                                (Decap.apply
+                                                                (Earley.apply
                                                                    (fun x  ->
                                                                     Some x)
                                                                    semi_col))
-                                                             (Decap.char '}'
+                                                             (Earley.char '}'
                                                                 '}')
                                                              (fun _default_0 
                                                                 _  clsd  fps 
@@ -2690,9 +2704,9 @@ module Make(Initial:Extension) =
                                          else y in
                                        if lvl = AtomPat
                                        then
-                                         (Decap.sequence_position
-                                            (Decap.char '#' '#')
-                                            (Decap.apply_position
+                                         (Earley.sequence_position
+                                            (Earley.char '#' '#')
+                                            (Earley.apply_position
                                                (fun x  str  pos  str'  pos' 
                                                   ->
                                                   ((locate str pos str' pos'),
@@ -2715,7 +2729,7 @@ module Make(Initial:Extension) =
                                        else y in
                                      if lvl = AtomPat
                                      then
-                                       (Decap.apply_position
+                                       (Earley.apply_position
                                           (fun c  __loc__start__buf 
                                              __loc__start__pos 
                                              __loc__end__buf  __loc__end__pos
@@ -2732,7 +2746,7 @@ module Make(Initial:Extension) =
                                      else y in
                                    if lvl = ConstrPat
                                    then
-                                     (Decap.sequence_position tag_name
+                                     (Earley.sequence_position tag_name
                                         (pattern_lvl (false, ConstrPat))
                                         (fun c  p  __loc__start__buf 
                                            __loc__start__pos  __loc__end__buf
@@ -2748,7 +2762,7 @@ module Make(Initial:Extension) =
                                    else y in
                                  if lvl = AtomPat
                                  then
-                                   (Decap.apply_position
+                                   (Earley.apply_position
                                       (fun b  __loc__start__buf 
                                          __loc__start__pos  __loc__end__buf 
                                          __loc__end__pos  ->
@@ -2764,7 +2778,7 @@ module Make(Initial:Extension) =
                                  else y in
                                if lvl = AtomPat
                                then
-                                 (Decap.apply_position
+                                 (Earley.apply_position
                                     (fun c  ->
                                        let (_loc_c,c) = c in
                                        fun __loc__start__buf 
@@ -2778,7 +2792,7 @@ module Make(Initial:Extension) =
                                            ppat_construct
                                              ((id_loc c _loc_c), None) in
                                          loc_pat _loc ast)
-                                    (Decap.apply_position
+                                    (Earley.apply_position
                                        (fun x  str  pos  str'  pos'  ->
                                           ((locate str pos str' pos'), x))
                                        constr))
@@ -2786,8 +2800,8 @@ module Make(Initial:Extension) =
                                else y in
                              if lvl = ConstrPat
                              then
-                               (Decap.sequence_position
-                                  (Decap.apply_position
+                               (Earley.sequence_position
+                                  (Earley.apply_position
                                      (fun x  str  pos  str'  pos'  ->
                                         ((locate str pos str' pos'), x))
                                      constr) (pattern_lvl (false, ConstrPat))
@@ -2808,7 +2822,7 @@ module Make(Initial:Extension) =
                              else y in
                            if lvl = ConstrPat
                            then
-                             (Decap.sequence_position lazy_kw
+                             (Earley.sequence_position lazy_kw
                                 (pattern_lvl (false, ConstrPat))
                                 (fun _default_0  p  __loc__start__buf 
                                    __loc__start__pos  __loc__end__buf 
@@ -2822,16 +2836,16 @@ module Make(Initial:Extension) =
                            else y in
                          if lvl = AtomPat
                          then
-                           (Decap.fsequence_position (Decap.char '(' '(')
-                              (Decap.fsequence pattern
-                                 (Decap.sequence
-                                    (Decap.option None
-                                       (Decap.apply (fun x  -> Some x)
-                                          (Decap.sequence
-                                             (Decap.char ':' ':') typexpr
+                           (Earley.fsequence_position (Earley.char '(' '(')
+                              (Earley.fsequence pattern
+                                 (Earley.sequence
+                                    (Earley.option None
+                                       (Earley.apply (fun x  -> Some x)
+                                          (Earley.sequence
+                                             (Earley.char ':' ':') typexpr
                                              (fun _  _default_0  ->
                                                 _default_0))))
-                                    (Decap.char ')' ')')
+                                    (Earley.char ')' ')')
                                     (fun ty  _  p  _  __loc__start__buf 
                                        __loc__start__pos  __loc__end__buf 
                                        __loc__end__pos  ->
@@ -2850,20 +2864,20 @@ module Make(Initial:Extension) =
                          else y in
                        if lvl = AtomPat
                        then
-                         (Decap.apply_position
+                         (Earley.apply_position
                             (fun c  __loc__start__buf  __loc__start__pos 
                                __loc__end__buf  __loc__end__pos  ->
                                let _loc =
                                  locate __loc__start__buf __loc__start__pos
                                    __loc__end__buf __loc__end__pos in
                                loc_pat _loc (Ppat_constant c))
-                            (Decap.alternatives [constant; neg_constant]))
+                            (Earley.alternatives [constant; neg_constant]))
                          :: y
                        else y in
                      if lvl = AtomPat
                      then
-                       (Decap.fsequence_position char_litteral
-                          (Decap.sequence (Decap.string ".." "..")
+                       (Earley.fsequence_position char_litteral
+                          (Earley.sequence (Earley.string ".." "..")
                              char_litteral
                              (fun _  c2  c1  __loc__start__buf 
                                 __loc__start__pos  __loc__end__buf 
@@ -2895,7 +2909,7 @@ module Make(Initial:Extension) =
                      else y in
                    if lvl = AtomPat
                    then
-                     (Decap.apply_position
+                     (Earley.apply_position
                         (fun _default_0  __loc__start__buf  __loc__start__pos
                             __loc__end__buf  __loc__end__pos  ->
                            let _loc =
@@ -2906,7 +2920,7 @@ module Make(Initial:Extension) =
                    else y in
                  if lvl = AtomPat
                  then
-                   (Decap.apply_position
+                   (Earley.apply_position
                       (fun vn  ->
                          let (_loc_vn,vn) = vn in
                          fun __loc__start__buf  __loc__start__pos 
@@ -2915,16 +2929,16 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos in
                            loc_pat _loc (Ppat_var (id_loc vn _loc_vn)))
-                      (Decap.apply_position
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) value_name))
                    :: y
                  else y) in
               if as_ok
               then
-                (Decap.fsequence_position (pattern_lvl (as_ok, lvl))
-                   (Decap.sequence as_kw
-                      (Decap.apply_position
+                (Earley.fsequence_position (pattern_lvl (as_ok, lvl))
+                   (Earley.sequence as_kw
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) value_name)
                       (fun _default_0  vn  ->
@@ -3078,22 +3092,22 @@ module Make(Initial:Extension) =
       | coords ->
           exp_apply loc (bigarray_function loc "Genarray" "set")
             [arr; loc_expr loc (Pexp_array coords); newval]
-    let constructor = Decap.declare_grammar "constructor"
+    let constructor = Earley.declare_grammar "constructor"
     let _ =
-      Decap.set_grammar constructor
-        (Decap.sequence
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence module_path (Decap.string "." ".")
+      Earley.set_grammar constructor
+        (Earley.sequence
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence module_path (Earley.string "." ".")
                     (fun m  _  -> m))))
-           (Decap.alternatives [uident; bool_lit])
+           (Earley.alternatives [uident; bool_lit])
            (fun m  id  ->
               match m with | None  -> Lident id | Some m -> Ldot (m, id)))
-    let argument = Decap.declare_grammar "argument"
+    let argument = Earley.declare_grammar "argument"
     let _ =
-      Decap.set_grammar argument
-        (Decap.alternatives
-           [Decap.apply_position
+      Earley.set_grammar argument
+        (Earley.alternatives
+           [Earley.apply_position
               (fun id  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                  __loc__end__pos  ->
                  let _loc =
@@ -3102,9 +3116,10 @@ module Make(Initial:Extension) =
                  ((labelled id),
                    (loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc)))))
               label;
-           Decap.sequence ty_label (expression_lvl (NoMatch, (next_exp App)))
+           Earley.sequence ty_label
+             (expression_lvl (NoMatch, (next_exp App)))
              (fun id  e  -> (id, e));
-           Decap.apply_position
+           Earley.apply_position
              (fun id  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                 __loc__end__pos  ->
                 let _loc =
@@ -3113,28 +3128,29 @@ module Make(Initial:Extension) =
                 ((optional id),
                   (loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc)))))
              opt_label;
-           Decap.sequence ty_opt_label
+           Earley.sequence ty_opt_label
              (expression_lvl (NoMatch, (next_exp App)))
              (fun id  e  -> (id, e));
-           Decap.apply (fun e  -> (nolabel, e))
+           Earley.apply (fun e  -> (nolabel, e))
              (expression_lvl (NoMatch, (next_exp App)))])
     let _ =
       set_parameter
         (fun allow_new_type  ->
-           Decap.alternatives
-             ((Decap.apply (fun pat  -> `Arg (nolabel, None, pat))
+           Earley.alternatives
+             ((Earley.apply (fun pat  -> `Arg (nolabel, None, pat))
                  (pattern_lvl (false, AtomPat))) ::
-             (Decap.fsequence_position (Decap.char '~' '~')
-                (Decap.fsequence (Decap.char '(' '(')
-                   (Decap.fsequence
-                      (Decap.apply_position
+             (Earley.fsequence_position (Earley.char '~' '~')
+                (Earley.fsequence (Earley.char '(' '(')
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) lident)
-                      (Decap.sequence
-                         (Decap.option None
-                            (Decap.apply (fun x  -> Some x)
-                               (Decap.sequence (Decap.string ":" ":") typexpr
-                                  (fun _  t  -> t)))) (Decap.string ")" ")")
+                      (Earley.sequence
+                         (Earley.option None
+                            (Earley.apply (fun x  -> Some x)
+                               (Earley.sequence (Earley.string ":" ":")
+                                  typexpr (fun _  t  -> t))))
+                         (Earley.string ")" ")")
                          (fun t  _  id  ->
                             let (_loc_id,id) = id in
                             fun _  _  __loc__start__buf  __loc__start__pos 
@@ -3151,11 +3167,11 @@ module Make(Initial:Extension) =
                                 | Some t ->
                                     loc_pat _loc (Ppat_constraint (pat, t)) in
                               `Arg ((labelled id), None, pat)))))) ::
-             (Decap.sequence ty_label pattern
+             (Earley.sequence ty_label pattern
                 (fun id  pat  -> `Arg (id, None, pat))) ::
-             (Decap.fsequence (Decap.char '~' '~')
-                (Decap.sequence
-                   (Decap.apply_position
+             (Earley.fsequence (Earley.char '~' '~')
+                (Earley.sequence
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x)) ident) no_colon
                    (fun id  ->
@@ -3165,26 +3181,26 @@ module Make(Initial:Extension) =
                           ((labelled id), None,
                             (loc_pat _loc_id (Ppat_var (id_loc id _loc_id)))))))
              ::
-             (Decap.fsequence (Decap.char '?' '?')
-                (Decap.fsequence (Decap.char '(' '(')
-                   (Decap.fsequence
-                      (Decap.apply_position
+             (Earley.fsequence (Earley.char '?' '?')
+                (Earley.fsequence (Earley.char '(' '(')
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) lident)
-                      (Decap.fsequence
-                         (Decap.apply_position
+                      (Earley.fsequence
+                         (Earley.apply_position
                             (fun x  str  pos  str'  pos'  ->
                                ((locate str pos str' pos'), x))
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.char ':' ':')
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.char ':' ':')
                                      typexpr (fun _  t  -> t)))))
-                         (Decap.sequence
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.char '=' '=')
+                         (Earley.sequence
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.char '=' '=')
                                      expression (fun _  e  -> e))))
-                            (Decap.char ')' ')')
+                            (Earley.char ')' ')')
                             (fun e  _  t  ->
                                let (_loc_t,t) = t in
                                fun id  ->
@@ -3200,26 +3216,26 @@ module Make(Initial:Extension) =
                                          loc_pat (merge2 _loc_id _loc_t)
                                            (Ppat_constraint (pat, t)) in
                                    `Arg ((optional id), e, pat))))))) ::
-             (Decap.fsequence ty_opt_label
-                (Decap.fsequence (Decap.string "(" "(")
-                   (Decap.fsequence
-                      (Decap.apply_position
+             (Earley.fsequence ty_opt_label
+                (Earley.fsequence (Earley.string "(" "(")
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) pattern)
-                      (Decap.fsequence
-                         (Decap.apply_position
+                      (Earley.fsequence
+                         (Earley.apply_position
                             (fun x  str  pos  str'  pos'  ->
                                ((locate str pos str' pos'), x))
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.char ':' ':')
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.char ':' ':')
                                      typexpr (fun _  t  -> t)))))
-                         (Decap.sequence
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.char '=' '=')
+                         (Earley.sequence
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.char '=' '=')
                                      expression (fun _  e  -> e))))
-                            (Decap.char ')' ')')
+                            (Earley.char ')' ')')
                             (fun e  _  t  ->
                                let (_loc_t,t) = t in
                                fun pat  ->
@@ -3232,23 +3248,23 @@ module Make(Initial:Extension) =
                                          loc_pat (merge2 _loc_pat _loc_t)
                                            (Ppat_constraint (pat, t)) in
                                    `Arg (id, e, pat))))))) ::
-             (Decap.sequence ty_opt_label pattern
+             (Earley.sequence ty_opt_label pattern
                 (fun id  pat  -> `Arg (id, None, pat))) ::
-             (Decap.apply
+             (Earley.apply
                 (fun id  ->
                    let (_loc_id,id) = id in
                    `Arg
                      ((optional id), None,
                        (loc_pat _loc_id (Ppat_var (id_loc id _loc_id)))))
-                (Decap.apply_position
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) opt_label)) ::
              (let y = [] in
               if allow_new_type
               then
-                (Decap.fsequence (Decap.char '(' '(')
-                   (Decap.fsequence type_kw
-                      (Decap.sequence typeconstr_name (Decap.char ')' ')')
+                (Earley.fsequence (Earley.char '(' '(')
+                   (Earley.fsequence type_kw
+                      (Earley.sequence typeconstr_name (Earley.char ')' ')')
                          (fun name  _  _default_0  _  -> `Type name))))
                 :: y
               else y)))
@@ -3269,25 +3285,25 @@ module Make(Initial:Extension) =
         | `Arg (lbl,opt,pat) -> loc_pcl _loc (Pcl_fun (lbl, opt, pat, acc))
         | `Type name -> assert false in
       List.fold_left f e (List.rev params)
-    let right_member = Decap.declare_grammar "right_member"
+    let right_member = Earley.declare_grammar "right_member"
     let _ =
-      Decap.set_grammar right_member
-        (Decap.fsequence_position
-           (Decap.apply List.rev
-              (Decap.fixpoint1 []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.apply
+      Earley.set_grammar right_member
+        (Earley.fsequence_position
+           (Earley.apply List.rev
+              (Earley.fixpoint1 []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.apply
                        (fun lb  -> let (_loc_lb,lb) = lb in (lb, _loc_lb))
-                       (Decap.apply_position
+                       (Earley.apply_position
                           (fun x  str  pos  str'  pos'  ->
                              ((locate str pos str' pos'), x))
                           (parameter true))))))
-           (Decap.fsequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x)
-                    (Decap.sequence (Decap.char ':' ':') typexpr
+           (Earley.fsequence
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x)
+                    (Earley.sequence (Earley.char ':' ':') typexpr
                        (fun _  t  -> t))))
-              (Decap.sequence (Decap.char '=' '=') expression
+              (Earley.sequence (Earley.char '=' '=') expression
                  (fun _  e  ty  l  __loc__start__buf  __loc__start__pos 
                     __loc__end__buf  __loc__end__pos  ->
                     let _loc =
@@ -3299,15 +3315,15 @@ module Make(Initial:Extension) =
                       | Some ty ->
                           loc_expr (ghost _loc) (pexp_constraint (e, ty)) in
                     apply_params ~gh:true l e))))
-    let eright_member = Decap.declare_grammar "eright_member"
+    let eright_member = Earley.declare_grammar "eright_member"
     let _ =
-      Decap.set_grammar eright_member
-        (Decap.fsequence_position
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.sequence (Decap.char ':' ':') typexpr
+      Earley.set_grammar eright_member
+        (Earley.fsequence_position
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.sequence (Earley.char ':' ':') typexpr
                     (fun _  t  -> t))))
-           (Decap.sequence (Decap.char '=' '=') expression
+           (Earley.sequence (Earley.char '=' '=') expression
               (fun _  e  ty  __loc__start__buf  __loc__start__pos 
                  __loc__end__buf  __loc__end__pos  ->
                  let _loc =
@@ -3321,18 +3337,18 @@ module Make(Initial:Extension) =
                  e)))
     let _ =
       set_grammar let_binding
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.apply_position
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) pattern)
-              (Decap.fsequence
-                 (Decap.apply_position
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) eright_member)
-                 (Decap.sequence post_item_attributes
-                    (Decap.option []
-                       (Decap.sequence and_kw let_binding
+                 (Earley.sequence post_item_attributes
+                    (Earley.option []
+                       (Earley.sequence and_kw let_binding
                           (fun _  _default_0  -> _default_0)))
                     (fun a  l  e  ->
                        let (_loc_e,e) = e in
@@ -3342,17 +3358,17 @@ module Make(Initial:Extension) =
                          (value_binding ~attributes:(attach_attrib loc a) loc
                             pat e)
                            :: l)));
-           Decap.fsequence
-             (Decap.apply_position
+           Earley.fsequence
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) value_name)
-             (Decap.fsequence
-                (Decap.apply_position
+             (Earley.fsequence
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) right_member)
-                (Decap.sequence post_item_attributes
-                   (Decap.option []
-                      (Decap.sequence and_kw let_binding
+                (Earley.sequence post_item_attributes
+                   (Earley.option []
+                      (Earley.sequence and_kw let_binding
                          (fun _  _default_0  -> _default_0)))
                    (fun a  l  e  ->
                       let (_loc_e,e) = e in
@@ -3363,20 +3379,20 @@ module Make(Initial:Extension) =
                         (value_binding ~attributes:(attach_attrib loc a) loc
                            pat e)
                           :: l)));
-           Decap.fsequence_position
-             (Decap.apply_position
+           Earley.fsequence_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) value_name)
-             (Decap.fsequence (Decap.char ':' ':')
-                (Decap.fsequence only_poly_typexpr
-                   (Decap.fsequence (Decap.char '=' '=')
-                      (Decap.fsequence
-                         (Decap.apply_position
+             (Earley.fsequence (Earley.char ':' ':')
+                (Earley.fsequence only_poly_typexpr
+                   (Earley.fsequence (Earley.char '=' '=')
+                      (Earley.fsequence
+                         (Earley.apply_position
                             (fun x  str  pos  str'  pos'  ->
                                ((locate str pos str' pos'), x)) expression)
-                         (Decap.sequence post_item_attributes
-                            (Decap.option []
-                               (Decap.sequence and_kw let_binding
+                         (Earley.sequence post_item_attributes
+                            (Earley.option []
+                               (Earley.sequence and_kw let_binding
                                   (fun _  _default_0  -> _default_0)))
                             (fun a  l  e  ->
                                let (_loc_e,e) = e in
@@ -3399,20 +3415,20 @@ module Make(Initial:Extension) =
                                       ~attributes:(attach_attrib loc a) loc
                                       pat e)
                                      :: l))))));
-           Decap.fsequence_position
-             (Decap.apply_position
+           Earley.fsequence_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) value_name)
-             (Decap.fsequence (Decap.char ':' ':')
-                (Decap.fsequence poly_syntax_typexpr
-                   (Decap.fsequence (Decap.char '=' '=')
-                      (Decap.fsequence
-                         (Decap.apply_position
+             (Earley.fsequence (Earley.char ':' ':')
+                (Earley.fsequence poly_syntax_typexpr
+                   (Earley.fsequence (Earley.char '=' '=')
+                      (Earley.fsequence
+                         (Earley.apply_position
                             (fun x  str  pos  str'  pos'  ->
                                ((locate str pos str' pos'), x)) expression)
-                         (Decap.sequence post_item_attributes
-                            (Decap.option []
-                               (Decap.sequence and_kw let_binding
+                         (Earley.sequence post_item_attributes
+                            (Earley.option []
+                               (Earley.sequence and_kw let_binding
                                   (fun _  _default_0  -> _default_0)))
                             (fun a  l  e  ->
                                let (_loc_e,e) = e in
@@ -3438,42 +3454,42 @@ module Make(Initial:Extension) =
                                       pat e)
                                      :: l))))))])
     let (match_case,match_case__set__grammar) =
-      Decap.grammar_family "match_case"
+      Earley.grammar_family "match_case"
     let _ =
       match_case__set__grammar
         (fun c  ->
-           Decap.fsequence pattern
-             (Decap.fsequence
-                (Decap.option None
-                   (Decap.apply (fun x  -> Some x)
-                      (Decap.sequence when_kw expression
+           Earley.fsequence pattern
+             (Earley.fsequence
+                (Earley.option None
+                   (Earley.apply (fun x  -> Some x)
+                      (Earley.sequence when_kw expression
                          (fun _  _default_0  -> _default_0))))
-                (Decap.sequence arrow_re (expression_lvl c)
+                (Earley.sequence arrow_re (expression_lvl c)
                    (fun _default_0  e  w  pat  -> make_case pat e w))))
     let _ =
       set_grammar match_cases
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x) (Decap.char '|' '|')))
-              (Decap.fsequence
-                 (Decap.apply List.rev
-                    (Decap.fixpoint []
-                       (Decap.apply (fun x  y  -> x :: y)
-                          (Decap.sequence (match_case (Let, Seq))
-                             (Decap.char '|' '|')
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
+              (Earley.fsequence
+                 (Earley.apply List.rev
+                    (Earley.fixpoint []
+                       (Earley.apply (fun x  y  -> x :: y)
+                          (Earley.sequence (match_case (Let, Seq))
+                             (Earley.char '|' '|')
                              (fun _default_0  _  -> _default_0)))))
-                 (Decap.sequence (match_case (Match, Seq)) no_semi
+                 (Earley.sequence (match_case (Match, Seq)) no_semi
                     (fun x  _default_0  l  _default_1  -> l @ [x])));
-           Decap.apply (fun _  -> []) (Decap.empty ());
-           Decap.fsequence_position
-             (Decap.ignore_next_blank (Decap.char '$' '$'))
-             (Decap.fsequence
-                (Decap.option "cases"
-                   (Decap.sequence (Decap.string "cases" "cases")
-                      (Decap.string ":" ":") (fun c  _  -> c)))
-                (Decap.sequence (Decap.ignore_next_blank expression)
-                   (Decap.char '$' '$')
+           Earley.apply (fun _  -> []) (Earley.empty ());
+           Earley.fsequence_position
+             (Earley.ignore_next_blank (Earley.char '$' '$'))
+             (Earley.fsequence
+                (Earley.option "cases"
+                   (Earley.sequence (Earley.string "cases" "cases")
+                      (Earley.string ":" ":") (fun c  _  -> c)))
+                (Earley.sequence (Earley.ignore_next_blank expression)
+                   (Earley.char '$' '$')
                    (fun e  _  aq  _  __loc__start__buf  __loc__start__pos 
                       __loc__end__buf  __loc__end__pos  ->
                       let _loc =
@@ -3489,113 +3505,115 @@ module Make(Initial:Extension) =
                           | "cases" -> generic_antiquote e
                           | _ -> give_up () in
                         make_list_antiquotation _loc Quote_loc f)))])
-    let type_coercion = Decap.declare_grammar "type_coercion"
+    let type_coercion = Earley.declare_grammar "type_coercion"
     let _ =
-      Decap.set_grammar type_coercion
-        (Decap.alternatives
-           [Decap.fsequence (Decap.string ":" ":")
-              (Decap.sequence typexpr
-                 (Decap.option None
-                    (Decap.apply (fun x  -> Some x)
-                       (Decap.sequence (Decap.string ":>" ":>") typexpr
+      Earley.set_grammar type_coercion
+        (Earley.alternatives
+           [Earley.fsequence (Earley.string ":" ":")
+              (Earley.sequence typexpr
+                 (Earley.option None
+                    (Earley.apply (fun x  -> Some x)
+                       (Earley.sequence (Earley.string ":>" ":>") typexpr
                           (fun _  t'  -> t'))))
                  (fun t  t'  _  -> ((Some t), t')));
-           Decap.sequence (Decap.string ":>" ":>") typexpr
+           Earley.sequence (Earley.string ":>" ":>") typexpr
              (fun _  t'  -> (None, (Some t')))])
-    let expression_list = Decap.declare_grammar "expression_list"
+    let expression_list = Earley.declare_grammar "expression_list"
     let _ =
-      Decap.set_grammar expression_list
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.sequence
-                          (Decap.apply_position
+      Earley.set_grammar expression_list
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.sequence
+                          (Earley.apply_position
                              (fun x  str  pos  str'  pos'  ->
                                 ((locate str pos str' pos'), x))
                              (expression_lvl (LetRight, (next_exp Seq))))
                           semi_col
                           (fun e  ->
                              let (_loc_e,e) = e in fun _  -> (e, _loc_e))))))
-              (Decap.sequence
-                 (Decap.apply_position
+              (Earley.sequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x))
                     (expression_lvl (Match, (next_exp Seq))))
-                 (Decap.option None (Decap.apply (fun x  -> Some x) semi_col))
+                 (Earley.option None
+                    (Earley.apply (fun x  -> Some x) semi_col))
                  (fun e  ->
                     let (_loc_e,e) = e in
                     fun _default_0  l  -> l @ [(e, _loc_e)]));
-           Decap.apply (fun _  -> []) (Decap.empty ())])
-    let record_item = Decap.declare_grammar "record_item"
+           Earley.apply (fun _  -> []) (Earley.empty ())])
+    let record_item = Earley.declare_grammar "record_item"
     let _ =
-      Decap.set_grammar record_item
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar record_item
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) field)
-              (Decap.sequence (Decap.char '=' '=')
+              (Earley.sequence (Earley.char '=' '=')
                  (expression_lvl (LetRight, (next_exp Seq)))
                  (fun _  e  f  ->
                     let (_loc_f,f) = f in ((id_loc f _loc_f), e)));
-           Decap.apply
+           Earley.apply
              (fun f  ->
                 let (_loc_f,f) = f in
                 let id = id_loc (Lident f) _loc_f in
                 (id, (loc_expr _loc_f (Pexp_ident id))))
-             (Decap.apply_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) lident)])
-    let last_record_item = Decap.declare_grammar "last_record_item"
+    let last_record_item = Earley.declare_grammar "last_record_item"
     let _ =
-      Decap.set_grammar last_record_item
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar last_record_item
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) field)
-              (Decap.sequence (Decap.char '=' '=')
+              (Earley.sequence (Earley.char '=' '=')
                  (expression_lvl (Match, (next_exp Seq)))
                  (fun _  e  f  ->
                     let (_loc_f,f) = f in ((id_loc f _loc_f), e)));
-           Decap.apply
+           Earley.apply
              (fun f  ->
                 let (_loc_f,f) = f in
                 let id = id_loc (Lident f) _loc_f in
                 (id, (loc_expr _loc_f (Pexp_ident id))))
-             (Decap.apply_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) lident)])
     let _ =
       set_grammar record_list
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.apply List.rev
-                 (Decap.fixpoint []
-                    (Decap.apply (fun x  y  -> x :: y)
-                       (Decap.sequence record_item semi_col
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.apply List.rev
+                 (Earley.fixpoint []
+                    (Earley.apply (fun x  y  -> x :: y)
+                       (Earley.sequence record_item semi_col
                           (fun _default_0  _  -> _default_0)))))
-              (Decap.sequence last_record_item
-                 (Decap.option None (Decap.apply (fun x  -> Some x) semi_col))
+              (Earley.sequence last_record_item
+                 (Earley.option None
+                    (Earley.apply (fun x  -> Some x) semi_col))
                  (fun it  _default_0  l  -> l @ [it]));
-           Decap.apply (fun _  -> []) (Decap.empty ())])
-    let obj_item = Decap.declare_grammar "obj_item"
+           Earley.apply (fun _  -> []) (Earley.empty ())])
+    let obj_item = Earley.declare_grammar "obj_item"
     let _ =
-      Decap.set_grammar obj_item
-        (Decap.fsequence
-           (Decap.apply_position
+      Earley.set_grammar obj_item
+        (Earley.fsequence
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x)) inst_var_name)
-           (Decap.sequence (Decap.char '=' '=')
+           (Earley.sequence (Earley.char '=' '=')
               (expression_lvl (Match, (next_exp Seq)))
               (fun _  e  v  -> let (_loc_v,v) = v in ((id_loc v _loc_v), e))))
-    let class_expr_base = Decap.declare_grammar "class_expr_base"
+    let class_expr_base = Earley.declare_grammar "class_expr_base"
     let _ =
-      Decap.set_grammar class_expr_base
-        (Decap.alternatives
-           [Decap.apply_position
+      Earley.set_grammar class_expr_base
+        (Earley.alternatives
+           [Earley.apply_position
               (fun cp  ->
                  let (_loc_cp,cp) = cp in
                  fun __loc__start__buf  __loc__start__pos  __loc__end__buf 
@@ -3605,19 +3623,19 @@ module Make(Initial:Extension) =
                        __loc__end__buf __loc__end__pos in
                    let cp = id_loc cp _loc_cp in
                    loc_pcl _loc (Pcl_constr (cp, [])))
-              (Decap.apply_position
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) class_path);
-           Decap.fsequence_position (Decap.char '[' '[')
-             (Decap.fsequence typexpr
-                (Decap.fsequence
-                   (Decap.apply List.rev
-                      (Decap.fixpoint []
-                         (Decap.apply (fun x  y  -> x :: y)
-                            (Decap.sequence (Decap.char ',' ',') typexpr
+           Earley.fsequence_position (Earley.char '[' '[')
+             (Earley.fsequence typexpr
+                (Earley.fsequence
+                   (Earley.apply List.rev
+                      (Earley.fixpoint []
+                         (Earley.apply (fun x  y  -> x :: y)
+                            (Earley.sequence (Earley.char ',' ',') typexpr
                                (fun _  te  -> te)))))
-                   (Decap.sequence (Decap.char ']' ']')
-                      (Decap.apply_position
+                   (Earley.sequence (Earley.char ']' ']')
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) class_path)
                       (fun _  cp  ->
@@ -3629,18 +3647,18 @@ module Make(Initial:Extension) =
                                __loc__end__buf __loc__end__pos in
                            let cp = id_loc cp _loc_cp in
                            loc_pcl _loc (Pcl_constr (cp, (te :: tes)))))));
-           Decap.fsequence_position (Decap.string "(" "(")
-             (Decap.sequence class_expr (Decap.string ")" ")")
+           Earley.fsequence_position (Earley.string "(" "(")
+             (Earley.sequence class_expr (Earley.string ")" ")")
                 (fun ce  _  _  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    loc_pcl _loc ce.pcl_desc));
-           Decap.fsequence_position (Decap.string "(" "(")
-             (Decap.fsequence class_expr
-                (Decap.fsequence (Decap.string ":" ":")
-                   (Decap.sequence class_type (Decap.string ")" ")")
+           Earley.fsequence_position (Earley.string "(" "(")
+             (Earley.fsequence class_expr
+                (Earley.fsequence (Earley.string ":" ":")
+                   (Earley.sequence class_type (Earley.string ")" ")")
                       (fun ct  _  _  ce  _  __loc__start__buf 
                          __loc__start__pos  __loc__end__buf  __loc__end__pos 
                          ->
@@ -3648,22 +3666,22 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos in
                          loc_pcl _loc (Pcl_constraint (ce, ct))))));
-           Decap.fsequence_position fun_kw
-             (Decap.fsequence
-                (Decap.apply List.rev
-                   (Decap.fixpoint1 []
-                      (Decap.apply (fun x  y  -> x :: y) (parameter false))))
-                (Decap.sequence arrow_re class_expr
+           Earley.fsequence_position fun_kw
+             (Earley.fsequence
+                (Earley.apply List.rev
+                   (Earley.fixpoint1 []
+                      (Earley.apply (fun x  y  -> x :: y) (parameter false))))
+                (Earley.sequence arrow_re class_expr
                    (fun _default_0  ce  ps  _default_1  __loc__start__buf 
                       __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                       let _loc =
                         locate __loc__start__buf __loc__start__pos
                           __loc__end__buf __loc__end__pos in
                       apply_params_cls _loc ps ce)));
-           Decap.fsequence_position let_kw
-             (Decap.fsequence rec_flag
-                (Decap.fsequence let_binding
-                   (Decap.sequence in_kw class_expr
+           Earley.fsequence_position let_kw
+             (Earley.fsequence rec_flag
+                (Earley.fsequence let_binding
+                   (Earley.sequence in_kw class_expr
                       (fun _default_0  ce  lbs  r  _default_1 
                          __loc__start__buf  __loc__start__pos 
                          __loc__end__buf  __loc__end__pos  ->
@@ -3671,8 +3689,8 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos in
                          loc_pcl _loc (Pcl_let (r, lbs, ce))))));
-           Decap.fsequence_position object_kw
-             (Decap.sequence class_body end_kw
+           Earley.fsequence_position object_kw
+             (Earley.sequence class_body end_kw
                 (fun cb  _default_0  _default_1  __loc__start__buf 
                    __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -3681,12 +3699,12 @@ module Make(Initial:Extension) =
                    loc_pcl _loc (Pcl_structure cb)))])
     let _ =
       set_grammar class_expr
-        (Decap.sequence_position class_expr_base
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.apply List.rev
-                    (Decap.fixpoint1 []
-                       (Decap.apply (fun x  y  -> x :: y) argument)))))
+        (Earley.sequence_position class_expr_base
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.apply List.rev
+                    (Earley.fixpoint1 []
+                       (Earley.apply (fun x  y  -> x :: y) argument)))))
            (fun ce  args  __loc__start__buf  __loc__start__pos 
               __loc__end__buf  __loc__end__pos  ->
               let _loc =
@@ -3695,16 +3713,16 @@ module Make(Initial:Extension) =
               match args with
               | None  -> ce
               | Some l -> loc_pcl _loc (Pcl_apply (ce, l))))
-    let class_field = Decap.declare_grammar "class_field"
+    let class_field = Earley.declare_grammar "class_field"
     let _ =
-      Decap.set_grammar class_field
-        (Decap.alternatives
-           [Decap.fsequence_position inherit_kw
-              (Decap.fsequence override_flag
-                 (Decap.sequence class_expr
-                    (Decap.option None
-                       (Decap.apply (fun x  -> Some x)
-                          (Decap.sequence as_kw lident
+      Earley.set_grammar class_field
+        (Earley.alternatives
+           [Earley.fsequence_position inherit_kw
+              (Earley.fsequence override_flag
+                 (Earley.sequence class_expr
+                    (Earley.option None
+                       (Earley.apply (fun x  -> Some x)
+                          (Earley.sequence as_kw lident
                              (fun _  _default_0  -> _default_0))))
                     (fun ce  id  o  _default_0  __loc__start__buf 
                        __loc__start__pos  __loc__end__buf  __loc__end__pos 
@@ -3713,22 +3731,22 @@ module Make(Initial:Extension) =
                          locate __loc__start__buf __loc__start__pos
                            __loc__end__buf __loc__end__pos in
                        loc_pcf _loc (Pcf_inher (o, ce, id)))));
-           Decap.fsequence_position val_kw
-             (Decap.fsequence override_flag
-                (Decap.fsequence mutable_flag
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position val_kw
+             (Earley.fsequence override_flag
+                (Earley.fsequence mutable_flag
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) inst_var_name)
-                      (Decap.fsequence
-                         (Decap.apply_position
+                      (Earley.fsequence
+                         (Earley.apply_position
                             (fun x  str  pos  str'  pos'  ->
                                ((locate str pos str' pos'), x))
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.char ':' ':')
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.char ':' ':')
                                      typexpr (fun _  t  -> t)))))
-                         (Decap.sequence (Decap.char '=' '=') expression
+                         (Earley.sequence (Earley.char '=' '=') expression
                             (fun _  e  te  ->
                                let (_loc_te,te) = te in
                                fun ivn  ->
@@ -3748,14 +3766,14 @@ module Make(Initial:Extension) =
                                          loc_expr _loc_te
                                            (pexp_constraint (e, t)) in
                                    loc_pcf _loc (Pcf_val (ivn, m, o, ex))))))));
-           Decap.fsequence_position val_kw
-             (Decap.fsequence mutable_flag
-                (Decap.fsequence virtual_kw
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position val_kw
+             (Earley.fsequence mutable_flag
+                (Earley.fsequence virtual_kw
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) inst_var_name)
-                      (Decap.sequence (Decap.string ":" ":") typexpr
+                      (Earley.sequence (Earley.string ":" ":") typexpr
                          (fun _  te  ivn  ->
                             let (_loc_ivn,ivn) = ivn in
                             fun _default_0  m  _default_1  __loc__start__buf 
@@ -3766,14 +3784,14 @@ module Make(Initial:Extension) =
                                   __loc__end__buf __loc__end__pos in
                               let ivn = id_loc ivn _loc_ivn in
                               loc_pcf _loc (Pcf_valvirt (ivn, m, te)))))));
-           Decap.fsequence_position val_kw
-             (Decap.fsequence virtual_kw
-                (Decap.fsequence mutable_kw
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position val_kw
+             (Earley.fsequence virtual_kw
+                (Earley.fsequence mutable_kw
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) inst_var_name)
-                      (Decap.sequence (Decap.string ":" ":") typexpr
+                      (Earley.sequence (Earley.string ":" ":") typexpr
                          (fun _  te  ivn  ->
                             let (_loc_ivn,ivn) = ivn in
                             fun _default_0  _default_1  _default_2 
@@ -3784,16 +3802,16 @@ module Make(Initial:Extension) =
                                   __loc__end__buf __loc__end__pos in
                               let ivn = id_loc ivn _loc_ivn in
                               loc_pcf _loc (Pcf_valvirt (ivn, Mutable, te)))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence override_flag
-                (Decap.fsequence private_flag
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position method_kw
+             (Earley.fsequence override_flag
+                (Earley.fsequence private_flag
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) method_name)
-                      (Decap.fsequence (Decap.string ":" ":")
-                         (Decap.fsequence poly_typexpr
-                            (Decap.sequence (Decap.char '=' '=') expression
+                      (Earley.fsequence (Earley.string ":" ":")
+                         (Earley.fsequence poly_typexpr
+                            (Earley.sequence (Earley.char '=' '=') expression
                                (fun _  e  te  _  mn  ->
                                   let (_loc_mn,mn) = mn in
                                   fun p  o  _default_0  __loc__start__buf 
@@ -3808,16 +3826,16 @@ module Make(Initial:Extension) =
                                       loc_expr _loc
                                         (Pexp_poly (e, (Some te))) in
                                     loc_pcf _loc (Pcf_meth (mn, p, o, e)))))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence override_flag
-                (Decap.fsequence private_flag
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position method_kw
+             (Earley.fsequence override_flag
+                (Earley.fsequence private_flag
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) method_name)
-                      (Decap.fsequence (Decap.string ":" ":")
-                         (Decap.fsequence poly_syntax_typexpr
-                            (Decap.sequence (Decap.char '=' '=') expression
+                      (Earley.fsequence (Earley.string ":" ":")
+                         (Earley.fsequence poly_syntax_typexpr
+                            (Earley.sequence (Earley.char '=' '=') expression
                                (fun _  e  ((ids,te) as _default_0)  _  mn  ->
                                   let (_loc_mn,mn) = mn in
                                   fun p  o  _default_1  __loc__start__buf 
@@ -3834,30 +3852,30 @@ module Make(Initial:Extension) =
                                       loc_expr _loc
                                         (Pexp_poly (e, (Some poly))) in
                                     loc_pcf _loc (Pcf_meth (mn, p, o, e)))))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence override_flag
-                (Decap.fsequence private_flag
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position method_kw
+             (Earley.fsequence override_flag
+                (Earley.fsequence private_flag
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) method_name)
-                      (Decap.fsequence
-                         (Decap.apply List.rev
-                            (Decap.fixpoint []
-                               (Decap.apply (fun x  y  -> x :: y)
-                                  (Decap.apply
+                      (Earley.fsequence
+                         (Earley.apply List.rev
+                            (Earley.fixpoint []
+                               (Earley.apply (fun x  y  -> x :: y)
+                                  (Earley.apply
                                      (fun p  ->
                                         let (_loc_p,p) = p in (p, _loc_p))
-                                     (Decap.apply_position
+                                     (Earley.apply_position
                                         (fun x  str  pos  str'  pos'  ->
                                            ((locate str pos str' pos'), x))
                                         (parameter true))))))
-                         (Decap.fsequence
-                            (Decap.option None
-                               (Decap.apply (fun x  -> Some x)
-                                  (Decap.sequence (Decap.string ":" ":")
+                         (Earley.fsequence
+                            (Earley.option None
+                               (Earley.apply (fun x  -> Some x)
+                                  (Earley.sequence (Earley.string ":" ":")
                                      typexpr (fun _  te  -> te))))
-                            (Decap.sequence (Decap.char '=' '=') expression
+                            (Earley.sequence (Earley.char '=' '=') expression
                                (fun _  e  te  ps  mn  ->
                                   let (_loc_mn,mn) = mn in
                                   fun p  o  _default_0  __loc__start__buf 
@@ -3880,14 +3898,14 @@ module Make(Initial:Extension) =
                                      let e =
                                        loc_expr _loc (Pexp_poly (e, None)) in
                                      loc_pcf _loc (Pcf_meth (mn, p, o, e))))))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence private_flag
-                (Decap.fsequence virtual_kw
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position method_kw
+             (Earley.fsequence private_flag
+                (Earley.fsequence virtual_kw
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) method_name)
-                      (Decap.sequence (Decap.string ":" ":") poly_typexpr
+                      (Earley.sequence (Earley.string ":" ":") poly_typexpr
                          (fun _  pte  mn  ->
                             let (_loc_mn,mn) = mn in
                             fun _default_0  p  _default_1  __loc__start__buf 
@@ -3898,14 +3916,14 @@ module Make(Initial:Extension) =
                                   __loc__end__buf __loc__end__pos in
                               let mn = id_loc mn _loc_mn in
                               loc_pcf _loc (Pcf_virt (mn, p, pte)))))));
-           Decap.fsequence_position method_kw
-             (Decap.fsequence virtual_kw
-                (Decap.fsequence private_kw
-                   (Decap.fsequence
-                      (Decap.apply_position
+           Earley.fsequence_position method_kw
+             (Earley.fsequence virtual_kw
+                (Earley.fsequence private_kw
+                   (Earley.fsequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x)) method_name)
-                      (Decap.sequence (Decap.string ":" ":") poly_typexpr
+                      (Earley.sequence (Earley.string ":" ":") poly_typexpr
                          (fun _  pte  mn  ->
                             let (_loc_mn,mn) = mn in
                             fun _default_0  _default_1  _default_2 
@@ -3916,16 +3934,16 @@ module Make(Initial:Extension) =
                                   __loc__end__buf __loc__end__pos in
                               let mn = id_loc mn _loc_mn in
                               loc_pcf _loc (Pcf_virt (mn, Private, pte)))))));
-           Decap.fsequence_position constraint_kw
-             (Decap.fsequence typexpr
-                (Decap.sequence (Decap.char '=' '=') typexpr
+           Earley.fsequence_position constraint_kw
+             (Earley.fsequence typexpr
+                (Earley.sequence (Earley.char '=' '=') typexpr
                    (fun _  te'  te  _default_0  __loc__start__buf 
                       __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                       let _loc =
                         locate __loc__start__buf __loc__start__pos
                           __loc__end__buf __loc__end__pos in
                       loc_pcf _loc (Pcf_constr (te, te')))));
-           Decap.sequence_position initializer_kw expression
+           Earley.sequence_position initializer_kw expression
              (fun _default_0  e  __loc__start__buf  __loc__start__pos 
                 __loc__end__buf  __loc__end__pos  ->
                 let _loc =
@@ -3934,14 +3952,14 @@ module Make(Initial:Extension) =
                 loc_pcf _loc (Pcf_init e))])
     let _ =
       set_grammar class_body
-        (Decap.sequence
-           (Decap.apply_position
+        (Earley.sequence
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x))
-              (Decap.option None (Decap.apply (fun x  -> Some x) pattern)))
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y) class_field)))
+              (Earley.option None (Earley.apply (fun x  -> Some x) pattern)))
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y) class_field)))
            (fun p  ->
               let (_loc_p,p) = p in
               fun f  ->
@@ -3950,33 +3968,34 @@ module Make(Initial:Extension) =
                   | None  -> loc_pat _loc_p Ppat_any
                   | Some p -> p in
                 { pcstr_pat = p; pcstr_fields = f }))
-    let class_binding = Decap.declare_grammar "class_binding"
+    let class_binding = Earley.declare_grammar "class_binding"
     let _ =
-      Decap.set_grammar class_binding
-        (Decap.fsequence_position virtual_flag
-           (Decap.fsequence
-              (Decap.apply_position
+      Earley.set_grammar class_binding
+        (Earley.fsequence_position virtual_flag
+           (Earley.fsequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x))
-                 (Decap.option []
-                    (Decap.fsequence (Decap.string "[" "[")
-                       (Decap.sequence type_parameters (Decap.string "]" "]")
+                 (Earley.option []
+                    (Earley.fsequence (Earley.string "[" "[")
+                       (Earley.sequence type_parameters
+                          (Earley.string "]" "]")
                           (fun params  _  _  -> params)))))
-              (Decap.fsequence
-                 (Decap.apply_position
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) class_name)
-                 (Decap.fsequence
-                    (Decap.apply List.rev
-                       (Decap.fixpoint []
-                          (Decap.apply (fun x  y  -> x :: y)
+                 (Earley.fsequence
+                    (Earley.apply List.rev
+                       (Earley.fixpoint []
+                          (Earley.apply (fun x  y  -> x :: y)
                              (parameter false))))
-                    (Decap.fsequence
-                       (Decap.option None
-                          (Decap.apply (fun x  -> Some x)
-                             (Decap.sequence (Decap.string ":" ":")
+                    (Earley.fsequence
+                       (Earley.option None
+                          (Earley.apply (fun x  -> Some x)
+                             (Earley.sequence (Earley.string ":" ":")
                                 class_type (fun _  ct  -> ct))))
-                       (Decap.sequence (Decap.char '=' '=') class_expr
+                       (Earley.sequence (Earley.char '=' '=') class_expr
                           (fun _  ce  ct  ps  cn  ->
                              let (_loc_cn,cn) = cn in
                              fun params  ->
@@ -3996,14 +4015,14 @@ module Make(Initial:Extension) =
                                    ~attributes:(attach_attrib _loc [])
                                    _loc_params _loc (id_loc cn _loc_cn)
                                    params v ce)))))))
-    let class_definition = Decap.declare_grammar "class_definition"
+    let class_definition = Earley.declare_grammar "class_definition"
     let _ =
-      Decap.set_grammar class_definition
-        (Decap.sequence class_binding
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.sequence and_kw class_binding
+      Earley.set_grammar class_definition
+        (Earley.sequence class_binding
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.sequence and_kw class_binding
                        (fun _  _default_0  -> _default_0)))))
            (fun cb  cbs  -> cb :: cbs))
     let pexp_list _loc ?loc_cl  l =
@@ -4035,19 +4054,19 @@ module Make(Initial:Extension) =
           let res = mk_seq l in
           loc_expr (merge2 x.pexp_loc res.pexp_loc) (Pexp_sequence (x, res))
     let (extra_expressions_grammar,extra_expressions_grammar__set__grammar) =
-      Decap.grammar_family "extra_expressions_grammar"
+      Earley.grammar_family "extra_expressions_grammar"
     let _ =
       extra_expressions_grammar__set__grammar
         (fun lvl  ->
            alternatives (List.map (fun g  -> g lvl) extra_expressions))
     let structure_item_simple = declare_grammar "structure_item_simple"
     let (prefix_expression,prefix_expression__set__grammar) =
-      Decap.grammar_family "prefix_expression"
+      Earley.grammar_family "prefix_expression"
     let _ =
       prefix_expression__set__grammar
         (fun c  ->
-           Decap.alternatives
-             [Decap.sequence_position function_kw match_cases
+           Earley.alternatives
+             [Earley.sequence_position function_kw match_cases
                 (fun _default_0  l  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -4058,9 +4077,9 @@ module Make(Initial:Extension) =
                        (Parsetree.Pexp_function ("", None, l));
                      Parsetree.pexp_loc = _loc
                    });
-             Decap.fsequence_position match_kw
-               (Decap.fsequence expression
-                  (Decap.sequence with_kw match_cases
+             Earley.fsequence_position match_kw
+               (Earley.fsequence expression
+                  (Earley.sequence with_kw match_cases
                      (fun _default_0  l  e  _default_1  __loc__start__buf 
                         __loc__start__pos  __loc__end__buf  __loc__end__pos 
                         ->
@@ -4071,9 +4090,9 @@ module Make(Initial:Extension) =
                           Parsetree.pexp_desc = (Parsetree.Pexp_match (e, l));
                           Parsetree.pexp_loc = _loc
                         })));
-             Decap.fsequence_position try_kw
-               (Decap.fsequence expression
-                  (Decap.sequence with_kw match_cases
+             Earley.fsequence_position try_kw
+               (Earley.fsequence expression
+                  (Earley.sequence with_kw match_cases
                      (fun _default_0  l  e  _default_1  __loc__start__buf 
                         __loc__start__pos  __loc__end__buf  __loc__end__pos 
                         ->
@@ -4086,17 +4105,17 @@ module Make(Initial:Extension) =
                         })));
              alternatives extra_prefix_expressions])
     let (if_expression,if_expression__set__grammar) =
-      Decap.grammar_family "if_expression"
+      Earley.grammar_family "if_expression"
     let _ =
       if_expression__set__grammar
         (fun (alm,lvl)  ->
-           Decap.alternatives
-             [Decap.fsequence_position if_kw
-                (Decap.fsequence expression
-                   (Decap.fsequence then_kw
-                      (Decap.fsequence
+           Earley.alternatives
+             [Earley.fsequence_position if_kw
+                (Earley.fsequence expression
+                   (Earley.fsequence then_kw
+                      (Earley.fsequence
                          (expression_lvl (Match, (next_exp Seq)))
-                         (Decap.sequence else_kw
+                         (Earley.sequence else_kw
                             (expression_lvl (alm, (next_exp Seq)))
                             (fun _default_0  e'  e  _default_1  c  _default_2
                                 __loc__start__buf  __loc__start__pos 
@@ -4110,10 +4129,10 @@ module Make(Initial:Extension) =
                                       (c, e, (Some e')));
                                  Parsetree.pexp_loc = _loc
                                })))));
-             Decap.fsequence_position if_kw
-               (Decap.fsequence expression
-                  (Decap.fsequence then_kw
-                     (Decap.sequence (expression_lvl (alm, (next_exp Seq)))
+             Earley.fsequence_position if_kw
+               (Earley.fsequence expression
+                  (Earley.fsequence then_kw
+                     (Earley.sequence (expression_lvl (alm, (next_exp Seq)))
                         no_else
                         (fun e  _default_0  _default_1  c  _default_2 
                            __loc__start__buf  __loc__start__pos 
@@ -4129,7 +4148,7 @@ module Make(Initial:Extension) =
     let _ =
       set_expression_lvl
         (fun ((alm,lvl) as c)  ->
-           Decap.alternatives ((extra_expressions_grammar c) ::
+           Earley.alternatives ((extra_expressions_grammar c) ::
              (let y =
                 let y =
                   let y =
@@ -4174,8 +4193,8 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     lvl0
                                                                     then
-                                                                    Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -4186,7 +4205,7 @@ module Make(Initial:Extension) =
                                                                     x))
                                                                     (prefix_symbol
                                                                     lvl0))
-                                                                    (Decap.apply_position
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -4212,7 +4231,7 @@ module Make(Initial:Extension) =
                                                                     p _loc_p
                                                                     e _loc_e)
                                                                     else
-                                                                    Decap.fail
+                                                                    Earley.fail
                                                                     ())
                                                                     prefix_prios);
                                                                     alternatives
@@ -4238,12 +4257,12 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     lvl0
                                                                     then
-                                                                    Decap.fsequence_position
+                                                                    Earley.fsequence_position
                                                                     (expression_lvl
                                                                     (NoMatch,
                                                                     left))
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -4307,22 +4326,22 @@ module Make(Initial:Extension) =
                                                                     (nolabel,
                                                                     e)]))))
                                                                     else
-                                                                    Decap.fail
+                                                                    Earley.fail
                                                                     ())
                                                                     infix_prios)] in
                                                                     if
                                                                     lvl = App
                                                                     then
-                                                                    (Decap.sequence_position
+                                                                    (Earley.sequence_position
                                                                     (expression_lvl
                                                                     (NoMatch,
                                                                     (next_exp
                                                                     App)))
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     List.rev
-                                                                    (Decap.fixpoint1
+                                                                    (Earley.fixpoint1
                                                                     []
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x  y
                                                                      -> x ::
                                                                     y)
@@ -4374,12 +4393,12 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Dash
                                                                     then
-                                                                    (Decap.fsequence_position
+                                                                    (Earley.fsequence_position
                                                                     (expression_lvl
                                                                     (NoMatch,
                                                                     Dash))
-                                                                    (Decap.sequence
-                                                                    (Decap.char
+                                                                    (Earley.sequence
+                                                                    (Earley.char
                                                                     '#' '#')
                                                                     method_name
                                                                     (fun _  f
@@ -4408,14 +4427,14 @@ module Make(Initial:Extension) =
                                                                     (lvl =
                                                                     Aff)
                                                                     then
-                                                                    (Decap.fsequence_position
+                                                                    (Earley.fsequence_position
                                                                     (expression_lvl
                                                                     (NoMatch,
                                                                     Dot))
-                                                                    (Decap.sequence
-                                                                    (Decap.char
+                                                                    (Earley.sequence
+                                                                    (Earley.char
                                                                     '.' '.')
-                                                                    (Decap.alternatives
+                                                                    (Earley.alternatives
                                                                     (let y =
                                                                     let y =
                                                                     let y =
@@ -4428,7 +4447,7 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Dot
                                                                     then
-                                                                    (Decap.apply_position
+                                                                    (Earley.apply_position
                                                                     (fun f 
                                                                     ->
                                                                     let 
@@ -4456,7 +4475,7 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Pexp_field
                                                                     (e', f)))
-                                                                    (Decap.apply_position
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -4470,8 +4489,8 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Aff
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.apply_position
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -4480,8 +4499,8 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x)) field)
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     "<-" "<-")
                                                                     (expression_lvl
                                                                     ((right_alm
@@ -4521,12 +4540,12 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Dot
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "{" "{")
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     expression
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     "}" "}")
                                                                     (fun f  _
                                                                      _ 
@@ -4554,16 +4573,16 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Aff
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "{" "{")
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     expression
-                                                                    (Decap.fsequence
-                                                                    (Decap.string
+                                                                    (Earley.fsequence
+                                                                    (Earley.string
                                                                     "}" "}")
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     "<-" "<-")
                                                                     (expression_lvl
                                                                     ((right_alm
@@ -4597,12 +4616,12 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Dot
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "[" "[")
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     expression
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     "]" "]")
                                                                     (fun f  _
                                                                      _ 
@@ -4635,16 +4654,16 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Aff
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "[" "[")
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     expression
-                                                                    (Decap.fsequence
-                                                                    (Decap.string
+                                                                    (Earley.fsequence
+                                                                    (Earley.string
                                                                     "]" "]")
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     "<-" "<-")
                                                                     (expression_lvl
                                                                     ((right_alm
@@ -4684,12 +4703,12 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Dot
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "(" "(")
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     expression
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ")" ")")
                                                                     (fun f  _
                                                                      _ 
@@ -4722,16 +4741,16 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Aff
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "(" "(")
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     expression
-                                                                    (Decap.fsequence
-                                                                    (Decap.string
+                                                                    (Earley.fsequence
+                                                                    (Earley.string
                                                                     ")" ")")
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     "<-" "<-")
                                                                     (expression_lvl
                                                                     ((right_alm
@@ -4788,16 +4807,16 @@ module Make(Initial:Extension) =
                                                                     if
                                                                     lvl = Seq
                                                                     then
-                                                                    (Decap.fsequence
-                                                                    (Decap.apply
+                                                                    (Earley.fsequence
+                                                                    (Earley.apply
                                                                     List.rev
-                                                                    (Decap.fixpoint
+                                                                    (Earley.fixpoint
                                                                     []
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x  y
                                                                      -> x ::
                                                                     y)
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     (expression_lvl
                                                                     (LetRight,
                                                                     (next_exp
@@ -4807,13 +4826,13 @@ module Make(Initial:Extension) =
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0)))))
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     (expression_lvl
                                                                     ((right_alm
                                                                     alm),
                                                                     (next_exp
                                                                     Seq)))
-                                                                    (Decap.alternatives
+                                                                    (Earley.alternatives
                                                                     [semi_col;
                                                                     no_semi])
                                                                     (fun e' 
@@ -4828,21 +4847,21 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Tupl
                                                                     then
-                                                                    (Decap.sequence_position
-                                                                    (Decap.apply
+                                                                    (Earley.sequence_position
+                                                                    (Earley.apply
                                                                     List.rev
-                                                                    (Decap.fixpoint1
+                                                                    (Earley.fixpoint1
                                                                     []
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x  y
                                                                      -> x ::
                                                                     y)
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     (expression_lvl
                                                                     (NoMatch,
                                                                     (next_exp
                                                                     Tupl)))
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ',' ',')
                                                                     (fun
                                                                     _default_0
@@ -4877,32 +4896,32 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Atom
                                                                     then
-                                                                    (Decap.fsequence_position
-                                                                    (Decap.ignore_next_blank
-                                                                    (Decap.char
+                                                                    (Earley.fsequence_position
+                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.char
                                                                     '$' '$'))
-                                                                    (Decap.fsequence
-                                                                    (Decap.option
+                                                                    (Earley.fsequence
+                                                                    (Earley.option
                                                                     "expr"
-                                                                    (Decap.sequence
-                                                                    (Decap.ignore_next_blank
-                                                                    (Decap.regexp
+                                                                    (Earley.sequence
+                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
                                                                     groupe 0)))
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ':' ':')
                                                                     (fun
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0)))
-                                                                    (Decap.sequence
-                                                                    (Decap.ignore_next_blank
+                                                                    (Earley.sequence
+                                                                    (Earley.ignore_next_blank
                                                                     expression)
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     '$' '$')
                                                                     (fun e  _
                                                                      aq  _ 
@@ -5108,9 +5127,9 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Atom
                                                                     then
-                                                                    (Decap.sequence_position
-                                                                    (Decap.ignore_next_blank
-                                                                    (Decap.char
+                                                                    (Earley.sequence_position
+                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.char
                                                                     '$' '$'))
                                                                     uident
                                                                     (fun _  c
@@ -5165,20 +5184,20 @@ module Make(Initial:Extension) =
                                                                     lvl =
                                                                     Atom
                                                                     then
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     "<:" "<:")
-                                                                    (Decap.alternatives
+                                                                    (Earley.alternatives
                                                                     [
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "expr"
                                                                     "expr")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5188,7 +5207,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     expression)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5217,15 +5236,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_expression
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "type"
                                                                     "type")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5235,7 +5254,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     typexpr)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5264,15 +5283,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_core_type
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "pat"
                                                                     "pat")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5282,7 +5301,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     pattern)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5311,15 +5330,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_pattern
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "struct"
                                                                     "struct")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5329,7 +5348,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     structure_item_simple)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5358,15 +5377,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_structure
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "sig"
                                                                     "sig")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5376,7 +5395,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     signature_item)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5405,15 +5424,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_signature
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "constructors"
                                                                     "constructors")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5423,7 +5442,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     constr_decl_list)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5479,15 +5498,15 @@ module Make(Initial:Extension) =
                                                                     quote_constructor_declaration
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "fields"
                                                                     "fields")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5497,7 +5516,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     field_decl_list)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5551,15 +5570,15 @@ module Make(Initial:Extension) =
                                                                     quote_label_declaration
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "bindings"
                                                                     "bindings")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5569,7 +5588,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     let_binding)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5615,15 +5634,15 @@ module Make(Initial:Extension) =
                                                                     quote_value_binding
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "cases"
                                                                     "cases")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5633,7 +5652,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     match_cases)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5679,15 +5698,15 @@ module Make(Initial:Extension) =
                                                                     quote_case
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "module"
                                                                     "module")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5697,7 +5716,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     module_expr)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5726,19 +5745,19 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_module_expr
                                                                     e_loc
                                                                     _loc_e e)));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "module"
                                                                     "module")
-                                                                    (Decap.fsequence
-                                                                    (Decap.string
+                                                                    (Earley.fsequence
+                                                                    (Earley.string
                                                                     "type"
                                                                     "type")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5748,7 +5767,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     module_type)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5777,15 +5796,15 @@ module Make(Initial:Extension) =
                                                                     Quote.quote_module_type
                                                                     e_loc
                                                                     _loc_e e))));
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "record"
                                                                     "record")
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     '<' '<')
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5795,7 +5814,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     record_list)
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">>" ">>")
                                                                     (fun e 
                                                                     ->
@@ -5853,13 +5872,13 @@ module Make(Initial:Extension) =
                                                                     Atom
                                                                   then
                                                                     (
-                                                                    Decap.fsequence_position
-                                                                    (Decap.string
+                                                                    Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "(" "(")
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     module_kw
-                                                                    (Decap.fsequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.fsequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5869,8 +5888,8 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     module_expr)
-                                                                    (Decap.sequence
-                                                                    (Decap.apply_position
+                                                                    (Earley.sequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -5879,18 +5898,18 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                    (Decap.option
+                                                                    (Earley.option
                                                                     None
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
-                                                                    (Decap.sequence
-                                                                    (Decap.string
+                                                                    (Earley.sequence
+                                                                    (Earley.string
                                                                     ":" ":")
                                                                     package_type
                                                                     (fun _ 
                                                                     pt  -> pt)))))
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ")" ")")
                                                                     (fun pt 
                                                                     ->
@@ -5945,38 +5964,38 @@ module Make(Initial:Extension) =
                                                                   else y in
                                                                 if lvl = Atom
                                                                 then
-                                                                  (Decap.fsequence_position
-                                                                    (Decap.string
+                                                                  (Earley.fsequence_position
+                                                                    (Earley.string
                                                                     "{<" "{<")
-                                                                    (Decap.sequence
-                                                                    (Decap.option
+                                                                    (Earley.sequence
+                                                                    (Earley.option
                                                                     []
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     obj_item
-                                                                    (Decap.sequence
-                                                                    (Decap.apply
+                                                                    (Earley.sequence
+                                                                    (Earley.apply
                                                                     List.rev
-                                                                    (Decap.fixpoint
+                                                                    (Earley.fixpoint
                                                                     []
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x  y
                                                                      -> x ::
                                                                     y)
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     semi_col
                                                                     obj_item
                                                                     (fun _  o
                                                                      -> o)))))
-                                                                    (Decap.option
+                                                                    (Earley.option
                                                                     None
-                                                                    (Decap.apply
+                                                                    (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
                                                                     semi_col))
                                                                     (fun l  _
                                                                      o  -> o
                                                                     :: l))))
-                                                                    (Decap.string
+                                                                    (Earley.string
                                                                     ">}" ">}")
                                                                     (fun l  _
                                                                      _ 
@@ -6000,9 +6019,9 @@ module Make(Initial:Extension) =
                                                                 else y in
                                                               if lvl = Atom
                                                               then
-                                                                (Decap.fsequence_position
+                                                                (Earley.fsequence_position
                                                                    object_kw
-                                                                   (Decap.sequence
+                                                                   (Earley.sequence
                                                                     class_body
                                                                     end_kw
                                                                     (fun o 
@@ -6028,9 +6047,9 @@ module Make(Initial:Extension) =
                                                               else y in
                                                             if lvl = Atom
                                                             then
-                                                              (Decap.sequence_position
+                                                              (Earley.sequence_position
                                                                  new_kw
-                                                                 (Decap.apply_position
+                                                                 (Earley.apply_position
                                                                     (
                                                                     fun x 
                                                                     str  pos 
@@ -6069,10 +6088,10 @@ module Make(Initial:Extension) =
                                                             else y in
                                                           if lvl = Atom
                                                           then
-                                                            (Decap.fsequence_position
+                                                            (Earley.fsequence_position
                                                                for_kw
-                                                               (Decap.fsequence
-                                                                  (Decap.apply_position
+                                                               (Earley.fsequence
+                                                                  (Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -6082,18 +6101,18 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     lident)
-                                                                  (Decap.fsequence
-                                                                    (Decap.char
+                                                                  (Earley.fsequence
+                                                                    (Earley.char
                                                                     '=' '=')
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     expression
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     downto_flag
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     expression
-                                                                    (Decap.fsequence
+                                                                    (Earley.fsequence
                                                                     do_kw
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     expression
                                                                     done_kw
                                                                     (fun e'' 
@@ -6131,13 +6150,13 @@ module Make(Initial:Extension) =
                                                           else y in
                                                         if lvl = Atom
                                                         then
-                                                          (Decap.fsequence_position
+                                                          (Earley.fsequence_position
                                                              while_kw
-                                                             (Decap.fsequence
+                                                             (Earley.fsequence
                                                                 expression
-                                                                (Decap.fsequence
+                                                                (Earley.fsequence
                                                                    do_kw
-                                                                   (Decap.sequence
+                                                                   (Earley.sequence
                                                                     expression
                                                                     done_kw
                                                                     (fun e' 
@@ -6165,27 +6184,27 @@ module Make(Initial:Extension) =
                                                         else y in
                                                       if lvl = Atom
                                                       then
-                                                        (Decap.fsequence_position
-                                                           (Decap.string "{"
+                                                        (Earley.fsequence_position
+                                                           (Earley.string "{"
                                                               "{")
-                                                           (Decap.fsequence
-                                                              (Decap.option
+                                                           (Earley.fsequence
+                                                              (Earley.option
                                                                  None
-                                                                 (Decap.apply
+                                                                 (Earley.apply
                                                                     (
                                                                     fun x  ->
                                                                     Some x)
                                                                     (
-                                                                    Decap.sequence
+                                                                    Earley.sequence
                                                                     expression
                                                                     with_kw
                                                                     (fun
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0))))
-                                                              (Decap.sequence
+                                                              (Earley.sequence
                                                                  record_list
-                                                                 (Decap.string
+                                                                 (Earley.string
                                                                     "}" "}")
                                                                  (fun l  _  e
                                                                      _ 
@@ -6209,11 +6228,11 @@ module Make(Initial:Extension) =
                                                       else y in
                                                     if lvl = Atom
                                                     then
-                                                      (Decap.fsequence_position
-                                                         (Decap.char '[' '[')
-                                                         (Decap.sequence
+                                                      (Earley.fsequence_position
+                                                         (Earley.char '[' '[')
+                                                         (Earley.sequence
                                                             expression_list
-                                                            (Decap.apply_position
+                                                            (Earley.apply_position
                                                                (fun x  str 
                                                                   pos  str' 
                                                                   pos'  ->
@@ -6221,7 +6240,7 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                               (Decap.char
+                                                               (Earley.char
                                                                   ']' ']'))
                                                             (fun l  cl  ->
                                                                let (_loc_cl,cl)
@@ -6248,12 +6267,12 @@ module Make(Initial:Extension) =
                                                     else y in
                                                   if lvl = Atom
                                                   then
-                                                    (Decap.fsequence_position
-                                                       (Decap.string "[|"
+                                                    (Earley.fsequence_position
+                                                       (Earley.string "[|"
                                                           "[|")
-                                                       (Decap.sequence
+                                                       (Earley.sequence
                                                           expression_list
-                                                          (Decap.string "|]"
+                                                          (Earley.string "|]"
                                                              "|]")
                                                           (fun l  _  _ 
                                                              __loc__start__buf
@@ -6275,7 +6294,7 @@ module Make(Initial:Extension) =
                                                   else y in
                                                 if lvl = Atom
                                                 then
-                                                  (Decap.apply_position
+                                                  (Earley.apply_position
                                                      (fun l 
                                                         __loc__start__buf 
                                                         __loc__start__pos 
@@ -6295,8 +6314,8 @@ module Make(Initial:Extension) =
                                                 else y in
                                               if lvl = Atom
                                               then
-                                                (Decap.sequence_position
-                                                   (Decap.apply_position
+                                                (Earley.sequence_position
+                                                   (Earley.apply_position
                                                       (fun x  str  pos  str' 
                                                          pos'  ->
                                                          ((locate str pos
@@ -6324,7 +6343,7 @@ module Make(Initial:Extension) =
                                               else y in
                                             if lvl = App
                                             then
-                                              (Decap.sequence_position
+                                              (Earley.sequence_position
                                                  lazy_kw
                                                  (expression_lvl
                                                     (NoMatch, (next_exp App)))
@@ -6364,10 +6383,10 @@ module Make(Initial:Extension) =
                                             else y in
                                           if lvl = App
                                           then
-                                            (Decap.sequence_position
+                                            (Earley.sequence_position
                                                assert_kw
-                                               (Decap.alternatives
-                                                  ((Decap.apply_position
+                                               (Earley.alternatives
+                                                  ((Earley.apply_position
                                                       (fun _default_0 
                                                          __loc__start__buf 
                                                          __loc__start__pos 
@@ -6384,7 +6403,8 @@ module Make(Initial:Extension) =
                                                   (let y = [] in
                                                    if lvl = App
                                                    then
-                                                     (Decap.sequence no_false
+                                                     (Earley.sequence
+                                                        no_false
                                                         (expression_lvl
                                                            (NoMatch,
                                                              (next_exp App)))
@@ -6407,10 +6427,10 @@ module Make(Initial:Extension) =
                                           else y in
                                         if lvl = Atom
                                         then
-                                          (Decap.fsequence_position begin_kw
-                                             (Decap.sequence
-                                                (Decap.option None
-                                                   (Decap.apply
+                                          (Earley.fsequence_position begin_kw
+                                             (Earley.sequence
+                                                (Earley.option None
+                                                   (Earley.apply
                                                       (fun x  -> Some x)
                                                       expression)) end_kw
                                                 (fun e  _default_0 
@@ -6437,13 +6457,13 @@ module Make(Initial:Extension) =
                                         else y in
                                       if lvl = Atom
                                       then
-                                        (Decap.fsequence_position
-                                           (Decap.char '(' '(')
-                                           (Decap.fsequence no_parser
-                                              (Decap.fsequence expression
-                                                 (Decap.sequence
+                                        (Earley.fsequence_position
+                                           (Earley.char '(' '(')
+                                           (Earley.fsequence no_parser
+                                              (Earley.fsequence expression
+                                                 (Earley.sequence
                                                     type_coercion
-                                                    (Decap.char ')' ')')
+                                                    (Earley.char ')' ')')
                                                     (fun t  _  e  _default_0 
                                                        _  __loc__start__buf 
                                                        __loc__start__pos 
@@ -6470,14 +6490,14 @@ module Make(Initial:Extension) =
                                       else y in
                                     if lvl = Atom
                                     then
-                                      (Decap.fsequence_position
-                                         (Decap.char '(' '(')
-                                         (Decap.sequence
-                                            (Decap.option None
-                                               (Decap.apply
+                                      (Earley.fsequence_position
+                                         (Earley.char '(' '(')
+                                         (Earley.sequence
+                                            (Earley.option None
+                                               (Earley.apply
                                                   (fun x  -> Some x)
                                                   expression))
-                                            (Decap.char ')' ')')
+                                            (Earley.char ')' ')')
                                             (fun e  _  _  __loc__start__buf 
                                                __loc__start__pos 
                                                __loc__end__buf 
@@ -6507,29 +6527,29 @@ module Make(Initial:Extension) =
                                     else y in
                                   if (allow_let alm) && (lvl < App)
                                   then
-                                    (Decap.sequence_position let_kw
-                                       (Decap.alternatives
+                                    (Earley.sequence_position let_kw
+                                       (Earley.alternatives
                                           (let y =
-                                             [Decap.fsequence_position
+                                             [Earley.fsequence_position
                                                 module_kw
-                                                (Decap.fsequence module_name
-                                                   (Decap.fsequence
-                                                      (Decap.apply List.rev
-                                                         (Decap.fixpoint []
-                                                            (Decap.apply
+                                                (Earley.fsequence module_name
+                                                   (Earley.fsequence
+                                                      (Earley.apply List.rev
+                                                         (Earley.fixpoint []
+                                                            (Earley.apply
                                                                (fun x  y  ->
                                                                   x :: y)
-                                                               (Decap.fsequence_position
-                                                                  (Decap.char
+                                                               (Earley.fsequence_position
+                                                                  (Earley.char
                                                                     '(' '(')
-                                                                  (Decap.fsequence
+                                                                  (Earley.fsequence
                                                                     module_name
-                                                                    (Decap.fsequence
-                                                                    (Decap.char
+                                                                    (Earley.fsequence
+                                                                    (Earley.char
                                                                     ':' ':')
-                                                                    (Decap.sequence
+                                                                    (Earley.sequence
                                                                     module_type
-                                                                    (Decap.char
+                                                                    (Earley.char
                                                                     ')' ')')
                                                                     (fun mt 
                                                                     _  _  mn 
@@ -6548,29 +6568,29 @@ module Make(Initial:Extension) =
                                                                     __loc__end__pos in
                                                                     (mn, mt,
                                                                     _loc)))))))))
-                                                      (Decap.fsequence
-                                                         (Decap.apply_position
+                                                      (Earley.fsequence
+                                                         (Earley.apply_position
                                                             (fun x  str  pos 
                                                                str'  pos'  ->
                                                                ((locate str
                                                                    pos str'
                                                                    pos'), x))
-                                                            (Decap.option
+                                                            (Earley.option
                                                                None
-                                                               (Decap.apply
+                                                               (Earley.apply
                                                                   (fun x  ->
                                                                     Some x)
-                                                                  (Decap.sequence
-                                                                    (Decap.string
+                                                                  (Earley.sequence
+                                                                    (Earley.string
                                                                     ":" ":")
                                                                     module_type
                                                                     (fun _ 
                                                                     mt  -> mt)))))
-                                                         (Decap.fsequence
-                                                            (Decap.string "="
-                                                               "=")
-                                                            (Decap.fsequence
-                                                               (Decap.apply_position
+                                                         (Earley.fsequence
+                                                            (Earley.string
+                                                               "=" "=")
+                                                            (Earley.fsequence
+                                                               (Earley.apply_position
                                                                   (fun x  str
                                                                      pos 
                                                                     str' 
@@ -6580,7 +6600,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                   module_expr)
-                                                               (Decap.sequence
+                                                               (Earley.sequence
                                                                   in_kw
                                                                   (expression_lvl
                                                                     ((right_alm
@@ -6648,16 +6668,18 @@ module Make(Initial:Extension) =
                                                                     (Pexp_letmodule
                                                                     (mn, me,
                                                                     e)))))))));
-                                             Decap.fsequence_position open_kw
-                                               (Decap.fsequence override_flag
-                                                  (Decap.fsequence
-                                                     (Decap.apply_position
+                                             Earley.fsequence_position
+                                               open_kw
+                                               (Earley.fsequence
+                                                  override_flag
+                                                  (Earley.fsequence
+                                                     (Earley.apply_position
                                                         (fun x  str  pos 
                                                            str'  pos'  ->
                                                            ((locate str pos
                                                                str' pos'), x))
                                                         module_path)
-                                                     (Decap.sequence in_kw
+                                                     (Earley.sequence in_kw
                                                         (expression_lvl
                                                            ((right_alm alm),
                                                              Seq))
@@ -6687,11 +6709,11 @@ module Make(Initial:Extension) =
                                                                     e))))))] in
                                            if (allow_let alm) && (lvl < App)
                                            then
-                                             (Decap.fsequence_position
+                                             (Earley.fsequence_position
                                                 rec_flag
-                                                (Decap.fsequence let_binding
-                                                   (Decap.fsequence in_kw
-                                                      (Decap.sequence
+                                                (Earley.fsequence let_binding
+                                                   (Earley.fsequence in_kw
+                                                      (Earley.sequence
                                                          (expression_lvl
                                                             ((right_alm alm),
                                                               Seq)) no_semi
@@ -6726,25 +6748,25 @@ module Make(Initial:Extension) =
                                   else y in
                                 if (allow_let alm) && (lvl < App)
                                 then
-                                  (Decap.fsequence_position fun_kw
-                                     (Decap.fsequence
-                                        (Decap.apply List.rev
-                                           (Decap.fixpoint []
-                                              (Decap.apply
+                                  (Earley.fsequence_position fun_kw
+                                     (Earley.fsequence
+                                        (Earley.apply List.rev
+                                           (Earley.fixpoint []
+                                              (Earley.apply
                                                  (fun x  y  -> x :: y)
-                                                 (Decap.apply
+                                                 (Earley.apply
                                                     (fun lbl  ->
                                                        let (_loc_lbl,lbl) =
                                                          lbl in
                                                        (lbl, _loc_lbl))
-                                                    (Decap.apply_position
+                                                    (Earley.apply_position
                                                        (fun x  str  pos  str'
                                                            pos'  ->
                                                           ((locate str pos
                                                               str' pos'), x))
                                                        (parameter true))))))
-                                        (Decap.fsequence arrow_re
-                                           (Decap.sequence
+                                        (Earley.fsequence arrow_re
+                                           (Earley.sequence
                                               (expression_lvl
                                                  ((right_alm alm), Seq))
                                               no_semi
@@ -6773,22 +6795,22 @@ module Make(Initial:Extension) =
                             else y in
                           if lvl = Atom
                           then
-                            (Decap.fsequence_position
-                               (Decap.apply_position
+                            (Earley.fsequence_position
+                               (Earley.apply_position
                                   (fun x  str  pos  str'  pos'  ->
                                      ((locate str pos str' pos'), x))
                                   module_path)
-                               (Decap.fsequence (Decap.char '.' '.')
-                                  (Decap.fsequence (Decap.char '{' '{')
-                                     (Decap.fsequence
-                                        (Decap.option None
-                                           (Decap.apply (fun x  -> Some x)
-                                              (Decap.sequence expression
+                               (Earley.fsequence (Earley.char '.' '.')
+                                  (Earley.fsequence (Earley.char '{' '{')
+                                     (Earley.fsequence
+                                        (Earley.option None
+                                           (Earley.apply (fun x  -> Some x)
+                                              (Earley.sequence expression
                                                  with_kw
                                                  (fun _default_0  _  ->
                                                     _default_0))))
-                                        (Decap.sequence record_list
-                                           (Decap.char '}' '}')
+                                        (Earley.sequence record_list
+                                           (Earley.char '}' '}')
                                            (fun l  _  e  _  _  mp  ->
                                               let (_loc_mp,mp) = mp in
                                               fun __loc__start__buf 
@@ -6810,18 +6832,18 @@ module Make(Initial:Extension) =
                           else y in
                         if lvl = Atom
                         then
-                          (Decap.fsequence_position
-                             (Decap.apply_position
+                          (Earley.fsequence_position
+                             (Earley.apply_position
                                 (fun x  str  pos  str'  pos'  ->
                                    ((locate str pos str' pos'), x))
                                 module_path)
-                             (Decap.fsequence (Decap.char '.' '.')
-                                (Decap.fsequence (Decap.char '[' '[')
-                                   (Decap.sequence expression_list
-                                      (Decap.apply_position
+                             (Earley.fsequence (Earley.char '.' '.')
+                                (Earley.fsequence (Earley.char '[' '[')
+                                   (Earley.sequence expression_list
+                                      (Earley.apply_position
                                          (fun x  str  pos  str'  pos'  ->
                                             ((locate str pos str' pos'), x))
-                                         (Decap.char ']' ']'))
+                                         (Earley.char ']' ']'))
                                       (fun l  cl  ->
                                          let (_loc_cl,cl) = cl in
                                          fun _  _  mp  ->
@@ -6846,14 +6868,14 @@ module Make(Initial:Extension) =
                         else y in
                       if lvl = Atom
                       then
-                        (Decap.fsequence_position
-                           (Decap.apply_position
+                        (Earley.fsequence_position
+                           (Earley.apply_position
                               (fun x  str  pos  str'  pos'  ->
                                  ((locate str pos str' pos'), x)) module_path)
-                           (Decap.fsequence (Decap.string "." ".")
-                              (Decap.fsequence (Decap.string "(" "(")
-                                 (Decap.sequence expression
-                                    (Decap.string ")" ")")
+                           (Earley.fsequence (Earley.string "." ".")
+                              (Earley.fsequence (Earley.string "(" "(")
+                                 (Earley.sequence expression
+                                    (Earley.string ")" ")")
                                     (fun e  _  _  _  mp  ->
                                        let (_loc_mp,mp) = mp in
                                        fun __loc__start__buf 
@@ -6870,7 +6892,7 @@ module Make(Initial:Extension) =
                       else y in
                     if lvl = Atom
                     then
-                      (Decap.apply_position
+                      (Earley.apply_position
                          (fun c  __loc__start__buf  __loc__start__pos 
                             __loc__end__buf  __loc__end__pos  ->
                             let _loc =
@@ -6881,7 +6903,7 @@ module Make(Initial:Extension) =
                     else y in
                   if lvl = Atom
                   then
-                    (Decap.apply_position
+                    (Earley.apply_position
                        (fun id  ->
                           let (_loc_id,id) = id in
                           fun __loc__start__buf  __loc__start__pos 
@@ -6890,18 +6912,18 @@ module Make(Initial:Extension) =
                               locate __loc__start__buf __loc__start__pos
                                 __loc__end__buf __loc__end__pos in
                             loc_expr _loc (Pexp_ident (id_loc id _loc_id)))
-                       (Decap.apply_position
+                       (Earley.apply_position
                           (fun x  str  pos  str'  pos'  ->
                              ((locate str pos str' pos'), x)) value_path))
                     :: y
                   else y in
                 if lvl = Aff
                 then
-                  (Decap.fsequence_position
-                     (Decap.apply_position
+                  (Earley.fsequence_position
+                     (Earley.apply_position
                         (fun x  str  pos  str'  pos'  ->
                            ((locate str pos str' pos'), x)) inst_var_name)
-                     (Decap.sequence (Decap.string "<-" "<-")
+                     (Earley.sequence (Earley.string "<-" "<-")
                         (expression_lvl ((right_alm alm), (next_exp Aff)))
                         (fun _  e  v  ->
                            let (_loc_v,v) = v in
@@ -6917,11 +6939,11 @@ module Make(Initial:Extension) =
               if (lvl < Atom) && (lvl != Seq)
               then (expression_lvl ((left_alm alm), (next_exp lvl))) :: y
               else y)))
-    let module_expr_base = Decap.declare_grammar "module_expr_base"
+    let module_expr_base = Earley.declare_grammar "module_expr_base"
     let _ =
-      Decap.set_grammar module_expr_base
-        (Decap.alternatives
-           [Decap.apply_position
+      Earley.set_grammar module_expr_base
+        (Earley.alternatives
+           [Earley.apply_position
               (fun mp  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                  __loc__end__pos  ->
                  let _loc =
@@ -6929,21 +6951,21 @@ module Make(Initial:Extension) =
                      __loc__end__pos in
                  let mid = id_loc mp _loc in mexpr_loc _loc (Pmod_ident mid))
               module_path;
-           Decap.fsequence_position struct_kw
-             (Decap.sequence structure end_kw
+           Earley.fsequence_position struct_kw
+             (Earley.sequence structure end_kw
                 (fun ms  _default_0  _default_1  __loc__start__buf 
                    __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    mexpr_loc _loc (Pmod_structure ms)));
-           Decap.fsequence_position functor_kw
-             (Decap.fsequence (Decap.char '(' '(')
-                (Decap.fsequence module_name
-                   (Decap.fsequence (Decap.char ':' ':')
-                      (Decap.fsequence module_type
-                         (Decap.fsequence (Decap.char ')' ')')
-                            (Decap.sequence arrow_re module_expr
+           Earley.fsequence_position functor_kw
+             (Earley.fsequence (Earley.char '(' '(')
+                (Earley.fsequence module_name
+                   (Earley.fsequence (Earley.char ':' ':')
+                      (Earley.fsequence module_type
+                         (Earley.fsequence (Earley.char ')' ')')
+                            (Earley.sequence arrow_re module_expr
                                (fun _default_0  me  _  mt  _  mn  _ 
                                   _default_1  __loc__start__buf 
                                   __loc__start__pos  __loc__end__buf 
@@ -6953,13 +6975,13 @@ module Make(Initial:Extension) =
                                       __loc__start__pos __loc__end__buf
                                       __loc__end__pos in
                                   mexpr_loc _loc (Pmod_functor (mn, mt, me)))))))));
-           Decap.fsequence_position (Decap.char '(' '(')
-             (Decap.fsequence module_expr
-                (Decap.sequence
-                   (Decap.option None
-                      (Decap.apply (fun x  -> Some x)
-                         (Decap.sequence (Decap.char ':' ':') module_type
-                            (fun _  mt  -> mt)))) (Decap.char ')' ')')
+           Earley.fsequence_position (Earley.char '(' '(')
+             (Earley.fsequence module_expr
+                (Earley.sequence
+                   (Earley.option None
+                      (Earley.apply (fun x  -> Some x)
+                         (Earley.sequence (Earley.char ':' ':') module_type
+                            (fun _  mt  -> mt)))) (Earley.char ')' ')')
                    (fun mt  _  me  _  __loc__start__buf  __loc__start__pos 
                       __loc__end__buf  __loc__end__pos  ->
                       let _loc =
@@ -6968,18 +6990,18 @@ module Make(Initial:Extension) =
                       match mt with
                       | None  -> me
                       | Some mt -> mexpr_loc _loc (Pmod_constraint (me, mt)))));
-           Decap.fsequence_position (Decap.char '(' '(')
-             (Decap.fsequence val_kw
-                (Decap.fsequence expression
-                   (Decap.sequence
-                      (Decap.apply_position
+           Earley.fsequence_position (Earley.char '(' '(')
+             (Earley.fsequence val_kw
+                (Earley.fsequence expression
+                   (Earley.sequence
+                      (Earley.apply_position
                          (fun x  str  pos  str'  pos'  ->
                             ((locate str pos str' pos'), x))
-                         (Decap.option None
-                            (Decap.apply (fun x  -> Some x)
-                               (Decap.sequence (Decap.string ":" ":")
+                         (Earley.option None
+                            (Earley.apply (fun x  -> Some x)
+                               (Earley.sequence (Earley.string ":" ":")
                                   package_type (fun _  pt  -> pt)))))
-                      (Decap.char ')' ')')
+                      (Earley.char ')' ')')
                       (fun pt  ->
                          let (_loc_pt,pt) = pt in
                          fun _  e  _default_0  _  __loc__start__buf 
@@ -6998,15 +7020,15 @@ module Make(Initial:Extension) =
                            mexpr_loc _loc e))))])
     let _ =
       set_grammar module_expr
-        (Decap.sequence
-           (Decap.apply_position
+        (Earley.sequence
+           (Earley.apply_position
               (fun x  str  pos  str'  pos'  ->
                  ((locate str pos str' pos'), x)) module_expr_base)
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y)
-                    (Decap.fsequence_position (Decap.string "(" "(")
-                       (Decap.sequence module_expr (Decap.string ")" ")")
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y)
+                    (Earley.fsequence_position (Earley.string "(" "(")
+                       (Earley.sequence module_expr (Earley.string ")" ")")
                           (fun m  _  _  __loc__start__buf  __loc__start__pos 
                              __loc__end__buf  __loc__end__pos  ->
                              let _loc =
@@ -7020,11 +7042,11 @@ module Make(Initial:Extension) =
                   (fun acc  (_loc_n,n)  ->
                      mexpr_loc (merge2 _loc_m _loc_n) (Pmod_apply (acc, n)))
                   m l))
-    let module_type_base = Decap.declare_grammar "module_type_base"
+    let module_type_base = Earley.declare_grammar "module_type_base"
     let _ =
-      Decap.set_grammar module_type_base
-        (Decap.alternatives
-           [Decap.apply_position
+      Earley.set_grammar module_type_base
+        (Earley.alternatives
+           [Earley.apply_position
               (fun mp  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                  __loc__end__pos  ->
                  let _loc =
@@ -7032,22 +7054,22 @@ module Make(Initial:Extension) =
                      __loc__end__pos in
                  let mid = id_loc mp _loc in mtyp_loc _loc (Pmty_ident mid))
               modtype_path;
-           Decap.fsequence_position sig_kw
-             (Decap.sequence signature end_kw
+           Earley.fsequence_position sig_kw
+             (Earley.sequence signature end_kw
                 (fun ms  _default_0  _default_1  __loc__start__buf 
                    __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    mtyp_loc _loc (Pmty_signature ms)));
-           Decap.fsequence_position functor_kw
-             (Decap.fsequence (Decap.char '(' '(')
-                (Decap.fsequence module_name
-                   (Decap.fsequence (Decap.char ':' ':')
-                      (Decap.fsequence module_type
-                         (Decap.fsequence (Decap.char ')' ')')
-                            (Decap.fsequence arrow_re
-                               (Decap.sequence module_type no_with
+           Earley.fsequence_position functor_kw
+             (Earley.fsequence (Earley.char '(' '(')
+                (Earley.fsequence module_name
+                   (Earley.fsequence (Earley.char ':' ':')
+                      (Earley.fsequence module_type
+                         (Earley.fsequence (Earley.char ')' ')')
+                            (Earley.fsequence arrow_re
+                               (Earley.sequence module_type no_with
                                   (fun me  _default_0  _default_1  _  mt  _ 
                                      mn  _  _default_2  __loc__start__buf 
                                      __loc__start__pos  __loc__end__buf 
@@ -7058,12 +7080,12 @@ module Make(Initial:Extension) =
                                          __loc__end__pos in
                                      mtyp_loc _loc
                                        (Pmty_functor (mn, mt, me))))))))));
-           Decap.fsequence (Decap.string "(" "(")
-             (Decap.sequence module_type (Decap.string ")" ")")
+           Earley.fsequence (Earley.string "(" "(")
+             (Earley.sequence module_type (Earley.string ")" ")")
                 (fun mt  _  _  -> mt));
-           Decap.fsequence_position module_kw
-             (Decap.fsequence type_kw
-                (Decap.sequence of_kw module_expr
+           Earley.fsequence_position module_kw
+             (Earley.fsequence type_kw
+                (Earley.sequence of_kw module_expr
                    (fun _default_0  me  _default_1  _default_2 
                       __loc__start__buf  __loc__start__pos  __loc__end__buf 
                       __loc__end__pos  ->
@@ -7071,12 +7093,12 @@ module Make(Initial:Extension) =
                         locate __loc__start__buf __loc__start__pos
                           __loc__end__buf __loc__end__pos in
                       mtyp_loc _loc (Pmty_typeof me))))])
-    let mod_constraint = Decap.declare_grammar "mod_constraint"
+    let mod_constraint = Earley.declare_grammar "mod_constraint"
     let _ =
-      Decap.set_grammar mod_constraint
-        (Decap.alternatives
-           [Decap.sequence
-              (Decap.apply_position
+      Earley.set_grammar mod_constraint
+        (Earley.alternatives
+           [Earley.sequence
+              (Earley.apply_position
                  (fun x  str  pos  str'  pos'  ->
                     ((locate str pos str' pos'), x)) type_kw)
               typedef_in_constraint
@@ -7084,13 +7106,13 @@ module Make(Initial:Extension) =
                  let (_loc_t,t) = t in
                  fun tf  ->
                    let (tn,ty) = tf (Some _loc_t) in (tn, (Pwith_type ty)));
-           Decap.fsequence module_kw
-             (Decap.fsequence
-                (Decap.apply_position
+           Earley.fsequence module_kw
+             (Earley.fsequence
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) module_path)
-                (Decap.sequence (Decap.char '=' '=')
-                   (Decap.apply_position
+                (Earley.sequence (Earley.char '=' '=')
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x))
                       extended_module_path)
@@ -7101,13 +7123,13 @@ module Make(Initial:Extension) =
                         fun _default_0  ->
                           let name = id_loc m1 _loc_m1 in
                           (name, (Pwith_module (id_loc m2 _loc_m2))))));
-           Decap.fsequence_position type_kw
-             (Decap.fsequence (Decap.option [] type_params)
-                (Decap.fsequence
-                   (Decap.apply_position
+           Earley.fsequence_position type_kw
+             (Earley.fsequence (Earley.option [] type_params)
+                (Earley.fsequence
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x)) typeconstr_name)
-                   (Decap.sequence (Decap.string ":=" ":=") typexpr
+                   (Earley.sequence (Earley.string ":=" ":=") typexpr
                       (fun _  te  tcn  ->
                          let (_loc_tcn,tcn) = tcn in
                          fun tps  _default_0  __loc__start__buf 
@@ -7121,10 +7143,10 @@ module Make(Initial:Extension) =
                                [] Ptype_abstract Public (Some te) in
                            ((id_loc (Lident tcn) _loc_tcn),
                              (Pwith_typesubst td))))));
-           Decap.fsequence module_kw
-             (Decap.fsequence module_name
-                (Decap.sequence (Decap.string ":=" ":=")
-                   (Decap.apply_position
+           Earley.fsequence module_kw
+             (Earley.fsequence module_name
+                (Earley.sequence (Earley.string ":=" ":=")
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x))
                       extended_module_path)
@@ -7135,15 +7157,15 @@ module Make(Initial:Extension) =
                           (Pwith_modsubst (id_loc emp _loc_emp))))))])
     let _ =
       set_grammar module_type
-        (Decap.sequence_position module_type_base
-           (Decap.option None
-              (Decap.apply (fun x  -> Some x)
-                 (Decap.fsequence with_kw
-                    (Decap.sequence mod_constraint
-                       (Decap.apply List.rev
-                          (Decap.fixpoint []
-                             (Decap.apply (fun x  y  -> x :: y)
-                                (Decap.sequence and_kw mod_constraint
+        (Earley.sequence_position module_type_base
+           (Earley.option None
+              (Earley.apply (fun x  -> Some x)
+                 (Earley.fsequence with_kw
+                    (Earley.sequence mod_constraint
+                       (Earley.apply List.rev
+                          (Earley.fixpoint []
+                             (Earley.apply (fun x  y  -> x :: y)
+                                (Earley.sequence and_kw mod_constraint
                                    (fun _  _default_0  -> _default_0)))))
                        (fun m  l  _  -> m :: l)))))
            (fun m  l  __loc__start__buf  __loc__start__pos  __loc__end__buf 
@@ -7154,13 +7176,13 @@ module Make(Initial:Extension) =
               match l with
               | None  -> m
               | Some l -> mtyp_loc _loc (Pmty_with (m, l))))
-    let structure_item_base = Decap.declare_grammar "structure_item_base"
+    let structure_item_base = Earley.declare_grammar "structure_item_base"
     let _ =
-      Decap.set_grammar structure_item_base
-        (Decap.alternatives
-           [Decap.fsequence_position
-              (Decap.regexp ~name:"let" let_re (fun groupe  -> groupe 0))
-              (Decap.sequence rec_flag let_binding
+      Earley.set_grammar structure_item_base
+        (Earley.alternatives
+           [Earley.fsequence_position
+              (Earley.regexp ~name:"let" let_re (fun groupe  -> groupe 0))
+              (Earley.sequence rec_flag let_binding
                  (fun r  l  _default_0  __loc__start__buf  __loc__start__pos 
                     __loc__end__buf  __loc__end__pos  ->
                     let _loc =
@@ -7171,18 +7193,18 @@ module Make(Initial:Extension) =
                        | ({ ppat_desc = Ppat_any ; ppat_loc = _ },e)::[] ->
                            pstr_eval e
                        | _ -> Pstr_value (r, l))));
-           Decap.fsequence_position external_kw
-             (Decap.fsequence
-                (Decap.apply_position
+           Earley.fsequence_position external_kw
+             (Earley.fsequence
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) value_name)
-                (Decap.fsequence (Decap.string ":" ":")
-                   (Decap.fsequence typexpr
-                      (Decap.fsequence (Decap.string "=" "=")
-                         (Decap.sequence
-                            (Decap.apply List.rev
-                               (Decap.fixpoint []
-                                  (Decap.apply (fun x  y  -> x :: y)
+                (Earley.fsequence (Earley.string ":" ":")
+                   (Earley.fsequence typexpr
+                      (Earley.fsequence (Earley.string "=" "=")
+                         (Earley.sequence
+                            (Earley.apply List.rev
+                               (Earley.fixpoint []
+                                  (Earley.apply (fun x  y  -> x :: y)
                                      string_litteral))) post_item_attributes
                             (fun ls  a  _  ty  _  n  ->
                                let (_loc_n,n) = n in
@@ -7202,40 +7224,40 @@ module Make(Initial:Extension) =
                                           pval_prim = ls;
                                           pval_loc = _loc
                                         }))))))));
-           Decap.apply_position
+           Earley.apply_position
              (fun td  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                 __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_str _loc (Pstr_type td)) type_definition;
-           Decap.apply_position
+           Earley.apply_position
              (fun ex  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                 __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_str _loc ex) exception_definition;
-           Decap.sequence module_kw
-             (Decap.alternatives
-                [Decap.fsequence_position rec_kw
-                   (Decap.fsequence module_name
-                      (Decap.fsequence (Decap.string ":" ":")
-                         (Decap.fsequence module_type
-                            (Decap.fsequence (Decap.char '=' '=')
-                               (Decap.sequence module_expr
-                                  (Decap.apply List.rev
-                                     (Decap.fixpoint []
-                                        (Decap.apply (fun x  y  -> x :: y)
-                                           (Decap.fsequence_position and_kw
-                                              (Decap.fsequence module_name
-                                                 (Decap.fsequence
-                                                    (Decap.string ":" ":")
-                                                    (Decap.fsequence
+           Earley.sequence module_kw
+             (Earley.alternatives
+                [Earley.fsequence_position rec_kw
+                   (Earley.fsequence module_name
+                      (Earley.fsequence (Earley.string ":" ":")
+                         (Earley.fsequence module_type
+                            (Earley.fsequence (Earley.char '=' '=')
+                               (Earley.sequence module_expr
+                                  (Earley.apply List.rev
+                                     (Earley.fixpoint []
+                                        (Earley.apply (fun x  y  -> x :: y)
+                                           (Earley.fsequence_position and_kw
+                                              (Earley.fsequence module_name
+                                                 (Earley.fsequence
+                                                    (Earley.string ":" ":")
+                                                    (Earley.fsequence
                                                        module_type
-                                                       (Decap.sequence
-                                                          (Decap.char '=' '=')
-                                                          module_expr
+                                                       (Earley.sequence
+                                                          (Earley.char '='
+                                                             '=') module_expr
                                                           (fun _  me  mt  _ 
                                                              mn  _default_0 
                                                              __loc__start__buf
@@ -7260,17 +7282,17 @@ module Make(Initial:Extension) =
                                          __loc__end__pos in
                                      let m = module_binding _loc mn mt me in
                                      loc_str _loc (Pstr_recmodule (m :: ms))))))));
-                Decap.fsequence_position module_name
-                  (Decap.fsequence
-                     (Decap.apply List.rev
-                        (Decap.fixpoint []
-                           (Decap.apply (fun x  y  -> x :: y)
-                              (Decap.fsequence_position
-                                 (Decap.string "(" "(")
-                                 (Decap.fsequence module_name
-                                    (Decap.fsequence (Decap.string ":" ":")
-                                       (Decap.sequence module_type
-                                          (Decap.string ")" ")")
+                Earley.fsequence_position module_name
+                  (Earley.fsequence
+                     (Earley.apply List.rev
+                        (Earley.fixpoint []
+                           (Earley.apply (fun x  y  -> x :: y)
+                              (Earley.fsequence_position
+                                 (Earley.string "(" "(")
+                                 (Earley.fsequence module_name
+                                    (Earley.fsequence (Earley.string ":" ":")
+                                       (Earley.sequence module_type
+                                          (Earley.string ")" ")")
                                           (fun mt  _  _  mn  _ 
                                              __loc__start__buf 
                                              __loc__start__pos 
@@ -7282,16 +7304,16 @@ module Make(Initial:Extension) =
                                                  __loc__end__buf
                                                  __loc__end__pos in
                                              (mn, mt, _loc)))))))))
-                     (Decap.fsequence
-                        (Decap.apply_position
+                     (Earley.fsequence
+                        (Earley.apply_position
                            (fun x  str  pos  str'  pos'  ->
                               ((locate str pos str' pos'), x))
-                           (Decap.option None
-                              (Decap.apply (fun x  -> Some x)
-                                 (Decap.sequence (Decap.string ":" ":")
+                           (Earley.option None
+                              (Earley.apply (fun x  -> Some x)
+                                 (Earley.sequence (Earley.string ":" ":")
                                     module_type (fun _  mt  -> mt)))))
-                        (Decap.sequence (Decap.string "=" "=")
-                           (Decap.apply_position
+                        (Earley.sequence (Earley.string "=" "=")
+                           (Earley.apply_position
                               (fun x  str  pos  str'  pos'  ->
                                  ((locate str pos str' pos'), x)) module_expr)
                            (fun _  me  ->
@@ -7320,12 +7342,12 @@ module Make(Initial:Extension) =
                                   let (name,_,me) =
                                     module_binding _loc mn None me in
                                   loc_str _loc (Pstr_module (name, me))))));
-                Decap.fsequence_position type_kw
-                  (Decap.fsequence
-                     (Decap.apply_position
+                Earley.fsequence_position type_kw
+                  (Earley.fsequence
+                     (Earley.apply_position
                         (fun x  str  pos  str'  pos'  ->
                            ((locate str pos str' pos'), x)) modtype_name)
-                     (Decap.sequence (Decap.string "=" "=") module_type
+                     (Earley.sequence (Earley.string "=" "=") module_type
                         (fun _  mt  mn  ->
                            let (_loc_mn,mn) = mn in
                            fun _default_0  __loc__start__buf 
@@ -7337,10 +7359,10 @@ module Make(Initial:Extension) =
                              loc_str _loc
                                (Pstr_modtype ((id_loc mn _loc_mn), mt)))))])
              (fun _default_0  r  -> r);
-           Decap.fsequence_position open_kw
-             (Decap.fsequence override_flag
-                (Decap.sequence
-                   (Decap.apply_position
+           Earley.fsequence_position open_kw
+             (Earley.fsequence override_flag
+                (Earley.sequence
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x)) module_path)
                    post_item_attributes
@@ -7353,28 +7375,28 @@ module Make(Initial:Extension) =
                           locate __loc__start__buf __loc__start__pos
                             __loc__end__buf __loc__end__pos in
                         loc_str _loc (Pstr_open (o, (id_loc m _loc_m))))));
-           Decap.fsequence_position include_kw
-             (Decap.sequence module_expr post_item_attributes
+           Earley.fsequence_position include_kw
+             (Earley.sequence module_expr post_item_attributes
                 (fun me  a  _default_0  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    loc_str _loc (Pstr_include me)));
-           Decap.sequence_position class_kw
-             (Decap.alternatives
-                [Decap.apply (fun ctd  -> Pstr_class_type ctd)
+           Earley.sequence_position class_kw
+             (Earley.alternatives
+                [Earley.apply (fun ctd  -> Pstr_class_type ctd)
                    classtype_definition;
-                Decap.apply (fun cds  -> Pstr_class cds) class_definition])
+                Earley.apply (fun cds  -> Pstr_class cds) class_definition])
              (fun _default_0  r  __loc__start__buf  __loc__start__pos 
                 __loc__end__buf  __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_str _loc r);
-           Decap.fsequence_position (Decap.string "$struct:" "$struct:")
-             (Decap.sequence (Decap.ignore_next_blank expression)
-                (Decap.char '$' '$')
+           Earley.fsequence_position (Earley.string "$struct:" "$struct:")
+             (Earley.sequence (Earley.ignore_next_blank expression)
+                (Earley.char '$' '$')
                 (fun e  _  _  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -7394,12 +7416,12 @@ module Make(Initial:Extension) =
                                    quote_const e_loc _loc
                                      (parsetree "Pmod_structure") [e]]]]
                         | _ -> failwith "Bad antiquotation...")))])
-    let structure_item_aux = Decap.declare_grammar "structure_item_aux"
+    let structure_item_aux = Earley.declare_grammar "structure_item_aux"
     let _ =
-      Decap.set_grammar structure_item_aux
-        (Decap.alternatives
-           [Decap.apply (fun _  -> []) (Decap.empty ());
-           Decap.apply_position
+      Earley.set_grammar structure_item_aux
+        (Earley.alternatives
+           [Earley.apply (fun _  -> []) (Earley.empty ());
+           Earley.apply_position
              (fun e  ->
                 let (_loc_e,e) = e in
                 fun __loc__start__buf  __loc__start__pos  __loc__end__buf 
@@ -7408,12 +7430,12 @@ module Make(Initial:Extension) =
                     locate __loc__start__buf __loc__start__pos
                       __loc__end__buf __loc__end__pos in
                   (attach_str _loc) @ [loc_str _loc_e (pstr_eval e)])
-             (Decap.apply_position
+             (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
                    ((locate str pos str' pos'), x)) expression);
-           Decap.fsequence structure_item_aux
-             (Decap.sequence (Decap.option () double_semi_col)
-                (Decap.apply_position
+           Earley.fsequence structure_item_aux
+             (Earley.sequence (Earley.option () double_semi_col)
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x))
                    (alternatives extra_structure))
@@ -7422,17 +7444,17 @@ module Make(Initial:Extension) =
                    fun s1  ->
                      List.rev_append e
                        (List.rev_append (attach_str _loc_e) s1)));
-           Decap.fsequence structure_item_aux
-             (Decap.sequence (Decap.option () double_semi_col)
-                (Decap.apply_position
+           Earley.fsequence structure_item_aux
+             (Earley.sequence (Earley.option () double_semi_col)
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) structure_item_base)
                 (fun _default_0  s2  ->
                    let (_loc_s2,s2) = s2 in
                    fun s1  -> s2 :: (List.rev_append (attach_str _loc_s2) s1)));
-           Decap.fsequence structure_item_aux
-             (Decap.sequence double_semi_col
-                (Decap.apply_position
+           Earley.fsequence structure_item_aux
+             (Earley.sequence double_semi_col
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) expression)
                 (fun _default_0  e  ->
@@ -7441,24 +7463,25 @@ module Make(Initial:Extension) =
                      (List.rev_append (attach_str _loc_e) s1)))])
     let _ =
       set_grammar structure_item
-        (Decap.sequence structure_item_aux (Decap.option () double_semi_col)
+        (Earley.sequence structure_item_aux
+           (Earley.option () double_semi_col)
            (fun l  _default_0  -> List.rev l))
     let _ =
       set_grammar structure_item_simple
-        (Decap.apply List.rev
-           (Decap.fixpoint []
-              (Decap.apply (fun x  y  -> x :: y) structure_item_base)))
-    let signature_item_base = Decap.declare_grammar "signature_item_base"
+        (Earley.apply List.rev
+           (Earley.fixpoint []
+              (Earley.apply (fun x  y  -> x :: y) structure_item_base)))
+    let signature_item_base = Earley.declare_grammar "signature_item_base"
     let _ =
-      Decap.set_grammar signature_item_base
-        (Decap.alternatives
-           [Decap.fsequence_position val_kw
-              (Decap.fsequence
-                 (Decap.apply_position
+      Earley.set_grammar signature_item_base
+        (Earley.alternatives
+           [Earley.fsequence_position val_kw
+              (Earley.fsequence
+                 (Earley.apply_position
                     (fun x  str  pos  str'  pos'  ->
                        ((locate str pos str' pos'), x)) value_name)
-                 (Decap.fsequence (Decap.string ":" ":")
-                    (Decap.sequence typexpr post_item_attributes
+                 (Earley.fsequence (Earley.string ":" ":")
+                    (Earley.sequence typexpr post_item_attributes
                        (fun ty  a  _  n  ->
                           let (_loc_n,n) = n in
                           fun _default_0  __loc__start__buf 
@@ -7470,18 +7493,18 @@ module Make(Initial:Extension) =
                             loc_sig _loc
                               (psig_value ~attributes:(attach_attrib _loc a)
                                  _loc (id_loc n _loc_n) ty [])))));
-           Decap.fsequence_position external_kw
-             (Decap.fsequence
-                (Decap.apply_position
+           Earley.fsequence_position external_kw
+             (Earley.fsequence
+                (Earley.apply_position
                    (fun x  str  pos  str'  pos'  ->
                       ((locate str pos str' pos'), x)) value_name)
-                (Decap.fsequence (Decap.string ":" ":")
-                   (Decap.fsequence typexpr
-                      (Decap.fsequence (Decap.string "=" "=")
-                         (Decap.sequence
-                            (Decap.apply List.rev
-                               (Decap.fixpoint []
-                                  (Decap.apply (fun x  y  -> x :: y)
+                (Earley.fsequence (Earley.string ":" ":")
+                   (Earley.fsequence typexpr
+                      (Earley.fsequence (Earley.string "=" "=")
+                         (Earley.sequence
+                            (Earley.apply List.rev
+                               (Earley.fixpoint []
+                                  (Earley.apply (fun x  y  -> x :: y)
                                      string_litteral))) post_item_attributes
                             (fun ls  a  _  ty  _  n  ->
                                let (_loc_n,n) = n in
@@ -7497,48 +7520,49 @@ module Make(Initial:Extension) =
                                    (psig_value
                                       ~attributes:(attach_attrib _loc a) _loc
                                       (id_loc n _loc_n) ty ls)))))));
-           Decap.apply_position
+           Earley.apply_position
              (fun td  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                 __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_sig _loc (Psig_type td)) type_definition;
-           Decap.sequence_position exception_declaration post_item_attributes
+           Earley.sequence_position exception_declaration
+             post_item_attributes
              (fun ((name,ed,_loc') as _default_0)  a  __loc__start__buf 
                 __loc__start__pos  __loc__end__buf  __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_sig _loc (Psig_exception (name, ed)));
-           Decap.fsequence_position
-             (Decap.apply_position
+           Earley.fsequence_position
+             (Earley.apply_position
                 (fun _default_0  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    attach_sig _loc) module_kw)
-             (Decap.fsequence rec_kw
-                (Decap.fsequence
-                   (Decap.apply_position
+             (Earley.fsequence rec_kw
+                (Earley.fsequence
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x)) module_name)
-                   (Decap.fsequence (Decap.string ":" ":")
-                      (Decap.fsequence module_type
-                         (Decap.sequence
-                            (Decap.apply_position
+                   (Earley.fsequence (Earley.string ":" ":")
+                      (Earley.fsequence module_type
+                         (Earley.sequence
+                            (Earley.apply_position
                                (fun x  str  pos  str'  pos'  ->
                                   ((locate str pos str' pos'), x))
                                post_item_attributes)
-                            (Decap.apply List.rev
-                               (Decap.fixpoint []
-                                  (Decap.apply (fun x  y  -> x :: y)
-                                     (Decap.fsequence_position and_kw
-                                        (Decap.fsequence module_name
-                                           (Decap.fsequence
-                                              (Decap.string ":" ":")
-                                              (Decap.sequence module_type
+                            (Earley.apply List.rev
+                               (Earley.fixpoint []
+                                  (Earley.apply (fun x  y  -> x :: y)
+                                     (Earley.fsequence_position and_kw
+                                        (Earley.fsequence module_name
+                                           (Earley.fsequence
+                                              (Earley.string ":" ":")
+                                              (Earley.sequence module_type
                                                  post_item_attributes
                                                  (fun mt  a  _  mn 
                                                     _default_0 
@@ -7573,19 +7597,20 @@ module Make(Initial:Extension) =
                                        ~attributes:(attach_attrib loc_first a)
                                        loc_first mn mt in
                                    loc_sig _loc (Psig_recmodule (m :: ms))))))));
-           Decap.sequence_position module_kw
-             (Decap.alternatives
-                [Decap.fsequence_position module_name
-                   (Decap.fsequence
-                      (Decap.apply List.rev
-                         (Decap.fixpoint []
-                            (Decap.apply (fun x  y  -> x :: y)
-                               (Decap.fsequence_position
-                                  (Decap.string "(" "(")
-                                  (Decap.fsequence module_name
-                                     (Decap.fsequence (Decap.string ":" ":")
-                                        (Decap.sequence module_type
-                                           (Decap.string ")" ")")
+           Earley.sequence_position module_kw
+             (Earley.alternatives
+                [Earley.fsequence_position module_name
+                   (Earley.fsequence
+                      (Earley.apply List.rev
+                         (Earley.fixpoint []
+                            (Earley.apply (fun x  y  -> x :: y)
+                               (Earley.fsequence_position
+                                  (Earley.string "(" "(")
+                                  (Earley.fsequence module_name
+                                     (Earley.fsequence
+                                        (Earley.string ":" ":")
+                                        (Earley.sequence module_type
+                                           (Earley.string ")" ")")
                                            (fun mt  _  _  mn  _ 
                                               __loc__start__buf 
                                               __loc__start__pos 
@@ -7597,9 +7622,9 @@ module Make(Initial:Extension) =
                                                   __loc__end__buf
                                                   __loc__end__pos in
                                               (mn, mt, _loc)))))))))
-                      (Decap.fsequence (Decap.string ":" ":")
-                         (Decap.sequence
-                            (Decap.apply_position
+                      (Earley.fsequence (Earley.string ":" ":")
+                         (Earley.sequence
+                            (Earley.apply_position
                                (fun x  str  pos  str'  pos'  ->
                                   ((locate str pos str' pos'), x))
                                module_type) post_item_attributes
@@ -7619,15 +7644,15 @@ module Make(Initial:Extension) =
                                      (List.rev l) in
                                  let (a,b) = module_declaration _loc mn mt in
                                  Psig_module (a, b)))));
-                Decap.fsequence type_kw
-                  (Decap.fsequence
-                     (Decap.apply_position
+                Earley.fsequence type_kw
+                  (Earley.fsequence
+                     (Earley.apply_position
                         (fun x  str  pos  str'  pos'  ->
                            ((locate str pos str' pos'), x)) modtype_name)
-                     (Decap.sequence
-                        (Decap.option None
-                           (Decap.apply (fun x  -> Some x)
-                              (Decap.sequence (Decap.string "=" "=")
+                     (Earley.sequence
+                        (Earley.option None
+                           (Earley.apply (fun x  -> Some x)
+                              (Earley.sequence (Earley.string "=" "=")
                                  module_type (fun _  mt  -> mt))))
                         post_item_attributes
                         (fun mt  a  mn  ->
@@ -7644,10 +7669,10 @@ module Make(Initial:Extension) =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_sig _loc r);
-           Decap.fsequence_position open_kw
-             (Decap.fsequence override_flag
-                (Decap.sequence
-                   (Decap.apply_position
+           Earley.fsequence_position open_kw
+             (Earley.fsequence override_flag
+                (Earley.sequence
+                   (Earley.apply_position
                       (fun x  str  pos  str'  pos'  ->
                          ((locate str pos str' pos'), x)) module_path)
                    post_item_attributes
@@ -7660,29 +7685,29 @@ module Make(Initial:Extension) =
                           locate __loc__start__buf __loc__start__pos
                             __loc__end__buf __loc__end__pos in
                         loc_sig _loc (Psig_open (o, (id_loc m _loc_m))))));
-           Decap.fsequence_position include_kw
-             (Decap.sequence module_type post_item_attributes
+           Earley.fsequence_position include_kw
+             (Earley.sequence module_type post_item_attributes
                 (fun me  a  _default_0  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
                      locate __loc__start__buf __loc__start__pos
                        __loc__end__buf __loc__end__pos in
                    loc_sig _loc (Psig_include me)));
-           Decap.sequence_position class_kw
-             (Decap.alternatives
-                [Decap.apply (fun ctd  -> Psig_class_type ctd)
+           Earley.sequence_position class_kw
+             (Earley.alternatives
+                [Earley.apply (fun ctd  -> Psig_class_type ctd)
                    classtype_definition;
-                Decap.apply (fun cs  -> Psig_class cs) class_specification])
+                Earley.apply (fun cs  -> Psig_class cs) class_specification])
              (fun _default_0  r  __loc__start__buf  __loc__start__pos 
                 __loc__end__buf  __loc__end__pos  ->
                 let _loc =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_sig _loc r);
-           Decap.fsequence_position
-             (Decap.ignore_next_blank (Decap.char '$' '$'))
-             (Decap.sequence (Decap.ignore_next_blank expression)
-                (Decap.char '$' '$')
+           Earley.fsequence_position
+             (Earley.ignore_next_blank (Earley.char '$' '$'))
+             (Earley.sequence (Earley.ignore_next_blank expression)
+                (Earley.char '$' '$')
                 (fun e  _  dol  __loc__start__buf  __loc__start__pos 
                    __loc__end__buf  __loc__end__pos  ->
                    let _loc =
@@ -7695,17 +7720,17 @@ module Make(Initial:Extension) =
                         | _ -> failwith "Bad antiquotation...")))])
     let _ =
       set_grammar signature_item
-        (Decap.alternatives
-           [Decap.apply_position
+        (Earley.alternatives
+           [Earley.apply_position
               (fun e  __loc__start__buf  __loc__start__pos  __loc__end__buf 
                  __loc__end__pos  ->
                  let _loc =
                    locate __loc__start__buf __loc__start__pos __loc__end__buf
                      __loc__end__pos in
                  (attach_sig _loc) @ e) (alternatives extra_signature);
-           Decap.sequence_position signature_item_base
-             (Decap.option None
-                (Decap.apply (fun x  -> Some x) double_semi_col))
+           Earley.sequence_position signature_item_base
+             (Earley.option None
+                (Earley.apply (fun x  -> Some x) double_semi_col))
              (fun s  _  __loc__start__buf  __loc__start__pos  __loc__end__buf
                  __loc__end__pos  ->
                 let _loc =
@@ -7713,21 +7738,21 @@ module Make(Initial:Extension) =
                     __loc__end__pos in
                 (attach_sig _loc) @ [s])])
     exception Top_Exit
-    let top_phrase = Decap.declare_grammar "top_phrase"
+    let top_phrase = Earley.declare_grammar "top_phrase"
     let _ =
-      Decap.set_grammar top_phrase
-        (Decap.alternatives
-           [Decap.fsequence
-              (Decap.option None
-                 (Decap.apply (fun x  -> Some x) (Decap.char ';' ';')))
-              (Decap.sequence
-                 (Decap.apply List.rev
-                    (Decap.fixpoint1 []
-                       (Decap.apply (fun x  y  -> x :: y) structure_item_base)))
-                 double_semi_col
+      Earley.set_grammar top_phrase
+        (Earley.alternatives
+           [Earley.fsequence
+              (Earley.option None
+                 (Earley.apply (fun x  -> Some x) (Earley.char ';' ';')))
+              (Earley.sequence
+                 (Earley.apply List.rev
+                    (Earley.fixpoint1 []
+                       (Earley.apply (fun x  y  -> x :: y)
+                          structure_item_base))) double_semi_col
                  (fun l  _default_0  _default_1  -> Ptop_def l));
-           Decap.sequence
-             (Decap.option None
-                (Decap.apply (fun x  -> Some x) (Decap.char ';' ';')))
-             (Decap.eof ()) (fun _default_0  _  -> raise Top_Exit)])
+           Earley.sequence
+             (Earley.option None
+                (Earley.apply (fun x  -> Some x) (Earley.char ';' ';')))
+             (Earley.eof ()) (fun _default_0  _  -> raise Top_Exit)])
   end

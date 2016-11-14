@@ -46,7 +46,7 @@
 *)
 
 open Input
-open Decap
+open Earley
 open Charset
 #ifversion >= 4.02
 open Ast_helper
@@ -207,9 +207,9 @@ let wrap_type_annotation _loc newtypes core_type body =
   (exp, loc_typ _loc (Ptyp_poly(newtypes,varify_constructors newtypes core_type)))
 
 (* Floating-point litterals *)
-let float_litteral = Decap.apply fst Pa_lexing.float_litteral
+let float_litteral = Earley.apply fst Pa_lexing.float_litteral
 let _ = set_grammar char_litteral Pa_lexing.char_litteral
-let _ = set_grammar string_litteral (Decap.apply fst Pa_lexing.string_litteral)
+let _ = set_grammar string_litteral (Earley.apply fst Pa_lexing.string_litteral)
 let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
 
 type tree = Node of tree * tree | Leaf of string
@@ -884,7 +884,7 @@ let parser integer_litteral = (s,co):int_litteral ->
   | Some 'l' -> const_int32 (Int32.of_string s)
   | Some 'L' -> const_int64 (Int64.of_string s)
   | Some 'n' -> const_nativeint (Nativeint.of_string s)
-  | Some _   -> Decap.give_up ()
+  | Some _   -> Earley.give_up ()
 #endif
 
 (* Constants *)
@@ -2114,25 +2114,25 @@ let parser top_phrase =
 
 (*
 let _ =
-    let (ae,set) = Decap.grammar_info structure_item in
+    let (ae,set) = Earley.grammar_info structure_item in
     Charset.(Printf.eprintf "structure_item: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info lident in
+    let (ae,set) = Earley.grammar_info lident in
     Charset.(Printf.eprintf "lident: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info expression in
+    let (ae,set) = Earley.grammar_info expression in
     Charset.(Printf.eprintf "expression: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info typexpr in
+    let (ae,set) = Earley.grammar_info typexpr in
     Charset.(Printf.eprintf "typexpr: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info let_binding in
+    let (ae,set) = Earley.grammar_info let_binding in
     Charset.(Printf.eprintf "let_binding: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info (expression_suit (true,Atom,Top)) in
+    let (ae,set) = Earley.grammar_info (expression_suit (true,Atom,Top)) in
     Charset.(Printf.eprintf "expression_suit: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info (expression_suit_aux (true,Atom,Top)) in
+    let (ae,set) = Earley.grammar_info (expression_suit_aux (true,Atom,Top)) in
     Charset.(Printf.eprintf "expression_suit_aux: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info argument in
+    let (ae,set) = Earley.grammar_info argument in
     Charset.(Printf.eprintf "argument: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info arguments in
+    let (ae,set) = Earley.grammar_info arguments in
     Charset.(Printf.eprintf "arguments: (%b,%a)\n%!" ae print_charset set);
-    let (ae,set) = Decap.grammar_info match_cases in
+    let (ae,set) = Earley.grammar_info match_cases in
     Charset.(Printf.eprintf "match_cases: (%b,%a)\n%!" ae print_charset set);
 *)
 end

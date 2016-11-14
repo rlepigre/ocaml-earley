@@ -46,7 +46,7 @@
 *)
 
 open Input
-open Decap
+open Earley
 open Asttypes
 open Parsetree
 open Pa_ast
@@ -109,8 +109,8 @@ module Initial =
           "Use unsafe functions for arrays (more efficient).")
       ; ("--position-from-parser", Arg.Set Quote.quote_parser_position,
           "Report position from quotation in parser (usefull to debug quotation).")
-      ; ("--debug", Arg.Set_int Decap.debug_lvl,
-          "Sets the value of \"Decap.debug_lvl\".") ]
+      ; ("--debug", Arg.Set_int Earley.debug_lvl,
+          "Sets the value of \"Earley.debug_lvl\".") ]
 
     (* Function to be run before parsing. *)
     let before_parse_hook : unit -> unit = fun () -> ()

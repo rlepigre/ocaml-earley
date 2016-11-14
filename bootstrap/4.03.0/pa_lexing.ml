@@ -88,13 +88,13 @@ let no_ident_char c =
 let test_end_kw =
   let f buf pos =
     let (c,_,_) = Input.read buf pos  in ((), (no_ident_char c))  in
-  Decap.test ~name:"test_end_kw" Charset.full f 
+  Earley.test ~name:"test_end_kw" Charset.full f 
 let key_word s =
   if (String.length s) <= 0
   then invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Decap.give_name s
-    (Decap.sequence (Decap.ignore_next_blank (Decap.string s s)) test_end_kw
-       (fun _  -> fun _default_0  -> ()))
+  Earley.give_name s
+    (Earley.sequence (Earley.ignore_next_blank (Earley.string s s))
+       test_end_kw (fun _  -> fun _default_0  -> ()))
   
 let mutable_kw = key_word "mutable" 
 let private_kw = key_word "private" 
@@ -153,21 +153,21 @@ let no_keyword s =
     if i >= len
     then ((), (not (no_ident_char c)))
     else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos  in
-  Decap.test ~name:("no_" ^ s) Charset.full (fn 0) 
+  Earley.test ~name:("no_" ^ s) Charset.full (fn 0) 
 let no_else = no_keyword "else" 
 let no_false = no_keyword "false" 
 let no_parser = no_keyword "parser" 
 let no_with = no_keyword "with" 
 let no_as = no_keyword "as" 
 let no_dot =
-  Decap.test ~name:"no_dot" Charset.full
+  Earley.test ~name:"no_dot" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos  in
          if c <> '.' then ((), true) else ((), false))
   
 let no_semi =
-  Decap.test ~name:"no_semi" Charset.full
+  Earley.test ~name:"no_semi" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos  in
@@ -178,7 +178,7 @@ let no_semi =
             if c = ';' then ((), true) else ((), false)))
   
 let no_colon =
-  Decap.test ~name:"no_colon" Charset.full
+  Earley.test ~name:"no_colon" Charset.full
     (fun buf  ->
        fun pos  ->
          let (c,buf,pos) = Input.read buf pos  in
@@ -299,22 +299,24 @@ let not_special =
   let special = "!$%&*+./:<=>?@^|~-"  in
   let cs = ref Charset.empty  in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
-  Decap.not_in_charset ~name:"not_special" (!cs) 
-let ident = Decap.declare_grammar "ident" 
-;;Decap.set_grammar ident
-    (Decap.apply (fun id  -> if is_reserved_id id then Decap.give_up (); id)
-       (Decap.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
+  Earley.not_in_charset ~name:"not_special" (!cs) 
+let ident = Earley.declare_grammar "ident" 
+;;Earley.set_grammar ident
+    (Earley.apply
+       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+       (Earley.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
           "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
-let lident = Decap.declare_grammar "lident" 
-;;Decap.set_grammar lident
-    (Decap.apply (fun id  -> if is_reserved_id id then Decap.give_up (); id)
-       (Decap.regexp
+let lident = Earley.declare_grammar "lident" 
+;;Earley.set_grammar lident
+    (Earley.apply
+       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+       (Earley.regexp
           ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
           "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
           (fun groupe  -> groupe 0)))
-let uident = Decap.declare_grammar "uident" 
-;;Decap.set_grammar uident
-    (Decap.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
+let uident = Earley.declare_grammar "uident" 
+;;Earley.set_grammar uident
+    (Earley.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
        (fun groupe  -> groupe 0))
 let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l) 
 let cs_to_string cs =
@@ -326,9 +328,9 @@ let single_char c =
     if c' = c
     then
       let (c'',_,_) = Input.read str' pos'  in
-      (if c'' = c then Decap.give_up () else ((), str', pos'))
-    else Decap.give_up ()  in
-  Decap.black_box f (Charset.singleton c) false s 
+      (if c'' = c then Earley.give_up () else ((), str', pos'))
+    else Earley.give_up ()  in
+  Earley.black_box f (Charset.singleton c) false s 
 let double_char c =
   let s = String.make 2 c  in
   let f str pos =
@@ -336,23 +338,23 @@ let double_char c =
     if c' = c
     then
       let (c'',str',pos') = Input.read str' pos'  in
-      (if c'' <> c then Decap.give_up () else ((), str', pos'))
-    else Decap.give_up ()  in
-  Decap.black_box f (Charset.singleton c) false s 
+      (if c'' <> c then Earley.give_up () else ((), str', pos'))
+    else Earley.give_up ()  in
+  Earley.black_box f (Charset.singleton c) false s 
 let semi_col = single_char ';' 
 let double_semi_col = double_char ';' 
 let single_quote = single_char '\'' 
 let double_quote = double_char '\'' 
-let bool_lit : string Decap.grammar = Decap.declare_grammar "bool_lit" 
-;;Decap.set_grammar bool_lit
-    (Decap.alternatives
-       [Decap.apply (fun _default_0  -> "false") false_kw;
-       Decap.apply (fun _default_0  -> "true") true_kw])
+let bool_lit : string Earley.grammar = Earley.declare_grammar "bool_lit" 
+;;Earley.set_grammar bool_lit
+    (Earley.alternatives
+       [Earley.apply (fun _default_0  -> "false") false_kw;
+       Earley.apply (fun _default_0  -> "true") true_kw])
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z')
      in
   let no_suffix_cs =
-    Decap.test Charset.full
+    Earley.test Charset.full
       (fun buf  ->
          fun pos  ->
            let (c,_,_) = Input.read buf pos  in
@@ -361,11 +363,11 @@ let num_suffix =
                 ((c <> 'e') &&
                    ((c <> 'E') && (not (Charset.mem suffix_cs c)))))))
      in
-  Decap.alternatives
-    [Decap.apply (fun s  -> Some s) (Decap.in_charset suffix_cs);
-    Decap.apply (fun _default_0  -> None) no_suffix_cs]
+  Earley.alternatives
+    [Earley.apply (fun s  -> Some s) (Earley.in_charset suffix_cs);
+    Earley.apply (fun _default_0  -> None) no_suffix_cs]
   
-let int_litteral : (string* char option) Decap.grammar =
+let int_litteral : (string* char option) Earley.grammar =
   let int_re =
     union_re
       ["[0][xX][0-9a-fA-F][0-9a-fA-F_]*";
@@ -373,34 +375,34 @@ let int_litteral : (string* char option) Decap.grammar =
       "[0][bB][01][01_]*";
       "[0-9][0-9_]*"]
      in
-  Decap.fsequence
-    (Decap.ignore_next_blank
-       (Decap.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
-    (Decap.sequence num_suffix Decap.relax
+  Earley.fsequence
+    (Earley.ignore_next_blank
+       (Earley.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
+    (Earley.sequence num_suffix Earley.relax
        (fun _default_0  -> fun _  -> fun i  -> (i, _default_0)))
   
-let float_litteral : (string* char option) Decap.grammar =
+let float_litteral : (string* char option) Earley.grammar =
   let float_re =
     union_re
       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"]
      in
-  Decap.fsequence
-    (Decap.ignore_next_blank
-       (Decap.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
-    (Decap.sequence num_suffix Decap.relax
+  Earley.fsequence
+    (Earley.ignore_next_blank
+       (Earley.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
+    (Earley.sequence num_suffix Earley.relax
        (fun _default_0  -> fun _  -> fun f  -> (f, _default_0)))
   
-let escaped_char : char Decap.grammar =
+let escaped_char : char Earley.grammar =
   let char_dec = "[0-9][0-9][0-9]"  in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]"  in
   let char_esc = "[\\\\\\\"\\'ntbrs ]"  in
-  Decap.alternatives
-    [Decap.apply (fun e  -> char_of_int (int_of_string e))
-       (Decap.regexp ~name:"char_dec" char_dec (fun groupe  -> groupe 0));
-    Decap.apply (fun e  -> char_of_int (int_of_string ("0" ^ e)))
-      (Decap.regexp ~name:"char_hex" char_hex (fun groupe  -> groupe 0));
-    Decap.apply
+  Earley.alternatives
+    [Earley.apply (fun e  -> char_of_int (int_of_string e))
+       (Earley.regexp ~name:"char_dec" char_dec (fun groupe  -> groupe 0));
+    Earley.apply (fun e  -> char_of_int (int_of_string ("0" ^ e)))
+      (Earley.regexp ~name:"char_hex" char_hex (fun groupe  -> groupe 0));
+    Earley.apply
       (fun e  ->
          match e.[0] with
          | 'n' -> '\n'
@@ -409,22 +411,22 @@ let escaped_char : char Decap.grammar =
          | 'r' -> '\r'
          | 's' -> ' '
          | c -> c)
-      (Decap.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))]
+      (Earley.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))]
   
-let char_litteral : char Decap.grammar =
+let char_litteral : char Earley.grammar =
   let char_reg = "[^\\\\\\']"  in
   let single_char =
-    Decap.alternatives
-      [Decap.apply (fun c  -> c.[0])
-         (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
-      Decap.sequence (Decap.ignore_next_blank (Decap.char '\\' '\\'))
+    Earley.alternatives
+      [Earley.apply (fun c  -> c.[0])
+         (Earley.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
+      Earley.sequence (Earley.ignore_next_blank (Earley.char '\\' '\\'))
         escaped_char (fun _  -> fun e  -> e)]
      in
-  Decap.fsequence (Decap.ignore_next_blank single_quote)
-    (Decap.sequence (Decap.ignore_next_blank single_char)
-       (Decap.char '\'' '\'') (fun c  -> fun _  -> fun _  -> c))
+  Earley.fsequence (Earley.ignore_next_blank single_quote)
+    (Earley.sequence (Earley.ignore_next_blank single_char)
+       (Earley.char '\'' '\'') (fun c  -> fun _  -> fun _  -> c))
   
-let quoted_string : (string* string option) Decap.grammar =
+let quoted_string : (string* string option) Earley.grammar =
   let f buf pos =
     let rec fn st str buf pos =
       let (c,buf',pos') = Input.read buf pos  in
@@ -433,70 +435,70 @@ let quoted_string : (string* string option) Decap.grammar =
       | (`Opn l,'a'..'z')|(`Opn l,'_') -> fn (`Opn (c :: l)) str buf' pos'
       | (`Opn l,'|') -> fn (`Cnt (List.rev l)) str buf' pos'
       | (`Cnt l,'|') -> fn (`Cls (l, [], l)) str buf' pos'
-      | (`Cnt l,'\255') -> Decap.give_up ()
+      | (`Cnt l,'\255') -> Earley.give_up ()
       | (`Cnt _,_) -> fn st (c :: str) buf' pos'
       | (`Cls ([],_,l),'}') -> (str, l, buf', pos')
-      | (`Cls ([],_,_),'\255') -> Decap.give_up ()
+      | (`Cls ([],_,_),'\255') -> Earley.give_up ()
       | (`Cls ([],b,l),_) -> fn (`Cnt l) (b @ str) buf' pos'
-      | (`Cls (_::_,_,_),'\255') -> Decap.give_up ()
+      | (`Cls (_::_,_,_),'\255') -> Earley.give_up ()
       | (`Cls (x::y,b,l),_) ->
           if x = c
           then fn (`Cls (y, (x :: b), l)) str buf' pos'
           else fn (`Cnt l) (List.append b str) buf' pos'
-      | (_,_) -> Decap.give_up ()  in
+      | (_,_) -> Earley.give_up ()  in
     let (cs,id,buf,pos) = fn `Ini [] buf pos  in
     let r = ((cs_to_string cs), (Some (cs_to_string id)))  in (r, buf, pos)
      in
-  Decap.black_box f (Charset.singleton '{') false "quoted_string" 
-let normal_string : string Decap.grammar =
+  Earley.black_box f (Charset.singleton '{') false "quoted_string" 
+let normal_string : string Earley.grammar =
   let char_reg = "[^\\\"\\\\]"  in
   let single_char =
-    Decap.alternatives
-      [Decap.apply (fun c  -> c.[0])
-         (Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
-      Decap.sequence (Decap.ignore_next_blank (Decap.char '\\' '\\'))
+    Earley.alternatives
+      [Earley.apply (fun c  -> c.[0])
+         (Earley.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
+      Earley.sequence (Earley.ignore_next_blank (Earley.char '\\' '\\'))
         escaped_char (fun _  -> fun e  -> e);
-      Decap.char '\n' '\n']
+      Earley.char '\n' '\n']
      in
   let internal =
-    Decap.fsequence
-      (Decap.apply List.rev
-         (Decap.fixpoint []
-            (Decap.apply (fun x  -> fun y  -> x :: y) single_char)))
-      (Decap.sequence
-         (Decap.apply List.rev
-            (Decap.fixpoint []
-               (Decap.apply (fun x  -> fun y  -> x :: y)
-                  (Decap.fsequence (Decap.string "\\\n" "\\\n")
-                     (Decap.sequence
-                        (Decap.greedy
-                           (Decap.regexp "[ \t]*" (fun groupe  -> groupe 0)))
-                        (Decap.apply List.rev
-                           (Decap.fixpoint []
-                              (Decap.apply (fun x  -> fun y  -> x :: y)
+    Earley.fsequence
+      (Earley.apply List.rev
+         (Earley.fixpoint []
+            (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
+      (Earley.sequence
+         (Earley.apply List.rev
+            (Earley.fixpoint []
+               (Earley.apply (fun x  -> fun y  -> x :: y)
+                  (Earley.fsequence (Earley.string "\\\n" "\\\n")
+                     (Earley.sequence
+                        (Earley.greedy
+                           (Earley.regexp "[ \t]*" (fun groupe  -> groupe 0)))
+                        (Earley.apply List.rev
+                           (Earley.fixpoint []
+                              (Earley.apply (fun x  -> fun y  -> x :: y)
                                  single_char)))
                         (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
-         (Decap.char '"' '"')
+         (Earley.char '"' '"')
          (fun css  ->
             fun _  -> fun cs  -> cs_to_string (List.flatten (cs :: css))))
      in
-  Decap.sequence (Decap.ignore_next_blank (Decap.char '"' '"'))
-    (Decap.change_layout internal Decap.no_blank)
+  Earley.sequence (Earley.ignore_next_blank (Earley.char '"' '"'))
+    (Earley.change_layout internal Earley.no_blank)
     (fun _  -> fun _default_0  -> _default_0)
   
-let string_litteral : (string* string option) Decap.grammar =
-  Decap.alternatives
-    [Decap.apply (fun s  -> (s, None)) normal_string; quoted_string]
+let string_litteral : (string* string option) Earley.grammar =
+  Earley.alternatives
+    [Earley.apply (fun s  -> (s, None)) normal_string; quoted_string]
   
-let regexp_litteral : string Decap.grammar =
+let regexp_litteral : string Earley.grammar =
   let char_reg = "[^'\\\\]"  in
   let char_esc = "[ntbrs\\\\()|]"  in
   let single_char =
-    Decap.alternatives
-      [Decap.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
-      Decap.apply (fun _  -> "'") single_quote;
-      Decap.sequence (Decap.char '\\' '\\')
-        (Decap.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
+    Earley.alternatives
+      [Earley.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
+      Earley.apply (fun _  -> "'") single_quote;
+      Earley.sequence (Earley.char '\\' '\\')
+        (Earley.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
         (fun _  ->
            fun e  ->
              match e.[0] with
@@ -512,13 +514,13 @@ let regexp_litteral : string Decap.grammar =
              | _ -> assert false)]
      in
   let internal =
-    Decap.sequence
-      (Decap.apply List.rev
-         (Decap.fixpoint []
-            (Decap.apply (fun x  -> fun y  -> x :: y) single_char)))
-      (Decap.string "''" "''") (fun cs  -> fun _  -> String.concat "" cs)
+    Earley.sequence
+      (Earley.apply List.rev
+         (Earley.fixpoint []
+            (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
+      (Earley.string "''" "''") (fun cs  -> fun _  -> String.concat "" cs)
      in
-  Decap.sequence (Decap.ignore_next_blank double_quote)
-    (Decap.change_layout internal Decap.no_blank)
+  Earley.sequence (Earley.ignore_next_blank double_quote)
+    (Earley.change_layout internal Earley.no_blank)
     (fun _  -> fun _default_0  -> _default_0)
   

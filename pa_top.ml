@@ -47,7 +47,7 @@
 
 open Pa_ocaml_prelude
 open Pa_ocaml
-open Decap
+open Earley
 open Format
 
 module ParserExt = Pa_parser.Ext(Pa_ocaml_prelude.Initial)
@@ -57,7 +57,7 @@ module type Final = sig
   include Extension
 
   exception Top_Exit
-  val top_phrase : Parsetree.toplevel_phrase Decap.grammar
+  val top_phrase : Parsetree.toplevel_phrase Earley.grammar
 
 end
 
@@ -92,8 +92,8 @@ module Start = functor (Main : Final) -> struct
         with
         | Main.Top_Exit -> 
   	 raise Main.Top_Exit
-        | Decap.Parse_error _ as e ->
-  	 Decap.print_exception e;
+        | Earley.Parse_error _ as e ->
+  	 Earley.print_exception e;
   	 exit 1
         | e ->  
   	 Errors.report_error Format.std_formatter e);
@@ -127,8 +127,8 @@ module Start = functor (Main : Final) -> struct
       | `Intf g -> `Sig (parse_channel ~filename g blank ch)
       | `Top -> assert false
     with
-      Decap.Parse_error _ as e ->
-      Decap.print_exception e;
+      Earley.Parse_error _ as e ->
+      Earley.print_exception e;
       exit 1
   
   let _ = 

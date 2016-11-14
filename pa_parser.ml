@@ -149,22 +149,22 @@ let rec build_action _loc occur_loc ids e =
 let apply_option _loc opt visible e =
   let fn e f d =
     match d with
-       None   -> <:expr< Decap.$lid:f$ None (Decap.apply (fun x -> Some x) $e$) >>
-    | Some d -> <:expr< Decap.$lid:f$ $d$ $e$ >>
+       None   -> <:expr< Earley.$lid:f$ None (Earley.apply (fun x -> Some x) $e$) >>
+    | Some d -> <:expr< Earley.$lid:f$ $d$ $e$ >>
   in
   let gn e f d =
     match d with
-      None   -> <:expr< Decap.apply List.rev (Decap.$lid:f$ [] (Decap.apply (fun x y -> x::y) $e$)) >>
-    | Some d -> <:expr< Decap.$lid:f$ $d$ $e$ >>
+      None   -> <:expr< Earley.apply List.rev (Earley.$lid:f$ [] (Earley.apply (fun x y -> x::y) $e$)) >>
+    | Some d -> <:expr< Earley.$lid:f$ $d$ $e$ >>
   in
   let kn e = function
     | None   -> e
-    | Some _ -> <:expr< Decap.greedy $e$ >>
+    | Some _ -> <:expr< Earley.greedy $e$ >>
   in
   filter _loc visible (match opt with
     `Once -> e
   | `Option(d,g)    -> kn (fn e "option" d) g
-  | `Greedy       -> <:expr< Decap.greedy $e$ >>
+  | `Greedy       -> <:expr< Earley.greedy $e$ >>
   | `Fixpoint(d,g)  -> kn (gn e "fixpoint" d) g
   | `Fixpoint1(d,g) -> kn (gn e "fixpoint1" d) g
   )
@@ -184,16 +184,16 @@ module Ext = functor(In:Extension) ->
 struct
   include In
 
-  let glr_rules = Decap.declare_grammar "glr_rules"
-  let glr_rule, set_glr_rule = Decap.grammar_family "glr_rule"
+  let glr_rules = Earley.declare_grammar "glr_rules"
+  let glr_rule, set_glr_rule = Earley.grammar_family "glr_rule"
 
   let location_name_re = "_loc\\([a-zA-Z0-9_']*\\)"
 
   let parser glr_parser =
     | parser_kw p:glr_rules -> p
 
-  let glr_binding = Decap.declare_grammar "glr_binding"
-  let _ = Decap.set_grammar glr_binding (
+  let glr_binding = Earley.declare_grammar "glr_binding"
+  let _ = Earley.set_grammar glr_binding (
     parser
       name:lident arg:pattern? ty:{':' typexpr}? '=' r:glr_rules l:{_:and_kw glr_binding}?[[]] ->
     (name,arg,ty,r)::l)
@@ -241,7 +241,7 @@ struct
 			  let ev = loc_expr _loc (Pexp_apply(sname, [(nolabel,fam)])) in
 			  (loc_str _loc (Pstr_value (Nonrecursive, [l])) :: str1),
 			  (loc_str _loc (pstr_eval ev) :: str2)
-(*			   <:structure< let $pname$, $lid:set_name$ = Decap.grammar_family $string:name$>> @ str1,
+(*			   <:structure< let $pname$, $lid:set_name$ = Earley.grammar_family $string:name$>> @ str1,
 			   <:structure< let _ = $lid:set_name$ (fun $arg$ -> $r$) >> @ str2*) )
 		  in
 		  let str1, str2 = fn l in
@@ -287,11 +287,11 @@ struct
        let o = match opt with None -> e | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "string") [e; o])
     | STR("ERROR") e:(expression_lvl (NoMatch, next_exp App)) ->
-       (true, <:expr< Decap.error_message (fun () -> $e$)>>)
+       (true, <:expr< Earley.error_message (fun () -> $e$)>>)
     | s:string_litteral opt:glr_opt_expr ->
        (opt <> None,
         (if String.length s = 0 then
-	  Decap.give_up ();
+	  Earley.give_up ();
 	let e = exp_string _loc_s s in
 	let opt = match opt with None -> e | Some e -> e in
 	exp_apply _loc (exp_glr_fun _loc "string") [e; opt]))
@@ -306,9 +306,9 @@ struct
 	    let l = String.length id in
 	    if l > 3 && String.sub id (l - 3) 3 = "_re" then String.sub id 0 (l - 3) else id
 	  in
-	  (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc id; nolabel, e; nolabel, exp_fun _loc "groupe" opt])
+	  (true, exp_lab_apply _loc (exp_glrstr_fun _loc "regexp") [labelled "name", exp_string _loc id; nolabel, e; nolabel, exp_fun _loc "groupe" opt])
 	| _ ->
-	  (true, exp_apply _loc (exp_glr_fun _loc "regexp") [e; exp_fun _loc "groupe" opt]))
+	  (true, exp_apply _loc (exp_glrstr_fun _loc "regexp") [e; exp_fun _loc "groupe" opt]))
     | STR("BLANK") opt:glr_opt_expr ->
        let e = match opt with None -> exp_unit _loc | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "with_blank_test") [e])
@@ -317,7 +317,7 @@ struct
 	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
 	 | Some e -> e
        in
-       (true, exp_lab_apply _loc (exp_glr_fun _loc "regexp") [labelled "name", exp_string _loc_s (String.escaped s);
+       (true, exp_lab_apply _loc (exp_glrstr_fun _loc "regexp") [labelled "name", exp_string _loc_s (String.escaped s);
 							  nolabel, exp_string _loc_s s;
 							  nolabel, exp_fun _loc_opt "groupe" opt])
 
@@ -334,14 +334,14 @@ struct
 	 | _ -> (Some true, ("_", Some p)))
     | EMPTY -> (None, ("_", None))
 
-  let dash = Decap.black_box
+  let dash = Earley.black_box
     (fun str pos ->
        let c,str',pos' = Input.read str pos in
        if c = '-' then
          let c',_,_ = Input.read str' pos' in
-         if c' = '>' then Decap.give_up () else (), str', pos'
+         if c' = '>' then Earley.give_up () else (), str', pos'
       else
-        Decap.give_up ()
+        Earley.give_up ()
     ) (Charset.singleton '-') false ("-")
 
 
@@ -349,8 +349,8 @@ struct
   let parser glr_left_member =
      {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt) | dash -> `Ignore }+
 
-  let glr_let = Decap.declare_grammar "glr_let"
-  let _ = Decap.set_grammar glr_let (
+  let glr_let = Earley.declare_grammar "glr_let"
+  let _ = Earley.set_grammar glr_let (
     parser
     | let_kw r:rec_flag lbs:let_binding in_kw l:glr_let -> (fun x -> loc_expr _loc (Pexp_let(r,lbs,l x)))
     | EMPTY -> (fun x -> x)
@@ -457,7 +457,7 @@ struct
         in
         exp_apply _loc (exp_glr_fun _loc "alternatives") [l]
 
-  let _ = Decap.set_grammar glr_rules (
+  let _ = Earley.set_grammar glr_rules (
     parser
     | '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true) ->
       build_alternatives _loc (rs@[r]))

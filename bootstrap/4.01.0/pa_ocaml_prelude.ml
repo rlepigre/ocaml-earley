@@ -1,5 +1,5 @@
 open Input
-open Decap
+open Earley
 open Asttypes
 open Parsetree
 open Pa_ast
@@ -50,8 +50,8 @@ module Initial =
         "Use unsafe functions for arrays (more efficient).");
       ("--position-from-parser", (Arg.Set Quote.quote_parser_position),
         "Report position from quotation in parser (usefull to debug quotation).");
-      ("--debug", (Arg.Set_int Decap.debug_lvl),
-        "Sets the value of \"Decap.debug_lvl\".")]
+      ("--debug", (Arg.Set_int Earley.debug_lvl),
+        "Sets the value of \"Earley.debug_lvl\".")]
     let before_parse_hook: unit -> unit = fun ()  -> ()
     let char_litteral: char grammar = declare_grammar "char_litteral"
     let string_litteral: string grammar = declare_grammar "string_litteral"
@@ -171,13 +171,13 @@ module Initial =
              | `Type of string] grammar),set_parameter)
       = grammar_family "parameter"
     let structure = structure_item
-    let signature = Decap.declare_grammar "signature"
+    let signature = Earley.declare_grammar "signature"
     let _ =
-      Decap.set_grammar signature
-        (Decap.apply (fun l  -> List.flatten l)
-           (Decap.apply List.rev
-              (Decap.fixpoint []
-                 (Decap.apply (fun x  y  -> x :: y) signature_item))))
+      Earley.set_grammar signature
+        (Earley.apply (fun l  -> List.flatten l)
+           (Earley.apply List.rev
+              (Earley.fixpoint []
+                 (Earley.apply (fun x  y  -> x :: y) signature_item))))
     type type_prio =  
       | TopType
       | As
@@ -257,10 +257,10 @@ module Initial =
     let union_re l =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l in
       String.concat "\\|" l
-    let arrow_re = Decap.declare_grammar "arrow_re"
+    let arrow_re = Earley.declare_grammar "arrow_re"
     let _ =
-      Decap.set_grammar arrow_re
-        (Decap.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
+      Earley.set_grammar arrow_re
+        (Earley.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
     let infix_symb_re prio =
       match prio with
@@ -299,69 +299,69 @@ module Initial =
       | _ -> assert false
     let prefix_prios = [Opp; Prefix]
     let (infix_symbol,infix_symbol__set__grammar) =
-      Decap.grammar_family "infix_symbol"
+      Earley.grammar_family "infix_symbol"
     let _ =
       infix_symbol__set__grammar
         (fun prio  ->
-           Decap.alternatives
+           Earley.alternatives
              (let y =
                 let y = [] in
                 if prio <> Cons
                 then
-                  (Decap.sequence
-                     (Decap.ignore_next_blank
-                        (Decap.regexp (infix_symb_re prio)
+                  (Earley.sequence
+                     (Earley.ignore_next_blank
+                        (Earley.regexp (infix_symb_re prio)
                            (fun groupe  -> groupe 0))) not_special
                      (fun sym  _default_0  ->
                         if is_reserved_symb sym then give_up (); sym))
                   :: y
                 else y in
               if prio = Cons
-              then (Decap.apply (fun _  -> "::") (Decap.string "::" "::")) ::
-                y
+              then (Earley.apply (fun _  -> "::") (Earley.string "::" "::"))
+                :: y
               else y))
     let (prefix_symbol,prefix_symbol__set__grammar) =
-      Decap.grammar_family "prefix_symbol"
+      Earley.grammar_family "prefix_symbol"
     let _ =
       prefix_symbol__set__grammar
         (fun prio  ->
-           Decap.sequence
-             (Decap.ignore_next_blank
-                (Decap.regexp (prefix_symb_re prio) (fun groupe  -> groupe 0)))
-             not_special
+           Earley.sequence
+             (Earley.ignore_next_blank
+                (Earley.regexp (prefix_symb_re prio)
+                   (fun groupe  -> groupe 0))) not_special
              (fun sym  _default_0  ->
                 if (is_reserved_symb sym) || (sym = "!=") then give_up ();
                 sym))
-    let mutable_flag = Decap.declare_grammar "mutable_flag"
+    let mutable_flag = Earley.declare_grammar "mutable_flag"
     let _ =
-      Decap.set_grammar mutable_flag
-        (Decap.alternatives
-           [Decap.apply (fun _default_0  -> Mutable) mutable_kw;
-           Decap.apply (fun _  -> Immutable) (Decap.empty ())])
-    let private_flag = Decap.declare_grammar "private_flag"
+      Earley.set_grammar mutable_flag
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> Mutable) mutable_kw;
+           Earley.apply (fun _  -> Immutable) (Earley.empty ())])
+    let private_flag = Earley.declare_grammar "private_flag"
     let _ =
-      Decap.set_grammar private_flag
-        (Decap.alternatives
-           [Decap.apply (fun _default_0  -> Private) private_kw;
-           Decap.apply (fun _  -> Public) (Decap.empty ())])
-    let virtual_flag = Decap.declare_grammar "virtual_flag"
+      Earley.set_grammar private_flag
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> Private) private_kw;
+           Earley.apply (fun _  -> Public) (Earley.empty ())])
+    let virtual_flag = Earley.declare_grammar "virtual_flag"
     let _ =
-      Decap.set_grammar virtual_flag
-        (Decap.alternatives
-           [Decap.apply (fun _default_0  -> Virtual) virtual_kw;
-           Decap.apply (fun _  -> Concrete) (Decap.empty ())])
-    let rec_flag = Decap.declare_grammar "rec_flag"
+      Earley.set_grammar virtual_flag
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> Virtual) virtual_kw;
+           Earley.apply (fun _  -> Concrete) (Earley.empty ())])
+    let rec_flag = Earley.declare_grammar "rec_flag"
     let _ =
-      Decap.set_grammar rec_flag
-        (Decap.alternatives
-           [Decap.apply (fun _default_0  -> Recursive) rec_kw;
-           Decap.apply (fun _  -> Nonrecursive) (Decap.empty ())])
-    let downto_flag = Decap.declare_grammar "downto_flag"
+      Earley.set_grammar rec_flag
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> Recursive) rec_kw;
+           Earley.apply (fun _  -> Nonrecursive) (Earley.empty ())])
+    let downto_flag = Earley.declare_grammar "downto_flag"
     let _ =
-      Decap.set_grammar downto_flag
-        (Decap.alternatives
-           [Decap.apply (fun _default_0  -> Upto) to_kw;
-           Decap.apply (fun _default_0  -> Downto) downto_kw])
+      Earley.set_grammar downto_flag
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> Upto) to_kw;
+           Earley.apply (fun _default_0  -> Downto) downto_kw])
     let entry_points: (string* entry_point) list =
       [(".mli", (Interface (signature, ocaml_blank)));
       (".ml", (Implementation (structure, ocaml_blank)))]

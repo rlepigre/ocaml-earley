@@ -1018,7 +1018,7 @@ let debug msg : unit grammar
 
 let string : ?name:string -> string -> 'a -> 'a grammar
   = fun ?name s a ->
-    if s = "" then invalid_arg "Decap.string";
+    if s = "" then invalid_arg "Earley.string";
     let name = match name with None -> s | Some n -> n in
     let fn buf pos =
       let buf = ref buf in
@@ -1049,7 +1049,7 @@ let regexp : ?name:string -> string ->  ((int -> string) -> 'a) -> 'a grammar
     done;
     if not !found then failwith "regexp: illegal empty regexp";
     (*let ae = Str.string_match r "" 0 in*)
-    (*    if ae then invalid_arg "Decap.regexp"; FIXME*)
+    (*    if ae then invalid_arg "Earley.regexp"; FIXME*)
     let fn buf pos =
       let l = line buf in
       if pos > String.length l then give_up ();

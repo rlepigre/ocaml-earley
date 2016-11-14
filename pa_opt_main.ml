@@ -47,7 +47,7 @@
 
 open Pa_ocaml_prelude
 open Pa_ocaml
-open Decap
+open Earley
 open Format
 open Pa_compose
 
@@ -78,8 +78,8 @@ let _ = if entry = `Top then (
       with
       | Main.Top_Exit -> 
 	 raise Main.Top_Exit
-      | Decap.Parse_error _ as e ->
-	 Decap.print_exception e;
+      | Earley.Parse_error _ as e ->
+	 Earley.print_exception e;
 	 exit 1
       | e ->  
 	 Errors.report_error Format.std_formatter e);
@@ -113,8 +113,8 @@ let ast =
     | `Intf g -> `Sig (parse_channel ~filename g blank ch)
     | `Top -> assert false
   with
-    Decap.Parse_error _ as e ->
-    Decap.print_exception e;
+    Earley.Parse_error _ as e ->
+    Earley.print_exception e;
     exit 1
 
 let _ = 

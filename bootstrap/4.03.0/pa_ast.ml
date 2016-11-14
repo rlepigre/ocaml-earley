@@ -144,7 +144,9 @@ let exp_app _loc =
        (exp_apply _loc (exp_ident _loc "y") [exp_ident _loc "x"]))
   
 let exp_glr_fun _loc f =
-  loc_expr _loc (Pexp_ident (id_loc (Ldot ((Lident "Decap"), f)) _loc)) 
+  loc_expr _loc (Pexp_ident (id_loc (Ldot ((Lident "Earley"), f)) _loc)) 
+let exp_glrstr_fun _loc f =
+  loc_expr _loc (Pexp_ident (id_loc (Ldot ((Lident "Earley"), f)) _loc)) 
 let exp_list_fun _loc f =
   loc_expr _loc (Pexp_ident (id_loc (Ldot ((Lident "List"), f)) _loc)) 
 let exp_str_fun _loc f =
