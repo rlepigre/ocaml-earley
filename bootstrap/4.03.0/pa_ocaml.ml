@@ -361,7 +361,7 @@ module Make(Initial:Extension) =
               | _ -> assert false)
            (Earley.option None
               (Earley.apply (fun x  -> Some x)
-                 (Earley.regexp "[+-]" (fun groupe  -> groupe 0)))))
+                 (EarleyStr.regexp "[+-]" (fun groupe  -> groupe 0)))))
     let override_flag = Earley.declare_grammar "override_flag" 
     ;;Earley.set_grammar override_flag
         (Earley.apply (fun o  -> if o <> None then Override else Fresh)
@@ -779,7 +779,7 @@ module Make(Initial:Extension) =
                                                                "type"
                                                                (Earley.sequence
                                                                   (Earley.ignore_next_blank
-                                                                    (Earley.regexp
+                                                                    (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
@@ -2492,7 +2492,7 @@ module Make(Initial:Extension) =
                                                                     "pat"
                                                                     (Earley.sequence
                                                                     (Earley.ignore_next_blank
-                                                                    (Earley.regexp
+                                                                    (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
@@ -6374,7 +6374,7 @@ module Make(Initial:Extension) =
                                                                     "expr"
                                                                     (Earley.sequence
                                                                     (Earley.ignore_next_blank
-                                                                    (Earley.regexp
+                                                                    (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
@@ -9361,7 +9361,7 @@ module Make(Initial:Extension) =
     ;;Earley.set_grammar structure_item_base
         (Earley.alternatives
            [Earley.fsequence_position
-              (Earley.regexp ~name:"let" let_re (fun groupe  -> groupe 0))
+              (EarleyStr.regexp ~name:"let" let_re (fun groupe  -> groupe 0))
               (Earley.sequence rec_flag let_binding
                  (fun r  ->
                     fun l  ->

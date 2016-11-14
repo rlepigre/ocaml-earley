@@ -260,7 +260,7 @@ module Initial =
     let arrow_re = Earley.declare_grammar "arrow_re"
     let _ =
       Earley.set_grammar arrow_re
-        (Earley.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
+        (EarleyStr.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
     let infix_symb_re prio =
       match prio with
@@ -310,7 +310,7 @@ module Initial =
                 then
                   (Earley.sequence
                      (Earley.ignore_next_blank
-                        (Earley.regexp (infix_symb_re prio)
+                        (EarleyStr.regexp (infix_symb_re prio)
                            (fun groupe  -> groupe 0))) not_special
                      (fun sym  _default_0  ->
                         if is_reserved_symb sym then give_up (); sym))
@@ -327,7 +327,7 @@ module Initial =
         (fun prio  ->
            Earley.sequence
              (Earley.ignore_next_blank
-                (Earley.regexp (prefix_symb_re prio)
+                (EarleyStr.regexp (prefix_symb_re prio)
                    (fun groupe  -> groupe 0))) not_special
              (fun sym  _default_0  ->
                 if (is_reserved_symb sym) || (sym = "!=") then give_up ();

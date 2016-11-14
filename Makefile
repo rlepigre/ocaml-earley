@@ -1,15 +1,15 @@
 OCAMLFIND = ocamlfind
-OCAMLC = $(OCAMLFIND) ocamlc -package bytes
-OCAMLOPT = $(OCAMLFIND) ocamlopt -package bytes -intf-suffix .cmi
+OCAMLC = $(OCAMLFIND) ocamlc -package bytes,earley,earley.str
+OCAMLOPT = $(OCAMLFIND) ocamlopt -package bytes,earley,earley.str -intf-suffix .cmi
 BINDIR = $(dir $(shell which ocamlc))
 
-# do not add earley.cm(x)a because earley in bootstrap is
-# does not contain pa_ocaml_prelude and adding earley.cm(x)a
-# here will make fail after make distclean
-# a more complete all is given below when pa_ocaml binary
-# is present
-
-INSTALLED = ahash.cmi ahash.cmo ahash.mli ahash.cmx earley.cmi earley.cmo earley.mli earley.cmx charset.cmi charset.cmo charset.mli charset.cmx regexp.cmi regexp.cmo regexp.mli regexp.cmx input.cmi input.cmo input.mli input.cmx earley.cma earley.cmxa earley.a pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx pa_parser.cmi pa_parser.cmx pa_parser.cmo pa_main.cmi pa_main.cmx pa_main.cmo decap_ocaml.cmxa decap_ocaml.cma earley.a decap_ocaml.a pa_ast.cmx pa_ast.cmo pa_ast.cmi pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
+INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
+						pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx \
+						pa_parser.cmi pa_parser.cmx pa_parser.cmo \
+						pa_main.cmi pa_main.cmx pa_main.cmo \
+						decap_ocaml.cmxa decap_ocaml.cma decap_ocaml.a \
+						pa_ast.cmx pa_ast.cmo pa_ast.cmi \
+						pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
 
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
 OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
@@ -21,12 +21,12 @@ B=.
 IB=-I $(B) -I $(BOOTDIR)
 PA_OCAML=./pa_ocaml
 PP= -pp "$(PA_OCAML) $(ASCII)"
-all: pa_ocaml earley.cmxa $(B)/earley.cma $(B)/decap_ocaml.cmxa $(B)/decap_ocaml.cma
+all: pa_ocaml $(B)/decap_ocaml.cmxa $(B)/decap_ocaml.cma
 else
 B=$(BOOTDIR)
 IB=-I $(B)
 PP=
-all: pa_ocaml earley.cmxa $(B)/decap_ocaml.cmxa
+all: pa_ocaml $(B)/decap_ocaml.cmxa
 endif
 
 MAJOR = 20161011
@@ -60,18 +60,6 @@ ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 %.cmx: %.ml %.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) -c $<
 
-earley.cmi: charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
-
-earley.cmo: earley.cmi charset.cmi input.cmi regexp.cmi ahash.cmi fixpoint.cmi
-
-earley.cmx: charset.cmx charset.cmi regexp.cmx regexp.cmi input.cmx input.cmi ahash.cmi ahash.cmx fixpoint.cmx
-
-earley.cmxa: charset.cmx input.cmx regexp.cmx ahash.cmx fixpoint.cmx earley.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
-
-earley.cma: charset.cmo input.cmo regexp.cmo ahash.cmo fixpoint.cmo earley.cmo
-	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
-
 $(B)/decap_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
@@ -99,16 +87,16 @@ $(BOOTDIR)/quote.cmo $(BOOTDIR)/quote.cmi: $(BOOTDIR)/quote.ml $(B)/pa_ast.cmi
 $(BOOTDIR)/quote.cmx: $(BOOTDIR)/quote.ml $(BOOTDIR)/quote.cmi $(B)/pa_ast.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_lexing.cmo $(B)/pa_lexing.cmi: $(B)/pa_lexing.ml input.cmi earley.cma
+$(B)/pa_lexing.cmo $(B)/pa_lexing.cmi: $(B)/pa_lexing.ml
 	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_lexing.cmx: $(B)/pa_lexing.ml $(B)/pa_lexing.cmi input.cmx earley.cmxa
+$(B)/pa_lexing.cmx: $(B)/pa_lexing.ml $(B)/pa_lexing.cmi
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_ocaml_prelude.cmo $(B)/pa_ocaml_prelude.cmi: $(B)/pa_ocaml_prelude.ml charset.cmi input.cmi earley.cma $(B)/pa_ast.cmi $(B)/pa_lexing.cmi
+$(B)/pa_ocaml_prelude.cmo $(B)/pa_ocaml_prelude.cmi: $(B)/pa_ocaml_prelude.ml $(B)/pa_ast.cmi $(B)/pa_lexing.cmi
 	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_ocaml_prelude.cmx: $(B)/pa_ocaml_prelude.ml $(B)/pa_ocaml_prelude.cmi charset.cmx input.cmx earley.cmxa $(B)/pa_ast.cmx $(B)/pa_lexing.cmx
+$(B)/pa_ocaml_prelude.cmx: $(B)/pa_ocaml_prelude.ml $(B)/pa_ocaml_prelude.cmi $(B)/pa_ast.cmx $(B)/pa_lexing.cmx
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
 $(B)/pa_ast.cmo $(B)/pa_ast.cmi: $(B)/pa_ast.ml
@@ -117,22 +105,22 @@ $(B)/pa_ast.cmo $(B)/pa_ast.cmi: $(B)/pa_ast.ml
 $(B)/pa_ast.cmx: $(B)/pa_ast.ml $(B)/pa_ast.cmi
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_parser.cmo $(B)/pa_parser.cmi: $(B)/pa_parser.ml $(B)/pa_ast.cmo $(B)/pa_ocaml_prelude.cmo $(ASTTOOLSI) earley.cma
+$(B)/pa_parser.cmo $(B)/pa_parser.cmi: $(B)/pa_parser.ml $(B)/pa_ast.cmo $(B)/pa_ocaml_prelude.cmo $(ASTTOOLSI)
 	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_parser.cmx: $(B)/pa_parser.ml $(B)/pa_parser.cmi $(B)/pa_ast.cmx $(B)/pa_ocaml_prelude.cmx $(ASTTOOLSIX) earley.cmxa
+$(B)/pa_parser.cmx: $(B)/pa_parser.ml $(B)/pa_parser.cmi $(B)/pa_ast.cmx $(B)/pa_ocaml_prelude.cmx $(ASTTOOLSIX)
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_ocaml.cmo $(B)/pa_ocaml.cmi: $(B)/pa_ocaml.ml $(ASTTOOLSI) $(B)/pa_ocaml_prelude.cmo earley.cma
+$(B)/pa_ocaml.cmo $(B)/pa_ocaml.cmi: $(B)/pa_ocaml.ml $(ASTTOOLSI) $(B)/pa_ocaml_prelude.cmo
 	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_ocaml.cmx: $(B)/pa_ocaml.ml $(B)/pa_ocaml.cmi $(ASTTOOLSIX) $(B)/pa_ocaml_prelude.cmx earley.cmxa
+$(B)/pa_ocaml.cmx: $(B)/pa_ocaml.ml $(B)/pa_ocaml.cmi $(ASTTOOLSIX) $(B)/pa_ocaml_prelude.cmx
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_main.cmo $(B)/pa_main.cmi: $(B)/pa_main.ml input.cmi $(B)/pa_ocaml.cmo
+$(B)/pa_main.cmo $(B)/pa_main.cmi: $(B)/pa_main.ml $(B)/pa_ocaml.cmo
 	$(OCAMLC) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-$(B)/pa_main.cmx: $(B)/pa_main.ml $(B)/pa_main.cmi input.cmx $(B)/pa_ocaml.cmx
+$(B)/pa_main.cmx: $(B)/pa_main.ml $(B)/pa_main.cmi $(B)/pa_ocaml.cmx
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
 $(B)/pa_default.cmo $(B)/pa_default.cmi: $(B)/pa_default.ml $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
@@ -141,16 +129,16 @@ $(B)/pa_default.cmo $(B)/pa_default.cmi: $(B)/pa_default.ml $(B)/pa_ocaml_prelud
 $(B)/pa_default.cmx: $(B)/pa_default.ml $(B)/pa_default.cmi $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml: earley.cmxa $(B)/decap_ocaml.cmxa $(B)/pa_default.cmx
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cmxa str.cmxa $(COMPILER_LIBO) $^
+pa_ocaml: $(B)/decap_ocaml.cmxa $(B)/pa_default.cmx
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cmxa str.cmxa earley.cmxa earleyStr.cmxa $(COMPILER_LIBO) $^
 
-pa_ocaml.byt: earley.cma $(B)/decap_ocaml.cma $(B)/pa_default.cmo
-	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cma str.cma $(COMPILER_LIBS) $^
+pa_ocaml.byt: $(B)/decap_ocaml.cma $(B)/pa_default.cmo
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cma str.cma earley.cma earleyStr.cma$(COMPILER_LIBS) $^
 
-test_parsers: earley.cmxa $(B)/decap_ocaml.cmxa test_parsers.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa	$(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
+test_parsers: $(B)/decap_ocaml.cmxa test_parsers.ml
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa	earley.cmxa earleyStr.cmxa $(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
 
-asttools: earley.cmxa decap_ocaml.cmxa
+asttools: decap_ocaml.cmxa
 	cd ast_tools && make
 
 #BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
@@ -176,7 +164,6 @@ install: uninstall $(INSTALLED)
 	install -m 755 pa_ocaml $(BINDIR)
 
 uninstall:
-	ocamlfind remove earley
 	rm -f $(BINDIR)/pa_ocaml
 
 clean:
@@ -191,11 +178,7 @@ distclean: clean
 URLSSH=lama.univ-savoie.fr:WWW
 URL=https://lama.univ-savoie.fr/~raffalli/earley
 
-doc: charset.mli input.mli fixpoint.mli earley.mli earley.cmxa
-	mkdir -p html
-	ocamldoc -d html -html earley.mli charset.mli input.mli
-
-tar: doc clean
+tar: clean
 	cd ../decap_tar; darcs pull; make distclean; make; make; make distclean
 	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,decap_tar,earley-$(VERSION),"  decap_tar
 
