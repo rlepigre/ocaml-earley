@@ -1,4 +1,4 @@
-FLAGS      := -use-ocamlfind
+FLAGS      := -use-ocamlfind -pkg bytes
 IMPLFILES  := $(wildcard *.ml)
 INTFFILES  := $(wildcard *.mli)
 
