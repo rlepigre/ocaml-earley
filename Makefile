@@ -66,7 +66,7 @@ $(B)/earley_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_o
 $(B)/earley_ocaml.cmxa: $(B)/pa_lexing.cmx $(B)/pa_ast.cmx $(ASTTOOLSX) $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
-earley_ocaml.a: earley_ocaml.cmxa;
+decap_ocaml.a: decap_ocaml.cmxa;
 
 $(BOOTDIR)/compare.cmo $(BOOTDIR)/compare.cmi: $(BOOTDIR)/compare.ml
 	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
@@ -161,10 +161,11 @@ boot:
 
 install: uninstall $(INSTALLED)
 	install -m 755 -d $(BINDIR)
-	ocamlfind install earley META $(INSTALLED)
+	ocamlfind install pa_ocaml META $(INSTALLED)
 	install -m 755 pa_ocaml $(BINDIR)
 
 uninstall:
+	ocamlfind remove pa_ocaml
 	rm -f $(BINDIR)/pa_ocaml
 
 clean:
@@ -179,17 +180,17 @@ distclean: clean
 URLSSH=lama.univ-savoie.fr:WWW
 URL=https://lama.univ-savoie.fr/~raffalli/earley
 
-tar: clean
-	cd ../earley_tar; darcs pull; make distclean; make; make; make distclean
-	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_tar,earley-$(VERSION),"  earley_tar
-
-distrib: clean tar doc
-	darcs push lama.univ-savoie.fr:WWW/repos/earley/
-	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
-	rsync -r --delete ../earley_tar/examples/ $(URLSSH)/earley/examples/
-	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
-	rsync -r www/ $(URLSSH)/
-
+#tar: clean
+#	cd ../decap_tar; darcs pull; make distclean; make; make; make distclean
+#	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,decap_tar,earley-$(VERSION),"  decap_tar
+#
+#distrib: clean tar doc
+#	darcs push lama.univ-savoie.fr:WWW/repos/earley/
+#	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
+#	rsync -r --delete ../decap_tar/examples/ $(URLSSH)/earley/examples/
+#	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
+#	rsync -r www/ $(URLSSH)/
+#
 OPAMREPO=$(HOME)/Caml/opam-repository/packages/earley
 
 opam_git: opam distrib
