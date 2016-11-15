@@ -17,14 +17,15 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [ouident;
            Earley.fsequence_position (Earley.string "$uid:" "$uid:")
-             (Earley.sequence (Earley.ignore_next_blank expression)
-                (Earley.char '$' '$')
-                (fun e  _  _  __loc__start__buf  __loc__start__pos 
-                   __loc__end__buf  __loc__end__pos  ->
-                   let _loc =
-                     locate __loc__start__buf __loc__start__pos
-                       __loc__end__buf __loc__end__pos in
-                   Quote.string_antiquotation _loc e))])
+             (Earley.fsequence expression
+                (Earley.sequence (Earley.no_blank_test ())
+                   (Earley.char '$' '$')
+                   (fun _  _  e  _  __loc__start__buf  __loc__start__pos 
+                      __loc__end__buf  __loc__end__pos  ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      Quote.string_antiquotation _loc e)))])
     let olident = lident
     let lident = Earley.declare_grammar "lident"
     let _ =
@@ -32,14 +33,15 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [olident;
            Earley.fsequence_position (Earley.string "$lid:" "$lid:")
-             (Earley.sequence (Earley.ignore_next_blank expression)
-                (Earley.char '$' '$')
-                (fun e  _  _  __loc__start__buf  __loc__start__pos 
-                   __loc__end__buf  __loc__end__pos  ->
-                   let _loc =
-                     locate __loc__start__buf __loc__start__pos
-                       __loc__end__buf __loc__end__pos in
-                   Quote.string_antiquotation _loc e))])
+             (Earley.fsequence expression
+                (Earley.sequence (Earley.no_blank_test ())
+                   (Earley.char '$' '$')
+                   (fun _  _  e  _  __loc__start__buf  __loc__start__pos 
+                      __loc__end__buf  __loc__end__pos  ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      Quote.string_antiquotation _loc e)))])
     let oident = ident
     let ident = Earley.declare_grammar "ident"
     let _ =
@@ -47,14 +49,15 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [oident;
            Earley.fsequence_position (Earley.string "$ident:" "$ident:")
-             (Earley.sequence (Earley.ignore_next_blank expression)
-                (Earley.char '$' '$')
-                (fun e  _  _  __loc__start__buf  __loc__start__pos 
-                   __loc__end__buf  __loc__end__pos  ->
-                   let _loc =
-                     locate __loc__start__buf __loc__start__pos
-                       __loc__end__buf __loc__end__pos in
-                   Quote.string_antiquotation _loc e))])
+             (Earley.fsequence expression
+                (Earley.sequence (Earley.no_blank_test ())
+                   (Earley.char '$' '$')
+                   (fun _  _  e  _  __loc__start__buf  __loc__start__pos 
+                      __loc__end__buf  __loc__end__pos  ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      Quote.string_antiquotation _loc e)))])
     let mk_unary_opp name _loc_name arg _loc_arg =
       let res =
         match (name, (arg.pexp_desc)) with
@@ -157,27 +160,31 @@ module Make(Initial:Extension) =
     let label = Earley.declare_grammar "label"
     let _ =
       Earley.set_grammar label
-        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '~' '~'))
-           (Earley.sequence (Earley.ignore_next_blank label_name) no_colon
-              (fun ln  _default_0  _  -> ln)))
+        (Earley.fsequence (Earley.char '~' '~')
+           (Earley.fsequence (Earley.no_blank_test ())
+              (Earley.sequence label_name no_colon
+                 (fun ln  _default_0  _  _  -> ln))))
     let opt_label = Earley.declare_grammar "opt_label"
     let _ =
       Earley.set_grammar opt_label
-        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '?' '?'))
-           (Earley.sequence (Earley.ignore_next_blank label_name) no_colon
-              (fun ln  _default_0  _  -> ln)))
+        (Earley.fsequence (Earley.char '?' '?')
+           (Earley.fsequence (Earley.no_blank_test ())
+              (Earley.sequence label_name no_colon
+                 (fun ln  _default_0  _  _  -> ln))))
     let ty_label = Earley.declare_grammar "ty_label"
     let _ =
       Earley.set_grammar ty_label
-        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '~' '~'))
-           (Earley.sequence (Earley.ignore_next_blank lident)
-              (Earley.char ':' ':') (fun s  _  _  -> labelled s)))
+        (Earley.fsequence (Earley.char '~' '~')
+           (Earley.fsequence (Earley.no_blank_test ())
+              (Earley.sequence lident (Earley.char ':' ':')
+                 (fun s  _  _  _  -> labelled s))))
     let ty_opt_label = Earley.declare_grammar "ty_opt_label"
     let _ =
       Earley.set_grammar ty_opt_label
-        (Earley.fsequence (Earley.ignore_next_blank (Earley.char '?' '?'))
-           (Earley.sequence (Earley.ignore_next_blank lident)
-              (Earley.char ':' ':') (fun s  _  _  -> optional s)))
+        (Earley.fsequence (Earley.char '?' '?')
+           (Earley.fsequence (Earley.no_blank_test ())
+              (Earley.sequence lident (Earley.char ':' ':')
+                 (fun s  _  _  _  -> optional s))))
     let maybe_opt_label = Earley.declare_grammar "maybe_opt_label"
     let _ =
       Earley.set_grammar maybe_opt_label
@@ -383,7 +390,9 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar attribute
         (Earley.fsequence (Earley.string "[@" "[@")
-           (Earley.sequence attr_id payload (fun id  p  _  -> (id, p))))
+           (Earley.fsequence attr_id
+              (Earley.sequence payload (Earley.char ']' ']')
+                 (fun p  _  id  _  -> (id, p)))))
     let attributes = Earley.declare_grammar "attributes"
     let _ =
       Earley.set_grammar attributes
@@ -706,46 +715,53 @@ module Make(Initial:Extension) =
                                                     if lvl = AtomType
                                                     then
                                                       (Earley.fsequence_position
-                                                         (Earley.ignore_next_blank
-                                                            (Earley.char '$'
-                                                               '$'))
+                                                         (Earley.char '$' '$')
                                                          (Earley.fsequence
-                                                            (Earley.option
-                                                               "type"
-                                                               (Earley.sequence
-                                                                  (Earley.ignore_next_blank
+                                                            (Earley.no_blank_test
+                                                               ())
+                                                            (Earley.fsequence
+                                                               (Earley.option
+                                                                  "type"
+                                                                  (Earley.fsequence
                                                                     (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
-                                                                    groupe 0)))
-                                                                  (Earley.char
+                                                                    groupe 0))
+                                                                    (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
+                                                                    (Earley.char
                                                                     ':' ':')
-                                                                  (fun
-                                                                    _default_0
-                                                                     _  ->
-                                                                    _default_0)))
-                                                            (Earley.sequence
-                                                               (Earley.ignore_next_blank
-                                                                  expression)
-                                                               (Earley.char
-                                                                  '$' '$')
-                                                               (fun e  _  aq 
-                                                                  _ 
-                                                                  __loc__start__buf
-                                                                   __loc__start__pos
-                                                                   __loc__end__buf
-                                                                   __loc__end__pos
-                                                                   ->
-                                                                  let _loc =
+                                                                    (fun _  _
+                                                                     _default_0
+                                                                     ->
+                                                                    _default_0))))
+                                                               (Earley.fsequence
+                                                                  expression
+                                                                  (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
+                                                                    (Earley.char
+                                                                    '$' '$')
+                                                                    (fun _  _
+                                                                     e  aq  _
+                                                                     _ 
+                                                                    __loc__start__buf
+                                                                     __loc__start__pos
+                                                                     __loc__end__buf
+                                                                     __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
                                                                     locate
                                                                     __loc__start__buf
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
-                                                                  let open Quote in
+                                                                    let open Quote in
                                                                     let e_loc
                                                                     =
                                                                     exp_ident
@@ -787,7 +803,7 @@ module Make(Initial:Extension) =
                                                                     give_up
                                                                     () in
                                                                     Quote.ptyp_antiquotation
-                                                                    _loc f))))
+                                                                    _loc f))))))
                                                       :: y
                                                     else y in
                                                   if lvl = DashType
@@ -1271,8 +1287,12 @@ module Make(Initial:Extension) =
                       if lvl = AtomType
                       then
                         (Earley.fsequence (Earley.char '(' '(')
-                           (Earley.sequence typexpr (Earley.char ')' ')')
-                              (fun te  _  _  -> te)))
+                           (Earley.fsequence typexpr
+                              (Earley.sequence
+                                 (Earley.option None
+                                    (Earley.apply (fun x  -> Some x)
+                                       attribute)) (Earley.char ')' ')')
+                                 (fun _default_0  _  te  _  -> te))))
                         :: y
                       else y in
                     if lvl = AtomType
@@ -2067,34 +2087,41 @@ module Make(Initial:Extension) =
                                                            if lvl = AtomPat
                                                            then
                                                              (Earley.fsequence_position
-                                                                (Earley.ignore_next_blank
-                                                                   (Earley.char
-                                                                    '$' '$'))
+                                                                (Earley.char
+                                                                   '$' '$')
                                                                 (Earley.fsequence
-                                                                   (Earley.option
+                                                                   (Earley.no_blank_test
+                                                                    ())
+                                                                   (Earley.fsequence
+                                                                    (Earley.option
                                                                     "pat"
-                                                                    (Earley.sequence
-                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.fsequence
                                                                     (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
-                                                                    groupe 0)))
+                                                                    groupe 0))
+                                                                    (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     (Earley.char
                                                                     ':' ':')
-                                                                    (fun
-                                                                    _default_0
-                                                                     _  ->
-                                                                    _default_0)))
-                                                                   (Earley.sequence
-                                                                    (Earley.ignore_next_blank
-                                                                    expression)
+                                                                    (fun _  _
+                                                                     _default_0
+                                                                     ->
+                                                                    _default_0))))
+                                                                    (Earley.fsequence
+                                                                    expression
+                                                                    (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     (Earley.char
                                                                     '$' '$')
-                                                                    (fun e  _
-                                                                     aq  _ 
+                                                                    (fun _  _
+                                                                     e  aq  _
+                                                                     _ 
                                                                     __loc__start__buf
                                                                      __loc__start__pos
                                                                      __loc__end__buf
@@ -2245,33 +2272,37 @@ module Make(Initial:Extension) =
                                                                     give_up
                                                                     () in
                                                                     Quote.ppat_antiquotation
-                                                                    _loc f))))
+                                                                    _loc f))))))
                                                              :: y
                                                            else y in
                                                          if lvl = AtomPat
                                                          then
-                                                           (Earley.sequence
-                                                              (Earley.ignore_next_blank
-                                                                 (Earley.char
-                                                                    '$' '$'))
-                                                              uident
-                                                              (fun _  c  ->
-                                                                 try
-                                                                   let str =
+                                                           (Earley.fsequence
+                                                              (Earley.char
+                                                                 '$' '$')
+                                                              (Earley.sequence
+                                                                 (Earley.no_blank_test
+                                                                    ())
+                                                                 uident
+                                                                 (fun _  c  _
+                                                                     ->
+                                                                    try
+                                                                    let str =
                                                                     Sys.getenv
                                                                     c in
-                                                                   parse_string
+                                                                    parse_string
                                                                     ~filename:(
                                                                     "ENV:" ^
                                                                     c)
                                                                     pattern
                                                                     ocaml_blank
                                                                     str
-                                                                 with
-                                                                 | Not_found 
-                                                                    ->
+                                                                    with
+                                                                    | 
+                                                                    Not_found
+                                                                     ->
                                                                     give_up
-                                                                    ()))
+                                                                    ())))
                                                            :: y
                                                          else y in
                                                        if lvl = AtomPat
@@ -3012,7 +3043,7 @@ module Make(Initial:Extension) =
                            Asttypes.txt =
                              (Longident.Ldot
                                 ((Longident.Ldot
-                                    ((Longident.Lident "Bigarry"), "Array1")),
+                                    ((Longident.Lident "Bigarray"), "Array1")),
                                   get));
                            Asttypes.loc = _loc
                          });
@@ -3031,7 +3062,7 @@ module Make(Initial:Extension) =
                            Asttypes.txt =
                              (Longident.Ldot
                                 ((Longident.Ldot
-                                    ((Longident.Lident "Bigarry"), "Array2")),
+                                    ((Longident.Lident "Bigarray"), "Array2")),
                                   get));
                            Asttypes.loc = _loc
                          });
@@ -3050,7 +3081,7 @@ module Make(Initial:Extension) =
                            Asttypes.txt =
                              (Longident.Ldot
                                 ((Longident.Ldot
-                                    ((Longident.Lident "Bigarry"), "Array3")),
+                                    ((Longident.Lident "Bigarray"), "Array3")),
                                   get));
                            Asttypes.loc = _loc
                          });
@@ -3069,7 +3100,7 @@ module Make(Initial:Extension) =
                            Asttypes.txt =
                              (Longident.Ldot
                                 ((Longident.Ldot
-                                    ((Longident.Lident "Bigarry"),
+                                    ((Longident.Lident "Bigarray"),
                                       "Genarray")), get));
                            Asttypes.loc = _loc
                          });
@@ -3482,29 +3513,31 @@ module Make(Initial:Extension) =
                  (Earley.sequence (match_case (Match, Seq)) no_semi
                     (fun x  _default_0  l  _default_1  -> l @ [x])));
            Earley.apply (fun _  -> []) (Earley.empty ());
-           Earley.fsequence_position
-             (Earley.ignore_next_blank (Earley.char '$' '$'))
-             (Earley.fsequence
-                (Earley.option "cases"
-                   (Earley.sequence (Earley.string "cases" "cases")
-                      (Earley.string ":" ":") (fun c  _  -> c)))
-                (Earley.sequence (Earley.ignore_next_blank expression)
-                   (Earley.char '$' '$')
-                   (fun e  _  aq  _  __loc__start__buf  __loc__start__pos 
-                      __loc__end__buf  __loc__end__pos  ->
-                      let _loc =
-                        locate __loc__start__buf __loc__start__pos
-                          __loc__end__buf __loc__end__pos in
-                      let open Quote in
-                        let generic_antiquote e =
-                          function
-                          | Quote_loc  -> e
-                          | _ -> failwith "invalid antiquotation type" in
-                        let f =
-                          match aq with
-                          | "cases" -> generic_antiquote e
-                          | _ -> give_up () in
-                        make_list_antiquotation _loc Quote_loc f)))])
+           Earley.fsequence_position (Earley.char '$' '$')
+             (Earley.fsequence (Earley.no_blank_test ())
+                (Earley.fsequence
+                   (Earley.option "cases"
+                      (Earley.sequence (Earley.string "cases" "cases")
+                         (Earley.string ":" ":") (fun c  _  -> c)))
+                   (Earley.fsequence expression
+                      (Earley.sequence (Earley.no_blank_test ())
+                         (Earley.char '$' '$')
+                         (fun _  _  e  aq  _  _  __loc__start__buf 
+                            __loc__start__pos  __loc__end__buf 
+                            __loc__end__pos  ->
+                            let _loc =
+                              locate __loc__start__buf __loc__start__pos
+                                __loc__end__buf __loc__end__pos in
+                            let open Quote in
+                              let generic_antiquote e =
+                                function
+                                | Quote_loc  -> e
+                                | _ -> failwith "invalid antiquotation type" in
+                              let f =
+                                match aq with
+                                | "cases" -> generic_antiquote e
+                                | _ -> give_up () in
+                              make_list_antiquotation _loc Quote_loc f)))))])
     let type_coercion = Earley.declare_grammar "type_coercion"
     let _ =
       Earley.set_grammar type_coercion
@@ -4805,45 +4838,6 @@ module Make(Initial:Extension) =
                                                                     :: y
                                                                     else y in
                                                                     if
-                                                                    lvl = Seq
-                                                                    then
-                                                                    (Earley.fsequence
-                                                                    (Earley.apply
-                                                                    List.rev
-                                                                    (Earley.fixpoint
-                                                                    []
-                                                                    (Earley.apply
-                                                                    (fun x  y
-                                                                     -> x ::
-                                                                    y)
-                                                                    (Earley.sequence
-                                                                    (expression_lvl
-                                                                    (LetRight,
-                                                                    (next_exp
-                                                                    Seq)))
-                                                                    semi_col
-                                                                    (fun
-                                                                    _default_0
-                                                                     _  ->
-                                                                    _default_0)))))
-                                                                    (Earley.sequence
-                                                                    (expression_lvl
-                                                                    ((right_alm
-                                                                    alm),
-                                                                    (next_exp
-                                                                    Seq)))
-                                                                    (Earley.alternatives
-                                                                    [semi_col;
-                                                                    no_semi])
-                                                                    (fun e' 
-                                                                    _default_0
-                                                                     ls  ->
-                                                                    mk_seq
-                                                                    (ls @
-                                                                    [e']))))
-                                                                    :: y
-                                                                    else y in
-                                                                    if
                                                                     lvl =
                                                                     Tupl
                                                                     then
@@ -4897,34 +4891,41 @@ module Make(Initial:Extension) =
                                                                     Atom
                                                                     then
                                                                     (Earley.fsequence_position
-                                                                    (Earley.ignore_next_blank
                                                                     (Earley.char
-                                                                    '$' '$'))
+                                                                    '$' '$')
+                                                                    (Earley.fsequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     (Earley.fsequence
                                                                     (Earley.option
                                                                     "expr"
-                                                                    (Earley.sequence
-                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.fsequence
                                                                     (EarleyStr.regexp
                                                                     ~name:"[a-z]+"
                                                                     "[a-z]+"
                                                                     (fun
                                                                     groupe 
                                                                     ->
-                                                                    groupe 0)))
+                                                                    groupe 0))
+                                                                    (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     (Earley.char
                                                                     ':' ':')
-                                                                    (fun
-                                                                    _default_0
-                                                                     _  ->
-                                                                    _default_0)))
+                                                                    (fun _  _
+                                                                     _default_0
+                                                                     ->
+                                                                    _default_0))))
+                                                                    (Earley.fsequence
+                                                                    expression
                                                                     (Earley.sequence
-                                                                    (Earley.ignore_next_blank
-                                                                    expression)
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     (Earley.char
                                                                     '$' '$')
-                                                                    (fun e  _
-                                                                     aq  _ 
+                                                                    (fun _  _
+                                                                     e  aq  _
+                                                                     _ 
                                                                     __loc__start__buf
                                                                      __loc__start__pos
                                                                      __loc__end__buf
@@ -5120,20 +5121,23 @@ module Make(Initial:Extension) =
                                                                     give_up
                                                                     () in
                                                                     Quote.pexp_antiquotation
-                                                                    _loc f))))
+                                                                    _loc f))))))
                                                                     :: y
                                                                     else y in
                                                                     if
                                                                     lvl =
                                                                     Atom
                                                                     then
-                                                                    (Earley.sequence_position
-                                                                    (Earley.ignore_next_blank
+                                                                    (Earley.fsequence_position
                                                                     (Earley.char
-                                                                    '$' '$'))
+                                                                    '$' '$')
+                                                                    (Earley.sequence
+                                                                    (Earley.no_blank_test
+                                                                    ())
                                                                     uident
                                                                     (fun _  c
-                                                                     __loc__start__buf
+                                                                     _ 
+                                                                    __loc__start__buf
                                                                      __loc__start__pos
                                                                      __loc__end__buf
                                                                      __loc__end__pos
@@ -5177,7 +5181,7 @@ module Make(Initial:Extension) =
                                                                     Not_found
                                                                      ->
                                                                     give_up
-                                                                    ()))) ::
+                                                                    ())))) ::
                                                                     y
                                                                     else y in
                                                                     if
@@ -5867,12 +5871,11 @@ module Make(Initial:Extension) =
                                                                      -> r))
                                                                     :: y
                                                                     else y in
-                                                                  if
+                                                                    if
                                                                     lvl =
                                                                     Atom
-                                                                  then
-                                                                    (
-                                                                    Earley.fsequence_position
+                                                                    then
+                                                                    (Earley.fsequence_position
                                                                     (Earley.string
                                                                     "(" "(")
                                                                     (Earley.fsequence
@@ -5961,10 +5964,13 @@ module Make(Initial:Extension) =
                                                                     loc_expr
                                                                     _loc desc)))))
                                                                     :: y
-                                                                  else y in
-                                                                if lvl = Atom
-                                                                then
-                                                                  (Earley.fsequence_position
+                                                                    else y in
+                                                                  if
+                                                                    lvl =
+                                                                    Atom
+                                                                  then
+                                                                    (
+                                                                    Earley.fsequence_position
                                                                     (Earley.string
                                                                     "{<" "{<")
                                                                     (Earley.sequence
@@ -6014,14 +6020,14 @@ module Make(Initial:Extension) =
                                                                     loc_expr
                                                                     _loc
                                                                     (Pexp_override
-                                                                    l))))
-                                                                  :: y
-                                                                else y in
-                                                              if lvl = Atom
-                                                              then
-                                                                (Earley.fsequence_position
-                                                                   object_kw
-                                                                   (Earley.sequence
+                                                                    l)))) ::
+                                                                    y
+                                                                  else y in
+                                                                if lvl = Atom
+                                                                then
+                                                                  (Earley.fsequence_position
+                                                                    object_kw
+                                                                    (Earley.sequence
                                                                     class_body
                                                                     end_kw
                                                                     (fun o 
@@ -6043,15 +6049,14 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Pexp_object
                                                                     o))))
-                                                                :: y
-                                                              else y in
-                                                            if lvl = Atom
-                                                            then
-                                                              (Earley.sequence_position
-                                                                 new_kw
-                                                                 (Earley.apply_position
-                                                                    (
-                                                                    fun x 
+                                                                  :: y
+                                                                else y in
+                                                              if lvl = Atom
+                                                              then
+                                                                (Earley.sequence_position
+                                                                   new_kw
+                                                                   (Earley.apply_position
+                                                                    (fun x 
                                                                     str  pos 
                                                                     str' 
                                                                     pos'  ->
@@ -6060,7 +6065,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     class_path)
-                                                                 (fun
+                                                                   (fun
                                                                     _default_0
                                                                      p  ->
                                                                     let 
@@ -6084,14 +6089,15 @@ module Make(Initial:Extension) =
                                                                     (Pexp_new
                                                                     (id_loc p
                                                                     _loc_p))))
-                                                              :: y
-                                                            else y in
-                                                          if lvl = Atom
-                                                          then
-                                                            (Earley.fsequence_position
-                                                               for_kw
-                                                               (Earley.fsequence
-                                                                  (Earley.apply_position
+                                                                :: y
+                                                              else y in
+                                                            if lvl = Atom
+                                                            then
+                                                              (Earley.fsequence_position
+                                                                 for_kw
+                                                                 (Earley.fsequence
+                                                                    (
+                                                                    Earley.apply_position
                                                                     (fun x 
                                                                     str  pos 
                                                                     str' 
@@ -6101,7 +6107,8 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     lident)
-                                                                  (Earley.fsequence
+                                                                    (
+                                                                    Earley.fsequence
                                                                     (Earley.char
                                                                     '=' '=')
                                                                     (Earley.fsequence
@@ -6146,17 +6153,17 @@ module Make(Initial:Extension) =
                                                                     _loc_id),
                                                                     e, e', d,
                                                                     e'')))))))))))
-                                                            :: y
-                                                          else y in
-                                                        if lvl = Atom
-                                                        then
-                                                          (Earley.fsequence_position
-                                                             while_kw
-                                                             (Earley.fsequence
-                                                                expression
-                                                                (Earley.fsequence
-                                                                   do_kw
-                                                                   (Earley.sequence
+                                                              :: y
+                                                            else y in
+                                                          if lvl = Atom
+                                                          then
+                                                            (Earley.fsequence_position
+                                                               while_kw
+                                                               (Earley.fsequence
+                                                                  expression
+                                                                  (Earley.fsequence
+                                                                    do_kw
+                                                                    (Earley.sequence
                                                                     expression
                                                                     done_kw
                                                                     (fun e' 
@@ -6180,34 +6187,32 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Pexp_while
                                                                     (e, e')))))))
-                                                          :: y
-                                                        else y in
-                                                      if lvl = Atom
-                                                      then
-                                                        (Earley.fsequence_position
-                                                           (Earley.string "{"
-                                                              "{")
-                                                           (Earley.fsequence
-                                                              (Earley.option
-                                                                 None
-                                                                 (Earley.apply
-                                                                    (
-                                                                    fun x  ->
-                                                                    Some x)
-                                                                    (
-                                                                    Earley.sequence
+                                                            :: y
+                                                          else y in
+                                                        if lvl = Atom
+                                                        then
+                                                          (Earley.fsequence_position
+                                                             (Earley.string
+                                                                "{" "{")
+                                                             (Earley.fsequence
+                                                                (Earley.option
+                                                                   None
+                                                                   (Earley.apply
+                                                                    (fun x 
+                                                                    -> Some x)
+                                                                    (Earley.sequence
                                                                     expression
                                                                     with_kw
                                                                     (fun
                                                                     _default_0
                                                                      _  ->
                                                                     _default_0))))
-                                                              (Earley.sequence
-                                                                 record_list
-                                                                 (Earley.string
+                                                                (Earley.sequence
+                                                                   record_list
+                                                                   (Earley.string
                                                                     "}" "}")
-                                                                 (fun l  _  e
-                                                                     _ 
+                                                                   (fun l  _ 
+                                                                    e  _ 
                                                                     __loc__start__buf
                                                                      __loc__start__pos
                                                                      __loc__end__buf
@@ -6224,129 +6229,200 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Pexp_record
                                                                     (l, e))))))
+                                                          :: y
+                                                        else y in
+                                                      if lvl = Atom
+                                                      then
+                                                        (Earley.fsequence_position
+                                                           (Earley.char '['
+                                                              '[')
+                                                           (Earley.sequence
+                                                              expression_list
+                                                              (Earley.apply_position
+                                                                 (fun x  str 
+                                                                    pos  str'
+                                                                     pos'  ->
+                                                                    ((locate
+                                                                    str pos
+                                                                    str' pos'),
+                                                                    x))
+                                                                 (Earley.char
+                                                                    ']' ']'))
+                                                              (fun l  cl  ->
+                                                                 let 
+                                                                   (_loc_cl,cl)
+                                                                   = cl in
+                                                                 fun _ 
+                                                                   __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                   let _loc =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                   loc_expr
+                                                                    _loc
+                                                                    (pexp_list
+                                                                    _loc
+                                                                    ~loc_cl:_loc_cl
+                                                                    l).pexp_desc)))
                                                         :: y
                                                       else y in
                                                     if lvl = Atom
                                                     then
                                                       (Earley.fsequence_position
-                                                         (Earley.char '[' '[')
+                                                         (Earley.string "[|"
+                                                            "[|")
                                                          (Earley.sequence
                                                             expression_list
-                                                            (Earley.apply_position
-                                                               (fun x  str 
-                                                                  pos  str' 
-                                                                  pos'  ->
-                                                                  ((locate
-                                                                    str pos
-                                                                    str' pos'),
-                                                                    x))
-                                                               (Earley.char
-                                                                  ']' ']'))
-                                                            (fun l  cl  ->
-                                                               let (_loc_cl,cl)
-                                                                 = cl in
-                                                               fun _ 
-                                                                 __loc__start__buf
-                                                                  __loc__start__pos
-                                                                  __loc__end__buf
-                                                                  __loc__end__pos
-                                                                  ->
-                                                                 let _loc =
-                                                                   locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos in
-                                                                 loc_expr
-                                                                   _loc
-                                                                   (pexp_list
-                                                                    _loc
-                                                                    ~loc_cl:_loc_cl
-                                                                    l).pexp_desc)))
+                                                            (Earley.string
+                                                               "|]" "|]")
+                                                            (fun l  _  _ 
+                                                               __loc__start__buf
+                                                                __loc__start__pos
+                                                                __loc__end__buf
+                                                                __loc__end__pos
+                                                                ->
+                                                               let _loc =
+                                                                 locate
+                                                                   __loc__start__buf
+                                                                   __loc__start__pos
+                                                                   __loc__end__buf
+                                                                   __loc__end__pos in
+                                                               loc_expr _loc
+                                                                 (Pexp_array
+                                                                    (
+                                                                    List.map
+                                                                    fst l)))))
                                                       :: y
                                                     else y in
                                                   if lvl = Atom
                                                   then
-                                                    (Earley.fsequence_position
-                                                       (Earley.string "[|"
-                                                          "[|")
-                                                       (Earley.sequence
-                                                          expression_list
-                                                          (Earley.string "|]"
-                                                             "|]")
-                                                          (fun l  _  _ 
-                                                             __loc__start__buf
+                                                    (Earley.apply_position
+                                                       (fun l 
+                                                          __loc__start__buf 
+                                                          __loc__start__pos 
+                                                          __loc__end__buf 
+                                                          __loc__end__pos  ->
+                                                          let _loc =
+                                                            locate
+                                                              __loc__start__buf
                                                               __loc__start__pos
                                                               __loc__end__buf
-                                                              __loc__end__pos
-                                                              ->
-                                                             let _loc =
-                                                               locate
-                                                                 __loc__start__buf
-                                                                 __loc__start__pos
-                                                                 __loc__end__buf
-                                                                 __loc__end__pos in
-                                                             loc_expr _loc
-                                                               (Pexp_array
-                                                                  (List.map
-                                                                    fst l)))))
+                                                              __loc__end__pos in
+                                                          loc_expr _loc
+                                                            (Pexp_variant
+                                                               (l, None)))
+                                                       tag_name)
                                                     :: y
                                                   else y in
                                                 if lvl = Atom
                                                 then
-                                                  (Earley.apply_position
-                                                     (fun l 
-                                                        __loc__start__buf 
-                                                        __loc__start__pos 
-                                                        __loc__end__buf 
-                                                        __loc__end__pos  ->
-                                                        let _loc =
-                                                          locate
-                                                            __loc__start__buf
-                                                            __loc__start__pos
-                                                            __loc__end__buf
-                                                            __loc__end__pos in
-                                                        loc_expr _loc
-                                                          (Pexp_variant
-                                                             (l, None)))
-                                                     tag_name)
+                                                  (Earley.sequence_position
+                                                     (Earley.apply_position
+                                                        (fun x  str  pos 
+                                                           str'  pos'  ->
+                                                           ((locate str pos
+                                                               str' pos'), x))
+                                                        constructor) no_dot
+                                                     (fun c  ->
+                                                        let (_loc_c,c) = c in
+                                                        fun _default_0 
+                                                          __loc__start__buf 
+                                                          __loc__start__pos 
+                                                          __loc__end__buf 
+                                                          __loc__end__pos  ->
+                                                          let _loc =
+                                                            locate
+                                                              __loc__start__buf
+                                                              __loc__start__pos
+                                                              __loc__end__buf
+                                                              __loc__end__pos in
+                                                          loc_expr _loc
+                                                            (pexp_construct
+                                                               ((id_loc c
+                                                                   _loc_c),
+                                                                 None))))
                                                   :: y
                                                 else y in
-                                              if lvl = Atom
+                                              if lvl = App
                                               then
                                                 (Earley.sequence_position
-                                                   (Earley.apply_position
-                                                      (fun x  str  pos  str' 
-                                                         pos'  ->
-                                                         ((locate str pos
-                                                             str' pos'), x))
-                                                      constructor) no_dot
-                                                   (fun c  ->
-                                                      let (_loc_c,c) = c in
-                                                      fun _default_0 
-                                                        __loc__start__buf 
-                                                        __loc__start__pos 
-                                                        __loc__end__buf 
-                                                        __loc__end__pos  ->
-                                                        let _loc =
-                                                          locate
-                                                            __loc__start__buf
-                                                            __loc__start__pos
-                                                            __loc__end__buf
-                                                            __loc__end__pos in
-                                                        loc_expr _loc
-                                                          (pexp_construct
-                                                             ((id_loc c
-                                                                 _loc_c),
-                                                               None))))
+                                                   lazy_kw
+                                                   (expression_lvl
+                                                      (NoMatch,
+                                                        (next_exp App)))
+                                                   (fun _default_0  e 
+                                                      __loc__start__buf 
+                                                      __loc__start__pos 
+                                                      __loc__end__buf 
+                                                      __loc__end__pos  ->
+                                                      let _loc =
+                                                        locate
+                                                          __loc__start__buf
+                                                          __loc__start__pos
+                                                          __loc__end__buf
+                                                          __loc__end__pos in
+                                                      {
+                                                        Parsetree.pexp_desc =
+                                                          (Parsetree.Pexp_lazy
+                                                             {
+                                                               Parsetree.pexp_desc
+                                                                 =
+                                                                 (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "e");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                               Parsetree.pexp_loc
+                                                                 = _loc
+                                                             });
+                                                        Parsetree.pexp_loc =
+                                                          _loc
+                                                      }))
                                                 :: y
                                               else y in
                                             if lvl = App
                                             then
                                               (Earley.sequence_position
-                                                 lazy_kw
-                                                 (expression_lvl
-                                                    (NoMatch, (next_exp App)))
+                                                 assert_kw
+                                                 (Earley.alternatives
+                                                    ((Earley.apply_position
+                                                        (fun _default_0 
+                                                           __loc__start__buf 
+                                                           __loc__start__pos 
+                                                           __loc__end__buf 
+                                                           __loc__end__pos 
+                                                           ->
+                                                           let _loc =
+                                                             locate
+                                                               __loc__start__buf
+                                                               __loc__start__pos
+                                                               __loc__end__buf
+                                                               __loc__end__pos in
+                                                           pexp_assertfalse
+                                                             _loc) false_kw)
+                                                    ::
+                                                    (let y = [] in
+                                                     if lvl = App
+                                                     then
+                                                       (Earley.sequence
+                                                          no_false
+                                                          (expression_lvl
+                                                             (NoMatch,
+                                                               (next_exp App)))
+                                                          (fun _  e  ->
+                                                             Pexp_assert e))
+                                                       :: y
+                                                     else y)))
                                                  (fun _default_0  e 
                                                     __loc__start__buf 
                                                     __loc__start__pos 
@@ -6358,36 +6434,53 @@ module Make(Initial:Extension) =
                                                         __loc__start__pos
                                                         __loc__end__buf
                                                         __loc__end__pos in
-                                                    {
-                                                      Parsetree.pexp_desc =
-                                                        (Parsetree.Pexp_lazy
-                                                           {
-                                                             Parsetree.pexp_desc
-                                                               =
-                                                               (Parsetree.Pexp_ident
-                                                                  {
-                                                                    Asttypes.txt
-                                                                    =
-                                                                    (Longident.Lident
-                                                                    "e");
-                                                                    Asttypes.loc
-                                                                    = _loc
-                                                                  });
-                                                             Parsetree.pexp_loc
-                                                               = _loc
-                                                           });
-                                                      Parsetree.pexp_loc =
-                                                        _loc
-                                                    }))
+                                                    loc_expr _loc e))
                                               :: y
                                             else y in
-                                          if lvl = App
+                                          if lvl = Atom
                                           then
-                                            (Earley.sequence_position
-                                               assert_kw
-                                               (Earley.alternatives
-                                                  ((Earley.apply_position
-                                                      (fun _default_0 
+                                            (Earley.fsequence_position
+                                               begin_kw
+                                               (Earley.sequence
+                                                  (Earley.option None
+                                                     (Earley.apply
+                                                        (fun x  -> Some x)
+                                                        expression)) end_kw
+                                                  (fun e  _default_0 
+                                                     _default_1 
+                                                     __loc__start__buf 
+                                                     __loc__start__pos 
+                                                     __loc__end__buf 
+                                                     __loc__end__pos  ->
+                                                     let _loc =
+                                                       locate
+                                                         __loc__start__buf
+                                                         __loc__start__pos
+                                                         __loc__end__buf
+                                                         __loc__end__pos in
+                                                     match e with
+                                                     | Some e -> e
+                                                     | None  ->
+                                                         let cunit =
+                                                           id_loc
+                                                             (Lident "()")
+                                                             _loc in
+                                                         loc_expr _loc
+                                                           (pexp_construct
+                                                              (cunit, None)))))
+                                            :: y
+                                          else y in
+                                        if lvl = Atom
+                                        then
+                                          (Earley.fsequence_position
+                                             (Earley.char '(' '(')
+                                             (Earley.fsequence no_parser
+                                                (Earley.fsequence expression
+                                                   (Earley.sequence
+                                                      type_coercion
+                                                      (Earley.char ')' ')')
+                                                      (fun t  _  e 
+                                                         _default_0  _ 
                                                          __loc__start__buf 
                                                          __loc__start__pos 
                                                          __loc__end__buf 
@@ -6398,151 +6491,79 @@ module Make(Initial:Extension) =
                                                              __loc__start__pos
                                                              __loc__end__buf
                                                              __loc__end__pos in
-                                                         pexp_assertfalse
-                                                           _loc) false_kw) ::
-                                                  (let y = [] in
-                                                   if lvl = App
-                                                   then
-                                                     (Earley.sequence
-                                                        no_false
-                                                        (expression_lvl
-                                                           (NoMatch,
-                                                             (next_exp App)))
-                                                        (fun _  e  ->
-                                                           Pexp_assert e))
-                                                     :: y
-                                                   else y)))
-                                               (fun _default_0  e 
-                                                  __loc__start__buf 
-                                                  __loc__start__pos 
-                                                  __loc__end__buf 
-                                                  __loc__end__pos  ->
-                                                  let _loc =
-                                                    locate __loc__start__buf
-                                                      __loc__start__pos
-                                                      __loc__end__buf
-                                                      __loc__end__pos in
-                                                  loc_expr _loc e))
-                                            :: y
-                                          else y in
-                                        if lvl = Atom
-                                        then
-                                          (Earley.fsequence_position begin_kw
-                                             (Earley.sequence
-                                                (Earley.option None
-                                                   (Earley.apply
-                                                      (fun x  -> Some x)
-                                                      expression)) end_kw
-                                                (fun e  _default_0 
-                                                   _default_1 
-                                                   __loc__start__buf 
-                                                   __loc__start__pos 
-                                                   __loc__end__buf 
-                                                   __loc__end__pos  ->
-                                                   let _loc =
-                                                     locate __loc__start__buf
-                                                       __loc__start__pos
-                                                       __loc__end__buf
-                                                       __loc__end__pos in
-                                                   match e with
-                                                   | Some e -> e
-                                                   | None  ->
-                                                       let cunit =
-                                                         id_loc (Lident "()")
-                                                           _loc in
-                                                       loc_expr _loc
-                                                         (pexp_construct
-                                                            (cunit, None)))))
+                                                         match t with
+                                                         | (Some t1,None ) ->
+                                                             loc_expr _loc
+                                                               (pexp_constraint
+                                                                  (e, t1))
+                                                         | (t1,Some t2) ->
+                                                             loc_expr _loc
+                                                               (pexp_coerce
+                                                                  (e, t1, t2))
+                                                         | (None ,None ) ->
+                                                             assert false)))))
                                           :: y
                                         else y in
                                       if lvl = Atom
                                       then
                                         (Earley.fsequence_position
                                            (Earley.char '(' '(')
-                                           (Earley.fsequence no_parser
-                                              (Earley.fsequence expression
-                                                 (Earley.sequence
-                                                    type_coercion
-                                                    (Earley.char ')' ')')
-                                                    (fun t  _  e  _default_0 
-                                                       _  __loc__start__buf 
-                                                       __loc__start__pos 
-                                                       __loc__end__buf 
-                                                       __loc__end__pos  ->
-                                                       let _loc =
-                                                         locate
-                                                           __loc__start__buf
-                                                           __loc__start__pos
-                                                           __loc__end__buf
-                                                           __loc__end__pos in
-                                                       match t with
-                                                       | (Some t1,None ) ->
-                                                           loc_expr _loc
-                                                             (pexp_constraint
-                                                                (e, t1))
-                                                       | (t1,Some t2) ->
-                                                           loc_expr _loc
-                                                             (pexp_coerce
-                                                                (e, t1, t2))
-                                                       | (None ,None ) ->
-                                                           assert false)))))
+                                           (Earley.sequence
+                                              (Earley.option None
+                                                 (Earley.apply
+                                                    (fun x  -> Some x)
+                                                    expression))
+                                              (Earley.char ')' ')')
+                                              (fun e  _  _  __loc__start__buf
+                                                  __loc__start__pos 
+                                                 __loc__end__buf 
+                                                 __loc__end__pos  ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 match e with
+                                                 | Some e ->
+                                                     if
+                                                       e.pexp_desc ==
+                                                         Quote.dummy_pexp
+                                                     then e
+                                                     else
+                                                       loc_expr _loc
+                                                         e.pexp_desc
+                                                 | None  ->
+                                                     let cunit =
+                                                       id_loc (Lident "()")
+                                                         _loc in
+                                                     loc_expr _loc
+                                                       (pexp_construct
+                                                          (cunit, None)))))
                                         :: y
                                       else y in
-                                    if lvl = Atom
+                                    if (allow_let alm) && (lvl < App)
                                     then
-                                      (Earley.fsequence_position
-                                         (Earley.char '(' '(')
-                                         (Earley.sequence
-                                            (Earley.option None
-                                               (Earley.apply
-                                                  (fun x  -> Some x)
-                                                  expression))
-                                            (Earley.char ')' ')')
-                                            (fun e  _  _  __loc__start__buf 
-                                               __loc__start__pos 
-                                               __loc__end__buf 
-                                               __loc__end__pos  ->
-                                               let _loc =
-                                                 locate __loc__start__buf
-                                                   __loc__start__pos
-                                                   __loc__end__buf
-                                                   __loc__end__pos in
-                                               match e with
-                                               | Some e ->
-                                                   if
-                                                     e.pexp_desc ==
-                                                       Quote.dummy_pexp
-                                                   then e
-                                                   else
-                                                     loc_expr _loc
-                                                       e.pexp_desc
-                                               | None  ->
-                                                   let cunit =
-                                                     id_loc (Lident "()")
-                                                       _loc in
-                                                   loc_expr _loc
-                                                     (pexp_construct
-                                                        (cunit, None)))))
-                                      :: y
-                                    else y in
-                                  if (allow_let alm) && (lvl < App)
-                                  then
-                                    (Earley.sequence_position let_kw
-                                       (Earley.alternatives
-                                          (let y =
-                                             [Earley.fsequence_position
-                                                module_kw
-                                                (Earley.fsequence module_name
-                                                   (Earley.fsequence
-                                                      (Earley.apply List.rev
-                                                         (Earley.fixpoint []
-                                                            (Earley.apply
-                                                               (fun x  y  ->
-                                                                  x :: y)
-                                                               (Earley.fsequence_position
-                                                                  (Earley.char
+                                      (Earley.sequence_position let_kw
+                                         (Earley.alternatives
+                                            (let y =
+                                               [Earley.fsequence_position
+                                                  module_kw
+                                                  (Earley.fsequence
+                                                     module_name
+                                                     (Earley.fsequence
+                                                        (Earley.apply
+                                                           List.rev
+                                                           (Earley.fixpoint
+                                                              []
+                                                              (Earley.apply
+                                                                 (fun x  y 
+                                                                    -> x :: y)
+                                                                 (Earley.fsequence_position
+                                                                    (
+                                                                    Earley.char
                                                                     '(' '(')
-                                                                  (Earley.fsequence
+                                                                    (
+                                                                    Earley.fsequence
                                                                     module_name
                                                                     (Earley.fsequence
                                                                     (Earley.char
@@ -6568,45 +6589,51 @@ module Make(Initial:Extension) =
                                                                     __loc__end__pos in
                                                                     (mn, mt,
                                                                     _loc)))))))))
-                                                      (Earley.fsequence
-                                                         (Earley.apply_position
-                                                            (fun x  str  pos 
-                                                               str'  pos'  ->
-                                                               ((locate str
-                                                                   pos str'
-                                                                   pos'), x))
-                                                            (Earley.option
-                                                               None
-                                                               (Earley.apply
-                                                                  (fun x  ->
+                                                        (Earley.fsequence
+                                                           (Earley.apply_position
+                                                              (fun x  str 
+                                                                 pos  str' 
+                                                                 pos'  ->
+                                                                 ((locate str
+                                                                    pos str'
+                                                                    pos'), x))
+                                                              (Earley.option
+                                                                 None
+                                                                 (Earley.apply
+                                                                    (
+                                                                    fun x  ->
                                                                     Some x)
-                                                                  (Earley.sequence
+                                                                    (
+                                                                    Earley.sequence
                                                                     (Earley.string
                                                                     ":" ":")
                                                                     module_type
                                                                     (fun _ 
                                                                     mt  -> mt)))))
-                                                         (Earley.fsequence
-                                                            (Earley.string
-                                                               "=" "=")
-                                                            (Earley.fsequence
-                                                               (Earley.apply_position
-                                                                  (fun x  str
-                                                                     pos 
+                                                           (Earley.fsequence
+                                                              (Earley.string
+                                                                 "=" "=")
+                                                              (Earley.fsequence
+                                                                 (Earley.apply_position
+                                                                    (
+                                                                    fun x 
+                                                                    str  pos 
                                                                     str' 
                                                                     pos'  ->
                                                                     ((locate
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                  module_expr)
-                                                               (Earley.sequence
-                                                                  in_kw
-                                                                  (expression_lvl
+                                                                    module_expr)
+                                                                 (Earley.sequence
+                                                                    in_kw
+                                                                    (
+                                                                    expression_lvl
                                                                     ((right_alm
                                                                     alm),
                                                                     Seq))
-                                                                  (fun
+                                                                    (
+                                                                    fun
                                                                     _default_0
                                                                      e  me 
                                                                     ->
@@ -6668,130 +6695,183 @@ module Make(Initial:Extension) =
                                                                     (Pexp_letmodule
                                                                     (mn, me,
                                                                     e)))))))));
-                                             Earley.fsequence_position
-                                               open_kw
-                                               (Earley.fsequence
-                                                  override_flag
-                                                  (Earley.fsequence
-                                                     (Earley.apply_position
-                                                        (fun x  str  pos 
-                                                           str'  pos'  ->
-                                                           ((locate str pos
-                                                               str' pos'), x))
-                                                        module_path)
-                                                     (Earley.sequence in_kw
-                                                        (expression_lvl
-                                                           ((right_alm alm),
-                                                             Seq))
-                                                        (fun _default_0  e 
-                                                           mp  ->
-                                                           let (_loc_mp,mp) =
-                                                             mp in
-                                                           fun o  _default_1 
-                                                             __loc__start__buf
-                                                              __loc__start__pos
-                                                              __loc__end__buf
-                                                              __loc__end__pos
-                                                              ->
-                                                             let _loc =
-                                                               locate
-                                                                 __loc__start__buf
-                                                                 __loc__start__pos
-                                                                 __loc__end__buf
-                                                                 __loc__end__pos in
-                                                             let mp =
-                                                               id_loc mp
-                                                                 _loc_mp in
-                                                             fun _loc  ->
-                                                               loc_expr _loc
-                                                                 (Pexp_open
-                                                                    (o, mp,
-                                                                    e))))))] in
-                                           if (allow_let alm) && (lvl < App)
-                                           then
-                                             (Earley.fsequence_position
-                                                rec_flag
-                                                (Earley.fsequence let_binding
-                                                   (Earley.fsequence in_kw
-                                                      (Earley.sequence
-                                                         (expression_lvl
-                                                            ((right_alm alm),
-                                                              Seq)) no_semi
-                                                         (fun e  _default_0 
-                                                            _default_1  l  r 
-                                                            __loc__start__buf
-                                                             __loc__start__pos
-                                                             __loc__end__buf 
-                                                            __loc__end__pos 
-                                                            ->
-                                                            let _loc =
-                                                              locate
-                                                                __loc__start__buf
+                                               Earley.fsequence_position
+                                                 open_kw
+                                                 (Earley.fsequence
+                                                    override_flag
+                                                    (Earley.fsequence
+                                                       (Earley.apply_position
+                                                          (fun x  str  pos 
+                                                             str'  pos'  ->
+                                                             ((locate str pos
+                                                                 str' pos'),
+                                                               x))
+                                                          module_path)
+                                                       (Earley.sequence in_kw
+                                                          (expression_lvl
+                                                             ((right_alm alm),
+                                                               Seq))
+                                                          (fun _default_0  e 
+                                                             mp  ->
+                                                             let (_loc_mp,mp)
+                                                               = mp in
+                                                             fun o 
+                                                               _default_1 
+                                                               __loc__start__buf
                                                                 __loc__start__pos
                                                                 __loc__end__buf
-                                                                __loc__end__pos in
-                                                            fun _loc  ->
-                                                              loc_expr _loc
-                                                                (Pexp_let
-                                                                   (r, l, e)))))))
-                                             :: y
-                                           else y))
-                                       (fun _default_0  r  __loc__start__buf 
-                                          __loc__start__pos  __loc__end__buf 
-                                          __loc__end__pos  ->
-                                          let _loc =
-                                            locate __loc__start__buf
-                                              __loc__start__pos
-                                              __loc__end__buf __loc__end__pos in
-                                          r _loc))
+                                                                __loc__end__pos
+                                                                ->
+                                                               let _loc =
+                                                                 locate
+                                                                   __loc__start__buf
+                                                                   __loc__start__pos
+                                                                   __loc__end__buf
+                                                                   __loc__end__pos in
+                                                               let mp =
+                                                                 id_loc mp
+                                                                   _loc_mp in
+                                                               fun _loc  ->
+                                                                 loc_expr
+                                                                   _loc
+                                                                   (Pexp_open
+                                                                    (o, mp,
+                                                                    e))))))] in
+                                             if
+                                               (allow_let alm) && (lvl < App)
+                                             then
+                                               (Earley.fsequence_position
+                                                  rec_flag
+                                                  (Earley.fsequence
+                                                     let_binding
+                                                     (Earley.fsequence in_kw
+                                                        (Earley.sequence
+                                                           (expression_lvl
+                                                              ((right_alm alm),
+                                                                Seq)) no_semi
+                                                           (fun e  _default_0
+                                                               _default_1  l 
+                                                              r 
+                                                              __loc__start__buf
+                                                               __loc__start__pos
+                                                               __loc__end__buf
+                                                               __loc__end__pos
+                                                               ->
+                                                              let _loc =
+                                                                locate
+                                                                  __loc__start__buf
+                                                                  __loc__start__pos
+                                                                  __loc__end__buf
+                                                                  __loc__end__pos in
+                                                              fun _loc  ->
+                                                                loc_expr _loc
+                                                                  (Pexp_let
+                                                                    (r, l, e)))))))
+                                               :: y
+                                             else y))
+                                         (fun _default_0  r 
+                                            __loc__start__buf 
+                                            __loc__start__pos 
+                                            __loc__end__buf  __loc__end__pos 
+                                            ->
+                                            let _loc =
+                                              locate __loc__start__buf
+                                                __loc__start__pos
+                                                __loc__end__buf
+                                                __loc__end__pos in
+                                            r _loc))
+                                      :: y
+                                    else y in
+                                  if
+                                    (allow_let alm) &&
+                                      ((lvl < App) && (lvl != Seq))
+                                  then
+                                    (Earley.fsequence_position fun_kw
+                                       (Earley.fsequence
+                                          (Earley.apply List.rev
+                                             (Earley.fixpoint []
+                                                (Earley.apply
+                                                   (fun x  y  -> x :: y)
+                                                   (Earley.apply
+                                                      (fun lbl  ->
+                                                         let (_loc_lbl,lbl) =
+                                                           lbl in
+                                                         (lbl, _loc_lbl))
+                                                      (Earley.apply_position
+                                                         (fun x  str  pos 
+                                                            str'  pos'  ->
+                                                            ((locate str pos
+                                                                str' pos'),
+                                                              x))
+                                                         (parameter true))))))
+                                          (Earley.fsequence arrow_re
+                                             (Earley.sequence
+                                                (expression_lvl
+                                                   ((right_alm alm), Seq))
+                                                no_semi
+                                                (fun e  _default_0 
+                                                   _default_1  l  _default_2 
+                                                   __loc__start__buf 
+                                                   __loc__start__pos 
+                                                   __loc__end__buf 
+                                                   __loc__end__pos  ->
+                                                   let _loc =
+                                                     locate __loc__start__buf
+                                                       __loc__start__pos
+                                                       __loc__end__buf
+                                                       __loc__end__pos in
+                                                   loc_expr _loc
+                                                     (apply_params l e).pexp_desc)))))
                                     :: y
                                   else y in
-                                if (allow_let alm) && (lvl < App)
-                                then
-                                  (Earley.fsequence_position fun_kw
-                                     (Earley.fsequence
-                                        (Earley.apply List.rev
-                                           (Earley.fixpoint []
-                                              (Earley.apply
-                                                 (fun x  y  -> x :: y)
-                                                 (Earley.apply
-                                                    (fun lbl  ->
-                                                       let (_loc_lbl,lbl) =
-                                                         lbl in
-                                                       (lbl, _loc_lbl))
-                                                    (Earley.apply_position
-                                                       (fun x  str  pos  str'
-                                                           pos'  ->
-                                                          ((locate str pos
-                                                              str' pos'), x))
-                                                       (parameter true))))))
-                                        (Earley.fsequence arrow_re
-                                           (Earley.sequence
-                                              (expression_lvl
-                                                 ((right_alm alm), Seq))
-                                              no_semi
-                                              (fun e  _default_0  _default_1 
-                                                 l  _default_2 
-                                                 __loc__start__buf 
-                                                 __loc__start__pos 
-                                                 __loc__end__buf 
-                                                 __loc__end__pos  ->
-                                                 let _loc =
-                                                   locate __loc__start__buf
-                                                     __loc__start__pos
-                                                     __loc__end__buf
-                                                     __loc__end__pos in
-                                                 loc_expr _loc
-                                                   (apply_params l e).pexp_desc)))))
-                                  :: y
+                                if
+                                  ((allow_let alm) &&
+                                     ((lvl < App) && (lvl != Seq)))
+                                    || ((lvl = If) && (alm <> MatchRight))
+                                then (if_expression c) :: y
                                 else y in
                               if
-                                ((allow_let alm) && (lvl < App)) ||
-                                  ((lvl = If) && (alm <> MatchRight))
-                              then (if_expression c) :: y
+                                (allow_match alm) &&
+                                  ((lvl < App) && (lvl != Seq))
+                              then (prefix_expression c) :: y
                               else y in
-                            if (allow_match alm) && (lvl < App)
-                            then (prefix_expression c) :: y
+                            if lvl = Atom
+                            then
+                              (Earley.fsequence_position
+                                 (Earley.apply_position
+                                    (fun x  str  pos  str'  pos'  ->
+                                       ((locate str pos str' pos'), x))
+                                    module_path)
+                                 (Earley.fsequence (Earley.char '.' '.')
+                                    (Earley.fsequence (Earley.char '{' '{')
+                                       (Earley.fsequence
+                                          (Earley.option None
+                                             (Earley.apply (fun x  -> Some x)
+                                                (Earley.sequence expression
+                                                   with_kw
+                                                   (fun _default_0  _  ->
+                                                      _default_0))))
+                                          (Earley.sequence record_list
+                                             (Earley.char '}' '}')
+                                             (fun l  _  e  _  _  mp  ->
+                                                let (_loc_mp,mp) = mp in
+                                                fun __loc__start__buf 
+                                                  __loc__start__pos 
+                                                  __loc__end__buf 
+                                                  __loc__end__pos  ->
+                                                  let _loc =
+                                                    locate __loc__start__buf
+                                                      __loc__start__pos
+                                                      __loc__end__buf
+                                                      __loc__end__pos in
+                                                  let mp = id_loc mp _loc_mp in
+                                                  loc_expr _loc
+                                                    (Pexp_open
+                                                       (Fresh, mp,
+                                                         (loc_expr _loc
+                                                            (Pexp_record
+                                                               (l, e)))))))))))
+                              :: y
                             else y in
                           if lvl = Atom
                           then
@@ -6801,33 +6881,32 @@ module Make(Initial:Extension) =
                                      ((locate str pos str' pos'), x))
                                   module_path)
                                (Earley.fsequence (Earley.char '.' '.')
-                                  (Earley.fsequence (Earley.char '{' '{')
-                                     (Earley.fsequence
-                                        (Earley.option None
-                                           (Earley.apply (fun x  -> Some x)
-                                              (Earley.sequence expression
-                                                 with_kw
-                                                 (fun _default_0  _  ->
-                                                    _default_0))))
-                                        (Earley.sequence record_list
-                                           (Earley.char '}' '}')
-                                           (fun l  _  e  _  _  mp  ->
-                                              let (_loc_mp,mp) = mp in
-                                              fun __loc__start__buf 
-                                                __loc__start__pos 
-                                                __loc__end__buf 
-                                                __loc__end__pos  ->
-                                                let _loc =
-                                                  locate __loc__start__buf
-                                                    __loc__start__pos
-                                                    __loc__end__buf
-                                                    __loc__end__pos in
-                                                let mp = id_loc mp _loc_mp in
-                                                loc_expr _loc
-                                                  (Pexp_open
-                                                     (Fresh, mp,
-                                                       (loc_expr _loc
-                                                          (Pexp_record (l, e)))))))))))
+                                  (Earley.fsequence (Earley.char '[' '[')
+                                     (Earley.sequence expression_list
+                                        (Earley.apply_position
+                                           (fun x  str  pos  str'  pos'  ->
+                                              ((locate str pos str' pos'), x))
+                                           (Earley.char ']' ']'))
+                                        (fun l  cl  ->
+                                           let (_loc_cl,cl) = cl in
+                                           fun _  _  mp  ->
+                                             let (_loc_mp,mp) = mp in
+                                             fun __loc__start__buf 
+                                               __loc__start__pos 
+                                               __loc__end__buf 
+                                               __loc__end__pos  ->
+                                               let _loc =
+                                                 locate __loc__start__buf
+                                                   __loc__start__pos
+                                                   __loc__end__buf
+                                                   __loc__end__pos in
+                                               let mp = id_loc mp _loc_mp in
+                                               loc_expr _loc
+                                                 (Pexp_open
+                                                    (Fresh, mp,
+                                                      (loc_expr _loc
+                                                         (pexp_list _loc
+                                                            ~loc_cl:_loc_cl l).pexp_desc))))))))
                             :: y
                           else y in
                         if lvl = Atom
@@ -6837,103 +6916,84 @@ module Make(Initial:Extension) =
                                 (fun x  str  pos  str'  pos'  ->
                                    ((locate str pos str' pos'), x))
                                 module_path)
-                             (Earley.fsequence (Earley.char '.' '.')
-                                (Earley.fsequence (Earley.char '[' '[')
-                                   (Earley.sequence expression_list
-                                      (Earley.apply_position
-                                         (fun x  str  pos  str'  pos'  ->
-                                            ((locate str pos str' pos'), x))
-                                         (Earley.char ']' ']'))
-                                      (fun l  cl  ->
-                                         let (_loc_cl,cl) = cl in
-                                         fun _  _  mp  ->
-                                           let (_loc_mp,mp) = mp in
-                                           fun __loc__start__buf 
-                                             __loc__start__pos 
-                                             __loc__end__buf  __loc__end__pos
-                                              ->
-                                             let _loc =
-                                               locate __loc__start__buf
-                                                 __loc__start__pos
-                                                 __loc__end__buf
-                                                 __loc__end__pos in
-                                             let mp = id_loc mp _loc_mp in
-                                             loc_expr _loc
-                                               (Pexp_open
-                                                  (Fresh, mp,
-                                                    (loc_expr _loc
-                                                       (pexp_list _loc
-                                                          ~loc_cl:_loc_cl l).pexp_desc))))))))
+                             (Earley.fsequence (Earley.string "." ".")
+                                (Earley.fsequence (Earley.string "(" "(")
+                                   (Earley.sequence expression
+                                      (Earley.string ")" ")")
+                                      (fun e  _  _  _  mp  ->
+                                         let (_loc_mp,mp) = mp in
+                                         fun __loc__start__buf 
+                                           __loc__start__pos  __loc__end__buf
+                                            __loc__end__pos  ->
+                                           let _loc =
+                                             locate __loc__start__buf
+                                               __loc__start__pos
+                                               __loc__end__buf
+                                               __loc__end__pos in
+                                           let mp = id_loc mp _loc_mp in
+                                           loc_expr _loc
+                                             (Pexp_open (Fresh, mp, e)))))))
                           :: y
                         else y in
                       if lvl = Atom
                       then
-                        (Earley.fsequence_position
-                           (Earley.apply_position
-                              (fun x  str  pos  str'  pos'  ->
-                                 ((locate str pos str' pos'), x)) module_path)
-                           (Earley.fsequence (Earley.string "." ".")
-                              (Earley.fsequence (Earley.string "(" "(")
-                                 (Earley.sequence expression
-                                    (Earley.string ")" ")")
-                                    (fun e  _  _  _  mp  ->
-                                       let (_loc_mp,mp) = mp in
-                                       fun __loc__start__buf 
-                                         __loc__start__pos  __loc__end__buf 
-                                         __loc__end__pos  ->
-                                         let _loc =
-                                           locate __loc__start__buf
-                                             __loc__start__pos
-                                             __loc__end__buf __loc__end__pos in
-                                         let mp = id_loc mp _loc_mp in
-                                         loc_expr _loc
-                                           (Pexp_open (Fresh, mp, e)))))))
+                        (Earley.apply_position
+                           (fun c  __loc__start__buf  __loc__start__pos 
+                              __loc__end__buf  __loc__end__pos  ->
+                              let _loc =
+                                locate __loc__start__buf __loc__start__pos
+                                  __loc__end__buf __loc__end__pos in
+                              loc_expr _loc (Pexp_constant c)) constant)
                         :: y
                       else y in
                     if lvl = Atom
                     then
                       (Earley.apply_position
-                         (fun c  __loc__start__buf  __loc__start__pos 
-                            __loc__end__buf  __loc__end__pos  ->
-                            let _loc =
-                              locate __loc__start__buf __loc__start__pos
-                                __loc__end__buf __loc__end__pos in
-                            loc_expr _loc (Pexp_constant c)) constant)
+                         (fun id  ->
+                            let (_loc_id,id) = id in
+                            fun __loc__start__buf  __loc__start__pos 
+                              __loc__end__buf  __loc__end__pos  ->
+                              let _loc =
+                                locate __loc__start__buf __loc__start__pos
+                                  __loc__end__buf __loc__end__pos in
+                              loc_expr _loc (Pexp_ident (id_loc id _loc_id)))
+                         (Earley.apply_position
+                            (fun x  str  pos  str'  pos'  ->
+                               ((locate str pos str' pos'), x)) value_path))
                       :: y
                     else y in
-                  if lvl = Atom
+                  if lvl = Aff
                   then
-                    (Earley.apply_position
-                       (fun id  ->
-                          let (_loc_id,id) = id in
-                          fun __loc__start__buf  __loc__start__pos 
-                            __loc__end__buf  __loc__end__pos  ->
-                            let _loc =
-                              locate __loc__start__buf __loc__start__pos
-                                __loc__end__buf __loc__end__pos in
-                            loc_expr _loc (Pexp_ident (id_loc id _loc_id)))
+                    (Earley.fsequence_position
                        (Earley.apply_position
                           (fun x  str  pos  str'  pos'  ->
-                             ((locate str pos str' pos'), x)) value_path))
+                             ((locate str pos str' pos'), x)) inst_var_name)
+                       (Earley.sequence (Earley.string "<-" "<-")
+                          (expression_lvl ((right_alm alm), (next_exp Aff)))
+                          (fun _  e  v  ->
+                             let (_loc_v,v) = v in
+                             fun __loc__start__buf  __loc__start__pos 
+                               __loc__end__buf  __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               loc_expr _loc
+                                 (Pexp_setinstvar ((id_loc v _loc_v), e)))))
                     :: y
                   else y in
-                if lvl = Aff
+                if lvl = Seq
                 then
-                  (Earley.fsequence_position
-                     (Earley.apply_position
-                        (fun x  str  pos  str'  pos'  ->
-                           ((locate str pos str' pos'), x)) inst_var_name)
-                     (Earley.sequence (Earley.string "<-" "<-")
-                        (expression_lvl ((right_alm alm), (next_exp Aff)))
-                        (fun _  e  v  ->
-                           let (_loc_v,v) = v in
-                           fun __loc__start__buf  __loc__start__pos 
-                             __loc__end__buf  __loc__end__pos  ->
-                             let _loc =
-                               locate __loc__start__buf __loc__start__pos
-                                 __loc__end__buf __loc__end__pos in
-                             loc_expr _loc
-                               (Pexp_setinstvar ((id_loc v _loc_v), e)))))
+                  (Earley.fsequence
+                     (Earley.apply List.rev
+                        (Earley.fixpoint []
+                           (Earley.apply (fun x  y  -> x :: y)
+                              (Earley.sequence
+                                 (expression_lvl (LetRight, (next_exp Seq)))
+                                 semi_col (fun _default_0  _  -> _default_0)))))
+                     (Earley.sequence
+                        (expression_lvl ((right_alm alm), (next_exp Seq)))
+                        (Earley.alternatives [semi_col; no_semi])
+                        (fun e'  _default_0  ls  -> mk_seq (ls @ [e']))))
                   :: y
                 else y in
               if (lvl < Atom) && (lvl != Seq)
@@ -7395,72 +7455,79 @@ module Make(Initial:Extension) =
                     __loc__end__pos in
                 loc_str _loc r);
            Earley.fsequence_position (Earley.string "$struct:" "$struct:")
-             (Earley.sequence (Earley.ignore_next_blank expression)
-                (Earley.char '$' '$')
-                (fun e  _  _  __loc__start__buf  __loc__start__pos 
-                   __loc__end__buf  __loc__end__pos  ->
-                   let _loc =
-                     locate __loc__start__buf __loc__start__pos
-                       __loc__end__buf __loc__end__pos in
-                   let open Quote in
-                     pstr_antiquotation _loc
-                       (function
-                        | Quote_pstr  ->
-                            let e_loc = exp_ident _loc "_loc" in
-                            quote_apply e_loc _loc (pa_ast "loc_str")
-                              [quote_location_t e_loc _loc _loc;
-                              quote_const e_loc _loc
-                                (parsetree "Pstr_include")
-                                [quote_apply e_loc _loc (pa_ast "mexpr_loc")
-                                   [quote_location_t e_loc _loc _loc;
-                                   quote_const e_loc _loc
-                                     (parsetree "Pmod_structure") [e]]]]
-                        | _ -> failwith "Bad antiquotation...")))])
+             (Earley.fsequence expression
+                (Earley.sequence (Earley.no_blank_test ())
+                   (Earley.char '$' '$')
+                   (fun _  _  e  _  __loc__start__buf  __loc__start__pos 
+                      __loc__end__buf  __loc__end__pos  ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      let open Quote in
+                        pstr_antiquotation _loc
+                          (function
+                           | Quote_pstr  ->
+                               let e_loc = exp_ident _loc "_loc" in
+                               quote_apply e_loc _loc (pa_ast "loc_str")
+                                 [quote_location_t e_loc _loc _loc;
+                                 quote_const e_loc _loc
+                                   (parsetree "Pstr_include")
+                                   [quote_apply e_loc _loc
+                                      (pa_ast "mexpr_loc")
+                                      [quote_location_t e_loc _loc _loc;
+                                      quote_const e_loc _loc
+                                        (parsetree "Pmod_structure") 
+                                        [e]]]]
+                           | _ -> failwith "Bad antiquotation..."))))])
     let structure_item_aux = Earley.declare_grammar "structure_item_aux"
     let _ =
       Earley.set_grammar structure_item_aux
         (Earley.alternatives
-           [Earley.apply (fun _  -> []) (Earley.empty ());
-           Earley.apply_position
-             (fun e  ->
+           [Earley.apply (fun _  -> []) ext_attributes;
+           Earley.sequence_position ext_attributes
+             (Earley.apply_position
+                (fun x  str  pos  str'  pos'  ->
+                   ((locate str pos str' pos'), x)) expression)
+             (fun _  e  ->
                 let (_loc_e,e) = e in
                 fun __loc__start__buf  __loc__start__pos  __loc__end__buf 
                   __loc__end__pos  ->
                   let _loc =
                     locate __loc__start__buf __loc__start__pos
                       __loc__end__buf __loc__end__pos in
-                  (attach_str _loc) @ [loc_str _loc_e (pstr_eval e)])
-             (Earley.apply_position
-                (fun x  str  pos  str'  pos'  ->
-                   ((locate str pos str' pos'), x)) expression);
+                  (attach_str _loc) @ [loc_str _loc_e (pstr_eval e)]);
            Earley.fsequence structure_item_aux
-             (Earley.sequence (Earley.option () double_semi_col)
-                (Earley.apply_position
-                   (fun x  str  pos  str'  pos'  ->
-                      ((locate str pos str' pos'), x))
-                   (alternatives extra_structure))
-                (fun _default_0  e  ->
-                   let (_loc_e,e) = e in
-                   fun s1  ->
-                     List.rev_append e
-                       (List.rev_append (attach_str _loc_e) s1)));
+             (Earley.fsequence (Earley.option () double_semi_col)
+                (Earley.sequence ext_attributes
+                   (Earley.apply_position
+                      (fun x  str  pos  str'  pos'  ->
+                         ((locate str pos str' pos'), x))
+                      (alternatives extra_structure))
+                   (fun _  e  ->
+                      let (_loc_e,e) = e in
+                      fun _default_0  s1  ->
+                        List.rev_append e
+                          (List.rev_append (attach_str _loc_e) s1))));
            Earley.fsequence structure_item_aux
-             (Earley.sequence (Earley.option () double_semi_col)
-                (Earley.apply_position
-                   (fun x  str  pos  str'  pos'  ->
-                      ((locate str pos str' pos'), x)) structure_item_base)
-                (fun _default_0  s2  ->
-                   let (_loc_s2,s2) = s2 in
-                   fun s1  -> s2 :: (List.rev_append (attach_str _loc_s2) s1)));
+             (Earley.fsequence (Earley.option () double_semi_col)
+                (Earley.sequence ext_attributes
+                   (Earley.apply_position
+                      (fun x  str  pos  str'  pos'  ->
+                         ((locate str pos str' pos'), x)) structure_item_base)
+                   (fun _  s2  ->
+                      let (_loc_s2,s2) = s2 in
+                      fun _default_0  s1  -> s2 ::
+                        (List.rev_append (attach_str _loc_s2) s1))));
            Earley.fsequence structure_item_aux
-             (Earley.sequence double_semi_col
-                (Earley.apply_position
-                   (fun x  str  pos  str'  pos'  ->
-                      ((locate str pos str' pos'), x)) expression)
-                (fun _default_0  e  ->
-                   let (_loc_e,e) = e in
-                   fun s1  -> (loc_str _loc_e (pstr_eval e)) ::
-                     (List.rev_append (attach_str _loc_e) s1)))])
+             (Earley.fsequence double_semi_col
+                (Earley.sequence ext_attributes
+                   (Earley.apply_position
+                      (fun x  str  pos  str'  pos'  ->
+                         ((locate str pos str' pos'), x)) expression)
+                   (fun _  e  ->
+                      let (_loc_e,e) = e in
+                      fun _default_0  s1  -> (loc_str _loc_e (pstr_eval e))
+                        :: (List.rev_append (attach_str _loc_e) s1))))])
     let _ =
       set_grammar structure_item
         (Earley.sequence structure_item_aux
@@ -7704,20 +7771,22 @@ module Make(Initial:Extension) =
                   locate __loc__start__buf __loc__start__pos __loc__end__buf
                     __loc__end__pos in
                 loc_sig _loc r);
-           Earley.fsequence_position
-             (Earley.ignore_next_blank (Earley.char '$' '$'))
-             (Earley.sequence (Earley.ignore_next_blank expression)
-                (Earley.char '$' '$')
-                (fun e  _  dol  __loc__start__buf  __loc__start__pos 
-                   __loc__end__buf  __loc__end__pos  ->
-                   let _loc =
-                     locate __loc__start__buf __loc__start__pos
-                       __loc__end__buf __loc__end__pos in
-                   let open Quote in
-                     psig_antiquotation _loc
-                       (function
-                        | Quote_psig  -> e
-                        | _ -> failwith "Bad antiquotation...")))])
+           Earley.fsequence_position (Earley.char '$' '$')
+             (Earley.fsequence (Earley.no_blank_test ())
+                (Earley.fsequence expression
+                   (Earley.sequence (Earley.no_blank_test ())
+                      (Earley.char '$' '$')
+                      (fun _  _  e  _  dol  __loc__start__buf 
+                         __loc__start__pos  __loc__end__buf  __loc__end__pos 
+                         ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         let open Quote in
+                           psig_antiquotation _loc
+                             (function
+                              | Quote_psig  -> e
+                              | _ -> failwith "Bad antiquotation...")))))])
     let _ =
       set_grammar signature_item
         (Earley.alternatives

@@ -435,10 +435,7 @@ let apply_option _loc opt visible e =
 let default_action _loc l =
   let l =
     List.filter
-      (function
-       | `Normal (("_",_),false ,_,_,_) -> false
-       | `Ignore -> false
-       | _ -> true) l in
+      (function | `Normal (("_",_),false ,_,_,_) -> false | _ -> true) l in
   let l =
     List.map
       (function
@@ -594,6 +591,15 @@ module Ext(In:Extension) =
                 (fun e  g  _  -> `Option (e, g)));
            Earley.apply (fun _  -> `Greedy) (Earley.char '$' '$');
            Earley.apply (fun _  -> `Once) (Earley.empty ())])
+    let dash =
+      Earley.black_box
+        (fun str  pos  ->
+           let (c,str',pos') = Input.read str pos in
+           if c = '-'
+           then
+             let (c',_,_) = Input.read str' pos' in
+             (if c' = '>' then Earley.give_up () else ((), str', pos'))
+           else Earley.give_up ()) (Charset.singleton '-') false "-"
     let glr_sequence = Earley.declare_grammar "glr_sequence"
     let _ =
       Earley.set_grammar glr_sequence
@@ -780,6 +786,15 @@ module Ext(In:Extension) =
                 let e = match opt with | None  -> exp_unit _loc | Some e -> e in
                 ((opt <> None),
                   (exp_apply _loc (exp_glr_fun _loc "with_blank_test") [e])));
+           Earley.sequence_position dash glr_opt_expr
+             (fun _default_0  opt  __loc__start__buf  __loc__start__pos 
+                __loc__end__buf  __loc__end__pos  ->
+                let _loc =
+                  locate __loc__start__buf __loc__start__pos __loc__end__buf
+                    __loc__end__pos in
+                let e = match opt with | None  -> exp_unit _loc | Some e -> e in
+                ((opt <> None),
+                  (exp_apply _loc (exp_glr_fun _loc "no_blank_test") [e])));
            Earley.sequence_position
              (Earley.apply_position
                 (fun x  str  pos  str'  pos'  ->
@@ -837,15 +852,6 @@ module Ext(In:Extension) =
                  | Ppat_any  -> ((Some false), ("_", None))
                  | _ -> ((Some true), ("_", (Some p))));
            Earley.apply (fun _  -> (None, ("_", None))) (Earley.empty ())])
-    let dash =
-      Earley.black_box
-        (fun str  pos  ->
-           let (c,str',pos') = Input.read str pos in
-           if c = '-'
-           then
-             let (c',_,_) = Input.read str' pos' in
-             (if c' = '>' then Earley.give_up () else ((), str', pos'))
-           else Earley.give_up ()) (Charset.singleton '-') false "-"
     let fopt x y = match x with | Some x -> x | None  -> y
     let glr_left_member = Earley.declare_grammar "glr_left_member"
     let _ =
@@ -853,15 +859,12 @@ module Ext(In:Extension) =
         (Earley.apply List.rev
            (Earley.fixpoint1 []
               (Earley.apply (fun x  y  -> x :: y)
-                 (Earley.alternatives
-                    [Earley.fsequence glr_ident
-                       (Earley.sequence glr_sequence glr_option
-                          (fun ((cst,s) as _default_0)  opt 
-                             ((cst',id) as _default_1)  ->
-                             `Normal
-                               (id, (fopt cst' ((opt <> `Once) || cst)), s,
-                                 opt)));
-                    Earley.apply (fun _default_0  -> `Ignore) dash]))))
+                 (Earley.fsequence glr_ident
+                    (Earley.sequence glr_sequence glr_option
+                       (fun ((cst,s) as _default_0)  opt 
+                          ((cst',id) as _default_1)  ->
+                          `Normal
+                            (id, (fopt cst' ((opt <> `Once) || cst)), s, opt)))))))
     let glr_let = Earley.declare_grammar "glr_let"
     let _ =
       Earley.set_grammar glr_let
@@ -904,16 +907,6 @@ module Ext(In:Extension) =
       let rec fn first ids l =
         match l with
         | [] -> assert false
-        | `Ignore::ls ->
-            let e =
-              exp_apply _loc (exp_glr_fun _loc "ignore_next_blank")
-                [exp_apply _loc (exp_glr_fun _loc "success_test")
-                   [exp_unit _loc]] in
-            fn first ids ((`Normal (("", None), false, e, `Once, false)) ::
-              ls)
-        | (`Normal (id,cst,e,opt,oc))::`Ignore::ls ->
-            let e = exp_apply _loc (exp_glr_fun _loc "ignore_next_blank") [e] in
-            fn first ids ((`Normal (id, cst, e, opt, oc)) :: ls)
         | (`Normal (id,_,e,opt,occur_loc_id))::[] ->
             let e = apply_option _loc opt occur_loc_id e in
             let f =
@@ -994,9 +987,7 @@ module Ext(In:Extension) =
                                       ((fst id) <> "_") &&
                                         (occur ("_loc_" ^ (fst id)) action) in
                                     (((`Normal (id, b, c, d, occur_loc_id))
-                                      :: res), i)
-                                | `Ignore -> ((`Ignore :: res), i)) l 
-                             ([], 0)) in
+                                      :: res), i)) l ([], 0)) in
                       let occur_loc = occur "_loc" action in
                       (_loc, occur_loc, def, l, condition, action)))))
     let apply_def_cond _loc arg =
