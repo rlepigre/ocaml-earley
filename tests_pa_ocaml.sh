@@ -30,6 +30,8 @@ files4="$local/test4.ml"
 
 echo $files
 
+rm test_parsers.cm*
+
 make $MAKEOPTS test_parsers
 
 ./test_parsers $files

@@ -7,7 +7,7 @@ INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
 						pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx \
 						pa_parser.cmi pa_parser.cmx pa_parser.cmo \
 						pa_main.cmi pa_main.cmx pa_main.cmo \
-						decap_ocaml.cmxa decap_ocaml.cma decap_ocaml.a \
+						earley_ocaml.cmxa earley_ocaml.cma earley_ocaml.a \
 						pa_ast.cmx pa_ast.cmo pa_ast.cmi \
 						pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
 
@@ -21,12 +21,12 @@ B=.
 IB=-I $(B) -I $(BOOTDIR)
 PA_OCAML=./pa_ocaml
 PP= -pp "$(PA_OCAML) $(ASCII)"
-all: pa_ocaml $(B)/decap_ocaml.cmxa $(B)/decap_ocaml.cma
+all: pa_ocaml $(B)/earley_ocaml.cmxa $(B)/earley_ocaml.cma
 else
 B=$(BOOTDIR)
 IB=-I $(B)
 PP=
-all: pa_ocaml $(B)/decap_ocaml.cmxa
+all: pa_ocaml $(B)/earley_ocaml.cmxa
 endif
 
 MAJOR = 20161011
@@ -60,14 +60,13 @@ ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
 %.cmx: %.ml %.cmi
 	$(OCAMLOPT) $(OCAMLFLAGS) -c $<
 
-$(B)/decap_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
+$(B)/earley_ocaml.cma: $(B)/pa_lexing.cmo $(B)/pa_ast.cmo $(ASTTOOLSO) $(B)/pa_ocaml_prelude.cmo $(B)/pa_parser.cmo $(B)/pa_ocaml.cmo $(B)/pa_main.cmo
 	$(OCAMLC) $(OCAMLFLAGS) -a -o $@ $^
 
-$(B)/decap_ocaml.cmxa: $(B)/pa_lexing.cmx $(B)/pa_ast.cmx $(ASTTOOLSX) $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
+$(B)/earley_ocaml.cmxa: $(B)/pa_lexing.cmx $(B)/pa_ast.cmx $(ASTTOOLSX) $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
-earley.a: earley.cmxa;
-decap_ocaml.a: decap_ocaml.cmxa;
+earley_ocaml.a: earley_ocaml.cmxa;
 
 $(BOOTDIR)/compare.cmo $(BOOTDIR)/compare.cmi: $(BOOTDIR)/compare.ml
 	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
@@ -129,17 +128,19 @@ $(B)/pa_default.cmo $(B)/pa_default.cmi: $(B)/pa_default.ml $(B)/pa_ocaml_prelud
 $(B)/pa_default.cmx: $(B)/pa_default.ml $(B)/pa_default.cmi $(B)/pa_ocaml_prelude.cmx $(B)/pa_parser.cmx $(B)/pa_ocaml.cmx $(B)/pa_main.cmx
 	$(OCAMLOPT) $(PP) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
-pa_ocaml: $(B)/decap_ocaml.cmxa $(B)/pa_default.cmx
+pa_ocaml: $(B)/earley_ocaml.cmxa $(B)/pa_default.cmx
 	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cmxa str.cmxa earley.cmxa earleyStr.cmxa $(COMPILER_LIBO) $^
 
-pa_ocaml.byt: $(B)/decap_ocaml.cma $(B)/pa_default.cmo
+pa_ocaml.byt: $(B)/earley_ocaml.cma $(B)/pa_default.cmo
 	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -linkall $(IB) -o $@ unix.cma str.cma earley.cma earleyStr.cma$(COMPILER_LIBS) $^
 
-test_parsers: $(B)/decap_ocaml.cmxa test_parsers.ml
-	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa	earley.cmxa earleyStr.cmxa $(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
+test_parsers: $(B)/earley_ocaml.cmxa test_parsers.ml
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -o $@ dynlink.cmxa unix.cmxa str.cmxa earley.cmxa earleyStr.cmxa $(COMPILER_INC) $(COMPILER_LIBO) $(COMPILER_PARSERO) $^
 
-asttools: decap_ocaml.cmxa
-	cd ast_tools && make
+asttools:
+	- rm pa_lexing.cm*
+	OCAMLVERSION=$(OCAMLVERSION) make ASCII=--ascii pa_lexing.cmx
+	make -C ast_tools
 
 #BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
@@ -179,13 +180,13 @@ URLSSH=lama.univ-savoie.fr:WWW
 URL=https://lama.univ-savoie.fr/~raffalli/earley
 
 tar: clean
-	cd ../decap_tar; darcs pull; make distclean; make; make; make distclean
-	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,decap_tar,earley-$(VERSION),"  decap_tar
+	cd ../earley_tar; darcs pull; make distclean; make; make; make distclean
+	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_tar,earley-$(VERSION),"  earley_tar
 
 distrib: clean tar doc
 	darcs push lama.univ-savoie.fr:WWW/repos/earley/
 	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
-	rsync -r --delete ../decap_tar/examples/ $(URLSSH)/earley/examples/
+	rsync -r --delete ../earley_tar/examples/ $(URLSSH)/earley/examples/
 	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
 	rsync -r www/ $(URLSSH)/
 

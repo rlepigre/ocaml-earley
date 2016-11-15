@@ -26,7 +26,7 @@ type ast = item list
 (* Parser *)
 let reserved = [ "bool"; "int32"; "int64"; "int"; "char"; "string"; "nativeint" ]
 
-let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Decap.give_up (); s
+let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Earley.give_up (); s
 let parser uid = | ''[A-Z][_a-zA-Z0-9]*''
 let parser arg = | '\'' - RE("[a-z]+")
 
@@ -86,8 +86,8 @@ let parser any_rec_decl =
 let parser any_decls = | any_rec_decl*
 
 let blank = Pa_lexing.ocaml_blank
-let parse_file = Decap.parse_file any_decls blank
-let parse_channel = Decap.parse_channel any_decls blank
+let parse_file = Earley.parse_file any_decls blank
+let parse_channel = Earley.parse_channel any_decls blank
 
 let parse () =
   match Array.length Sys.argv with

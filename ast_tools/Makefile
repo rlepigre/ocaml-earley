@@ -1,7 +1,6 @@
 export OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
-DECAP=..
-PA_OCAML=$(DECAP)/pa_ocaml
-OCAMLOPT=ocamlfind ocamlopt -package bytes
+PA_OCAML=../pa_ocaml
+OCAMLOPT=ocamlfind ocamlopt -package unix,bytes,earley,earley.str
 
 COMPILER_INC = -I +compiler-libs
 COMPILER_LIBS = ocamlcommon.cma
@@ -23,14 +22,14 @@ debug:
 	echo $(ASTDIR)
 	echo $(BOOTDIR)
 
-pa_eq: pa_eq.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+pa_eq: pa_eq.ml
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I .. $(COMPILER_INC) $(COMPILER_LIBO) -o $@ pa_lexing.cmx -linkpkg $<
 
-pa_iter: pa_iter.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+pa_iter: pa_iter.ml
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I .. $(COMPILER_INC) $(COMPILER_LIBO) -o $@ pa_lexing.cmx -linkpkg $<
 
-pa_quote: pa_quote.ml $(DECAP)/decap.cmxa $(DECAP)/decap_ocaml.cmxa
-	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) -o $@ unix.cmxa str.cmxa decap.cmxa decap_ocaml.cmxa $<
+pa_quote: pa_quote.ml
+	$(OCAMLOPT) -pp "$(PA_OCAML) --ascii" -I .. $(COMPILER_INC) $(COMPILER_LIBO) -o $@ pa_lexing.cmx -linkpkg $<
 
 # FIXME target construction does not fail if pa_eq fails...
 $(BOOTDIR)/compare.ml: pa_eq generic_eq.ml $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
@@ -72,10 +71,10 @@ iter.cmo: $(BOOTDIR)/iter.ml
 	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 quote.cmx: $(BOOTDIR)/quote.ml
-	$(OCAMLOPT) -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 quote.cmo: $(BOOTDIR)/quote.ml
-	$(OCAMLOPT) -c -I $(DECAP) $(COMPILER_INC) $(COMPILER_LIBO) $<
+	$(OCAMLOPT) -c $(COMPILER_INC) $(COMPILER_LIBO) $<
 
 clean:
 	rm -f *.cmi *.cmx *.cmo *.cma *.cmxa *.o

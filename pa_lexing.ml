@@ -94,7 +94,7 @@ let ocaml_blank buf pos =
        (if stack = [] then
 	 let (c, buf', pos') = Input.read buf' pos' in
 	 let (c',_,_) = Input.read buf' pos' in
-	 if c = '*' && c' <> '*' then (
+	 if c = '*' && c' <> '*' && c' <> ')' then (
 	   ocamldoc := true;
 	   fn `Ini (p::stack) curr (buf',pos'))
 	 else
@@ -164,16 +164,16 @@ let no_ident_char c =
   | _ -> true
 
 let test_end_kw =
-  let f buf pos =
+  let f buf pos _ _ =
     let (c,_,_) = Input.read buf pos in
     ((), no_ident_char c)
   in
-  Earley.test ~name:"test_end_kw" Charset.full f
+  Earley.blank_test ~name:"test_end_kw" Charset.full f
 
 let key_word s =
   if String.length s <= 0 then
     invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Earley.give_name s (parser STR(s) - test_end_kw -> ())
+  Earley.give_name s (parser STR(s) test_end_kw -> ())
 
 let mutable_kw     = key_word "mutable"
 let private_kw     = key_word "private"
@@ -303,7 +303,7 @@ let not_special =
   let special = "!$%&*+./:<=>?@^|~-" in
   let cs = ref Charset.empty in
   String.iter (fun c -> cs := Charset.add !cs c) special;
-  Earley.not_in_charset ~name:"not_special" !cs
+  Earley.blank_not_in_charset ~name:"not_special" !cs
 
 let parser  ident = id:''[A-Za-z_][a-zA-Z0-9_']*'' ->
   if is_reserved_id id then Earley.give_up (); id
@@ -366,12 +366,12 @@ let parser bool_lit : string Earley.grammar =
 
 let num_suffix =
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  let no_suffix_cs = Earley.test Charset.full
-    (fun buf pos ->
+  let no_suffix_cs = Earley.blank_test Charset.full
+    (fun buf pos _ _ ->
       let c,_,_ = Input.read buf pos in
       ((), c <> '.' && c <> 'e' && c <> 'E' && not (Charset.mem suffix_cs c))) in
   parser
-  | s:(Earley.in_charset suffix_cs) -> Some s
+  | - s:(Earley.in_charset suffix_cs) -> Some s
   | no_suffix_cs -> None
 
 let int_litteral : (string * char option) Earley.grammar =
@@ -381,7 +381,7 @@ let int_litteral : (string * char option) Earley.grammar =
     ; "[0][bB][01][01_]*"               (* Binary *)
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
-  parser i:RE(int_re) - num_suffix _:Earley.relax
+  parser i:RE(int_re) num_suffix _:Earley.relax
 
 (* Float litteral. *)
 let float_litteral : (string * char option) Earley.grammar =
@@ -389,7 +389,7 @@ let float_litteral : (string * char option) Earley.grammar =
     [ "[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*"
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
-  parser f:RE(float_re) - num_suffix _:Earley.relax
+  parser f:RE(float_re) num_suffix _:Earley.relax
 
 (* Char litteral. *)
 
@@ -416,9 +416,10 @@ let char_litteral : char Earley.grammar =
   let single_char =
     parser
       | c:RE(char_reg)        -> c.[0]
-      | '\\' - e:escaped_char -> e
+      | '\\' e:escaped_char -> e
   in
-  parser _:single_quote - c:single_char - '\''
+  Earley.change_layout (parser _:single_quote c:single_char - '\'')
+    Earley.no_blank
 
 (* String litteral. *)
 
@@ -456,17 +457,15 @@ let normal_string : string Earley.grammar =
     | '\\' - e:escaped_char -> e
     | c:'\n'                -> c
   in
-  let internal = parser
-    cs:single_char* css:{_:"\\\n" _:RE("[ \t]*")$ single_char*}* '"' ->
+  parser
+    '"' cs:single_char* css:{_:"\\\n" _:RE("[ \t]*")$ single_char*}* '"' ->
       cs_to_string (List.flatten (cs :: css))
-  in
-  parser '"' - (Earley.change_layout internal Earley.no_blank)
 
 let string_litteral : (string * string option) Earley.grammar =
-  parser
-    | s:normal_string -> (s, None)
-    | quoted_string
-
+  Earley.change_layout (parser
+                           | s:normal_string -> (s, None)
+                           | quoted_string)
+    Earley.no_blank
 (* Regexp litteral. *)
 
 let regexp_litteral : string Earley.grammar =

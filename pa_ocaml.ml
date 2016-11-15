@@ -227,16 +227,16 @@ let string_of_tree (t:tree) : string =
 let label_name = lident
 
 let parser label =
-  | '~' - ln:label_name - no_colon -> ln (* no constructor, we add it later in this case *)
+  | '~' - ln:label_name no_colon -> ln (* no constructor, we add it later in this case *)
 
 let parser opt_label =
-  | '?' - ln:label_name - no_colon -> ln (* no constructor, we add it later in this case *)
+  | '?' - ln:label_name no_colon -> ln (* no constructor, we add it later in this case *)
 
 let parser ty_label =
-  | '~' - s:lident - ':' -> labelled s
+  | '~' - s:lident ':' -> labelled s
 
 let parser ty_opt_label =
-  | '?' - s:lident - ':' -> optional s
+  | '?' - s:lident ':' -> optional s
 
 let parser maybe_opt_label =
   | o:STR("?")? ln:label_name ->
@@ -376,7 +376,7 @@ let parser payload =
   | CHR('?') p:pattern e:{STR("when") e:expression}? -> PPat(p,e)
 
 let parser attribute =
-  | STR("[@") id:attr_id p:payload
+  | STR("[@") id:attr_id p:payload ']'
 
 let parser attributes =
   | {a:attribute}*
@@ -526,7 +526,7 @@ let _ = set_typexpr_lvl (fun lvl ->
       loc_typ _loc Ptyp_any
   | '(' module_kw pt:package_type ')' when lvl = AtomType ->
       loc_typ _loc pt
-  | '(' te:typexpr ')' when lvl = AtomType ->
+  | '(' te:typexpr attribute? (*FIXME*) ')' when lvl = AtomType ->
       te
   | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl = Arr ->
 #if version >= 4.03
@@ -1130,13 +1130,13 @@ let bigarray_get _loc arr arg =
   let get = if !fast then "unsafe_get" else "get" in
   match untuplify arg with
   | [c1] ->
-      <:expr<Bigarry.Array1.$lid:get$ $arr$ $c1$ >>
+      <:expr<Bigarray.Array1.$lid:get$ $arr$ $c1$ >>
   | [c1;c2] ->
-      <:expr<Bigarry.Array2.$lid:get$ $arr$ $c1$ $c2$ >>
+      <:expr<Bigarray.Array2.$lid:get$ $arr$ $c1$ $c2$ >>
   | [c1;c2;c3] ->
-      <:expr<Bigarry.Array3.$lid:get$ $arr$ $c1$ $c2$ $c3$ >>
+      <:expr<Bigarray.Array3.$lid:get$ $arr$ $c1$ $c2$ $c3$ >>
   | coords ->
-      <:expr<Bigarry.Genarray.$lid:get$ $arr$ $array:coords$ >>
+      <:expr<Bigarray.Genarray.$lid:get$ $arr$ $array:coords$ >>
 
 let bigarray_set loc arr arg newval =
   let set = if !fast then "unsafe_set" else "set" in
@@ -1512,6 +1512,10 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | e:((expression_lvl (left_alm alm, next_exp lvl))) when lvl < Atom && lvl != Seq -> e
 
+  | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
+      e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
+	mk_seq (ls@[e'])
+
   | v:inst_var_name STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
       loc_expr _loc (Pexp_setinstvar(id_loc v _loc_v, e))
 
@@ -1528,11 +1532,11 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | mp:module_path '.' '{' e:{expression _:with_kw}? l:record_list '}' when lvl = Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (Pexp_record(l,e))))
-  | e:(prefix_expression c) when allow_match alm && lvl < App -> e
+  | e:(prefix_expression c) when allow_match alm && lvl < App && lvl != Seq -> e
 
-  | e:(if_expression c) when (allow_let alm && lvl < App) || (lvl = If && alm <> MatchRight) -> e
+  | e:(if_expression c) when (allow_let alm && lvl < App && lvl != Seq) || (lvl = If && alm <> MatchRight) -> e
 
-  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) no_semi when allow_let alm && lvl < App ->
+  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) no_semi when allow_let alm && lvl < App && lvl != Seq ->
      loc_expr _loc (apply_params l e).pexp_desc
 
   | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi when allow_let alm && lvl < App
@@ -1740,10 +1744,6 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+ e':(expression_lvl (right_alm alm, next_exp Tupl))
       when lvl = Tupl ->
        loc_expr _loc (Pexp_tuple (l@[e']))
-
-  | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
-      e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
-	mk_seq (ls@[e'])
 
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
       r:{ STR("(") f:expression STR(")") STR("<-") e:(expression_lvl (right_alm alm,next_exp Aff)) when lvl = Aff ->
@@ -2008,14 +2008,14 @@ let parser structure_item_base =
 #endif
      | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))
 
-
+(* FIXME ext_attributes *)
 let parser structure_item_aux =
-  | EMPTY -> []
-  | e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
-  | s1:structure_item_aux double_semi_col?[()] e:(alternatives extra_structure) ->
+  | _:ext_attributes -> []
+  | _:ext_attributes e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
+  | s1:structure_item_aux double_semi_col?[()] _:ext_attributes e:(alternatives extra_structure) ->
      List.rev_append e (List.rev_append (attach_str _loc_e) s1)
-  | s1:structure_item_aux double_semi_col?[()] s2:structure_item_base -> s2 :: (List.rev_append (attach_str _loc_s2) s1)
-  | s1:structure_item_aux double_semi_col e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
+  | s1:structure_item_aux double_semi_col?[()] _:ext_attributes s2:structure_item_base -> s2 :: (List.rev_append (attach_str _loc_s2) s1)
+  | s1:structure_item_aux double_semi_col _:ext_attributes e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
 
 let _ = set_grammar structure_item
   (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)

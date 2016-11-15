@@ -15,11 +15,14 @@ function build {
     which ocamlopt.opt
     touch pa_ocaml.ml
     if [ "$2" = "--all" ] ; then \
-	 $MAKE distclean && $MAKE && $MAKE
-    else
-	cp pa_ocaml-$1 pa_ocaml && $MAKE clean && $MAKE ASCII=--ascii
+	$MAKE distclean && $MAKE && $MAKE ; \
+    else \
+	if [ ! -x ./pa_ocaml ] ; then \
+	    echo pa_ocaml must be compiled first; \
+	    exit 1; \
+	fi \
     fi &&\
-    $MAKE clean boot asttools &&\
+    $MAKE boot asttools &&\
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
     $MAKE distclean &&\
     $MAKE && $MAKE &&\
@@ -31,7 +34,7 @@ function build {
 }
 
 if [ "$1" = "--all" ] ; then
-    VERSIONS="4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
+    VERSIONS="4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
     echo ALL: bootstraping all version \($VERSIONS\) from file in bootstrap
 elif [ "$1" = "--new" ] ; then
     echo NEW: bootstraping $2 from previous version

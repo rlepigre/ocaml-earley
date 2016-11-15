@@ -403,9 +403,8 @@ module Initial =
                 if prio <> Cons
                 then
                   (Earley.sequence
-                     (Earley.ignore_next_blank
-                        (EarleyStr.regexp (infix_symb_re prio)
-                           (fun groupe  -> groupe 0))) not_special
+                     (EarleyStr.regexp (infix_symb_re prio)
+                        (fun groupe  -> groupe 0)) not_special
                      (fun sym  ->
                         fun _default_0  ->
                           if is_reserved_symb sym then give_up (); sym))
@@ -420,9 +419,8 @@ module Initial =
     ;;prefix_symbol__set__grammar
         (fun prio  ->
            Earley.sequence
-             (Earley.ignore_next_blank
-                (EarleyStr.regexp (prefix_symb_re prio)
-                   (fun groupe  -> groupe 0))) not_special
+             (EarleyStr.regexp (prefix_symb_re prio)
+                (fun groupe  -> groupe 0)) not_special
              (fun sym  ->
                 fun _default_0  ->
                   if (is_reserved_symb sym) || (sym = "!=") then give_up ();

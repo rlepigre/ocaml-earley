@@ -289,49 +289,49 @@ let attach_attrib =
       | [] -> ocamldoc_comments := List.rev acc; res
 
       | (start,end_,contents as c)::rest ->
-	 let start' = loc.loc_start in
-	 let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-	 (*Printf.eprintf "start [%d,%d] [%d,...]\n%!"
-	   (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
-	 if (start'.pos_lnum >= line_num (fst end_) &&
-	       start'.pos_lnum - line_num (fst end_) <= 1 &&
-	    (if local then snd start > 0 else snd start = 0))
-	 then (
-	   fn acc (mk_attrib loc "ocaml.doc" contents::res) rest)
-	 else
+         let start' = loc.loc_start in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+         (*Printf.eprintf "start [%d,%d] [%d,...]\n%!"
+           (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
+         if (start'.pos_lnum >= line_num (fst end_) &&
+               start'.pos_lnum - line_num (fst end_) <= 1 &&
+            (if local then snd start > 0 else snd start = 0))
+         then (
+           fn acc (mk_attrib loc "ocaml.doc" contents::res) rest)
+         else
            fn (c::acc) res rest
     in
     let rec gn acc res = function
       | [] -> ocamldoc_comments := List.rev acc; List.rev res
 
       | (start,end_,contents as c)::rest ->
-	 let end' = loc.loc_end in
-	 let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-	 (*Printf.eprintf "end[%d,%d] [...,%d]\n%!"
-	   (line_num (fst start)) (line_num (fst end_)) end'.pos_lnum;*)
-	 if
-	    (line_num (fst start) >= end'.pos_lnum &&
-		 line_num (fst start) - end'.pos_lnum  <= 1 &&
-	    (if local then snd start > 0 else snd start = 0))
-	 then (
-	   gn acc (mk_attrib loc "ocaml.doc" contents :: res) rest)
-	 else
+         let end' = loc.loc_end in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+         (*Printf.eprintf "end[%d,%d] [...,%d]\n%!"
+           (line_num (fst start)) (line_num (fst end_)) end'.pos_lnum;*)
+         if
+            (line_num (fst start) >= end'.pos_lnum &&
+                 line_num (fst start) - end'.pos_lnum  <= 1 &&
+            (if local then snd start > 0 else snd start = 0))
+         then (
+           gn acc (mk_attrib loc "ocaml.doc" contents :: res) rest)
+         else
            gn (c::acc) res rest
     in
     (*    Printf.eprintf "attach_attrib [%d,%d]\n%!" loc.loc_start.pos_lnum  loc.loc_end.pos_lnum;*)
     let l1 =
       try Hashtbl.find tbl_s (loc.loc_start, local)
       with Not_found ->
-	let res = fn [] [] !ocamldoc_comments in
-	Hashtbl.add tbl_s (loc.loc_start, local) res;
-	res
+        let res = fn [] [] !ocamldoc_comments in
+        Hashtbl.add tbl_s (loc.loc_start, local) res;
+        res
     in
     let l2 =
       try Hashtbl.find tbl_e (loc.loc_end, local)
       with Not_found ->
-	let res = gn [] [] !ocamldoc_comments in
-	Hashtbl.add tbl_e (loc.loc_end, local) res;
-	res
+        let res = gn [] [] !ocamldoc_comments in
+        Hashtbl.add tbl_e (loc.loc_end, local) res;
+        res
     in
     l1 @ acc @ l2
 #endif
@@ -346,13 +346,13 @@ let attach_gen build =
       | [] -> ocamldoc_comments := List.rev acc; res
 
       | (start,end_,contents as c)::rest ->
-	 let start' = loc.loc_start in
-	 let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-(*	 Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
-	 (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
-	 if line_num (fst end_) < start'.pos_lnum then
-	   fn acc (build loc (mk_attrib loc "ocaml.text" contents) :: res) rest
-	 else
+         let start' = loc.loc_start in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+(*       Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
+         (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
+         if line_num (fst end_) < start'.pos_lnum then
+           fn acc (build loc (mk_attrib loc "ocaml.text" contents) :: res) rest
+         else
            fn (c::acc) res rest
     in
     try Hashtbl.find tbl loc.loc_start
@@ -380,17 +380,17 @@ let parser arrow_re = ''\(->\)\|\(→\)''
 let infix_symb_re prio =
   match prio with
   | Prod -> union_re ["[/%][!$%&*+./:<=>?@^|~-]*";
-		      "[*]\\([!$%&+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*\\)?";
-			"mod\\b"; "land\\b"; "lor\\b"; "lxor\\b"]
+                      "[*]\\([!$%&+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*\\)?";
+                        "mod\\b"; "land\\b"; "lor\\b"; "lxor\\b"]
   | Sum -> "[+-][!$%&*+./:<=>?@^|~-]*"
   | Append -> "[@^][!$%&*+./:<=>?@^|~-]*"
   | Cons -> "::"
   | Aff -> union_re [":=[!$%&*+./:<=>?@^|~-]*";
-		     "<-[!$%&*+./:<=>?@^|~-]*"]
+                     "<-[!$%&*+./:<=>?@^|~-]*"]
   | Eq -> union_re ["[<][!$%&*+./:<=>?@^|~]?[!$%&*+./:<=>?@^|~-]*";
-		    "[&][!$%*+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*";
-		    "|[!$%&*+./:<=>?@^~-][!$%&*+./:<=>?@^|~-]*";
-		    "[=>$][!$%&*+./:<=>?@^|~-]*"; "!="]
+                    "[&][!$%*+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*";
+                    "|[!$%&*+./:<=>?@^~-][!$%&*+./:<=>?@^|~-]*";
+                    "[=>$][!$%&*+./:<=>?@^|~-]*"; "!="]
   | Conj -> union_re ["[&][&][!$%&*+./:<=>?@^|~-]*"; "[&]"]
   | Disj -> union_re ["or\\b"; "||[!$%&*+./:<=>?@^|~-]*"]
   | Pow -> union_re ["lsl\\b"; "lsr\\b"; "asr\\b"; "[*][*][!$%&*+./:<=>?@^|~-]*"]
@@ -403,18 +403,18 @@ let prefix_symb_re prio =
   | Opp -> union_re ["-[.]?"; "+[.]?"]
   | Prefix ->
      union_re ["[!][!$%&*+./:<=>?@^|~-]*";
-	       "[~?][!$%&*+./:<=>?@^|~-]+"]
+               "[~?][!$%&*+./:<=>?@^|~-]+"]
   | _ -> assert false
 
 let prefix_prios = [ Opp; Prefix ]
 
 let parser infix_symbol prio =
   | "::" when prio = Cons -> "::"
-  | sym:RE(infix_symb_re prio) - not_special when prio <> Cons ->
+  | sym:RE(infix_symb_re prio) not_special when prio <> Cons ->
      (if is_reserved_symb sym then give_up (); sym)
 
 let parser prefix_symbol prio =
-    sym:RE(prefix_symb_re prio) - not_special -> (if is_reserved_symb sym || sym = "!=" then give_up (); sym)
+    sym:RE(prefix_symb_re prio) not_special -> (if is_reserved_symb sym || sym = "!=" then give_up (); sym)
 
 (****************************************************************************
  * Several flags                                                            *

@@ -170,7 +170,7 @@ let apply_option _loc opt visible e =
   )
 
 let default_action _loc l =
-  let l = List.filter (function `Normal((("_",_),false,_,_,_)) -> false | `Ignore -> false | _ -> true) l in
+  let l = List.filter (function `Normal((("_",_),false,_,_,_)) -> false | _ -> true) l in
   let l = List.map (function `Normal((id,_),_,_,_,_) -> exp_ident _loc id | _ -> assert false) l in
   let rec fn = function
     | [] -> exp_unit _loc
@@ -262,6 +262,16 @@ struct
     | '$'                       -> `Greedy
     | EMPTY -> `Once
 
+  let dash = Earley.black_box
+    (fun str pos ->
+       let c,str',pos' = Input.read str pos in
+       if c = '-' then
+         let c',_,_ = Input.read str' pos' in
+         if c' = '>' then Earley.give_up () else (), str', pos'
+      else
+        Earley.give_up ()
+    ) (Charset.singleton '-') false ("-")
+
   let parser glr_sequence =
     | CHR('{') r:glr_rules CHR('}') -> true, r
     | STR("EOF") opt:glr_opt_expr ->
@@ -312,6 +322,9 @@ struct
     | STR("BLANK") opt:glr_opt_expr ->
        let e = match opt with None -> exp_unit _loc | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "with_blank_test") [e])
+    | dash opt:glr_opt_expr ->
+       let e = match opt with None -> exp_unit _loc | Some e -> e in
+       (opt <> None, exp_apply _loc (exp_glr_fun _loc "no_blank_test") [e])
     | s:regexp_litteral opt:glr_opt_expr ->
        let opt = match opt with
 	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
@@ -334,20 +347,9 @@ struct
 	 | _ -> (Some true, ("_", Some p)))
     | EMPTY -> (None, ("_", None))
 
-  let dash = Earley.black_box
-    (fun str pos ->
-       let c,str',pos' = Input.read str pos in
-       if c = '-' then
-         let c',_,_ = Input.read str' pos' in
-         if c' = '>' then Earley.give_up () else (), str', pos'
-      else
-        Earley.give_up ()
-    ) (Charset.singleton '-') false ("-")
-
-
   let fopt x y = match x with Some x -> x | None -> y
   let parser glr_left_member =
-     {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt) | dash -> `Ignore }+
+     {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option -> `Normal(id, (fopt cst' (opt <> `Once || cst)),s,opt) }+
 
   let glr_let = Earley.declare_grammar "glr_let"
   let _ = Earley.set_grammar glr_let (
@@ -373,14 +375,6 @@ struct
 
       let rec fn first ids l = match l with
 	  [] -> assert false
-	| `Ignore::ls ->
-	   let e =  exp_apply _loc (exp_glr_fun _loc "ignore_next_blank")
-	     [exp_apply _loc (exp_glr_fun _loc "success_test") [exp_unit _loc]]
-	   in
-	   fn first ids (`Normal(("",None),false,e,`Once,false)::ls)
-	| `Normal(id,cst,e,opt,oc)::`Ignore::ls ->
-	   let e =  exp_apply _loc (exp_glr_fun _loc "ignore_next_blank") [e] in
-	   fn first ids (`Normal(id,cst,e,opt,oc)::ls)
 	| [`Normal(id,_,e,opt,occur_loc_id)] ->
 	   let e = apply_option _loc opt occur_loc_id e in
 	   let f = match find_locate (), first && occur_loc with
@@ -428,8 +422,7 @@ struct
 	  (`Normal(("_default_"^string_of_int i,a),true,c,d,false)::res, i+1)
 	| `Normal(id, b,c,d) ->
 	   let occur_loc_id = fst id <> "_" && occur ("_loc_"^fst id) action in
-	   (`Normal(id, b,c,d,occur_loc_id)::res, i)
-	| `Ignore -> (`Ignore::res,i)) l ([], 0))
+	   (`Normal(id, b,c,d,occur_loc_id)::res, i)) l ([], 0))
       in
       let occur_loc = occur ("_loc") action in
       (_loc, occur_loc, def, l, condition, action))

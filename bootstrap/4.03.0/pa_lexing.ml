@@ -29,7 +29,7 @@ let ocaml_blank buf pos =
          then
            let (c,buf',pos') = Input.read buf' pos'  in
            let (c',_,_) = Input.read buf' pos'  in
-           (if (c = '*') && (c' <> '*')
+           (if (c = '*') && ((c' <> '*') && (c' <> ')'))
             then (ocamldoc := true; fn `Ini (p :: stack) curr (buf', pos'))
             else fn `Ini (p :: stack) curr next)
          else fn `Ini (p :: stack) curr next
@@ -86,15 +86,15 @@ let ocaml_blank buf pos =
 let no_ident_char c =
   match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> false | _ -> true 
 let test_end_kw =
-  let f buf pos =
+  let f buf pos _ _ =
     let (c,_,_) = Input.read buf pos  in ((), (no_ident_char c))  in
-  Earley.test ~name:"test_end_kw" Charset.full f 
+  Earley.blank_test ~name:"test_end_kw" Charset.full f 
 let key_word s =
   if (String.length s) <= 0
   then invalid_arg "Pa_lexing.key_word (empty keyword)";
   Earley.give_name s
-    (Earley.sequence (Earley.ignore_next_blank (Earley.string s s))
-       test_end_kw (fun _  -> fun _default_0  -> ()))
+    (Earley.sequence (Earley.string s s) test_end_kw
+       (fun _  -> fun _default_0  -> ()))
   
 let mutable_kw = key_word "mutable" 
 let private_kw = key_word "private" 
@@ -299,7 +299,7 @@ let not_special =
   let special = "!$%&*+./:<=>?@^|~-"  in
   let cs = ref Charset.empty  in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
-  Earley.not_in_charset ~name:"not_special" (!cs) 
+  Earley.blank_not_in_charset ~name:"not_special" (!cs) 
 let ident = Earley.declare_grammar "ident" 
 ;;Earley.set_grammar ident
     (Earley.apply
@@ -354,17 +354,20 @@ let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z')
      in
   let no_suffix_cs =
-    Earley.test Charset.full
+    Earley.blank_test Charset.full
       (fun buf  ->
          fun pos  ->
-           let (c,_,_) = Input.read buf pos  in
-           ((),
-             ((c <> '.') &&
-                ((c <> 'e') &&
-                   ((c <> 'E') && (not (Charset.mem suffix_cs c)))))))
+           fun _  ->
+             fun _  ->
+               let (c,_,_) = Input.read buf pos  in
+               ((),
+                 ((c <> '.') &&
+                    ((c <> 'e') &&
+                       ((c <> 'E') && (not (Charset.mem suffix_cs c)))))))
      in
   Earley.alternatives
-    [Earley.apply (fun s  -> Some s) (Earley.in_charset suffix_cs);
+    [Earley.sequence (Earley.no_blank_test ()) (Earley.in_charset suffix_cs)
+       (fun _  -> fun s  -> Some s);
     Earley.apply (fun _default_0  -> None) no_suffix_cs]
   
 let int_litteral : (string* char option) Earley.grammar =
@@ -376,8 +379,7 @@ let int_litteral : (string* char option) Earley.grammar =
       "[0-9][0-9_]*"]
      in
   Earley.fsequence
-    (Earley.ignore_next_blank
-       (EarleyStr.regexp ~name:"int" int_re (fun groupe  -> groupe 0)))
+    (EarleyStr.regexp ~name:"int" int_re (fun groupe  -> groupe 0))
     (Earley.sequence num_suffix Earley.relax
        (fun _default_0  -> fun _  -> fun i  -> (i, _default_0)))
   
@@ -388,8 +390,7 @@ let float_litteral : (string* char option) Earley.grammar =
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"]
      in
   Earley.fsequence
-    (Earley.ignore_next_blank
-       (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0)))
+    (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
     (Earley.sequence num_suffix Earley.relax
        (fun _default_0  -> fun _  -> fun f  -> (f, _default_0)))
   
@@ -420,12 +421,14 @@ let char_litteral : char Earley.grammar =
       [Earley.apply (fun c  -> c.[0])
          (EarleyStr.regexp ~name:"char_reg" char_reg
             (fun groupe  -> groupe 0));
-      Earley.sequence (Earley.ignore_next_blank (Earley.char '\\' '\\'))
-        escaped_char (fun _  -> fun e  -> e)]
+      Earley.sequence (Earley.char '\\' '\\') escaped_char
+        (fun _  -> fun e  -> e)]
      in
-  Earley.fsequence (Earley.ignore_next_blank single_quote)
-    (Earley.sequence (Earley.ignore_next_blank single_char)
-       (Earley.char '\'' '\'') (fun c  -> fun _  -> fun _  -> c))
+  Earley.change_layout
+    (Earley.fsequence single_quote
+       (Earley.fsequence single_char
+          (Earley.sequence (Earley.no_blank_test ()) (Earley.char '\'' '\'')
+             (fun _  -> fun _  -> fun c  -> fun _  -> c)))) Earley.no_blank
   
 let quoted_string : (string* string option) Earley.grammar =
   let f buf pos =
@@ -458,40 +461,40 @@ let normal_string : string Earley.grammar =
       [Earley.apply (fun c  -> c.[0])
          (EarleyStr.regexp ~name:"char_reg" char_reg
             (fun groupe  -> groupe 0));
-      Earley.sequence (Earley.ignore_next_blank (Earley.char '\\' '\\'))
-        escaped_char (fun _  -> fun e  -> e);
+      Earley.fsequence (Earley.char '\\' '\\')
+        (Earley.sequence (Earley.no_blank_test ()) escaped_char
+           (fun _  -> fun e  -> fun _  -> e));
       Earley.char '\n' '\n']
      in
-  let internal =
-    Earley.fsequence
-      (Earley.apply List.rev
-         (Earley.fixpoint []
-            (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
-      (Earley.sequence
-         (Earley.apply List.rev
-            (Earley.fixpoint []
-               (Earley.apply (fun x  -> fun y  -> x :: y)
-                  (Earley.fsequence (Earley.string "\\\n" "\\\n")
-                     (Earley.sequence
-                        (Earley.greedy
-                           (EarleyStr.regexp "[ \t]*"
-                              (fun groupe  -> groupe 0)))
-                        (Earley.apply List.rev
-                           (Earley.fixpoint []
-                              (Earley.apply (fun x  -> fun y  -> x :: y)
-                                 single_char)))
-                        (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
-         (Earley.char '"' '"')
-         (fun css  ->
-            fun _  -> fun cs  -> cs_to_string (List.flatten (cs :: css))))
-     in
-  Earley.sequence (Earley.ignore_next_blank (Earley.char '"' '"'))
-    (Earley.change_layout internal Earley.no_blank)
-    (fun _  -> fun _default_0  -> _default_0)
+  Earley.fsequence (Earley.char '"' '"')
+    (Earley.fsequence
+       (Earley.apply List.rev
+          (Earley.fixpoint []
+             (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
+       (Earley.sequence
+          (Earley.apply List.rev
+             (Earley.fixpoint []
+                (Earley.apply (fun x  -> fun y  -> x :: y)
+                   (Earley.fsequence (Earley.string "\\\n" "\\\n")
+                      (Earley.sequence
+                         (Earley.greedy
+                            (EarleyStr.regexp "[ \t]*"
+                               (fun groupe  -> groupe 0)))
+                         (Earley.apply List.rev
+                            (Earley.fixpoint []
+                               (Earley.apply (fun x  -> fun y  -> x :: y)
+                                  single_char)))
+                         (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
+          (Earley.char '"' '"')
+          (fun css  ->
+             fun _  ->
+               fun cs  -> fun _  -> cs_to_string (List.flatten (cs :: css)))))
   
 let string_litteral : (string* string option) Earley.grammar =
-  Earley.alternatives
-    [Earley.apply (fun s  -> (s, None)) normal_string; quoted_string]
+  Earley.change_layout
+    (Earley.alternatives
+       [Earley.apply (fun s  -> (s, None)) normal_string; quoted_string])
+    Earley.no_blank
   
 let regexp_litteral : string Earley.grammar =
   let char_reg = "[^'\\\\]"  in
@@ -523,7 +526,8 @@ let regexp_litteral : string Earley.grammar =
             (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
       (Earley.string "''" "''") (fun cs  -> fun _  -> String.concat "" cs)
      in
-  Earley.sequence (Earley.ignore_next_blank double_quote)
-    (Earley.change_layout internal Earley.no_blank)
-    (fun _  -> fun _default_0  -> _default_0)
+  Earley.fsequence double_quote
+    (Earley.sequence (Earley.no_blank_test ())
+       (Earley.change_layout internal Earley.no_blank)
+       (fun _  -> fun _default_0  -> fun _  -> _default_0))
   
