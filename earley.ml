@@ -138,33 +138,35 @@ module Fixpoint :
     val force : 'a t -> 'a
   end =
   struct
-    module rec T : sig type 'a t = {
-        mutable value : 'a;
-        compute : unit -> 'a;
-        mutable deps : W.t option;
-        mutable is_ref : ('a t * (unit -> 'a t)) option;
-        ident: int;
-    		   }
-    end
-    = struct
-      type 'a t = {
-        mutable value : 'a;
-        compute : unit -> 'a;
-        mutable deps : W.t option;
-        mutable is_ref : ('a t * (unit -> 'a t)) option;
-        ident: int;
-      }
-    end
-    and HashT : Hashtbl.HashedType with type t = Obj.t T.t = struct
-      type 'a t0 = 'a T.t
-      type t = Obj.t t0
-      let equal a b = a.T.ident = b.T.ident
-      let hash t = t.T.ident
-    end
+    module rec H :
+      sig
+        type 'a fix =
+          { mutable value  : 'a
+          ; compute        : unit -> 'a
+          ; mutable deps   : W.t option
+          ; mutable is_ref : ('a fix * (unit -> 'a fix)) option
+          ; ident          : int }
 
-    and W : Weak.S with type data = HashT.t = Weak.Make(HashT)
+        include Hashtbl.HashedType with type t = Obj.t fix
+      end =
+      struct
+        type 'a fix =
+          { mutable value  : 'a
+          ; compute        : unit -> 'a
+          ; mutable deps   : W.t option
+          ; mutable is_ref : ('a fix * (unit -> 'a fix)) option
+          ; ident          : int }
 
-    include T
+        type t = Obj.t fix
+
+        let equal a b = a.ident = b.ident
+
+        let hash a = a.ident
+      end
+    and W : Weak.S with type data = H.t = Weak.Make(H)
+
+    open H
+    type 'a t = 'a fix
 
     let new_id =
       let r = ref 0 in
@@ -177,7 +179,7 @@ module Fixpoint :
     *)
     let (&&&) x y = x && y (* strict and *)
 
-    let anon : 'a t -> Obj.t t = Obj.magic
+    let anon = Obj.magic
 
     let add_deps r x =
       match x.deps with
