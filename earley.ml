@@ -120,8 +120,6 @@ module EqHashtbl :
    (even if closure appear deep in the compared structure). *)
 let closure_eq x y = try x = y with _ -> x == y
 
-open Input
-
 module Fixpoint =
   struct
     module rec T : sig type 'a t = {
@@ -258,6 +256,10 @@ module Fixpoint =
 
     let force : 'a t -> 'a = fun b -> b.value
   end
+
+
+open Input
+
 
 let debug_lvl = ref 0
 let warn_merge = ref true
