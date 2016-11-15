@@ -73,18 +73,8 @@ val give_up : unit -> 'a
 (** [handle_exception fn v] applies the function [fn] to [v] and handles
     the [Parse_error] exception. In particular, a parse error message is
     presented to the user in  case  of  a  failure,  and  the  exception
-    [Failure "No parse."]. *)
+    [Failure "No parse."] is raised. *)
 val handle_exception : ('a -> 'b) -> 'a -> 'b
-
-(** [debug_lvl] is a flag that can be set for [Earley] to display  debug
-    data on [stderr]. The default value is [0], and bigger numbers acti-
-    vate more and more debuging informations. *)
-val debug_lvl : int ref
-
-(** [warn_merge] is a flag that is used to choose whether  warnings  are
-    or not when an ambiguity is encountered while parsing.  The  default
-    value is [true]. *)
-val warn_merge : bool ref
 
 (** {2 Atomic parsers} *)
 
@@ -98,12 +88,14 @@ val char : ?name:string -> char -> 'a -> 'a grammar
     the grammar for reference in error messages. *)
 val string : ?name:string -> string -> 'a -> 'a grammar
 
-(** [eof v] is a grammar that only accepts the end  of  file  character,
-    and returns [v] as a semantic value. *)
+(** [eof v] is a grammar that only accepts the end of file  and  returns
+    [v] as a semantic value. Note that the end of file can be parsed one
+    or more times (i.e. the input ends with infinitely many end of  file
+    symbols. *)
 val eof : 'a -> 'a grammar
 
-(** [any] is a grammar that accepts a single character (but not the  end
-    of file) and returns its value. *)
+(** [any] is a grammar that accepts a single character (but fails on the
+    end of file) and returns its value. *)
 val any : char grammar
 
 (** [in_charset cs] is a grammar that parses any character of  the  [cs]
@@ -238,6 +230,19 @@ module WithPP : functor (PP : Preprocessor) ->
         preprocessor defined by [PP]. *)
     val parse_file : 'a grammar -> blank -> string -> 'a
   end
+
+(** {2 Debuging and flags} *)
+
+(** [debug_lvl] is a flag that can be set for [Earley] to display  debug
+    data on [stderr]. The default value is [0], and bigger numbers acti-
+    vate more and more debuging informations. *)
+val debug_lvl : int ref
+
+(** [warn_merge] is a flag that is used to choose whether  warnings  are
+    displayed or not when an ambiguity is encountered while parsing. The
+    default value is [true]. *)
+val warn_merge : bool ref
+
 
 
 

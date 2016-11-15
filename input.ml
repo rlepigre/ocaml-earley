@@ -197,13 +197,19 @@ include GenericInput(
     let from_fun finalise name get_line file =
       let rec fn name lnum loff cont =
         let lnum = lnum + 1 in
-        (try
-          let data = get_line file in
-          let llen = String.length data in
-          fun () -> { is_eof = false ; lnum ; loff ; llen ; data ; name
-          ; next = lazy (fn name lnum (loff + llen) cont)
-          ; uid = new_uid () }
-        with End_of_file -> finalise file; fun () -> cont name lnum loff) ()
+        begin
+          (* Tail rec exception trick to avoid stack overflow. *)
+          try
+            let data = get_line file in
+            let llen = String.length data in
+            fun () ->
+              { is_eof = false ; lnum ; loff ; llen ; data ; name
+              ; next = lazy (fn name lnum (loff + llen) cont)
+              ; uid = new_uid () }
+          with End_of_file ->
+            finalise file;
+            fun () -> cont name lnum loff
+        end ()
       in
       lazy
         begin
@@ -233,17 +239,23 @@ module Make(PP : Preprocessor) =
     let from_fun finalise name get_line file =
       let rec fn name lnum loff st cont =
         let lnum = lnum + 1 in
-        (try
-          let data = get_line file in
-          let (st, name, lnum, take) = PP.update st name lnum data in
-          if take then
-            let llen = String.length data in
-            fun () -> { is_eof = false ; lnum ; loff ; llen ; data ; name
-            ; next = lazy (fn name lnum (loff + llen) st cont)
-            ; uid = new_uid () }
-          else
-            fun () -> fn name lnum loff st cont
-        with End_of_file -> finalise file; fun () -> cont name lnum loff st) ()
+        begin
+          (* Tail rec exception trick to avoid stack overflow. *)
+          try
+            let data = get_line file in
+            let (st, name, lnum, take) = PP.update st name lnum data in
+            if take then
+              let llen = String.length data in
+              fun () ->
+                { is_eof = false ; lnum ; loff ; llen ; data ; name
+                ; next = lazy (fn name lnum (loff + llen) st cont)
+                ; uid = new_uid () }
+            else
+              fun () -> fn name lnum loff st cont
+          with End_of_file ->
+            finalise file;
+            fun () -> cont name lnum loff st
+        end ()
       in
       lazy
         begin
