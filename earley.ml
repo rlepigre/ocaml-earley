@@ -997,6 +997,7 @@ let count = ref 0
 
 let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
   fun errpos internal main blank buf0 pos0 ->
+    Fixpoint.debug := !debug_lvl > 2;
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
@@ -1098,26 +1099,27 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
           | ((b,p,b',p'), elts) :: rest ->
              try
                let a = fn elts in
-               (a, b', p')
+               if blank_after then (a, b', p') else (a, b, p)
              with
                Not_found -> kn rest
         in kn !last_success
       else
         try
           let a = fn (find_pos_tbl elements (buf0,pos0)) in
-          (a, !buf', !pos')
+          if blank_after then (a, !buf', !pos') else (a, !buf, !pos)
         with Not_found -> parse_error ()
     in
     if !debug_lvl > 0 then
       Printf.eprintf "exit parsing %d at line = %d, col = %d\n%!" parse_id (line_num buf) pos;
     result
 
-let partial_parse_buffer : type a.a grammar -> blank -> buffer -> int -> a * buffer * int
-   = fun g bl buf pos ->
-       parse_buffer_aux (init_errpos buf pos) false g bl buf pos
+let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
+   = fun g bl ?(blank_after=true) buf pos ->
+       parse_buffer_aux (init_errpos buf pos) false blank_after g bl buf pos
 
-let internal_parse_buffer : type a.errpos -> a grammar -> blank -> buffer -> int -> a * buffer * int
-  = fun errpos g bl buf pos -> parse_buffer_aux errpos true g bl buf pos
+let internal_parse_buffer : type a.errpos -> a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
+   = fun errpos g bl ?(blank_after=false) buf pos ->
+       parse_buffer_aux errpos true blank_after g bl buf pos
 
 let eof : 'a -> 'a grammar
   = fun a ->
@@ -1416,8 +1418,8 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
                                (Simple (fun _ a -> a)) idtEmpty)] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
-      let (a,buf,pos) = internal_parse_buffer errpos l1 blank1 buf pos in
-      let (buf,pos) = if new_blank_after then blank1 buf pos else (buf,pos) in
+      let (a,buf,pos) = internal_parse_buffer errpos l1 blank1
+        ~blank_after:new_blank_after buf pos in
       (a,buf,pos)
     in
     greedy_solo i fn

@@ -208,10 +208,12 @@ val parse_file : 'a grammar -> blank -> string -> 'a
     [buf] starting a position [pos], using the grammar [gr] and the blank
     function [bl]. A triple is returned containing the  new  buffer,  the
     position that was reached during parsing, and the semantic result  of
-    the parsing. Note that this function should not be used in the  defi-
+    the parsing. The optional argument [blank_after], [true] by default,
+    indicates if the returned position if after the final blank or not.
+    Note that this function should not be used in the  defi-
     nition of a grammar using the [black_box] function. *)
-val partial_parse_buffer : 'a grammar -> blank -> buffer -> int
-                             -> 'a * buffer * int
+val partial_parse_buffer : 'a grammar -> blank -> ?blank_after:bool ->
+                            buffer -> int -> 'a * buffer * int
 
 (** A functor providing support for using and [Input] preprocessor. *)
 module WithPP : functor (PP : Preprocessor) ->
