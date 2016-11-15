@@ -57,19 +57,20 @@ module EqHashtbl :
   end =
   struct
     type ('a, 'b) t =
-      { equal               : 'a -> 'a -> bool
-      ; mutable nb_buckets  : int
-      ; mutable size        : int
-      ; mutable buckets     : ('a * 'b) list array }
+      { equal              : 'a -> 'a -> bool
+      ; mutable nb_buckets : int
+      ; mutable buckets    : ('a * 'b) list array
+      ; mutable max_size   : int
+      ; mutable size_limit : int }
 
-    (* The functions enforce the invariant that a key only appears  once
-       in a bucket, and thus in a hash table. *)
+    let rec log2 n = if n <= 0 then 0 else 1 + log2 (n lsr 1)
 
     let create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t =
       fun ?(equal=(=)) nb_buckets ->
         let nb_buckets = max nb_buckets 8 in
         let buckets = Array.make nb_buckets [] in
-        { equal ; nb_buckets ; size = 0; buckets }
+        let size_limit = log2 nb_buckets + 7 in
+        { equal ; nb_buckets ; buckets ; max_size = 0 ; size_limit }
 
     let iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit =
       fun fn h ->
@@ -80,23 +81,29 @@ module EqHashtbl :
     let find_bucket : ('a, 'b) t -> 'a -> int =
       fun h k -> hash k mod h.nb_buckets
 
-    (* Always replaces the mapped value (if any). *)
+    exception Size_is of int
     let rec add : ('a, 'b) t -> 'a -> 'b -> unit =
       fun h k v ->
-        if h.size > h.nb_buckets then grow h;
         let i = find_bucket h k in
-        h.size <- h.size - (List.length h.buckets.(i));
-        let fn (kv, _) = not (h.equal k kv) in
-        h.buckets.(i) <- (k,v) :: List.filter fn h.buckets.(i);
-        h.size <- h.size + (List.length h.buckets.(i))
+        let rec remove sz = function
+          | []                             -> raise (Size_is sz)
+          | (kv,_) :: ls when h.equal k kv -> ls
+          | e      :: ls                   -> e :: remove (sz+1) ls
+        in
+        try h.buckets.(i) <- (k,v) :: remove 0 h.buckets.(i)
+        with Size_is(sz) ->
+          h.buckets.(i) <- (k,v) :: h.buckets.(i);
+          h.max_size <- max h.max_size sz;
+          if h.max_size > h.size_limit then grow h
 
-    (* Could be made more efficient by avoiding the use [add]. *)
     and grow : ('a, 'b) t -> unit =
       fun h ->
-        let hh = create ~equal:h.equal (2 * h.nb_buckets) in
-        iter (add hh) h;
-        h.nb_buckets <- hh.nb_buckets;
-        h.buckets <- hh.buckets
+        let old_tbl = h.buckets in
+        h.nb_buckets <- h.nb_buckets * 2;
+        h.buckets <- Array.make h.nb_buckets [];
+        h.size_limit <- h.size_limit + 1;
+        h.max_size <- 0;
+        Array.iter (List.iter (fun (k,v) -> add h k v)) old_tbl
 
     let find : ('a, 'b) t -> 'a -> 'b =
       fun h k ->
@@ -104,7 +111,8 @@ module EqHashtbl :
         let rec find = function
           | []         -> raise Not_found
           | (kv,v)::xs -> if h.equal k kv then v else find xs
-        in find h.buckets.(i)
+        in
+        find h.buckets.(i)
   end
 
 (* Comparison function accepting to compare everything. Be careful as it
