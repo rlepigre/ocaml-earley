@@ -995,9 +995,8 @@ exception Parse_error of Input.buffer * int * string list
 
 let count = ref 0
 
-let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
-  fun errpos internal main blank buf0 pos0 ->
-    Fixpoint.debug := !debug_lvl > 2;
+let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
+  fun errpos internal blank_after main blank buf0 pos0 ->
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
