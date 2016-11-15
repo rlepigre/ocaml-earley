@@ -79,7 +79,7 @@ let regexp : ?name:string -> string -> ((int -> string) -> 'a) -> 'a grammar =
     if not !found then failwith "regexp: illegal empty regexp";
     let fn buf pos =
       let l = line buf in
-      if pos > String.length l then give_up ();
+      if pos >= String.length l then give_up ();
       if Str.string_match r l pos then
         let f n = Str.matched_group n l in
         let pos' = Str.match_end () in
@@ -88,5 +88,8 @@ let regexp : ?name:string -> string -> ((int -> string) -> 'a) -> 'a grammar =
         (res, buf, pos')
       else give_up ()
     in
-    let ae = Str.string_match r "" 0 in
-    black_box fn set ae name
+    if Str.string_match r "" 0 then
+      let f n = Str.matched_group n "" in
+      option (a f) (black_box fn set false name)
+    else
+      black_box fn set false name

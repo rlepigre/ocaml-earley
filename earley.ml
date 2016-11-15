@@ -639,8 +639,7 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
       let res = ref [] in add r (P(r,res, ref (fun el -> ()))) dlr; res
 
 let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
-  let i = (accept_empty,set) in
-  let j = Fixpoint.from_val i in
+  let j = Fixpoint.from_val (accept_empty,set) in
   (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),new_cell ())])
 
 let greedy_solo =
