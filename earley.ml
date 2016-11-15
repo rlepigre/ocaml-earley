@@ -699,7 +699,7 @@ let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> func
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
 let find_pos_tbl t (buf,pos) = Hashtbl.find t (buffer_uid buf, pos)
-let add_pos_tbl t (buf,pos) v = Hashtbl.add t (buffer_uid buf, pos) v
+let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buffer_uid buf, pos) v
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
