@@ -40,6 +40,12 @@
   ======================================================================
 *)
 
+let _ = Printexc.record_backtrace true
+
+(* Flags. *)
+let debug_lvl  = ref 0
+let warn_merge = ref true
+
 (* Custom hash table module. [Hashtbl] won't  do  because  it  does  not
    accept keys that contain closures. Here a custom  comparing  function
    can be provided at the creation of the hash table. *)
@@ -120,7 +126,17 @@ module EqHashtbl :
    (even if closure appear deep in the compared structure). *)
 let closure_eq x y = try x = y with _ -> x == y
 
-module Fixpoint =
+module Fixpoint :
+  sig
+    type 'a t
+    val from_val : 'a -> 'a t
+    val from_fun : 'a t -> ('a -> 'a) -> 'a t
+    val from_fun2 : 'a t -> 'a t -> ('a -> 'a -> 'a) -> 'a t
+    val from_funl : 'a t list -> 'a -> ('a -> 'a -> 'a) -> 'a t
+    val from_ref : 'b ref -> ('b -> 'a t) -> 'a t
+    val update : 'a t -> unit
+    val force : 'a t -> 'a
+  end =
   struct
     module rec T : sig type 'a t = {
         mutable value : 'a;
@@ -163,8 +179,6 @@ module Fixpoint =
 
     let anon : 'a t -> Obj.t t = Obj.magic
 
-    let debug = ref false
-
     let add_deps r x =
       match x.deps with
       | None -> true
@@ -172,9 +186,8 @@ module Fixpoint =
          try ignore (W.find tbl (anon r)); false
          with Not_found ->
            W.add tbl (anon r);
-           if !debug then Printf.eprintf "new rule %d\n%!" (W.count tbl);
+           if !debug_lvl > 2 then Printf.eprintf "new rule %d\n%!" (W.count tbl);
            false
-
 
     let iter_deps fn x =
       match x.deps with
@@ -261,9 +274,7 @@ module Fixpoint =
 open Input
 
 
-let debug_lvl = ref 0
-let warn_merge = ref true
-let _ = Printexc.record_backtrace true
+
 
 exception Error
 
@@ -986,7 +997,6 @@ let count = ref 0
 
 let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
   fun errpos internal main blank buf0 pos0 ->
-    Fixpoint.debug := !debug_lvl > 2;
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
