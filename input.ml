@@ -12,17 +12,17 @@
   way of building parsers using an extention of OCaml's syntax.
 
   This software is governed by the CeCILL-B license under French law and
-  abiding by the rules of distribution of free software.  You  can  use, 
+  abiding by the rules of distribution of free software.  You  can  use,
   modify and/or redistribute the software under the terms of the CeCILL-
   B license as circulated by CEA, CNRS and INRIA at the following URL.
 
-      http://www.cecill.info 
+      http://www.cecill.info
 
   As a counterpart to the access to the source code and  rights to copy,
   modify and redistribute granted by the  license,  users  are  provided
   only with a limited warranty  and the software's author, the holder of
   the economic rights, and the successive licensors  have  only  limited
-  liability. 
+  liability.
 
   In this respect, the user's attention is drawn to the risks associated
   with loading, using, modifying and/or developing  or  reproducing  the
@@ -33,7 +33,7 @@
   encouraged to load and test  the  software's  suitability  as  regards
   their requirements in conditions enabling the security of  their  sys-
   tems and/or data to be ensured and, more generally, to use and operate
-  it in the same conditions as regards security. 
+  it in the same conditions as regards security.
 
   The fact that you are presently reading this means that you  have  had
   knowledge of the CeCILL-B license and that you accept its terms.
@@ -197,13 +197,13 @@ include GenericInput(
     let from_fun finalise name get_line file =
       let rec fn name lnum loff cont =
         let lnum = lnum + 1 in
-        try
+        (try
           let data = get_line file in
           let llen = String.length data in
-          { is_eof = false ; lnum ; loff ; llen ; data ; name
+          fun () -> { is_eof = false ; lnum ; loff ; llen ; data ; name
           ; next = lazy (fn name lnum (loff + llen) cont)
           ; uid = new_uid () }
-        with End_of_file -> finalise file; cont name lnum loff
+        with End_of_file -> finalise file; fun () -> cont name lnum loff) ()
       in
       lazy
         begin
@@ -233,17 +233,17 @@ module Make(PP : Preprocessor) =
     let from_fun finalise name get_line file =
       let rec fn name lnum loff st cont =
         let lnum = lnum + 1 in
-        try
+        (try
           let data = get_line file in
           let (st, name, lnum, take) = PP.update st name lnum data in
           if take then
             let llen = String.length data in
-            { is_eof = false ; lnum ; loff ; llen ; data ; name
+            fun () -> { is_eof = false ; lnum ; loff ; llen ; data ; name
             ; next = lazy (fn name lnum (loff + llen) st cont)
             ; uid = new_uid () }
           else
-            fn name lnum loff st cont
-        with End_of_file -> finalise file; cont name lnum loff st
+            fun () -> fn name lnum loff st cont
+        with End_of_file -> finalise file; fun () -> cont name lnum loff st) ()
       in
       lazy
         begin

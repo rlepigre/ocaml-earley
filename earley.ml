@@ -12,17 +12,17 @@
   way of building parsers using an extention of OCaml's syntax.
 
   This software is governed by the CeCILL-B license under French law and
-  abiding by the rules of distribution of free software.  You  can  use, 
+  abiding by the rules of distribution of free software.  You  can  use,
   modify and/or redistribute the software under the terms of the CeCILL-
   B license as circulated by CEA, CNRS and INRIA at the following URL.
 
-      http://www.cecill.info 
+      http://www.cecill.info
 
   As a counterpart to the access to the source code and  rights to copy,
   modify and redistribute granted by the  license,  users  are  provided
   only with a limited warranty  and the software's author, the holder of
   the economic rights, and the successive licensors  have  only  limited
-  liability. 
+  liability.
 
   In this respect, the user's attention is drawn to the risks associated
   with loading, using, modifying and/or developing  or  reproducing  the
@@ -33,7 +33,7 @@
   encouraged to load and test  the  software's  suitability  as  regards
   their requirements in conditions enabling the security of  their  sys-
   tems and/or data to be ensured and, more generally, to use and operate
-  it in the same conditions as regards security. 
+  it in the same conditions as regards security.
 
   The fact that you are presently reading this means that you  have  had
   knowledge of the CeCILL-B license and that you accept its terms.
@@ -139,26 +139,26 @@ module Fixpoint =
       let equal a b = a.T.ident = b.T.ident
       let hash t = t.T.ident
     end
-    
+
     and W : Weak.S with type data = HashT.t = Weak.Make(HashT)
-    
+
     include T
-    
+
     let new_id =
       let r = ref 0 in
       (fun () -> let x = !r in r := x + 1; x)
-    
+
     let no_more_build = ref false
     (*
     let _ = Sys.(set_signal sigint (Signal_handle (fun _ -> no_more_build := true)))
     let check () = if !no_more_build then invalid_arg "no more build"
     *)
     let (&&&) x y = x && y (* strict and *)
-    
+
     let anon : 'a t -> Obj.t t = Obj.magic
-    
+
     let debug = ref false
-    
+
     let add_deps r x =
       match x.deps with
       | None -> true
@@ -168,18 +168,18 @@ module Fixpoint =
            W.add tbl (anon r);
            if !debug then Printf.eprintf "new rule %d\n%!" (W.count tbl);
            false
-    
-    
+
+
     let iter_deps fn x =
       match x.deps with
       | None -> ()
       | Some tbl -> W.iter (fun v -> fn (Obj.magic v)) tbl
-    
+
     let new_deps () = Some (W.create 31)
-    
+
     let from_val v =
       { value = v; compute = (fun () -> v); deps = None; is_ref = None; ident = new_id () }
-    
+
     let from_fun : 'a t -> ('a -> 'a) -> 'a t = fun l fn ->
       let rec res =
         { value = fn l.value;
@@ -191,7 +191,7 @@ module Fixpoint =
       in
       if add_deps res l then res.deps <- None;
       res
-    
+
     let from_fun2 : 'a t -> 'a t -> ('a -> 'a -> 'a) -> 'a t = fun l1 l2 fn ->
       let rec res =
         { value = fn l1.value l2.value;
@@ -203,11 +203,11 @@ module Fixpoint =
       in
       if add_deps res l1 &&& add_deps res l2 then res.deps <- None;
       res
-    
+
     let rec fold l a f = match l with
         [] -> a
       | x::l -> fold l (f a x.value) f
-    
+
     let from_funl : 'a t list -> 'a -> ('a -> 'a -> 'a) -> 'a t = fun l a fn ->
       let rec res =
         { value = fold l a fn;
@@ -219,7 +219,7 @@ module Fixpoint =
       in
       if List.fold_left (fun b x -> add_deps res x &&& b) true l then res.deps <- None;
       res
-    
+
     let from_ref : 'b ref -> ('b -> 'a t) -> 'a t = fun (l:'b ref) fn ->
       let a = fn (!l) in
       let rec res =
@@ -232,7 +232,7 @@ module Fixpoint =
       in
       ignore (add_deps res a);
       res
-    
+
     let update : 'a t -> unit = fun b ->
       (match b.is_ref with
         None -> invalid_arg "Fixpoint.update";
@@ -247,7 +247,7 @@ module Fixpoint =
           iter_deps fn x
         end
       in fn b
-    
+
     let force : 'a t -> 'a = fun b -> b.value
   end
 
@@ -306,7 +306,7 @@ and _ prerule =
   (** Empty rule. *)
   | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
   (** Dependant rule *)
-  | Next : info Fixpoint.t * string * bool * 'a symbol * ('a -> 'b) pos * ('b -> 'c) rule -> 'c prerule
+  | Next : info Fixpoint.t * string * 'a symbol * ('a -> 'b) pos * ('b -> 'c) rule -> 'c prerule
   (** Sequence of a symbol and a rule. then bool is to ignore blank after symbol. *)
 
 and 'a rule = ('a prerule * assoc_cell)
@@ -316,7 +316,6 @@ and 'a dep_pair_tbl = assoc_cell list ref
 
 (* type de la table de Earley *)
 type ('a,'b,'c,'r,'i) cell = {
-  ignb:'i; (*ignb!ignore next blank*)
   debut : (position * position) option; (* second position is after blank *)
   stack : ('c, 'r) element list ref;
   acts  : 'a;
@@ -390,15 +389,16 @@ let eq_pos p1 p2 = match p1, p2 with
   | _ -> false
 
 
-let eq_D (D {debut; rest; full; ignb; stack})
-         (D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'}) =
-  eq_pos debut d' && eq rest r' && eq full fu' && ignb=ignb' && (assert (eq stack stack'); true)
+let eq_D (D {debut; rest; full; stack})
+         (D {debut=d'; rest=r'; full=fu'; stack = stack'}) =
+  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack'); true)
 
 let eq_C c1 c2 = eq c1 c2 ||
   match c1, c2 with
-    (C {debut; rest; full; ignb; stack; acts},
-     C {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'; acts = acts'}) ->
-      eq_pos debut d' && eq rest r' && eq full fu' && ignb=ignb' && (assert (eq stack stack'); eq_closure acts acts')
+    (C {debut; rest; full; stack; acts},
+     C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
+      eq_pos debut d' && eq rest r' && eq full fu'
+      && (assert (eq stack stack'); eq_closure acts acts')
   | (B acts, B acts') -> eq_closure acts acts'
   | _ -> false
 
@@ -489,10 +489,10 @@ let new_name =
 
 let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,g) ->
   match g with
-  | [r] -> r
+  | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,false,NonTerm(i,g),Idt,idtEmpty),new_cell ())
+     (Next(i,name,NonTerm(i,g),Idt,idtEmpty),new_cell ())
 
 let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
@@ -505,7 +505,7 @@ let pre_rule (x,_) = x
 
 let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
   match pre_rule r with
-  | Next(i,_,_,_,_,_) -> i
+  | Next(i,_,_,_,_) -> i
   | Empty _ -> empty
   | Dep(_) -> any
 
@@ -533,7 +533,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
 
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
     match pre_rule rule with
-    | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
+    | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
@@ -544,7 +544,7 @@ let print_final ch (D {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
     match pre_rule rule with
-    | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
+    | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
   in
@@ -556,7 +556,7 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
     match pre_rule rule with
-    | Next(_,name,_,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
+    | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
     (*    | Dep _ -> Printf.fprintf ch "DEP "*)
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -630,10 +630,10 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
     with Not_found ->
       let res = ref [] in add r (P(r,res, ref (fun el -> ()))) dlr; res
 
-let solo = fun ?(name=new_name ()) set s ->
-  let i = (false,set) in
+let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
+  let i = (accept_empty,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,false,Term (set, s),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),new_cell ())])
 
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
@@ -650,32 +650,35 @@ let greedy_solo =
         Hashtbl.replace cache key l;
         r
     in
-    (i, [(Next(i,name,false,Greedy(i,s),Idt,idtEmpty),new_cell ())])
+    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),new_cell ())])
 
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,false,Test (set, (fun _ _ -> f)),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),new_cell ())])
 
 let blank_test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,false,Test (set, f),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),new_cell ())])
 
 let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
 let with_blank_test a = blank_test ~name:"BLANK" Charset.full
   (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
 
+let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
+  (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
+
 let nonterm (i,s) = NonTerm(i,s)
 
-let next_aux name b s f r = (Next(compose_info s r, name, b, s,f,r), new_cell ())
+let next_aux name s f r = (Next(compose_info s r, name, s,f,r), new_cell ())
 
-let next : type a b c. ?ignb:bool -> a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
-  fun ?(ignb=false) s f r -> match snd s with
-  | [(Next(i,name,ignb0,s0,g,(Empty h,_)),_)] ->
-     next_aux name (ignb||ignb0) s0 (compose3 f h g) r
-  | _ -> next_aux (new_name ()) ignb (nonterm s) f r
+let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
+  fun s f r -> match snd s with
+  | [(Next(i,name,s0,g,(Empty h,_)),_)] ->
+     next_aux name s0 (compose3 f h g) r
+  | _ -> next_aux (new_name ()) (nonterm s) f r
 
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
@@ -710,15 +713,15 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
         add_pos_tbl elements deb (element :: oldl); true
       | e::es ->
          (match e, element with
-           D {debut=d; rest; full; ignb; stack; acts},
-           D {debut=d'; rest=r'; full=fu'; ignb=ignb'; stack = stack'; acts = acts'}
+           D {debut=d; rest; full; stack; acts},
+           D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
          ->
-         (*if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %b\n%!"
+         (*if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b\n%!"
             info print_final e print_final element (elt_pos pos e) (elt_pos pos element) (eq_pos d d')
-           (eq rest r') (eq full fu') (ignb=ignb');*)
+           (eq rest r') (eq full fu');*)
          (match
-           eq_pos d d', rest === r', full === fu', ignb=ignb', acts, acts' with
-           | true, Eq, Eq, true, act, acts' ->
+           eq_pos d d', rest === r', full === fu', acts, acts' with
+           | true, Eq, Eq, act, acts' ->
            if not (eq_closure acts acts') && !warn_merge then
        Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!" print_final
          element print_pos (debut pos element) print_pos pos (filename (fst pos));
@@ -784,13 +787,14 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
     if !debug_lvl > 2 then Printf.eprintf "read after blank line = %d col = %d (%d)\n%!" (line_num (fst pos_ab)) (snd pos_ab) id;
     let tbl = ref tbl in
     Hashtbl.iter (fun _ l -> List.iter (function
-    | D {debut; stack;acts; rest; full;ignb} as element ->
+    | D {debut; stack;acts; rest; full} as element ->
        match pre_rule rest with
-       | Next(_,_,ignb0,Term (_,f),g,rest0) ->
+       | Next(_,_,Term (_,f),g,rest0) ->
           (try
-             let (buf0, pos0), debut = match debut with
-                 None -> if ignb then pos, Some(pos, pos) else pos_ab, Some(pos, pos_ab)
-               | Some(p,p') -> (if ignb then pos else pos_ab), debut
+             let buf0, pos0 = pos_ab in
+             let debut = match debut with
+                 None -> Some(pos, pos_ab)
+               | _ -> debut
              in
              (*Printf.eprintf "lecture at %d %d\n%!" (line_num buf0) pos0;*)
              let a, buf, pos = f buf0 pos0 in
@@ -800,16 +804,17 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;ignb=ignb0;})
+               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
 
-       | Next(_,_,ignb0,Greedy(_,f),g,rest0) ->
+       | Next(_,_,Greedy(_,f),g,rest0) ->
           (try
-             let (buf0, pos0), debut = match debut with
-                 None -> if ignb then pos, Some(pos, pos) else pos_ab, Some(pos, pos_ab)
-               | Some(p,p') -> (if ignb then pos else pos_ab), debut
+             let buf0, pos0 = pos_ab in
+             let debut = match debut with
+                 None -> Some(pos, pos_ab)
+               | _ -> debut
              in
              if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf0) pos0;
              let a, buf, pos = f errpos blank (fst pos) (snd pos) buf0 pos0 in
@@ -819,7 +824,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;ignb=ignb0;})
+               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -834,18 +839,19 @@ type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
 let pop_final : type a. errpos -> a dep_pair_tbl -> position -> position -> a final -> a action -> unit =
   fun errpos dlr pos pos_ab element act ->
     match element with
-    | D {rest=rule; acts; full; debut; stack;ignb} ->
+    | D {rest=rule; acts; full; debut; stack} ->
        match pre_rule rule with
-       | Next(_,_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest) ->
-          let f = fix_begin (if ignb then pos else pos_ab) f in
+       | Next(_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest) ->
+         let f = fix_begin pos_ab f in
          (match pre_rule rest with
          | Empty (g) when debut <> None ->
+            (* FIXME: fix_begin g ? *)
             if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
             iter_rules (fun r ->
               let complete = protect errpos (function
                 | C {rest; acts=acts'; full; debut=d; stack} ->
                    let debut = if d = None then debut else d in
-                   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack;ignb=()} in
+                   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack} in
                      ignore(add_assq r c dlr)
                 | B acts' ->
                      let c = B (combine2 acts acts' g f) in
@@ -856,7 +862,7 @@ let pop_final : type a. errpos -> a dep_pair_tbl -> position -> position -> a fi
               List.iter complete !stack;
               act.a r (find_assq r dlr)) rules
          | _ ->
-             let c = C {rest; acts=combine1 acts f; full; debut; stack;ignb=()} in
+             let c = C {rest; acts=combine1 acts f; full; debut; stack} in
              iter_rules (fun r -> act.a r (add_assq r c dlr)) rules);
 
        | _ -> assert false
@@ -884,15 +890,15 @@ let rec one_prediction_production
  = fun errpos element elements dlr pos pos_ab c c' ->
    match element with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
-   | D {debut=i; acts; stack; rest; full;ignb} as element0 ->
+   | D {debut=i; acts; stack; rest; full} as element0 ->
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C %C)\n%!" print_final element0 c c';
      match pre_rule rest with
-     | Next(info,_,_,(NonTerm (_) | RefTerm(_)),_,_) when good (if ignb then c' else c) info ->
+     | Next(info,_,(NonTerm (_) | RefTerm(_)),_,_) when good c info ->
         let acts =
           { a = (fun rule stack ->
-            if good (if ignb then c' else c) (rule_info rule) then (
-              let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule; ignb} in
+            if good c (rule_info rule) then (
+              let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule} in
               let b = add "P" pos nouveau elements in
               if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
           }
@@ -909,10 +915,10 @@ let rec one_prediction_production
            match !a with None -> assert false | Some a -> a
        in
        let cc = C { debut = i;  acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
-                   rest = idtEmpty; full; ignb = () } in
+                   rest = idtEmpty; full } in
        let rule = r a in
        let stack' = add_assq rule cc dlr in
-       let nouveau = D {debut=i; acts = idt; stack = stack'; rest = rule; full = rule; ignb} in
+       let nouveau = D {debut=i; acts = idt; stack = stack'; rest = rule; full = rule } in
        let b = add "P" pos nouveau elements in
        if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
 
@@ -928,7 +934,7 @@ let rec one_prediction_production
           let complete = fun element ->
             match element with
             | C {debut=k; stack=els'; acts; rest; full} ->
-               if good (if ignb then c' else c) (rule_info rest) then begin
+               if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
                  let k' = debut_ab pos_ab element0 in
@@ -937,7 +943,8 @@ let rec one_prediction_production
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut=(if k = None then i else k); acts = x; stack=els'; rest; full;ignb} in
+                 let nouveau = D {debut=(if k = None then i else k); acts = x;
+                                  stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
                  if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
                end
@@ -949,14 +956,14 @@ let rec one_prediction_production
           else List.iter complete !stack;
          with Error -> ())
 
-     | Next(_,_,ignb',Test(s,f),g,rest) ->
+     | Next(_,_,Test(s,f),g,rest) ->
         (try
-          let j = if ignb then pos else pos_ab in
+          let j = pos_ab in
           if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element);
           let (a,b) = f (fst pos) (snd pos) (fst j) (snd j) in
           if b then begin
             if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-            let nouveau = D {debut=i; stack; rest; full;ignb=ignb';
+            let nouveau = D {debut=i; stack; rest; full;
                              acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
             let b = add "T" pos nouveau elements in
             if b then one_prediction_production errpos nouveau elements dlr  pos pos_ab c c'
@@ -976,7 +983,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
     let elements : a pos_tbl = Hashtbl.create 31 in
     let r0 : a rule = grammar_to_rule main in
     let s0 : (a, a) element list ref = ref [B Idt] in
-    let init = D {debut=None; acts = idt; stack=s0; rest=r0; full=r0;ignb=false} in
+    let init = D {debut=None; acts = idt; stack=s0; rest=r0; full=r0 } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let last_success = ref [] in
@@ -998,7 +1005,7 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
       if internal then begin
         try
           let found = ref false in
-          List.iter (function D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} as elt ->
+          List.iter (function D {stack=s1; rest=(Empty f,_); acts; full=r1} as elt ->
             if eq r0 r1 then (
               if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
               found := true;
@@ -1046,15 +1053,15 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
         raise (Parse_error (buf, pos, msgs))
     in
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let rec fn : type a.a final list -> bool * a = function
+    let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest=(Empty f,_); acts; ignb; full=r1} :: els when eq r0 r1 ->
+      | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
          (try
            let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
-           let rec gn : type a b.(unit -> bool * a) -> b -> (b,a) element list -> bool * a =
+           let rec gn : type a b.(unit -> a) -> b -> (b,a) element list -> a =
              fun cont x -> function
              | B (ls)::l ->
-               (try ignb, apply_pos ls (buf0, pos0) (!buf, !pos) x
+               (try apply_pos ls (buf0, pos0) (!buf, !pos) x
                 with Error -> gn cont x l)
              | C _:: l ->
                 gn cont x l
@@ -1071,15 +1078,15 @@ let parse_buffer_aux : type a.errpos -> bool -> a grammar -> blank -> buffer -> 
           | [] -> parse_error ()
           | ((b,p,b',p'), elts) :: rest ->
              try
-               let ignb, a = fn elts in
-               if ignb then (a, b, p) else (a, b', p')
+               let a = fn elts in
+               (a, b', p')
              with
                Not_found -> kn rest
         in kn !last_success
       else
         try
-          let ignb, a = fn (find_pos_tbl elements (buf0,pos0)) in
-          if ignb then (a, !buf, !pos) else (a, !buf', !pos')
+          let a = fn (find_pos_tbl elements (buf0,pos0)) in
+          (a, !buf', !pos')
         with Not_found -> parse_error ()
     in
     if !debug_lvl > 0 then
@@ -1168,7 +1175,7 @@ let error_message : (unit -> string) -> 'a grammar
       add_errmsg errpos buf pos msg;
       raise Error
     in
-    (j, [(Next(j,"error",false,Greedy (j, fn),Idt,idtEmpty),new_cell ())])
+    (j, [(Next(j,"error",Greedy (j, fn),Idt,idtEmpty),new_cell ())])
 
 let unset : string -> 'a grammar
   = fun msg ->
@@ -1181,11 +1188,11 @@ let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let ptr = ref g in
   let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [(Next(j,name,false,RefTerm (j, ptr),Idt, idtEmpty),new_cell ())]
+  mk_grammar [(Next(j,name,RefTerm (j, ptr),Idt, idtEmpty),new_cell ())]
 
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
   match snd p1 with
-  | [(Next(_,name,_,RefTerm(i,ptr),f,e),_)] ->
+  | [(Next(_,name,RefTerm(i,ptr),f,e),_)] ->
      (match f === Idt, e === idtEmpty with
      | Eq, Eq -> ptr := snd p2; Fixpoint.update i;
      | _ -> invalid_arg "set_grammar")
@@ -1194,7 +1201,7 @@ let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
 
 let grammar_name : type a.a grammar -> string = fun p1 ->
   match snd p1 with
-  | [(Next(_,name,_,_,_,(Empty _,_)),_)] -> name
+  | [(Next(_,name,_,_,(Empty _,_)),_)] -> name
   | _ -> new_name ()
 
 let char : ?name:string -> char -> 'a -> 'a grammar
@@ -1227,6 +1234,16 @@ let not_in_charset : ?name:string -> Charset.t -> unit grammar
     in
     test ~name (Charset.complement cs) fn
 
+let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
+  = fun ?name cs ->
+    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
+    let name = match name with None -> msg | Some n -> n in
+    let fn buf pos _ _ =
+      let c, buf', pos' = read buf pos in
+      if Charset.mem cs c then ((), false) else ((), true)
+    in
+    blank_test ~name (Charset.complement cs) fn
+
 let relax : unit grammar =
   test Charset.full (fun _ _ -> (),true)
 
@@ -1246,7 +1263,6 @@ let debug msg : unit grammar
 
 let string : ?name:string -> string -> 'a -> 'a grammar
   = fun ?name s a ->
-    if s = "" then invalid_arg "Earley.string";
     let name = match name with None -> s | Some n -> n in
     let fn buf pos =
       let buf = ref buf in
@@ -1259,7 +1275,7 @@ let string : ?name:string -> string -> 'a -> 'a grammar
       done;
       (a,!buf,!pos)
     in
-    solo ~name (Charset.singleton s.[0]) fn
+    solo ~name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
 
 let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
@@ -1270,7 +1286,7 @@ let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> '
   = fun fn set name -> solo ~name set fn
 *)
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
-  = fun fn set _ name -> solo ~name set fn
+  = fun fn set accept_empty name -> solo ~name ~accept_empty set fn
 
 let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), new_cell ())])
 
@@ -1377,12 +1393,12 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
     let i = Fixpoint.from_val (false, Charset.full) in
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let ignb = not new_blank_after in
-    let l1 = mk_grammar [next ~ignb l1 Idt (next ~ignb (test Charset.full (fun _ _ -> (), true))
+    let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                (Simple (fun _ a -> a)) idtEmpty)] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
       let (a,buf,pos) = internal_parse_buffer errpos l1 blank1 buf pos in
+      let (buf,pos) = if new_blank_after then blank1 buf pos else (buf,pos) in
       (a,buf,pos)
     in
     greedy_solo i fn
@@ -1391,7 +1407,7 @@ let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = mk_grammar [next ~ignb:true l1 Idt (next ~ignb:true (test Charset.full (fun _ _ -> (), true))
+    let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                                    (Simple (fun _ a -> a)) idtEmpty)] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
     let fn errpos blank buf pos _ _ =
@@ -1399,10 +1415,6 @@ let greedy : 'a grammar -> 'a grammar
       (a,buf,pos)
     in
     greedy_solo (fst l1) fn
-
-let ignore_next_blank : 'a grammar -> 'a grammar = fun g ->
-  mk_grammar [next ~ignb:true g Idt idtEmpty]
-
 
 let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
 

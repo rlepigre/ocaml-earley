@@ -12,17 +12,17 @@
   way of building parsers using an extention of OCaml's syntax.
 
   This software is governed by the CeCILL-B license under French law and
-  abiding by the rules of distribution of free software.  You  can  use, 
+  abiding by the rules of distribution of free software.  You  can  use,
   modify and/or redistribute the software under the terms of the CeCILL-
   B license as circulated by CEA, CNRS and INRIA at the following URL.
 
-      http://www.cecill.info 
+      http://www.cecill.info
 
   As a counterpart to the access to the source code and  rights to copy,
   modify and redistribute granted by the  license,  users  are  provided
   only with a limited warranty  and the software's author, the holder of
   the economic rights, and the successive licensors  have  only  limited
-  liability. 
+  liability.
 
   In this respect, the user's attention is drawn to the risks associated
   with loading, using, modifying and/or developing  or  reproducing  the
@@ -33,7 +33,7 @@
   encouraged to load and test  the  software's  suitability  as  regards
   their requirements in conditions enabling the security of  their  sys-
   tems and/or data to be ensured and, more generally, to use and operate
-  it in the same conditions as regards security. 
+  it in the same conditions as regards security.
 
   The fact that you are presently reading this means that you  have  had
   knowledge of the CeCILL-B license and that you accept its terms.
@@ -115,6 +115,10 @@ val in_charset : ?name:string -> charset -> char grammar
     the characters that are not in [cs]. *)
 val not_in_charset : ?name:string -> charset -> unit grammar
 
+(** [blank_not_in_charset cs] is the same as [not_in_charset] but
+    testing with blank_test. *)
+val blank_not_in_charset : ?name:string -> charset -> unit grammar
+
 (** [empty v] is a grammar that does not parse anything and returns  [v]
     as a semantic value. Note that this grammar never fails. *)
 val empty : 'a -> 'a grammar
@@ -126,18 +130,16 @@ val fail : unit -> 'a grammar
     of error messages potentially reported by [Parse_error]. *)
 val error_message : (unit -> string) -> 'a grammar
 
-(** [black_box fn cs name] is a grammar that uses the function  [fn]  to
-    parses the input buffer. [fn buf pos] should start parsing [buf]  at
-    position [pos], and return a couple containing the  new  buffer  and
-    position of the first unread character. The character set [cs]  must
-    contain at least the characters that are accepted as first character
-    by [fn], and no less. The [name] argument is used for  reference  in
-    error messages. Note that the functon [fn] should  use  [give_up ()]
-    in case of a parse error. *)
-(*
-val  black_box : (buffer -> int -> 'a * buffer * int) -> charset
-                   -> string -> 'a grammar
-*)
+(** [black_box fn cs accept_empty name] is a grammar that uses the
+    function [fn] to parses the input buffer. [fn buf pos] should
+    start parsing [buf] at position [pos], and return a couple
+    containing the new buffer and position of the first unread
+    character. The character set [cs] must contain at least the
+    characters that are accepted as first character by [fn], and no
+    less. The boolean [accept_empty] must be true if the function
+    accept the empty string.The [name] argument is used for reference
+    in error messages. Note that the functon [fn] should use [give_up
+    ()] in case of a parse error. *)
 val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
                    -> string -> 'a grammar
 
@@ -168,12 +170,6 @@ val blank_grammar : unit grammar -> blank -> blank
     last terminal. *)
 val change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
                       -> 'a grammar -> blank -> 'a grammar
-
-(** [ignore_next_blank gr] disables the use of the blank function before
-    the first terminal of [gr]. If the empty input is parsed using [gr],
-    blanks are ignored in the usual  way  ([ignore_next_blank empty]  is
-    equivalent to empty). *)
-val ignore_next_blank : 'a grammar -> 'a grammar
 
 (** {2 Support for recursive grammars} *)
 
@@ -377,6 +373,9 @@ val success_test : 'a -> 'a grammar
 
 (** a test that fails if there is no blank *)
 val with_blank_test : 'a -> 'a grammar
+
+(** a test that fails if there are some blank *)
+val no_blank_test : 'a -> 'a grammar
 
 (* an always succesful test. Useful to recover blank parsing in a rule like
    x - y? which does not parse blank after the rule is y parses nothing.
