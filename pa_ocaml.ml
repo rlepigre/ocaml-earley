@@ -1579,7 +1579,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       -> (loc_expr _loc e)
 
   | lazy_kw e:(expression_lvl (NoMatch, next_exp App)) when lvl = App ->
-     <:expr< lazy e >>
+     loc_expr _loc (Pexp_lazy e)
 
   | c:constructor no_dot when lvl = Atom ->
 	loc_expr _loc (pexp_construct(id_loc c _loc_c, None))
