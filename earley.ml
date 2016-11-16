@@ -268,13 +268,8 @@ module Fixpoint :
 
 open Input
 
-
-
-
 exception Error
-
-let give_up s = raise Error
-let error () = raise Error
+let give_up () = raise Error
 
 type blank = buffer -> int -> buffer * int
 
