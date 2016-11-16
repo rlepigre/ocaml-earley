@@ -140,7 +140,7 @@ module Fixpoint :
       sig
         type 'a fix =
           { mutable value  : 'a
-          ; compute        : unit -> 'a
+          ; compute        : unit -> unit
           ; mutable deps   : W.t option
           ; mutable is_ref : ('a fix * (unit -> 'a fix)) option
           ; ident          : int }
@@ -150,7 +150,7 @@ module Fixpoint :
       struct
         type 'a fix =
           { mutable value  : 'a
-          ; compute        : unit -> 'a
+          ; compute        : unit -> unit
           ; mutable deps   : W.t option
           ; mutable is_ref : ('a fix * (unit -> 'a fix)) option
           ; ident          : int }
@@ -190,25 +190,18 @@ module Fixpoint :
       | None     -> ()
       | Some tbl -> W.iter (fun v -> fn (Obj.magic v)) tbl
 
-    let new_deps () =
-      Some (W.create 31)
-
     let from_val value =
       { value
-      ; compute = (fun () -> value)
+      ; compute = ignore
       ; deps    = None
       ; is_ref  = None
       ; ident   = new_id () }
 
     let from_fun l fn =
       let rec res =
-        let compute () =
-          let x = fn l.value in
-          res.value <- x; x
-        in
         { value   = fn l.value
-        ; compute
-        ; deps    = new_deps ()
+        ; compute = (fun () -> res.value <- fn l.value)
+        ; deps    = Some (W.create 31)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -217,13 +210,9 @@ module Fixpoint :
 
     let from_fun2 l1 l2 fn =
       let rec res =
-        let compute () =
-          let x = fn l1.value l2.value in
-          res.value <- x; x
-        in
         { value   = fn l1.value l2.value
-        ; compute
-        ; deps    = new_deps ()
+        ; compute = (fun () -> res.value <- fn l1.value l2.value)
+        ; deps    = Some (W.create 31)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -239,13 +228,9 @@ module Fixpoint :
 
     let from_funl l a fn =
       let rec res =
-        let compute () =
-          let x = fold l a fn in
-          res.value <- x; x
-        in
         { value   = fold l a fn
-        ; compute
-        ; deps    = new_deps ()
+        ; compute = (fun () -> res.value <- fold l a fn)
+        ; deps    = Some (W.create 31)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -257,8 +242,8 @@ module Fixpoint :
       let a = fn !l in
       let rec res =
         { value   = a.value
-        ; compute = (fun () -> let x = (fn !l).value in res.value <- x; x)
-        ; deps    = new_deps ()
+        ; compute = (fun () -> res.value <- (fn !l).value)
+        ; deps    = Some (W.create 31)
         ; is_ref  = Some (a, fun () -> fn !l)
         ; ident   = new_id () }
       in
@@ -275,9 +260,8 @@ module Fixpoint :
             b.is_ref <- Some (a', f)
       end;
       let rec fn x =
-        let old = x.value in
-        let v = x.compute () in
-        if old <> v then iter_deps fn x
+        let old = x.value in x.compute ();
+        if old <> x.value then iter_deps fn x
       in fn b
   end
 
