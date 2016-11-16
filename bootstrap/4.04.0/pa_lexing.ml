@@ -378,10 +378,9 @@ let int_litteral : (string * char option) Earley.grammar =
       "[0][bB][01][01_]*";
       "[0-9][0-9_]*"]
      in
-  Earley.fsequence
+  Earley.sequence
     (EarleyStr.regexp ~name:"int" int_re (fun groupe  -> groupe 0))
-    (Earley.sequence num_suffix Earley.relax
-       (fun _default_0  -> fun _  -> fun i  -> (i, _default_0)))
+    num_suffix (fun i  -> fun _default_0  -> (i, _default_0))
   
 let float_litteral : (string * char option) Earley.grammar =
   let float_re =
@@ -389,10 +388,9 @@ let float_litteral : (string * char option) Earley.grammar =
       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"]
      in
-  Earley.fsequence
+  Earley.sequence
     (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
-    (Earley.sequence num_suffix Earley.relax
-       (fun _default_0  -> fun _  -> fun f  -> (f, _default_0)))
+    num_suffix (fun f  -> fun _default_0  -> (f, _default_0))
   
 let escaped_char : char Earley.grammar =
   let char_dec = "[0-9][0-9][0-9]"  in

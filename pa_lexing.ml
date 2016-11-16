@@ -381,7 +381,7 @@ let int_litteral : (string * char option) Earley.grammar =
     ; "[0][bB][01][01_]*"               (* Binary *)
     ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
   in
-  parser i:RE(int_re) num_suffix _:Earley.relax
+  parser i:RE(int_re) num_suffix
 
 (* Float litteral. *)
 let float_litteral : (string * char option) Earley.grammar =
@@ -389,7 +389,7 @@ let float_litteral : (string * char option) Earley.grammar =
     [ "[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*"
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
-  parser f:RE(float_re) num_suffix _:Earley.relax
+  parser f:RE(float_re) num_suffix
 
 (* Char litteral. *)
 
