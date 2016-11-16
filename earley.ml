@@ -54,12 +54,9 @@ module EqHashtbl :
     type ('a, 'b) t
 
     val create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t
-
-    val add : ('a, 'b) t -> 'a -> 'b -> unit
-
-    val find : ('a, 'b) t -> 'a -> 'b
-
-    val iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
+    val add    : ('a, 'b) t -> 'a -> 'b -> unit
+    val find   : ('a, 'b) t -> 'a -> 'b
+    val iter   : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
   end =
   struct
     type ('a, 'b) t =
@@ -129,13 +126,14 @@ let closure_eq x y = try x = y with _ -> x == y
 module Fixpoint :
   sig
     type 'a t
-    val from_val : 'a -> 'a t
-    val from_fun : 'a t -> ('a -> 'a) -> 'a t
+
+    val from_val  : 'a -> 'a t
+    val from_fun  : 'a t -> ('a -> 'a) -> 'a t
     val from_fun2 : 'a t -> 'a t -> ('a -> 'a -> 'a) -> 'a t
     val from_funl : 'a t list -> 'a -> ('a -> 'a -> 'a) -> 'a t
-    val from_ref : 'b ref -> ('b -> 'a t) -> 'a t
-    val update : 'a t -> unit
-    val force : 'a t -> 'a
+    val from_ref  : 'b ref -> ('b -> 'a t) -> 'a t
+    val update    : 'a t -> unit
+    val force     : 'a t -> 'a
   end =
   struct
     module rec H :
@@ -177,7 +175,7 @@ module Fixpoint :
     let _ = Sys.(set_signal sigint (Signal_handle (fun _ -> no_more_build := true)))
     let check () = if !no_more_build then invalid_arg "no more build"
     *)
-    let (&&&) x y = x && y (* strict and *)
+    let (&!) x y = x && y (* strict and *)
 
     let anon = Obj.magic
 
@@ -222,7 +220,7 @@ module Fixpoint :
           ident = new_id ()
         }
       in
-      if add_deps res l1 &&& add_deps res l2 then res.deps <- None;
+      if add_deps res l1 &! add_deps res l2 then res.deps <- None;
       res
 
     let rec fold l a f = match l with
@@ -238,7 +236,7 @@ module Fixpoint :
           ident = new_id ()
         }
       in
-      if List.fold_left (fun b x -> add_deps res x &&& b) true l then res.deps <- None;
+      if List.fold_left (fun b x -> add_deps res x &! b) true l then res.deps <- None;
       res
 
     let from_ref : 'b ref -> ('b -> 'a t) -> 'a t = fun (l:'b ref) fn ->
