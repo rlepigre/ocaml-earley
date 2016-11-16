@@ -326,7 +326,7 @@ and 'a dep_pair_tbl = assoc_cell list ref
 
 
 (* type de la table de Earley *)
-type ('a,'b,'c,'r,'i) cell = {
+type ('a,'b,'c,'r) cell = {
   debut : (position * position) option; (* second position is after blank *)
   stack : ('c, 'r) element list ref;
   acts  : 'a;
@@ -334,11 +334,11 @@ type ('a,'b,'c,'r,'i) cell = {
   full  : 'c rule }
 
 and (_,_) element =
-  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r,unit) cell -> ('a,'r) element
+  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
   | B : ('a -> 'b) pos -> ('a,'b) element
   | A : ('a, 'a) element
 
-and _ final   = D : (('b -> 'c), 'b, 'c, 'r, bool) cell -> 'r final
+and _ final   = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
 
 (* si t : table et t.(j) = (i, R, R' R) cela veut dire qu'entre i et j on a parsé
    la règle R' et qu'il reste R à parser. On a donc toujours
