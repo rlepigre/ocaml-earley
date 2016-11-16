@@ -1266,9 +1266,6 @@ let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
     in
     blank_test ~name (Charset.complement cs) fn
 
-let relax : unit grammar =
-  test Charset.full (fun _ _ -> (),true)
-
 let any : char grammar
   = let fn buf pos =
       let c', buf', pos' = read buf pos in

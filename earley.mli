@@ -384,26 +384,6 @@ val with_blank_test : 'a -> 'a grammar
 (** a test that fails if there are some blank *)
 val no_blank_test : 'a -> 'a grammar
 
-(* an always succesful test. Useful to recover blank parsing in a rule like
-   x - y? which does not parse blank after the rule is y parses nothing.
-   x - y? relax works as expected *)
-val relax : unit grammar
-
-
-
-
-(** The too previous function allow for recursive grammar, but left recursion
-    is forbidden and triggers a [Failure] exception.
-
-    For instance the following code is incorrect:
-
-    {[
-    let p = declare_grammar ()
-    let p' = sequence (sequence (option (string "a" ["a"])) p) (string "b" "b") (fun l x -> x::l)
-    let _ = set_grammar p p'
-    ]}
-*)
-
 (** [grammar_family to_str name] returns a pair [(gs, set_gs)], where [gs]
     is a finite family of grammars parametrized by a value of type ['a]. A name
     [name] is to be provided for the family, and an optional function [to_str]
