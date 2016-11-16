@@ -29,7 +29,7 @@ PP=
 all: pa_ocaml $(B)/earley_ocaml.cmxa
 endif
 
-MAJOR = 20161011
+MAJOR = 20161115
 MINOR = alpha
 VERSION = $(MAJOR).$(MINOR)
 ASCII =
@@ -180,9 +180,10 @@ distclean: clean
 URLSSH=lama.univ-savoie.fr:WWW
 URL=https://lama.univ-savoie.fr/~raffalli/earley
 
-#tar: clean
-#	cd ../decap_tar; darcs pull; make distclean; make; make; make distclean
-#	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,decap_tar,earley-$(VERSION),"  decap_tar
+tar: clean
+	cd ../earley_ocaml_tar; darcs pull; make distclean; make; make; make distclean
+	cd ..; tar cvfz earley_ocaml-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_ocaml_tar,earley_ocaml-$(VERSION),"  earley_ocaml_tar
+
 #
 #distrib: clean tar doc
 #	darcs push lama.univ-savoie.fr:WWW/repos/earley/
