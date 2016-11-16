@@ -55,3 +55,11 @@ clean:
 
 distclean: clean
 	rm -f *~
+
+MAJOR = 20161116
+MINOR = alpha
+VERSION = $(MAJOR).$(MINOR)
+
+tar: clean
+	cd ../earley_tar; darcs pull; make distclean; make; make distclean
+	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_tar,earley-$(VERSION),"  earley_tar
