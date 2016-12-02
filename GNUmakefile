@@ -60,6 +60,15 @@ MAJOR = 20161116
 MINOR = alpha
 VERSION = $(MAJOR).$(MINOR)
 
+URLSSH=lama.univ-savoie.fr:WWW
+URL=https://lama.univ-savoie.fr/~raffalli/earley
+
 tar: clean
 	cd ../earley_tar; darcs pull; make distclean; make; make distclean
 	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_tar,earley-$(VERSION),"  earley_tar
+
+distrib: tar doc
+	darcs push lama.univ-savoie.fr:WWW/repos/earley/
+	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
+	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
+	rsync -r earley.docdir/ $(URLSSH)/earley.doc/

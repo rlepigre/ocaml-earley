@@ -265,6 +265,72 @@ module Fixpoint :
       in fn b
   end
 
+module Container : sig
+  type container
+  type 'a table
+
+  val new_container : unit -> container
+  val add : 'a table -> container -> 'a -> unit
+  val find : 'a table -> container -> 'a
+  val reset : 'a table -> unit
+  val new_table : unit -> 'a table
+
+end = struct
+
+  type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
+
+  let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
+    let open Obj in
+    if not (is_block (repr r1) && is_block (repr r2)) then
+      invalid_arg "block only for ===";
+    if repr r1 == repr r2 then magic Eq else Neq
+
+  type clist =
+    | Cons : 'a table * 'a * clist -> clist
+    | Nil  : clist
+
+  and container = clist ref
+
+  and 'a table = 'a option * clist ref list ref
+
+  let new_container () : container = ref Nil
+
+  let new_table : type a.a option -> a table = fun a -> (a, ref [])
+
+  let add : type a. a table -> container -> a -> unit = fun t c a ->
+    if List.memq c !(snd t) then (
+      let rec fn = function
+        | Nil -> assert false
+        | Cons(t',x,r) ->
+           match t === t' with
+           | Eq -> Cons(t',a,r)
+           | Neq -> Cons(t',x,fn r)
+      in c:= fn !c
+    ) else (
+      c := Cons(t,a,!c);
+      snd t := c :: !(snd t))
+
+   let rec find_aux : type a. a table -> clist -> a = fun t c ->
+     match c with
+     | Nil -> raise Not_found
+     | Cons(t',x,r) ->
+        match t === t' with
+        | Eq  -> x
+        | Neq -> find_aux t r
+
+   let find : type a. a table -> container -> a = fun t c -> find_aux t !c
+
+   let reset : type a. a table -> unit = fun t ->
+     let rec fn = function
+       | Nil -> invalid_arg "reset"
+       | Cons(t',x,r) ->
+          match t === t' with Eq -> r | Neq -> Cons(t',x,fn r)
+     in
+     List.iter (fun l -> l := fn !l) !(snd t)
+
+   let new_table : type a. unit -> a table = fun () -> new_table None
+
+end
 
 open Input
 
@@ -277,7 +343,13 @@ let no_blank str pos = str, pos
 
 type info = bool * Charset.t
 
+(* an untyped association list *)
 type assoc_cell = { mutable alr : (assoc_cell list ref * Obj.t) list }
+(* and the type of the key *)
+type 'a dep_pair_tbl = assoc_cell list ref
+
+let new_cell =
+  (fun () -> { alr = [] })
 
 type position = buffer * int
 
@@ -288,139 +360,15 @@ type errpos = {
 
 let init_errpos buf pos = { position = (buf, pos); messages = [] }
 
+(* type for action with or without position and its combinators *)
 type _ pos =
   | Idt : ('a -> 'a) pos
   | Simple : 'a -> 'a pos
   | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
   | WithEPos : (buffer -> int -> 'a) -> 'a pos
 
-(** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
-    the type of the semantics of the grammar. For example, parsing using a
-    grammar of type [int grammar] will produce a value of type [int]. *)
-type 'a grammar = info Fixpoint.t * 'a rule list
-
-and _ symbol =
-  | Term : Charset.t * (buffer -> int -> 'a * buffer * int) -> 'a symbol
-  (** terminal symbol just read the input buffer *)
-  | Greedy : info Fixpoint.t * (errpos -> blank -> buffer -> int -> buffer -> int -> 'a * buffer * int) -> 'a symbol
-  (** terminal symbol just read the input buffer *)
-  | Test : Charset.t * (buffer -> int -> buffer -> int -> 'a * bool) -> 'a symbol
-  (** test *)
-  | NonTerm : info Fixpoint.t * 'a rule list -> 'a symbol
-  (** non terminal *)
-  | RefTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
-  (** non terminal trough a reference to define recursive rule lists *)
-
-(** BNF rule. *)
-and _ prerule =
-  | Empty : 'a pos -> 'a prerule
-  (** Empty rule. *)
-  | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
-  (** Dependant rule *)
-  | Next : info Fixpoint.t * string * 'a symbol * ('a -> 'b) pos * ('b -> 'c) rule -> 'c prerule
-  (** Sequence of a symbol and a rule. then bool is to ignore blank after symbol. *)
-
-and 'a rule = ('a prerule * assoc_cell)
-
-and 'a dep_pair_tbl = assoc_cell list ref
-
-
-(* type de la table de Earley *)
-type ('a,'b,'c,'r) cell = {
-  debut : (position * position) option; (* second position is after blank *)
-  stack : ('c, 'r) element list ref;
-  acts  : 'a;
-  rest  : 'b rule;
-  full  : 'c rule }
-
-and (_,_) element =
-  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
-  | B : ('a -> 'b) pos -> ('a,'b) element
-  | A : ('a, 'a) element
-
-and _ final   = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
-
-(* si t : table et t.(j) = (i, R, R' R) cela veut dire qu'entre i et j on a parsé
-   la règle R' et qu'il reste R à parser. On a donc toujours
-   i <= j et R suffix de R' R (c'est pour ça que j'ai écris R' R)
-*)
-
-type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
-
-let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
-  if Obj.repr r1 == Obj.repr r2 then Obj.magic Eq else Neq
-
-let eq_closure : type a b. a -> b -> bool =
-  fun f g ->
-    let open Obj in
-    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
-    let adone = ref [] in
-    let rec fneq f g =
-      f == g ||
-        match is_int f, is_int g with
-        | true, true -> f = g
-        | false, true | true, false -> false
-        | false, false ->
-           (*      if !debug_lvl > 10 then Printf.eprintf "*%!";*)
-           let ft = tag f and gt = tag g in
-           if ft = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq (field f 0) g)
-           else if gt = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq f (field g 0))
-           else if ft = custom_tag || gt = custom_tag then f = g
-           else if ft <> gt then false
-           else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
-           if ft = string_tag || ft = double_tag || ft = double_array_tag then f = g
-           else if ft = abstract_tag || ft = out_of_heap_tag || ft = no_scan_tag then f == g
-           else if ft =  infix_tag then (
-             Printf.eprintf "INFIX TAG\n%!"; (* FIXME *)
-             assert false;)
-           else
-               size f == size g &&
-               let rec gn i =
-                 if i < 0 then true
-                 else fneq (field f i) (field g i) && gn (i - 1)
-               in
-               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
-                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
-                 (adone := (f,g)::!adone;
-                  let r = gn (size f - 1) in
-                  r)))
-
-    in fneq (repr f) (repr g)
-
-
-let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
-
-let eq_pos p1 p2 = match p1, p2 with
-  | Some((buf,pos),_), Some((buf',pos'),_) -> buffer_equal buf buf' && pos = pos'
-  | None, None -> true
-  | _ -> false
-
-
-let eq_D (D {debut; rest; full; stack})
-         (D {debut=d'; rest=r'; full=fu'; stack = stack'}) =
-  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack'); true)
-
-let eq_C c1 c2 = eq c1 c2 ||
-  match c1, c2 with
-    (C {debut; rest; full; stack; acts},
-     C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
-      eq_pos debut d' && eq rest r' && eq full fu'
-      && (assert (eq stack stack'); eq_closure acts acts')
-  | (B acts, B acts') -> eq_closure acts acts'
-  | _ -> false
-
-
-let new_cell(*, is_unset, unset*) =
-  (fun () -> { alr = [] })
-
-
-let idt = fun x -> x
-let idtCell = new_cell ()
-let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
+(* only one identity to benefit from physical equality *)
+let idt x = x
 
 let apply_pos: type a b.a pos -> position -> position -> a =
   fun f p p' ->
@@ -491,6 +439,139 @@ let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos=
     | WithPos g, WithEPos h  -> WithPos(fun b p b' p' -> f (g b p b' p') (h b' p'))
     | WithEPos g, WithEPos h  -> WithEPos(fun b' p' -> f (g b' p') (h b' p'))
 
+(** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
+    the type of the semantics of the grammar. For example, parsing using a
+    grammar of type [int grammar] will produce a value of type [int]. *)
+type 'a input = buffer -> int -> 'a * buffer * int
+type 'a input2 = buffer -> int -> 'a input
+type 'a test2  = buffer -> int -> buffer -> int -> 'a * bool
+
+type 'a grammar = info Fixpoint.t * 'a rule list
+
+and _ symbol =
+  | Term : Charset.t * 'a input -> 'a symbol
+  (** terminal symbol just read the input buffer *)
+  | Greedy : info Fixpoint.t * (errpos -> blank -> 'a input2) -> 'a symbol
+  (** terminal symbol just read the input buffer *)
+  | Test : Charset.t * 'a test2 -> 'a symbol
+  (** test *)
+  | NonTerm : info Fixpoint.t * 'a rule list -> 'a symbol
+  (** non terminal *)
+  | RefTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
+  (** non terminal trough a reference to define recursive rule lists *)
+
+(** BNF rule. *)
+and _ prerule =
+  | Empty : 'a pos -> 'a prerule
+  (** Empty rule. *)
+  | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
+  (** Dependant rule *)
+  | Next : info Fixpoint.t * string * 'a symbol * ('a -> 'b) pos * ('b -> 'c) rule -> 'c prerule
+  (** Sequence of a symbol and a rule. then bool is to ignore blank after symbol. *)
+
+(* Each rule old assoc cell to associate data to the rule in O(1).
+   the type of the associated data is not known ... *)
+and 'a rule = ('a prerule * assoc_cell)
+
+
+(* type paragé par les deux types ci-dessous *)
+type ('a,'b,'c,'r) cell = {
+  debut : (position * position) option; (* position in the buffer, before and after blank *)
+  stack : ('c, 'r) element list ref;    (* tree of stack of what should be do after reading
+                                           the rule *)
+  acts  : 'a;
+  rest  : 'b rule;
+  full  : 'c rule }
+
+(* next element of an earley stack *)
+and (_,_) element =
+  (* cons cell of the stack *)
+  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
+  (* end of the stack *)
+  | B : ('a -> 'b) pos -> ('a,'b) element
+
+(* tête de pile de earley *)
+type _ final = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
+
+(* si t : table et t.(j) = (i, R, R' R) cela veut dire qu'entre i et j on a parsé
+   la règle R' et qu'il reste R à parser. On a donc toujours
+   i <= j et R suffix de R' R (c'est pour ça que j'ai écris R' R)
+*)
+
+type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
+
+let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
+  if Obj.repr r1 == Obj.repr r2 then Obj.magic Eq else Neq
+
+(* a comparison for closure, that is a bit stronger than == *)
+(* TODO: check if === is not as good *)
+let eq_closure : type a b. a -> b -> bool =
+  fun f g ->
+    let open Obj in
+    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
+    let adone = ref [] in
+    let rec fneq f g =
+      f == g ||
+        match is_int f, is_int g with
+        | true, true -> f = g
+        | false, true | true, false -> false
+        | false, false ->
+           (*      if !debug_lvl > 10 then Printf.eprintf "*%!";*)
+           let ft = tag f and gt = tag g in
+           if ft = forward_tag then (
+             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
+             fneq (field f 0) g)
+           else if gt = forward_tag then (
+             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
+             fneq f (field g 0))
+           else if ft = custom_tag || gt = custom_tag then f = g
+           else if ft <> gt then false
+           else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
+           if ft = string_tag || ft = double_tag || ft = double_array_tag then f = g
+           else if ft = abstract_tag || ft = out_of_heap_tag || ft = no_scan_tag then f == g
+           else if ft =  infix_tag then (
+             Printf.eprintf "INFIX TAG\n%!"; (* FIXME *)
+             assert false;)
+           else
+               size f == size g &&
+               let rec gn i =
+                 if i < 0 then true
+                 else fneq (field f i) (field g i) && gn (i - 1)
+               in
+               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
+                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
+                 (adone := (f,g)::!adone;
+                  let r = gn (size f - 1) in
+                  r)))
+
+    in fneq (repr f) (repr g)
+
+let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
+
+let eq_pos p1 p2 = match p1, p2 with
+  | Some((buf,pos),_), Some((buf',pos'),_) -> buffer_equal buf buf' && pos = pos'
+  | None, None -> true
+  | _ -> false
+
+
+let eq_D (D {debut; rest; full; stack})
+         (D {debut=d'; rest=r'; full=fu'; stack = stack'}) =
+  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack'); true)
+
+let eq_C c1 c2 = eq c1 c2 ||
+  match c1, c2 with
+    (C {debut; rest; full; stack; acts},
+     C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
+      eq_pos debut d' && eq rest r' && eq full fu'
+      && (assert (eq stack stack'); eq_closure acts acts')
+  | (B acts, B acts') -> eq_closure acts acts'
+  | _ -> false
+
+
+let idtCell = new_cell ()
+let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
+
+
 let new_name =
   let c = ref 0 in
   (fun () ->
@@ -514,6 +595,7 @@ let any = Fixpoint.from_val (true, Charset.full)
 
 let pre_rule (x,_) = x
 
+(* managment of info = accept empty + charset accepted as first char *)
 let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
   match pre_rule r with
   | Next(i,_,_,_,_) -> i
@@ -542,6 +624,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
   let g = List.map rule_info g in
   Fixpoint.from_funl g (false, Charset.empty) or_info
 
+(* affichage *)
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
     match pre_rule rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
@@ -579,31 +662,31 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
      if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
   | B _ ->
     Printf.fprintf ch "B"
-  | A ->
-    Printf.fprintf ch "A
-"
 
+(* heart of earley: stack managment *)
 type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) ref -> 'b dep_pair
 
+(* dlr are table under construction storing the stack to continue parsing
+   waiting since current position. Thefore dlr are reset when we avance the position.
+   Because of Greedy, a few dlr may exist at the same time.
+
+   In fact,
+   - the stack is stored in a table inside the rule
+   - the dlr is a reference on a list used as a key in this table
+   - dlr points to all the table inside rules that references it
+ *)
 let find (_,c) dlr =
   Obj.magic (List.assq dlr c.alr)
 
 let add (_,c) p dlr =
-(*  try
-    let _ = List.assq dlr c.alr in
-    assert false
-  with
-    Not_found ->*)
-      dlr := c::!dlr; c.alr <- (dlr,Obj.repr p)::c.alr
+  assert (not (List.memq c !dlr));
+  dlr := c::!dlr;
+  c.alr <- (dlr,Obj.repr p)::c.alr
 
 let unset dlr =
-  dlr :=
-    List.filter (fun c ->
-      let l = List.filter (fun (d,_) -> d != dlr) c.alr in
-      let keep = l <> [] in
-      c.alr <- l;
-      keep
-    ) !dlr
+  List.iter (fun c ->
+    let l = List.filter (fun (d,_) -> d != dlr) c.alr in
+    c.alr <- l) !dlr
 
 let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
@@ -615,16 +698,17 @@ let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -
     with Not_found ->
       add r (P(r,ref [], ref f)) dlr
 
+(* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
   fun r el dlr ->
     try match find r dlr with
-      P(r',ptr,g) ->
+      P(r',stack,g) ->
         match r === r' with
         | Eq ->
-           if not (List.exists (eq_C el) !ptr) then (
+           if not (List.exists (eq_C el) !stack) then (
              if !debug_lvl > 3 then
                Printf.eprintf "add stack %a ==> %a\n%!" print_rule r print_element el;
-             ptr := el :: !ptr; !g el); ptr
+             stack := el :: !stack; !g el); stack
         | _ -> assert false
     with Not_found ->
       if !debug_lvl > 3 then
@@ -634,9 +718,9 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
     try match find r dlr with
-      P(r',ptr,g) ->
+      P(r',stack,g) ->
         match r === r' with
-        | Eq -> ptr
+        | Eq -> stack
         | _ -> assert false
     with Not_found ->
       let res = ref [] in add r (P(r,res, ref (fun el -> ()))) dlr; res
@@ -693,9 +777,9 @@ let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 let debut_ab pos = function D { debut } -> match debut with None -> pos | Some (_,p) -> p
-let debut' : type a b.position -> (a,b) element -> position = fun pos -> function A -> pos | B _ -> pos
+let debut' : type a b.position -> (a,b) element -> position = fun pos -> function  B _ -> pos
   | C { debut } -> match debut with None -> pos | Some (p,_) -> p
-let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> function A -> pos | B _ -> pos
+let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> function B _ -> pos
   | C { debut } -> match debut with None -> pos | Some (_,p) -> p
 
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
@@ -713,13 +797,13 @@ let merge_acts o n =
 
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
-  fun info pos element elements ->
-    let deb = debut pos element in
+  fun info pos_final element elements ->
+    let deb = debut pos_final element in
     let oldl = try find_pos_tbl elements deb with Not_found -> [] in
     let rec fn = function
       | [] ->
          if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
-           (char_pos deb) (char_pos pos);
+           (char_pos deb) (char_pos pos_final);
         add_pos_tbl elements deb (element :: oldl); true
       | e::es ->
          (match e, element with
@@ -727,16 +811,20 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
          ->
          (*if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b\n%!"
-            info print_final e print_final element (elt_pos pos e) (elt_pos pos element) (eq_pos d d')
+            info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu');*)
          (match
            eq_pos d d', rest === r', full === fu', acts, acts' with
            | true, Eq, Eq, act, acts' ->
-           if not (eq_closure acts acts') && !warn_merge then
-       Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!" print_final
-         element print_pos (debut pos element) print_pos pos (filename (fst pos));
-           assert(stack == stack' || (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!" info print_final element (elt_pos pos element) (char_pos pos); false));
-           false
+              if not (eq_closure acts acts') && !warn_merge then
+                Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
+                  print_final element print_pos (debut pos_final element)
+                  print_pos pos_final (filename (fst pos_final));
+              assert(stack == stack' ||
+                       (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!"
+                          info print_final element (elt_pos pos_final element)
+                          (char_pos pos_final); false));
+              false
           | _ ->
             fn es))
     in fn oldl
@@ -751,7 +839,7 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
         adone := el :: !adone;
         match el with
         | C {stack} -> fn (cast_elements !stack)
-        | A -> () | B _   -> ()
+        | B _   -> ()
       end) els
   in
   match el with D {stack} -> fn (cast_elements !stack); !res
@@ -846,37 +934,6 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
    ayant la règle donnée *)
 type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
 
-let pop_final : type a. errpos -> a dep_pair_tbl -> position -> position -> a final -> a action -> unit =
-  fun errpos dlr pos pos_ab element act ->
-    match element with
-    | D {rest=rule; acts; full; debut; stack} ->
-       match pre_rule rule with
-       | Next(_,_,(NonTerm(_,rules) | RefTerm(_,{contents = rules})),f,rest) ->
-         let f = fix_begin pos_ab f in
-         (match pre_rule rest with
-         | Empty (g) when debut <> None ->
-            (* FIXME: fix_begin g ? *)
-            if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element;
-            iter_rules (fun r ->
-              let complete = protect errpos (function
-                | C {rest; acts=acts'; full; debut=d; stack} ->
-                   let debut = if d = None then debut else d in
-                   let c = C {rest; acts=combine2 acts acts' g f; full; debut; stack} in
-                     ignore(add_assq r c dlr)
-                | B acts' ->
-                     let c = B (combine2 acts acts' g f) in
-                     ignore (add_assq r c dlr)
-                | _ -> assert false)
-              in
-              assert (!stack <> []);
-              List.iter complete !stack;
-              act.a r (find_assq r dlr)) rules
-         | _ ->
-             let c = C {rest; acts=combine1 acts f; full; debut; stack} in
-             iter_rules (fun r -> act.a r (add_assq r c dlr)) rules);
-
-       | _ -> assert false
-
 let taille_tables els forward =
   let adone = ref [] in
   let res = ref 0 in
@@ -897,15 +954,15 @@ let good c i =
    c'est une fonction récursive *)
 let rec one_prediction_production
  : type a. errpos -> a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char -> char ->  unit
- = fun errpos element elements dlr pos pos_ab c c' ->
-   match element with
+ = fun errpos element0 elements dlr pos pos_ab c c' ->
+   match element0 with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
-   | D {debut=i; acts; stack; rest; full} as element0 ->
+   | D {debut; acts; stack; rest; full} ->
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C %C)\n%!" print_final element0 c c';
      match pre_rule rest with
-     | Next(info,_,(NonTerm (_) | RefTerm(_)),_,_) when good c info ->
-        let acts =
+     | Next(info,_,(NonTerm (_,rules) | RefTerm(_,{contents = rules})),f,rest2) when good c info ->
+        let act =
           { a = (fun rule stack ->
             if good c (rule_info rule) then (
               let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule} in
@@ -913,9 +970,28 @@ let rec one_prediction_production
               if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
           }
         in
-        pop_final errpos dlr pos pos_ab element acts
-
-
+        let f = fix_begin pos_ab f in
+        begin match pre_rule rest2 with
+        | Empty (g) when debut <> None ->
+                   (* FIXME: fix_begin g ? *)
+           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
+          iter_rules (fun r ->
+            let complete = protect errpos (function
+              | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
+                 let debut = if d = None then debut else d in
+                 let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack} in
+                 ignore(add_assq r c dlr)
+              | B acts' ->
+                 let c = B (combine2 acts acts' g f) in
+                 ignore (add_assq r c dlr))
+            in
+            assert (!stack <> []);
+            List.iter complete !stack;
+            act.a r (find_assq r dlr)) rules
+        | _ ->
+           let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack} in
+           iter_rules (fun r -> act.a r (add_assq r c dlr)) rules
+        end
      | Dep(r) ->
        if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
        let a =
@@ -924,11 +1000,11 @@ let rec one_prediction_production
          with Exit ->
            match !a with None -> assert false | Some a -> a
        in
-       let cc = C { debut = i;  acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
+       let cc = C { debut;  acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
                    rest = idtEmpty; full } in
        let rule = r a in
        let stack' = add_assq rule cc dlr in
-       let nouveau = D {debut=i; acts = idt; stack = stack'; rest = rule; full = rule } in
+       let nouveau = D {debut; acts = idt; stack = stack'; rest = rule; full = rule } in
        let b = add "P" pos nouveau elements in
        if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
 
@@ -936,8 +1012,8 @@ let rec one_prediction_production
      | Empty(a) ->
         (try
            if !debug_lvl > 1 then
-             Printf.eprintf "action for completion of %a =>" print_final element;
-           let i0 = debut_ab pos_ab element in
+             Printf.eprintf "action for completion of %a =>" print_final element0;
+           let i0 = debut_ab pos_ab element0 in
            let x = try acts (apply_pos a i0 pos)
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
@@ -953,27 +1029,26 @@ let rec one_prediction_production
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut=(if k = None then i else k); acts = x;
+                 let nouveau = D {debut=(if k = None then debut else k); acts = x;
                                   stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
                  if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
                end
             | B _ -> ()
-            | _ -> assert false
           in
           let complete = protect errpos complete in
-          if i = None then memo_assq full dlr complete
+          if debut = None then memo_assq full dlr complete
           else List.iter complete !stack;
          with Error -> ())
 
      | Next(_,_,Test(s,f),g,rest) ->
         (try
           let j = pos_ab in
-          if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element);
+          if !debug_lvl > 1 then Printf.eprintf "testing at %d\n%!" (elt_pos pos element0);
           let (a,b) = f (fst pos) (snd pos) (fst j) (snd j) in
           if b then begin
             if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-            let nouveau = D {debut=i; stack; rest; full;
+            let nouveau = D {debut; stack; rest; full;
                              acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
             let b = add "T" pos nouveau elements in
             if b then one_prediction_production errpos nouveau elements dlr  pos pos_ab c c'
@@ -1052,6 +1127,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
      if l = [] then continue := false else prediction_production "L" l;
     done;
     unset !dlr; (* don't forget final cleaning of assoc cell !! *)
+    dlr := ref []; (* useless but clean *)
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
       if internal then
@@ -1074,7 +1150,6 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
                 with Error -> gn cont x l)
              | C _:: l ->
                 gn cont x l
-             | _::l -> assert false
              | [] -> cont ()
            in
            gn (fun () -> fn els) x !s1
