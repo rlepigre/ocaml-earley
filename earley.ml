@@ -265,39 +265,39 @@ module Fixpoint :
       in fn b
   end
 
+type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
+
+let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
+  let open Obj in
+  (* if not (is_block (repr r1) && is_block (repr r2)) then
+     invalid_arg "block only for ===";*) (* FIXME *)
+  if repr r1 == repr r2 then magic Eq else Neq
+
 module Container : sig
-  type container
+  type t
   type 'a table
 
-  val new_container : unit -> container
-  val add : 'a table -> container -> 'a -> unit
-  val find : 'a table -> container -> 'a
+  val create : unit -> t
+  val add : 'a table -> t -> 'a -> unit
+  val find : 'a table -> t -> 'a
   val reset : 'a table -> unit
-  val new_table : unit -> 'a table
+  val create_table : unit -> 'a table
 
 end = struct
-
-  type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
-
-  let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
-    let open Obj in
-    if not (is_block (repr r1) && is_block (repr r2)) then
-      invalid_arg "block only for ===";
-    if repr r1 == repr r2 then magic Eq else Neq
 
   type clist =
     | Cons : 'a table * 'a * clist -> clist
     | Nil  : clist
 
-  and container = clist ref
+  and t = clist ref
 
   and 'a table = 'a option * clist ref list ref
 
-  let new_container () : container = ref Nil
+  let create () : t = ref Nil
 
-  let new_table : type a.a option -> a table = fun a -> (a, ref [])
+  let create_table : type a.a option -> a table = fun a -> (a, ref [])
 
-  let add : type a. a table -> container -> a -> unit = fun t c a ->
+  let add : type a. a table -> t -> a -> unit = fun t c a ->
     if List.memq c !(snd t) then (
       let rec fn = function
         | Nil -> assert false
@@ -318,7 +318,7 @@ end = struct
         | Eq  -> x
         | Neq -> find_aux t r
 
-   let find : type a. a table -> container -> a = fun t c -> find_aux t !c
+   let find : type a. a table -> t -> a = fun t c -> find_aux t !c
 
    let reset : type a. a table -> unit = fun t ->
      let rec fn = function
@@ -326,9 +326,10 @@ end = struct
        | Cons(t',x,r) ->
           match t === t' with Eq -> r | Neq -> Cons(t',x,fn r)
      in
-     List.iter (fun l -> l := fn !l) !(snd t)
+     List.iter (fun l -> l := fn !l) !(snd t);
+     snd t := []
 
-   let new_table : type a. unit -> a table = fun () -> new_table None
+   let create_table : type a. unit -> a table = fun () -> create_table None
 
 end
 
@@ -342,14 +343,6 @@ type blank = buffer -> int -> buffer * int
 let no_blank str pos = str, pos
 
 type info = bool * Charset.t
-
-(* an untyped association list *)
-type assoc_cell = { mutable alr : (assoc_cell list ref * Obj.t) list }
-(* and the type of the key *)
-type 'a dep_pair_tbl = assoc_cell list ref
-
-let new_cell =
-  (fun () -> { alr = [] })
 
 type position = buffer * int
 
@@ -471,7 +464,7 @@ and _ prerule =
 
 (* Each rule old assoc cell to associate data to the rule in O(1).
    the type of the associated data is not known ... *)
-and 'a rule = ('a prerule * assoc_cell)
+and 'a rule = ('a prerule * Container.t)
 
 
 (* type paragé par les deux types ci-dessous *)
@@ -498,10 +491,6 @@ type _ final = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
    i <= j et R suffix de R' R (c'est pour ça que j'ai écris R' R)
 *)
 
-type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
-
-let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
-  if Obj.repr r1 == Obj.repr r2 then Obj.magic Eq else Neq
 
 (* a comparison for closure, that is a bit stronger than == *)
 (* TODO: check if === is not as good *)
@@ -568,7 +557,7 @@ let eq_C c1 c2 = eq c1 c2 ||
   | _ -> false
 
 
-let idtCell = new_cell ()
+let idtCell = Container.create ()
 let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
 
 
@@ -584,7 +573,7 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,
   | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,NonTerm(i,g),Idt,idtEmpty),new_cell ())
+     (Next(i,name,NonTerm(i,g),Idt,idtEmpty), Container.create ())
 
 let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
@@ -666,42 +655,22 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
 (* heart of earley: stack managment *)
 type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) ref -> 'b dep_pair
 
-(* dlr are table under construction storing the stack to continue parsing
-   waiting since current position. Thefore dlr are reset when we avance the position.
-   Because of Greedy, a few dlr may exist at the same time.
-
-   In fact,
-   - the stack is stored in a table inside the rule
-   - the dlr is a reference on a list used as a key in this table
-   - dlr points to all the table inside rules that references it
- *)
-let find (_,c) dlr =
-  Obj.magic (List.assq dlr c.alr)
-
-let add (_,c) p dlr =
-  assert (not (List.memq c !dlr));
-  dlr := c::!dlr;
-  c.alr <- (dlr,Obj.repr p)::c.alr
-
-let unset dlr =
-  List.iter (fun c ->
-    let l = List.filter (fun (d,_) -> d != dlr) c.alr in
-    c.alr <- l) !dlr
+type 'b dep_pair_tbl = 'b dep_pair Container.table
 
 let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
-    try match find r dlr with
+    try match Container.find dlr (snd r) with
       P(r',ptr,g) ->
         match r === r' with
         | Eq -> g := (let g = !g in (fun el -> f el; g el)); List.iter f !ptr;
         | _ -> assert false
     with Not_found ->
-      add r (P(r,ref [], ref f)) dlr
+      Container.add dlr (snd r) (P(r,ref [], ref f))
 
 (* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
   fun r el dlr ->
-    try match find r dlr with
+    try match Container.find dlr (snd r) with
       P(r',stack,g) ->
         match r === r' with
         | Eq ->
@@ -713,21 +682,21 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
     with Not_found ->
       if !debug_lvl > 3 then
         Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
-      let res = ref [el] in add r (P(r,res, ref (fun el -> ()))) dlr; res
+      let res = ref [el] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))) ; res
 
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
-    try match find r dlr with
+    try match Container.find dlr (snd r) with
       P(r',stack,g) ->
         match r === r' with
         | Eq -> stack
         | _ -> assert false
     with Not_found ->
-      let res = ref [] in add r (P(r,res, ref (fun el -> ()))) dlr; res
+      let res = ref [] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))); res
 
 let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
   let j = Fixpoint.from_val (accept_empty,set) in
-  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),Container.create ())])
 
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
@@ -744,17 +713,17 @@ let greedy_solo =
         Hashtbl.replace cache key l;
         r
     in
-    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),new_cell ())])
+    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),Container.create ())])
 
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),Container.create ())])
 
 let blank_test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),new_cell ())])
+  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),Container.create ())])
 
 let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
@@ -766,7 +735,7 @@ let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
 
 let nonterm (i,s) = NonTerm(i,s)
 
-let next_aux name s f r = (Next(compose_info s r, name, s,f,r), new_cell ())
+let next_aux name s f r = (Next(compose_info s r, name, s,f,r), Container.create ())
 
 let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
   fun s f r -> match snd s with
@@ -1074,7 +1043,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let dlr = ref (ref []) in
+    let dlr = Container.create_table () in
     let prediction_production msg l =
       Hashtbl.clear elements;
       let buf'', pos'' = blank !buf !pos in
@@ -1085,7 +1054,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
         ignore (add msg (!buf,!pos) s elements);
-        one_prediction_production errpos s elements !dlr (!buf,!pos) (!buf',!pos') c c') l;
+        one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
       if internal then begin
         try
           let found = ref false in
@@ -1117,17 +1086,16 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
          if not (buffer_equal !buf buf' && !pos = pos') then (
            pos := pos';
            buf := buf';
-           unset !dlr; (* reset stack memo only if lecture makes progress.
-                          this now allows for terminal parsing no input ! *)
-           dlr := ref []);
+           Container.reset dlr; (* reset stack memo only if lecture makes progress.
+                          this now allows for terminal parsing no input ! *));
          forward := forward';
          l
        with Not_found -> []
      in
      if l = [] then continue := false else prediction_production "L" l;
     done;
-    unset !dlr; (* don't forget final cleaning of assoc cell !! *)
-    dlr := ref []; (* useless but clean *)
+    Container.reset dlr; (* don't forget final cleaning of assoc cell !! *)
+    (* useless but clean *)
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
       if internal then
@@ -1201,14 +1169,14 @@ let apply : type a b. (a -> b) -> a grammar -> b grammar = fun f l1 ->
   mk_grammar [next l1 (Simple f) idtEmpty]
 
 let apply_position : type a b. (a -> buffer -> int -> buffer -> int -> b) -> a grammar -> b grammar = fun f l1 ->
-  mk_grammar [next l1 Idt (Empty(WithPos(fun b p b' p' a -> f a b p b' p')),new_cell ())]
+  mk_grammar [next l1 Idt (Empty(WithPos(fun b p b' p' a -> f a b p b' p')),Container.create ())]
 
 let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
   = fun l1 l2 f -> mk_grammar [next l1 Idt (next l2 (Simple (fun b a -> f a b)) idtEmpty)]
 
 let sequence_position : 'a grammar -> 'b grammar -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c) -> 'c grammar
    = fun l1 l2 f ->
-    mk_grammar [next l1 Idt (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),new_cell ()))]
+    mk_grammar [next l1 Idt (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),Container.create ()))]
 
 let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
   fun g blank buf ->
@@ -1260,7 +1228,7 @@ let error_message : (unit -> string) -> 'a grammar
       add_errmsg errpos buf pos msg;
       raise Error
     in
-    (j, [(Next(j,"error",Greedy (j, fn),Idt,idtEmpty),new_cell ())])
+    (j, [(Next(j,"error",Greedy (j, fn),Idt,idtEmpty),Container.create ())])
 
 let unset : string -> 'a grammar
   = fun msg ->
@@ -1273,7 +1241,7 @@ let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let ptr = ref g in
   let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [(Next(j,name,RefTerm (j, ptr),Idt, idtEmpty),new_cell ())]
+  mk_grammar [(Next(j,name,RefTerm (j, ptr),Idt, idtEmpty),Container.create ())]
 
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
   match snd p1 with
@@ -1360,7 +1328,7 @@ let string : ?name:string -> string -> 'a -> 'a grammar
     solo ~name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
 
 let option : 'a -> 'a grammar -> 'a grammar
-  = fun a (_,l) -> mk_grammar ((Empty (Simple a),new_cell())::l)
+  = fun a (_,l) -> mk_grammar ((Empty (Simple a),Container.create())::l)
 
 (* charset is now useless ... will be suppressed soon *)
 (*
@@ -1370,7 +1338,7 @@ let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> '
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
   = fun fn set accept_empty name -> solo ~name ~accept_empty set fn
 
-let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), new_cell ())])
+let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), Container.create ())])
 
 let sequence3 : 'a grammar -> 'b grammar -> 'c grammar -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
   = fun l1 l2 l3 f ->
@@ -1390,7 +1358,7 @@ let conditional_sequence : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -
 let conditional_sequence_position : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> buffer -> int -> buffer -> int -> 'd) -> 'd grammar
    = fun l1 cond l2 f ->
      mk_grammar [next l1 (Simple cond)
-                  (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),new_cell ()))]
+                  (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),Container.create ()))]
 
 let conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c grammar
   = fun l1 cond l2 ->
@@ -1404,7 +1372,7 @@ let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
     let res = declare_grammar "fixpoint" in
     let _ = set_grammar res
-      (mk_grammar [(Empty(Simple a),new_cell ());
+      (mk_grammar [(Empty(Simple a),Container.create ());
        next res Idt (next f1 Idt idtEmpty)]) in
     res
 
@@ -1508,7 +1476,7 @@ let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
               with Not_found ->
                 let res = grammar_to_rule (f2 a) in
                 EqHashtbl.add tbl a res; res
-          ), new_cell ())]
+          ), Container.create ())]
 
 let iter : 'a grammar grammar -> 'a grammar
   = fun g -> dependent_sequence g (fun x -> x)
