@@ -657,7 +657,7 @@ type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element ->
 
 type 'b dep_pair_tbl = 'b dep_pair Container.table
 
-let memo_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
+let hook_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
     try match Container.find dlr (snd r) with
       P(r',ptr,g) ->
@@ -693,56 +693,6 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
         | _ -> assert false
     with Not_found ->
       let res = ref [] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))); res
-
-let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
-  let j = Fixpoint.from_val (accept_empty,set) in
-  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),Container.create ())])
-
-let greedy_solo =
-  fun ?(name=new_name ()) i s ->
-    let cache = Hashtbl.create 101 in
-    let s = fun ptr blank b p b' p' ->
-      let key = (buffer_uid b, p, buffer_uid b', p') in
-      let l = try Hashtbl.find cache key with Not_found -> [] in
-      try
-        let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
-        r
-      with Not_found ->
-        let r = s ptr blank b p b' p' in
-        let l = (ptr,blank,r)::l in
-        Hashtbl.replace cache key l;
-        r
-    in
-    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),Container.create ())])
-
-let test = fun ?(name=new_name ()) set f ->
-  let i = (true,set) in
-  let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),Container.create ())])
-
-let blank_test = fun ?(name=new_name ()) set f ->
-  let i = (true,set) in
-  let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),Container.create ())])
-
-let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
-
-let with_blank_test a = blank_test ~name:"BLANK" Charset.full
-  (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
-
-let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
-  (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
-
-let nonterm (i,s) = NonTerm(i,s)
-
-let next_aux name s f r = (Next(compose_info s r, name, s,f,r), Container.create ())
-
-let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
-  fun s f r -> match snd s with
-  | [(Next(i,name,s0,g,(Empty h,_)),_)] ->
-     next_aux name s0 (compose3 f h g) r
-  | _ -> next_aux (new_name ()) (nonterm s) f r
-
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 let debut_ab pos = function D { debut } -> match debut with None -> pos | Some (_,p) -> p
@@ -830,15 +780,9 @@ let add_errmsg errpos buf pos (msg:unit->string) =
     if not (List.memq msg errpos.messages) then
       errpos.messages <- msg :: errpos.messages
 
-let protect errpos f a =
-  try
-    f a
-  with Error -> ()
+let protect errpos f a = try f a with Error -> ()
 
-let protect_cons errpos f a acc =
-  try
-    f a :: acc
-  with Error -> acc
+let protect_cons errpos f a acc = try f a :: acc with Error -> acc
 
 let combine2 : type a0 a1 a2 b bb c.(a2 -> b) -> (b -> c) pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) pos =
    fun acts acts' g f ->
@@ -1006,7 +950,7 @@ let rec one_prediction_production
             | B _ -> ()
           in
           let complete = protect errpos complete in
-          if debut = None then memo_assq full dlr complete
+          if debut = None then hook_assq full dlr complete
           else List.iter complete !stack;
          with Error -> ())
 
@@ -1152,6 +1096,55 @@ let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buf
 let internal_parse_buffer : type a.errpos -> a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
    = fun errpos g bl ?(blank_after=false) buf pos ->
        parse_buffer_aux errpos true blank_after g bl buf pos
+
+let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
+  let j = Fixpoint.from_val (accept_empty,set) in
+  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),Container.create ())])
+
+let greedy_solo =
+  fun ?(name=new_name ()) i s ->
+    let cache = Hashtbl.create 101 in
+    let s = fun ptr blank b p b' p' ->
+      let key = (buffer_uid b, p, buffer_uid b', p') in
+      let l = try Hashtbl.find cache key with Not_found -> [] in
+      try
+        let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
+        r
+      with Not_found ->
+        let r = s ptr blank b p b' p' in
+        let l = (ptr,blank,r)::l in
+        Hashtbl.replace cache key l;
+        r
+    in
+    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),Container.create ())])
+
+let test = fun ?(name=new_name ()) set f ->
+  let i = (true,set) in
+  let j = Fixpoint.from_val i in
+  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),Container.create ())])
+
+let blank_test = fun ?(name=new_name ()) set f ->
+  let i = (true,set) in
+  let j = Fixpoint.from_val i in
+  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),Container.create ())])
+
+let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
+
+let with_blank_test a = blank_test ~name:"BLANK" Charset.full
+  (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
+
+let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
+  (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
+
+let nonterm (i,s) = NonTerm(i,s)
+
+let next_aux name s f r = (Next(compose_info s r, name, s,f,r), Container.create ())
+
+let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
+  fun s f r -> match snd s with
+  | [(Next(i,name,s0,g,(Empty h,_)),_)] ->
+     next_aux name s0 (compose3 f h g) r
+  | _ -> next_aux (new_name ()) (nonterm s) f r
 
 let eof : 'a -> 'a grammar
   = fun a ->
