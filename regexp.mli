@@ -60,6 +60,10 @@ exception Regexp_error of buffer * int
 
 val print_regexp : out_channel -> regexp -> unit
 
+val accept_empty : regexp -> bool
+
+val accepted_first_chars : regexp -> Charset.t
+
 val regexp_from_string : string -> regexp * string ref array
 
 (** [read_regexp re buf pos] attempts to parse using the buffer [buf] at

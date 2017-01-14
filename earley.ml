@@ -1330,6 +1330,22 @@ let string : ?name:string -> string -> 'a -> 'a grammar
 let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar ((Empty (Simple a),Container.create())::l)
 
+let regexp : ?name:string -> string -> string array grammar =
+  fun ?name str ->
+    let name = match name with None -> String.escaped str | Some n -> n in
+    let (re, grps) = Regexp.regexp_from_string str in
+    let fn buf pos =
+      let (buf, pos) = Regexp.read_regexp re buf pos in
+      (Array.map (!) grps, buf, pos)
+    in
+    solo ~name ~accept_empty:(Regexp.accept_empty re)
+      (Regexp.accepted_first_chars re) fn
+
+let blank_regexp : string -> blank =
+  fun str ->
+    let (re, _) = Regexp.regexp_from_string str in
+    Regexp.read_regexp re
+
 (* charset is now useless ... will be suppressed soon *)
 (*
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> 'a grammar

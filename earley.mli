@@ -139,11 +139,19 @@ val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
     on [stderr] when used. It is useful for debugging. *)
 val debug : string -> unit grammar
 
+(** [regexp ?name re] is a grammar that uses the regexp [re] to parse
+    the input buffer. The value returnes is the array of the contents
+    of the groups. *)
+val regexp : ?name:string -> string -> string array grammar
+
 (** {2 Blanks management} *)
 
 (** [no_blank] is a [blank] function that does not discard any character
     of the input buffer. *)
 val no_blank : blank
+
+(** [blank_regexp re] builds a blank from the regexp [re]. *)
+val blank_regexp : string -> blank
 
 (** [blank_grammar gr bl] produces a [blank] function using the  grammar
     [gr] and the [blank] function [bl]. It parses as much of  the  input

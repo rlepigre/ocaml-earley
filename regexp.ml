@@ -70,6 +70,35 @@ let print_regexp ch re =
   in
   pregexp ch re
 
+let rec accept_empty = function
+  | Chr(_)   -> false
+  | Set(_)   -> false
+  | Seq(l)   -> List.for_all accept_empty l
+  | Alt(l)   -> List.exists accept_empty l
+  | Opt(r)   -> true
+  | Str(r)   -> true
+  | Pls(r)   -> accept_empty r
+  | Sav(r,_) -> accept_empty r
+
+let accepted_first_chars : regexp -> Charset.t =
+  let open Charset in
+  let rec aux = function
+    | Chr(c)   -> singleton c
+    | Set(s)   -> s
+    | Seq(l)   -> begin
+                    match l with
+                    | []    -> empty
+                    | r::rs -> if accept_empty r then
+                                 union (aux r) (aux (Seq(rs)))
+                               else aux r
+                  end
+    | Alt(l)   -> List.fold_left (fun cs r -> union cs (aux r)) empty l
+    | Opt(r)   -> aux r
+    | Str(r)   -> aux r
+    | Pls(r)   -> aux r
+    | Sav(r,_) -> aux r
+  in aux
+
 type construction =
     Acc of regexp list
   | Par of regexp list * regexp list
