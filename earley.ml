@@ -1292,10 +1292,11 @@ let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
 
 let any : char grammar
   = let fn buf pos =
-      let c', buf', pos' = read buf pos in
-      (c',buf',pos')
+      let c, buf', pos' = read buf pos in
+      if c = '\255' then give_up ();
+      (c,buf',pos')
     in
-    solo ~name:"ANY" Charset.full fn
+    solo ~name:"ANY" Charset.(del full '\255') fn
 
 let debug msg : unit grammar
     = let fn buf pos =
