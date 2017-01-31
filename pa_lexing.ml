@@ -103,6 +103,7 @@ let ocaml_blank buf pos =
 	   fn `Ini (p::stack) curr next)
     | (`Opn(_)   , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
+    [ (`Opn(_)   , _::_, '('     ) -> fn (`Opn(curr)) stack curr next
     | (`Opn(_)   , []  , _       ) -> prev
     | (`Opn(_)   , _   , _       ) -> fn `Ini stack curr next
     (* String litteral in a comment (including the # rules). *)
@@ -138,6 +139,8 @@ let ocaml_blank buf pos =
     (* Comment closing. *)
     | (`Ini      , _::_, '*'     ) -> fn `Cls stack curr next
     | (`Cls      , _::_, '*'     ) -> fn `Cls stack curr next
+    | (`Cls      , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
+    | (`Cls      , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Cls      , p::s, ')'     ) ->
        if !ocamldoc && s = [] then (
 	 let comment = Buffer.sub ocamldoc_buf 0 (Buffer.length ocamldoc_buf - 2) in
