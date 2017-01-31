@@ -893,6 +893,7 @@ let parser constant =
   | c:char_litteral    -> const_char c
   | s:string_litteral  -> const_string s
   | s:regexp_litteral  -> const_string s
+  | s:new_regexp_litteral -> const_string s
   | i:integer_litteral -> i
 
 (* we do like parser.mly from ocaml: neg_constant for pattern only *)

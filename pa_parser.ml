@@ -326,13 +326,25 @@ struct
        let e = match opt with None -> exp_unit _loc | Some e -> e in
        (opt <> None, exp_apply _loc (exp_glr_fun _loc "no_blank_test") [e])
     | s:regexp_litteral opt:glr_opt_expr ->
-       let opt = match opt with
-	 | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
-	 | Some e -> e
+       let opt =
+         match opt with
+         | None -> exp_apply _loc (exp_ident _loc "groupe") [exp_int _loc 0]
+         | Some e -> e
        in
-       (true, exp_lab_apply _loc (exp_glrstr_fun _loc "regexp") [labelled "name", exp_string _loc_s (String.escaped s);
-							  nolabel, exp_string _loc_s s;
-							  nolabel, exp_fun _loc_opt "groupe" opt])
+       (true, exp_lab_apply _loc (exp_glrstr_fun _loc "regexp")
+         [labelled "name", exp_string _loc_s (String.escaped s);
+					nolabel, exp_string _loc_s s;
+					nolabel, exp_fun _loc_opt "groupe" opt])
+
+    | s:new_regexp_litteral opt:glr_opt_expr ->
+       begin
+         let es = String.escaped s in
+         let s = "\\(" ^ s ^ "\\)" in
+         let re = <:expr<Earley.regexp ~name:$string:es$ $string:s$>> in
+         match opt with
+         | None   -> (true, re)
+         | Some e -> (true, <:expr<Earley.apply (fun group -> $e$) $re$>>)
+       end
 
     | id:value_path -> (true, loc_expr _loc (Pexp_ident(id_loc id _loc_id)))
 

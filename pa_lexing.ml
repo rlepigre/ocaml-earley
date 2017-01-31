@@ -469,8 +469,8 @@ let string_litteral : (string * string option) Earley.grammar =
                            | s:normal_string -> (s, None)
                            | quoted_string)
     Earley.no_blank
-(* Regexp litteral. *)
 
+(* Regexp litteral. *)
 let regexp_litteral : string Earley.grammar =
   let char_reg = "[^'\\\\]" in
   let char_esc = "[ntbrs\\\\()|]" in
@@ -496,3 +496,27 @@ let regexp_litteral : string Earley.grammar =
     cs:single_char* "''" -> String.concat "" cs
   in
   parser _:double_quote - (Earley.change_layout internal Earley.no_blank)
+
+let new_regexp_litteral : string Earley.grammar =
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
+  let single_char = parser
+    | c:RE(char_reg)      -> c
+    | _:single_quote      -> "'"
+    | '\\' e:RE(char_esc) ->
+        begin
+          match e.[0] with
+          | 'n' -> "\n"
+          | 't' -> "\t"
+          | 'b' -> "\b"
+          | 'r' -> "\r"
+          | 's' -> " "
+          | '\\' -> "\\"
+          | '(' -> "\\("
+          | ')' -> "\\)"
+          | '|' -> "\\|"
+	  | _ -> assert false
+        end
+  in
+  let internal = parser "{#" cs:single_char* "#}" -> String.concat "" cs in
+  Earley.change_layout internal Earley.no_blank
