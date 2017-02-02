@@ -348,8 +348,8 @@ let attach_gen build =
       | (start,end_,contents as c)::rest ->
          let start' = loc.loc_start in
          let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-         (* Printf.eprintf "sig [%d,%d] [%d,...]\n%!"*)
-         (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;
+         (* Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
+         (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;  *)
          if line_num (fst end_) < start'.pos_lnum then
            fn acc (build loc (mk_attrib loc "ocaml.text" contents) :: res) rest
          else
