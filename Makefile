@@ -180,18 +180,17 @@ distclean: clean
 URLSSH=lama.univ-savoie.fr:WWW
 URL=https://lama.univ-savoie.fr/~raffalli/earley
 
-tar: clean
+tar:
 	cd ../earley_ocaml_tar; darcs pull; make distclean; make; make; make distclean
 	cd ..; tar cvfz earley_ocaml-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_ocaml_tar,earley_ocaml-$(VERSION),"  earley_ocaml_tar
 
-#
-#distrib: clean tar doc
-#	darcs push lama.univ-savoie.fr:WWW/repos/earley/
-#	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
-#	rsync -r --delete ../decap_tar/examples/ $(URLSSH)/earley/examples/
-#	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
-#	rsync -r www/ $(URLSSH)/
-#
+distrib: tar
+	darcs push lama.univ-savoie.fr:WWW/repos/earley_ocaml/
+	scp ../earley_ocaml-$(VERSION).tar.gz $(URLSSH)/earley/
+	rsync -r --delete ../earley_ocaml_tar/examples/ $(URLSSH)/earley/examples/
+	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley_ocaml-$(VERSION).tar.gz earley_ocaml-latest.tar.gz"
+	rsync -r www/ $(URLSSH)/earley/
+
 OPAMREPO=$(HOME)/Caml/opam-repository/packages/earley
 
 opam_git: opam distrib
