@@ -129,7 +129,7 @@ val error_message : (unit -> string) -> 'a grammar
     character. The character set [cs] must contain at least the
     characters that are accepted as first character by [fn], and no
     less. The boolean [accept_empty] must be true if the function
-    accept the empty string.The [name] argument is used for reference
+    accept the empty string. The [name] argument is used for reference
     in error messages. Note that the functon [fn] should use [give_up
     ()] in case of a parse error. *)
 val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
