@@ -165,7 +165,7 @@ install: uninstall $(INSTALLED)
 	install -m 755 pa_ocaml $(BINDIR)
 
 uninstall:
-	ocamlfind remove pa_ocaml
+	ocamlfind remove earley_ocaml
 	rm -f $(BINDIR)/pa_ocaml
 
 clean:
