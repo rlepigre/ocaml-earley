@@ -1,5 +1,5 @@
-name="pa_ocaml"
-requires="earley,earley.str"
+name="earley_ocaml"
+requires="compiler-libs.common,earley,earley.str"
 version="0.1"
 archive(native)="earley_ocaml.cmxa"
 archive(byte)="earley_ocaml.cma"

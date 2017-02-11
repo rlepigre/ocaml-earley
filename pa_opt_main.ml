@@ -53,7 +53,7 @@ open Pa_compose
 
 let entry =
   match !entry, !file with
-    FromExt, Some s -> 
+    FromExt, Some s ->
     let rec fn = function
 	(ext, res)::l -> if Filename.check_suffix s ext then res else fn l
       | [] -> eprintf "Don't know what to do with file %s\n%!" s; exit 1
@@ -76,12 +76,12 @@ let _ = if entry = `Top then (
 	let (buffer,pos,ph) = partial_parse_buffer Main.top_phrase blank buffer 0 in
 	ignore (Toploop.execute_phrase true Format.std_formatter ph)
       with
-      | Main.Top_Exit -> 
+      | Main.Top_Exit ->
 	 raise Main.Top_Exit
       | Earley.Parse_error _ as e ->
 	 Earley.print_exception e;
 	 exit 1
-      | e ->  
+      | e ->
 	 Errors.report_error Format.std_formatter e);
     loop ()
 
@@ -91,9 +91,9 @@ let _ = if entry = `Top then (
   with
   | Main.Top_Exit -> exit 0)
 #else
-let _ = 
+let _ =
   if entry = `Top then (
-    Printf.eprintf "native toplevel not supported by pa_ocaml.\n%!" ; exit 1)
+    Printf.eprintf "native toplevel not supported by earley_ocaml.\n%!" ; exit 1)
 #endif
 
 let ast =
@@ -101,7 +101,7 @@ let ast =
      to be able to read stdin *)
   let filename, ch = match !file with
       None -> "stdin", stdin
-    | Some name -> 
+    | Some name ->
 (*       let buffer = Input.buffer_from_file name in
        List.iter (fun line ->
 		  Printf.eprintf "%s\n" line.Input.contents) buffer;*)
@@ -117,29 +117,29 @@ let ast =
     Earley.print_exception e;
     exit 1
 
-let _ = 
+let _ =
   if !ascii then begin
     begin
 #ifversion >= 4.01
-      match ast with 
+      match ast with
       | `Struct ast -> Pprintast.structure Format.std_formatter ast;
       | `Sig ast -> Pprintast.signature Format.std_formatter ast;
 #else
-      match ast with 
+      match ast with
       | `Struct ast -> Printast.implementation Format.std_formatter ast;
       | `Sig ast -> Printast.interface Format.std_formatter ast;
 #endif
     end;
     Format.print_newline ()
   end else begin
-    let magic = match ast with 
+    let magic = match ast with
       | `Struct _ -> Config.ast_impl_magic_number
       | `Sig _ -> Config.ast_intf_magic_number
     in
     output_string stdout magic;
     output_value stdout (match !file with None -> "" | Some name -> name);
     begin
-      match ast with 
+      match ast with
       | `Struct ast -> output_value stdout ast
       | `Sig ast -> output_value stdout ast
     end;
