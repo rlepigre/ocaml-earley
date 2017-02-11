@@ -161,7 +161,7 @@ boot:
 
 install: uninstall $(INSTALLED)
 	install -m 755 -d $(BINDIR)
-	ocamlfind install pa_ocaml META $(INSTALLED)
+	ocamlfind install earley_ocaml META $(INSTALLED)
 	install -m 755 pa_ocaml $(BINDIR)
 
 uninstall:
