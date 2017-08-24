@@ -1,7 +1,8 @@
+VERSION   = 1.0.0
 OCAMLFIND = ocamlfind
-OCAMLC = $(OCAMLFIND) ocamlc -package bytes,earley,earley.str
-OCAMLOPT = $(OCAMLFIND) ocamlopt -package bytes,earley,earley.str -intf-suffix .cmi
-BINDIR = $(dir $(shell which ocamlc))
+OCAMLC    = $(OCAMLFIND) ocamlc -package bytes,earley,earley.str
+OCAMLOPT  = $(OCAMLFIND) ocamlopt -package bytes,earley,earley.str -intf-suffix .cmi
+BINDIR    = $(dir $(shell which ocamlc))
 
 INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
 						pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx \
@@ -29,9 +30,6 @@ PP=
 all: pa_ocaml $(B)/earley_ocaml.cmxa
 endif
 
-MAJOR = 20161115
-MINOR = alpha
-VERSION = $(MAJOR).$(MINOR)
 ASCII =
 
 COMPILER_INC = -I +compiler-libs
@@ -177,29 +175,8 @@ distclean: clean
 	- rm -f pa_ocaml pa_ocaml.byt *~ \#*\#
 	$(MAKE) -e -j 1 -C ast_tools distclean
 
-URLSSH=lama.univ-savoie.fr:WWW
-URL=https://lama.univ-savoie.fr/~raffalli/earley
-
-tar:
-	cd ../earley_ocaml_tar; darcs pull; make distclean; make; make; make distclean
-	cd ..; tar cvfz earley_ocaml-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_ocaml_tar,earley_ocaml-$(VERSION),"  earley_ocaml_tar
-
-distrib: tar
-	darcs push lama.univ-savoie.fr:WWW/repos/earley_ocaml/
-	scp ../earley_ocaml-$(VERSION).tar.gz $(URLSSH)/earley/
-	rsync -r --delete ../earley_ocaml_tar/examples/ $(URLSSH)/earley/examples/
-	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley_ocaml-$(VERSION).tar.gz earley_ocaml-latest.tar.gz"
-	rsync -r www/ $(URLSSH)/earley/
-
-OPAMREPO=$(HOME)/Caml/opam-repository/packages/earley
-
-opam_git: opam distrib
-	mkdir -p $(OPAMREPO)/earley.$(VERSION)
-	cp opam $(OPAMREPO)/earley.$(VERSION)/opam
-	cp description.txt $(OPAMREPO)/earley.$(VERSION)/descr
-	echo -n "archive: \""  > $(OPAMREPO)/earley.$(VERSION)/url
-	echo -n "$(URL)/earley-$(VERSION).tar.gz" >> $(OPAMREPO)/earley.$(VERSION)/url
-	echo "\"" >> $(OPAMREPO)/earley.$(VERSION)/url
-	echo -n "checksum: \"" >> $(OPAMREPO)/earley.$(VERSION)/url
-	echo -n `md5sum ../earley-$(VERSION).tar.gz | cut -b -32` >> $(OPAMREPO)/earley.$(VERSION)/url
-	echo "\"" >> $(OPAMREPO)/earley.$(VERSION)/url
+.PHONY: release
+release: distclean
+	git push origin
+	git tag -a ocaml-earley-ocaml_$(VERSION)
+	git push origin ocaml-earley-ocaml_$(VERSION)
