@@ -1,4 +1,5 @@
-FLAGS      := -use-ocamlfind -pkg bytes
+VERSION    := 1.0.0
+OCAMLBUILD := ocamlbuild -use-ocamlfind -pkg bytes -quiet
 IMPLFILES  := $(wildcard *.ml)
 INTFFILES  := $(wildcard *.mli)
 
@@ -18,22 +19,22 @@ ifndef OCAMLF
 endif
 
 earley.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	ocamlbuild $(FLAGS) $@
+	$(OCAMLBUILD) $@
 
 earley.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	ocamlbuild $(FLAGS) $@
+	$(OCAMLBUILD) $@
 
 earleyStr.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	ocamlbuild $(FLAGS) $@
+	$(OCAMLBUILD) $@
 
 earleyStr.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	ocamlbuild $(FLAGS) $@
+	$(OCAMLBUILD) $@
 
 .PHONY: doc
 doc: earley.docdir/index.html
 
 earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
-	ocamlbuild $@
+	$(OCAMLBUILD) $@
 
 uninstall:
 	@ocamlfind remove earley
@@ -48,27 +49,16 @@ LIB  := _build/earley.cma _build/earley.cmxa _build/earley.a \
 	      _build/earleyStr.cma _build/earleyStr.cmxa _build/earleyStr.a
 
 install: all uninstall META
-	ocamlfind install earley $(INTF) $(CMX) $(CMO) $(CMI) $(OBJ) $(LIB) META
+	@ocamlfind install earley $(INTF) $(CMX) $(CMO) $(CMI) $(OBJ) $(LIB) META
 
 clean:
-	ocamlbuild -clean
+	$(OCAMLBUILD) -clean
 
 distclean: clean
 	rm -f *~
 
-MAJOR = 20161116
-MINOR = alpha
-VERSION = $(MAJOR).$(MINOR)
-
-URLSSH=lama.univ-savoie.fr:WWW
-URL=https://lama.univ-savoie.fr/~raffalli/earley
-
-tar: clean
-	cd ../earley_tar; darcs pull; make distclean; make; make distclean
-	cd ..; tar cvfz earley-$(VERSION).tar.gz --exclude=_darcs --transform "s,earley_tar,earley-$(VERSION),"  earley_tar
-
-distrib: tar doc
-	darcs push lama.univ-savoie.fr:WWW/repos/earley/
-	scp ../earley-$(VERSION).tar.gz $(URLSSH)/earley/
-	ssh lama.univ-savoie.fr "cd WWW/earley; ln -sf earley-$(VERSION).tar.gz earley-latest.tar.gz"
-	rsync -r earley.docdir/ $(URLSSH)/earley.doc/
+.PHONY: release
+release: distclean
+	git push origin
+	git tag -a ocaml-earley_$(VERSION)
+	git push origin ocaml-bindlib_$(VERSION)
