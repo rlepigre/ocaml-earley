@@ -2038,10 +2038,9 @@ module Make(Initial:Extension) =
                                              __loc__start__pos
                                              __loc__end__buf __loc__end__pos
                                             in
+                                         let ivn = id_loc ivn _loc_ivn  in
                                          pctf_loc _loc
-                                           (Pctf_val
-                                              ((id_loc ivn _loc_ivn), mut,
-                                                vir, te))))));
+                                           (Pctf_val (ivn, mut, vir, te))))));
            Earley.fsequence_position method_kw
              (Earley.fsequence virt_priv
                 (Earley.fsequence
@@ -2068,10 +2067,9 @@ module Make(Initial:Extension) =
                                              __loc__start__pos
                                              __loc__end__buf __loc__end__pos
                                             in
+                                         let mn = id_loc mn _loc_mn  in
                                          pctf_loc _loc
-                                           (Pctf_method
-                                              ((id_loc mn _loc_mn), pri, v,
-                                                te))))));
+                                           (Pctf_method (mn, pri, v, te))))));
            Earley.fsequence_position constraint_kw
              (Earley.fsequence typexpr
                 (Earley.sequence (Earley.char '=' '=') typexpr
@@ -4178,7 +4176,9 @@ module Make(Initial:Extension) =
                             let (_loc_name,name) = name  in
                             fun _  ->
                               fun _default_0  ->
-                                fun _  -> `Type (id_loc name _loc_name)))))
+                                fun _  ->
+                                  let name = id_loc name _loc_name  in
+                                  `Type name))))
                 :: y
               else y)))
       
@@ -5159,9 +5159,9 @@ module Make(Initial:Extension) =
                                                                  (pexp_constraint
                                                                     (e, te))
                                                             in
-                                                         let e : expression =
-                                                           apply_params ps e
-                                                            in
+                                                         let e =
+                                                           (apply_params ps e : 
+                                                           expression)  in
                                                          let e =
                                                            loc_expr _loc
                                                              (Pexp_poly

@@ -334,15 +334,11 @@ module Initial =
                   let start' = loc.loc_start  in
                   let loc =
                     locate (fst start) (snd start) (fst end_) (snd end_)  in
-                  (Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
-                     (line_num (fst start)) (line_num (fst end_))
-                     start'.pos_lnum;
-                   if (line_num (fst end_)) < start'.pos_lnum
-                   then
-                     fn acc
-                       ((build loc (mk_attrib loc "ocaml.text" contents)) ::
-                       res) rest
-                   else fn (c :: acc) res rest)
+                  if (line_num (fst end_)) < start'.pos_lnum
+                  then
+                    fn acc ((build loc (mk_attrib loc "ocaml.text" contents))
+                      :: res) rest
+                  else fn (c :: acc) res rest
                in
             try Hashtbl.find tbl loc.loc_start
             with

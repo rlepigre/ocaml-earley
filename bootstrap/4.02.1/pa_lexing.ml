@@ -32,6 +32,7 @@ let ocaml_blank buf pos =
          else fn `Ini (p :: stack) curr next
      | (`Opn _,_::_,'"') -> fn (`Str curr) stack curr next
      | (`Opn _,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
+     | (`Opn _,_::_,'(') -> fn (`Opn curr) stack curr next
      | (`Opn _,[],_) -> prev
      | (`Opn _,_,_) -> fn `Ini stack curr next
      | (`Ini,_::_,'"') -> fn (`Str curr) stack curr next
@@ -63,6 +64,8 @@ let ocaml_blank buf pos =
      | (`SCl (_,_),[],_) -> assert false
      | (`Ini,_::_,'*') -> fn `Cls stack curr next
      | (`Cls,_::_,'*') -> fn `Cls stack curr next
+     | (`Cls,_::_,'"') -> fn (`Str curr) stack curr next
+     | (`Cls,_::_,'{') -> fn (`SOp ([], curr)) stack curr next
      | (`Cls,p::s,')') ->
          (if (!ocamldoc) && (s = [])
           then
@@ -506,3 +509,34 @@ let regexp_litteral: string Earley.grammar =
     (Earley.sequence (Earley.no_blank_test ())
        (Earley.change_layout internal Earley.no_blank)
        (fun _  -> fun _default_0  -> fun _  -> _default_0))
+let new_regexp_litteral: string Earley.grammar =
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
+  let single_char =
+    Earley.alternatives
+      [EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
+      Earley.apply (fun _  -> "'") single_quote;
+      Earley.sequence (Earley.char '\\' '\\')
+        (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
+        (fun _  ->
+           fun e  ->
+             match e.[0] with
+             | 'n' -> "\n"
+             | 't' -> "\t"
+             | 'b' -> "\b"
+             | 'r' -> "\r"
+             | 's' -> " "
+             | '\\' -> "\\"
+             | '(' -> "\\("
+             | ')' -> "\\)"
+             | '|' -> "\\|"
+             | _ -> assert false)] in
+  let internal =
+    Earley.fsequence (Earley.string "{#" "{#")
+      (Earley.sequence
+         (Earley.apply List.rev
+            (Earley.fixpoint []
+               (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
+         (Earley.string "#}" "#}")
+         (fun cs  -> fun _  -> fun _  -> String.concat "" cs)) in
+  Earley.change_layout internal Earley.no_blank

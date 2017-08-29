@@ -201,7 +201,12 @@ let string_exp (b,lvl) =
   type arg_label = string
 #endif
   let (parameter : bool -> [`Arg of arg_label * expression option * pattern
-           | `Type of string ] grammar), set_parameter = grammar_family "parameter"
+#ifversion >= 4.05
+                           | `Type of string loc ]
+#else
+                           | `Type of string ]
+#endif
+                             grammar), set_parameter = grammar_family "parameter"
 
   let structure = structure_item
 

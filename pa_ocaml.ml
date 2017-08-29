@@ -165,7 +165,12 @@ let varify_constructors var_names t =
           Ptyp_variant(List.map loop_row_field row_field_list,
                        flag, lbl_lst_option)
       | Ptyp_poly(string_lst, core_type) ->
+#ifversion >= 4.05
+          List.iter (fun v -> check_variable var_names t.ptyp_loc v.txt)
+                string_lst;
+#else
           List.iter (check_variable var_names t.ptyp_loc) string_lst;
+#endif
           Ptyp_poly(string_lst, loop core_type)
       | Ptyp_package(longident,lst) ->
           Ptyp_package(longident,List.map (fun (n,typ) -> (n,loop typ) ) lst)
@@ -204,7 +209,12 @@ let wrap_type_annotation _loc newtypes core_type body =
     List.fold_right (fun newtype exp -> loc_expr _loc (Pexp_newtype (newtype, exp)))
       newtypes exp
   in
-  (exp, loc_typ _loc (Ptyp_poly(newtypes,varify_constructors newtypes core_type)))
+#ifversion >= 4.05
+  let newtypes0 = List.map (fun v -> v.txt) newtypes in
+#else
+  let newtypes0 = newtypes in
+#endif
+  (exp, loc_typ _loc (Ptyp_poly(newtypes,varify_constructors newtypes0 core_type)))
 
 (* Floating-point litterals *)
 let float_litteral = Earley.apply fst Pa_lexing.float_litteral
@@ -400,11 +410,19 @@ let parser item_extension =
  * Type expressions                                                         *
  ****************************************************************************)
 let parser only_poly_typexpr =
+#ifversion >= 4.05
+  | ids:{STR("'") id:ident -> id_loc id _loc_id}+ STR(".") te:typexpr ->
+#else
   | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
+#endif
       loc_typ _loc (Ptyp_poly (ids, te))
 
 let parser poly_typexpr =
+#ifversion >= 4.05
+  | ids:{STR("'") id:ident -> id_loc id _loc_id}+ STR(".") te:typexpr ->
+#else
   | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
+#endif
       loc_typ _loc (Ptyp_poly (ids, te))
   | te:typexpr ->
 #ifversion >= 4.02
@@ -414,17 +432,24 @@ let parser poly_typexpr =
 #endif
 
 let parser poly_syntax_typexpr =
+#ifversion >= 4.05
+  | type_kw ids:{id:typeconstr_name -> id_loc id _loc_id}+ STR(".") te:typexpr ->
+#else
   | type_kw ids:typeconstr_name+ STR(".") te:typexpr ->
-      (ids, te)
+#endif
+       (ids, te)
 
 let parser method_type =
   | mn:method_name STR(":") pte:poly_typexpr ->
+#ifversion >= 4.05
+      id_loc mn _loc_mn, [], pte
+#else
 #ifversion >= 4.02
       mn, [], pte
 #else
     { pfield_desc = Pfield (mn, pte); pfield_loc = _loc }
 #endif
-
+#endif
 let parser tag_spec =
   | tn:tag_name te:{_:of_kw '&'? typexpr}? ->
       let amp,t = match te with
@@ -789,8 +814,14 @@ let _ = set_grammar class_field_spec (
       pctf_loc _loc (Pctf_inher cbt)
 #endif
   | val_kw (vir,mut):virt_mut ivn:inst_var_name STR(":") te:typexpr ->
-      pctf_loc _loc (Pctf_val (ivn, mut, vir, te))
+#ifversion >= 4.05
+        let ivn = id_loc ivn _loc_ivn in
+#endif
+        pctf_loc _loc (Pctf_val (ivn, mut, vir, te))
   | method_kw (v,pri):virt_priv mn:method_name STR(":") te:poly_typexpr ->
+#ifversion >= 4.05
+        let mn = id_loc mn _loc_mn in
+#endif
 #ifversion >= 4.02
         pctf_loc _loc (Pctf_method (mn, pri, v, te))
 #else
@@ -1189,7 +1220,12 @@ let _ = set_parameter (fun allow_new_type ->
       in `Arg (id, e, pat))
   | id:ty_opt_label pat:pattern -> `Arg (id, None, pat)
   | id:opt_label -> `Arg (optional id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
-  | '(' type_kw name:typeconstr_name ')' when allow_new_type -> `Type(name))
+  | '(' type_kw name:typeconstr_name ')' when allow_new_type ->
+#ifversion >= 4.05
+      let name = id_loc name _loc_name in
+#endif
+      `Type(name)
+  )
 
 let apply_params ?(gh=false) params e =
   let f acc = function
@@ -1338,7 +1374,12 @@ let _ = set_grammar class_expr (
   )
 
 let parser class_field =
-  | inherit_kw o:override_flag ce:class_expr id:{_:as_kw lident}? ->
+  | inherit_kw o:override_flag ce:class_expr
+#ifversion >= 4.05
+               id:{_:as_kw id:lident -> id_loc id _loc_id}? ->
+#else
+               id:{_:as_kw lident}? ->
+#endif
 #ifversion >= 4.02
       loc_pcf _loc (Pcf_inherit (o, ce, id))
 #else
@@ -1774,7 +1815,10 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 	     let f = id_loc f _loc_f in loc_expr _loc (Pexp_field(e',f)) } when lvl = Dot || lvl = Aff -> r e' _loc
 
   | e':(expression_lvl (NoMatch, Dash)) '#' f:method_name when lvl = Dash ->
-     loc_expr _loc (Pexp_send(e',f))
+#ifversion >= 4.05
+       let f = id_loc f _loc_f in
+#endif
+       loc_expr _loc (Pexp_send(e',f))
 
   | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl = App ->
      loc_expr _loc (match f.pexp_desc, l with
