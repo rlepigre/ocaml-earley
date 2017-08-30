@@ -34,7 +34,7 @@ function build {
 }
 
 if [ "$1" = "--all" ] ; then
-    VERSIONS="4.05.0 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
+    VERSIONS="4.05.0 4.04.1 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
     echo ALL: bootstraping all version \($VERSIONS\) from file in bootstrap
 elif [ "$1" = "--new" ] ; then
     echo NEW: bootstraping $2 from previous version

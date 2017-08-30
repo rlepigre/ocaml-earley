@@ -5077,9 +5077,9 @@ module Make(Initial:Extension) =
                                                                  (pexp_constraint
                                                                     (e, te))
                                                             in
-                                                         let e : expression =
-                                                           apply_params ps e
-                                                            in
+                                                         let e =
+                                                           (apply_params ps e : 
+                                                           expression)  in
                                                          let e =
                                                            loc_expr _loc
                                                              (Pexp_poly

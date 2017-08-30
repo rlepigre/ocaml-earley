@@ -137,9 +137,10 @@ module Make(Initial:Extension) =
         List.fold_right
           (fun newtype  exp  -> loc_expr _loc (Pexp_newtype (newtype, exp)))
           newtypes exp in
+      let newtypes0 = newtypes in
       (exp,
         (loc_typ _loc
-           (Ptyp_poly (newtypes, (varify_constructors newtypes core_type)))))
+           (Ptyp_poly (newtypes, (varify_constructors newtypes0 core_type)))))
     let float_litteral = Earley.apply fst Pa_lexing.float_litteral
     let _ = set_grammar char_litteral Pa_lexing.char_litteral
     let _ =
@@ -1886,6 +1887,7 @@ module Make(Initial:Extension) =
            Earley.apply (fun c  -> const_char c) char_litteral;
            Earley.apply (fun s  -> const_string s) string_litteral;
            Earley.apply (fun s  -> const_string s) regexp_litteral;
+           Earley.apply (fun s  -> const_string s) new_regexp_litteral;
            integer_litteral])
     let neg_constant = Earley.declare_grammar "neg_constant"
     let _ =
