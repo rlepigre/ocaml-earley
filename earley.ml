@@ -358,7 +358,6 @@ type _ pos =
   | Idt : ('a -> 'a) pos
   | Simple : 'a -> 'a pos
   | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
-  | WithEPos : (buffer -> int -> 'a) -> 'a pos
 
 (* only one identity to benefit from physical equality *)
 let idt x = x
@@ -369,23 +368,29 @@ let apply_pos: type a b.a pos -> position -> position -> a =
     | Idt -> idt
     | Simple f -> f
     | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
-    | WithEPos f -> f (fst p') (snd p')
+
+let first_pos pos1 pos2 =
+  match pos1 with
+  | None -> pos2
+  | Some _ -> pos1
+
+let apply_pos_debut: type a b.a pos
+                     -> (position * position) option
+                     -> position -> position -> a =
+  fun f debut pos pos_ab ->
+    match debut with
+    | None -> apply_pos f pos_ab pos_ab
+    | Some(_,p) -> apply_pos f p pos
 
 let app_pos:type a b.(a -> b) pos -> a pos -> b pos = fun f g ->
   match f,g with
   | Idt, _ -> g
   | Simple f, Idt -> Simple(f idt)
   | WithPos f, Idt -> WithPos(fun b p b' p' -> f b p b' p' idt)
-  | WithEPos f, Idt -> WithEPos(fun b' p' -> f b' p' idt)
   | Simple f, Simple g -> Simple(f g)
   | Simple f, WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-  | Simple f, WithEPos g -> WithEPos(fun b' p' -> f (g b' p'))
   | WithPos f, Simple g -> WithPos(fun b p b' p' -> f b p b' p' g)
-  | WithEPos f, Simple g -> WithEPos(fun b' p' -> f b' p' g)
   | WithPos f, WithPos g -> WithPos(fun b p b' p' -> f b p b' p' (g b p b' p'))
-  | WithEPos f, WithPos g -> WithPos(fun b p b' p' -> f b' p' (g b p b' p'))
-  | WithPos f, WithEPos g -> WithPos(fun b p b' p' -> f b p b' p' (g b' p'))
-  | WithEPos f, WithEPos g -> WithEPos(fun b' p' -> f b' p' (g b' p'))
 
 let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
   match f,g with
@@ -393,19 +398,10 @@ let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
   | _, Idt -> f
   | Simple f, Simple g -> Simple(fun x -> f (g x))
   | Simple f, WithPos g -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
-  | Simple f, WithEPos g -> WithEPos(fun b' p' x -> f (g b' p' x))
   | WithPos f, Simple g -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
-  | WithEPos f, Simple g -> WithEPos(fun b' p' x -> f b' p' (g x))
   | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p' (g b p b' p' x))
-  | WithEPos f, WithPos g -> WithPos(fun b p b' p' x -> f b' p' (g b p b' p' x))
-  | WithPos f, WithEPos g -> WithPos(fun b p b' p' x -> f b p b' p' (g b' p' x))
-  | WithEPos f, WithEPos g -> WithEPos(fun b' p' x -> f b' p' (g b' p' x))
 
 let compose3 f g h = compose f (compose g h)
-
-let fix_begin : type a.position -> a pos -> a pos = fun (b, p) -> function
-  | WithPos g -> WithEPos (g b p)
-  | x -> x
 
 let pos_apply : type a b.(a -> b) -> a pos -> b pos =
   fun f a ->
@@ -413,7 +409,6 @@ let pos_apply : type a b.(a -> b) -> a pos -> b pos =
     | Idt -> Simple(f idt)
     | Simple g -> Simple(f g)
     | WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-    | WithEPos g -> WithEPos(fun b' p' -> f (g b' p'))
 
 let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos=
    fun f a b ->
@@ -424,20 +419,15 @@ let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos=
     | _, Idt -> assert false
     | Simple g, Simple h -> Simple(f g h)
     | WithPos g, Simple h  -> WithPos(fun b p b' p' -> f (g b p b' p') h)
-    | WithEPos g, Simple h  -> WithEPos(fun b' p' -> f (g b' p') h)
     | Simple g, WithPos h  -> WithPos(fun b p b' p' -> f g (h b p b' p'))
-    | Simple g, WithEPos h  -> WithEPos(fun b' p' -> f g (h b' p'))
     | WithPos g, WithPos h  -> WithPos(fun b p b' p' -> f (g b p b' p') (h b p b' p'))
-    | WithEPos g, WithPos h  -> WithPos(fun b p b' p' -> f (g b' p') (h b p b' p'))
-    | WithPos g, WithEPos h  -> WithPos(fun b p b' p' -> f (g b p b' p') (h b' p'))
-    | WithEPos g, WithEPos h  -> WithEPos(fun b' p' -> f (g b' p') (h b' p'))
 
 (** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
     the type of the semantics of the grammar. For example, parsing using a
     grammar of type [int grammar] will produce a value of type [int]. *)
 type 'a input = buffer -> int -> 'a * buffer * int
 type 'a input2 = buffer -> int -> 'a input
-type 'a test2  = buffer -> int -> buffer -> int -> 'a * bool
+type 'a test  = buffer -> int -> buffer -> int -> 'a * bool
 
 type 'a grammar = info Fixpoint.t * 'a rule list
 
@@ -446,7 +436,7 @@ and _ symbol =
   (** terminal symbol just read the input buffer *)
   | Greedy : info Fixpoint.t * (errpos -> blank -> 'a input2) -> 'a symbol
   (** terminal symbol just read the input buffer *)
-  | Test : Charset.t * 'a test2 -> 'a symbol
+  | Test : Charset.t * 'a test -> 'a symbol
   (** test *)
   | NonTerm : info Fixpoint.t * 'a rule list -> 'a symbol
   (** non terminal *)
@@ -695,11 +685,6 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
       let res = ref [] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))); res
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
-let debut_ab pos = function D { debut } -> match debut with None -> pos | Some (_,p) -> p
-let debut' : type a b.position -> (a,b) element -> position = fun pos -> function  B _ -> pos
-  | C { debut } -> match debut with None -> pos | Some (p,_) -> p
-let debut_ab' : type a b.position -> (a,b) element -> position = fun pos -> function B _ -> pos
-  | C { debut } -> match debut with None -> pos | Some (_,p) -> p
 
 type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
 
@@ -802,12 +787,9 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
        match pre_rule rest with
        | Next(_,_,Term (_,f),g,rest0) ->
           (try
-             let buf0, pos0 = pos_ab in
-             let debut = match debut with
-                 None -> Some(pos, pos_ab)
-               | _ -> debut
-             in
              (*Printf.eprintf "lecture at %d %d\n%!" (line_num buf0) pos0;*)
+             let debut = first_pos debut (Some(pos,pos_ab)) in
+             let buf0, pos0 = pos_ab in
              let a, buf, pos = f buf0 pos0 in
              if !debug_lvl > 1 then
                Printf.eprintf "action for terminal of %a =>" print_final element;
@@ -822,11 +804,8 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
 
        | Next(_,_,Greedy(_,f),g,rest0) ->
           (try
+             let debut = first_pos debut (Some(pos,pos_ab)) in
              let buf0, pos0 = pos_ab in
-             let debut = match debut with
-                 None -> Some(pos, pos_ab)
-               | _ -> debut
-             in
              if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf0) pos0;
              let a, buf, pos = f errpos blank (fst pos) (snd pos) buf0 pos0 in
              if !debug_lvl > 1 then
@@ -883,15 +862,13 @@ let rec one_prediction_production
               if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
           }
         in
-        let f = fix_begin pos_ab f in
         begin match pre_rule rest2 with
         | Empty (g) when debut <> None ->
-                   (* FIXME: fix_begin g ? *)
-           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
+          if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
           iter_rules (fun r ->
             let complete = protect errpos (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
-                 let debut = if d = None then debut else d in
+                 let debut = first_pos d debut in
                  let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack} in
                  ignore(add_assq r c dlr)
               | B acts' ->
@@ -926,24 +903,22 @@ let rec one_prediction_production
         (try
            if !debug_lvl > 1 then
              Printf.eprintf "action for completion of %a =>" print_final element0;
-           let i0 = debut_ab pos_ab element0 in
-           let x = try acts (apply_pos a i0 pos)
+           let x = try acts (apply_pos_debut a debut pos pos_ab)
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
           let complete = fun element ->
             match element with
-            | C {debut=k; stack=els'; acts; rest; full} ->
+            | C {debut=d; stack=els'; acts; rest; full} ->
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
-                 let k' = debut_ab pos_ab element0 in
+                 let debut = first_pos d debut in
                  let x =
-                   try apply_pos acts k' pos x
+                   try apply_pos_debut acts debut pos pos_ab x
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut=(if k = None then debut else k); acts = x;
-                                  stack=els'; rest; full } in
+                 let nouveau = D {debut; acts = x; stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
                  if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
                end
