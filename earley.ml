@@ -912,11 +912,11 @@ let rec one_prediction_production
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
-                 let debut = first_pos d debut in
                  let x =
                    try apply_pos_debut acts debut pos pos_ab x
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
+                 let debut = first_pos d debut in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
                  let nouveau = D {debut; acts = x; stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
