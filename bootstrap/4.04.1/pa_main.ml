@@ -76,7 +76,7 @@ module OCamlPP : Preprocessor =
   struct
     type state = bool list
     let initial_state = [] 
-    let active = (fun st  -> not (List.mem false st) : state -> bool) 
+    let active : state -> bool = fun st  -> not (List.mem false st) 
     let update st name lnum line =
       if (line <> "") && ((line.[0]) = '#')
       then

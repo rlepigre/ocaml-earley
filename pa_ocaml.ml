@@ -1581,7 +1581,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) no_semi when allow_let alm && lvl < App && lvl != Seq ->
      loc_expr _loc (apply_params l e).pexp_desc
 
-  | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi when allow_let alm && lvl < App
+  | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi
                   -> (fun _loc -> loc_expr _loc (Pexp_let (r, l, e)))
 #ifversion >= 4.02
              | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' -> (mn, mt, _loc)}*
@@ -1597,7 +1597,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 		 e:(expression_lvl (right_alm alm,Seq)) ->
 	      (let mp = id_loc mp _loc_mp in
 		fun _loc -> loc_expr _loc (Pexp_open (o, mp, e)))
-             } when allow_let alm && lvl < App -> r _loc
+             } when allow_let alm && lvl < App && lvl <> Seq -> r _loc
 
   | '(' e:expression? ')' when lvl = Atom ->
        (match e with

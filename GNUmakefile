@@ -172,7 +172,7 @@ clean:
 	$(MAKE) -e -j 1 -C ast_tools clean
 
 distclean: clean
-	- rm -f pa_ocaml pa_ocaml.byt *~ \#*\#
+	- rm -f pa_ocaml pa_ocaml-* pa_ocaml.byt *~ \#*\#
 	$(MAKE) -e -j 1 -C ast_tools distclean
 
 .PHONY: release

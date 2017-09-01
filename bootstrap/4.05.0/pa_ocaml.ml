@@ -8497,32 +8497,68 @@ module Make(Initial:Extension) =
                                                                     None)))))
                                         :: y
                                       else y  in
-                                    if (allow_let alm) && (lvl < App)
+                                    if
+                                      (allow_let alm) &&
+                                        ((lvl < App) && (lvl <> Seq))
                                     then
                                       (Earley.sequence_position let_kw
                                          (Earley.alternatives
-                                            (let y =
-                                               [Earley.fsequence_position
-                                                  module_kw
-                                                  (Earley.fsequence
-                                                     module_name
-                                                     (Earley.fsequence
-                                                        (Earley.apply
-                                                           List.rev
-                                                           (Earley.fixpoint
-                                                              []
-                                                              (Earley.apply
-                                                                 (fun x  ->
-                                                                    fun y  ->
-                                                                    x :: y)
-                                                                 (Earley.fsequence_position
-                                                                    (
-                                                                    Earley.char
-                                                                    '(' '(')
-                                                                    (
-                                                                    Earley.fsequence
-                                                                    module_name
-                                                                    (Earley.sequence
+                                            [Earley.fsequence_position
+                                               rec_flag
+                                               (Earley.fsequence let_binding
+                                                  (Earley.fsequence in_kw
+                                                     (Earley.sequence
+                                                        (expression_lvl
+                                                           ((right_alm alm),
+                                                             Seq)) no_semi
+                                                        (fun e  ->
+                                                           fun _default_0  ->
+                                                             fun _default_1 
+                                                               ->
+                                                               fun l  ->
+                                                                 fun r  ->
+                                                                   fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos
+                                                                     in
+                                                                    fun _loc 
+                                                                    ->
+                                                                    loc_expr
+                                                                    _loc
+                                                                    (Pexp_let
+                                                                    (r, l, e))))));
+                                            Earley.fsequence_position
+                                              module_kw
+                                              (Earley.fsequence module_name
+                                                 (Earley.fsequence
+                                                    (Earley.apply List.rev
+                                                       (Earley.fixpoint []
+                                                          (Earley.apply
+                                                             (fun x  ->
+                                                                fun y  -> x
+                                                                  :: y)
+                                                             (Earley.fsequence_position
+                                                                (Earley.char
+                                                                   '(' '(')
+                                                                (Earley.fsequence
+                                                                   module_name
+                                                                   (Earley.sequence
                                                                     (Earley.option
                                                                     None
                                                                     (Earley.apply
@@ -8566,43 +8602,36 @@ module Make(Initial:Extension) =
                                                                      in
                                                                     (mn, mt,
                                                                     _loc))))))))
-                                                        (Earley.fsequence
-                                                           (Earley.apply_position
-                                                              (fun x  ->
-                                                                 fun str  ->
-                                                                   fun pos 
-                                                                    ->
-                                                                    fun str' 
-                                                                    ->
-                                                                    fun pos' 
+                                                    (Earley.fsequence
+                                                       (Earley.apply_position
+                                                          (fun x  ->
+                                                             fun str  ->
+                                                               fun pos  ->
+                                                                 fun str'  ->
+                                                                   fun pos' 
                                                                     ->
                                                                     ((locate
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                              (Earley.option
-                                                                 None
-                                                                 (Earley.apply
-                                                                    (
-                                                                    fun x  ->
-                                                                    Some x)
-                                                                    (
-                                                                    Earley.sequence
-                                                                    (Earley.string
+                                                          (Earley.option None
+                                                             (Earley.apply
+                                                                (fun x  ->
+                                                                   Some x)
+                                                                (Earley.sequence
+                                                                   (Earley.string
                                                                     ":" ":")
-                                                                    module_type
-                                                                    (fun _ 
-                                                                    ->
+                                                                   module_type
+                                                                   (fun _  ->
                                                                     fun mt 
                                                                     -> mt)))))
-                                                           (Earley.fsequence
-                                                              (Earley.string
-                                                                 "=" "=")
-                                                              (Earley.fsequence
-                                                                 (Earley.apply_position
-                                                                    (
-                                                                    fun x  ->
-                                                                    fun str 
+                                                       (Earley.fsequence
+                                                          (Earley.string "="
+                                                             "=")
+                                                          (Earley.fsequence
+                                                             (Earley.apply_position
+                                                                (fun x  ->
+                                                                   fun str 
                                                                     ->
                                                                     fun pos 
                                                                     ->
@@ -8614,19 +8643,17 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                                    module_expr)
-                                                                 (Earley.sequence
-                                                                    in_kw
-                                                                    (
-                                                                    expression_lvl
-                                                                    ((right_alm
+                                                                module_expr)
+                                                             (Earley.sequence
+                                                                in_kw
+                                                                (expression_lvl
+                                                                   ((right_alm
                                                                     alm),
                                                                     Seq))
-                                                                    (
-                                                                    fun
-                                                                    _default_0
-                                                                     ->
-                                                                    fun e  ->
+                                                                (fun
+                                                                   _default_0
+                                                                    ->
+                                                                   fun e  ->
                                                                     fun me 
                                                                     ->
                                                                     let 
@@ -8703,38 +8730,34 @@ module Make(Initial:Extension) =
                                                                     (Pexp_letmodule
                                                                     (mn, me,
                                                                     e)))))))));
-                                               Earley.fsequence_position
-                                                 open_kw
+                                            Earley.fsequence_position open_kw
+                                              (Earley.fsequence override_flag
                                                  (Earley.fsequence
-                                                    override_flag
-                                                    (Earley.fsequence
-                                                       (Earley.apply_position
-                                                          (fun x  ->
-                                                             fun str  ->
-                                                               fun pos  ->
-                                                                 fun str'  ->
-                                                                   fun pos' 
-                                                                    ->
-                                                                    ((locate
+                                                    (Earley.apply_position
+                                                       (fun x  ->
+                                                          fun str  ->
+                                                            fun pos  ->
+                                                              fun str'  ->
+                                                                fun pos'  ->
+                                                                  ((locate
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                          module_path)
-                                                       (Earley.sequence in_kw
-                                                          (expression_lvl
-                                                             ((right_alm alm),
-                                                               Seq))
-                                                          (fun _default_0  ->
-                                                             fun e  ->
-                                                               fun mp  ->
-                                                                 let 
-                                                                   (_loc_mp,mp)
-                                                                   = mp  in
-                                                                 fun o  ->
-                                                                   fun
-                                                                    _default_1
-                                                                     ->
-                                                                    fun
+                                                       module_path)
+                                                    (Earley.sequence in_kw
+                                                       (expression_lvl
+                                                          ((right_alm alm),
+                                                            Seq))
+                                                       (fun _default_0  ->
+                                                          fun e  ->
+                                                            fun mp  ->
+                                                              let (_loc_mp,mp)
+                                                                = mp  in
+                                                              fun o  ->
+                                                                fun
+                                                                  _default_1 
+                                                                  ->
+                                                                  fun
                                                                     __loc__start__buf
                                                                      ->
                                                                     fun
@@ -8764,56 +8787,7 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Pexp_open
                                                                     (o, mp,
-                                                                    e))))))]
-                                                in
-                                             if
-                                               (allow_let alm) && (lvl < App)
-                                             then
-                                               (Earley.fsequence_position
-                                                  rec_flag
-                                                  (Earley.fsequence
-                                                     let_binding
-                                                     (Earley.fsequence in_kw
-                                                        (Earley.sequence
-                                                           (expression_lvl
-                                                              ((right_alm alm),
-                                                                Seq)) no_semi
-                                                           (fun e  ->
-                                                              fun _default_0 
-                                                                ->
-                                                                fun
-                                                                  _default_1 
-                                                                  ->
-                                                                  fun l  ->
-                                                                    fun r  ->
-                                                                    fun
-                                                                    __loc__start__buf
-                                                                     ->
-                                                                    fun
-                                                                    __loc__start__pos
-                                                                     ->
-                                                                    fun
-                                                                    __loc__end__buf
-                                                                     ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                     ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos
-                                                                     in
-                                                                    fun _loc 
-                                                                    ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_let
-                                                                    (r, l, e)))))))
-                                               :: y
-                                             else y))
+                                                                    e))))))])
                                          (fun _default_0  ->
                                             fun r  ->
                                               fun __loc__start__buf  ->

@@ -8,10 +8,10 @@ type entry =
   | FromExt 
   | Impl 
   | Intf 
-let entry = (ref FromExt : entry ref) 
-let fast = (ref false : bool ref) 
-let file = (ref None : string option ref) 
-let ascii = (ref false : bool ref) 
+let entry : entry ref = ref FromExt 
+let fast : bool ref = ref false 
+let file : string option ref = ref None 
+let ascii : bool ref = ref false 
 let print_location ch { Location.loc_start = s; Location.loc_end = e } =
   let open Lexing in
     Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
@@ -43,27 +43,24 @@ type entry_point =
   | Interface of Parsetree.signature_item list grammar * blank 
 module Initial =
   struct
-    let spec =
-      ([("--ascii", (Arg.Set ascii),
-          "Output ASCII text instead of serialized AST.");
-       ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
-         "Treat file as an implementation.");
-       ("--intf", (Arg.Unit ((fun ()  -> entry := Intf))),
-         "Treat file as an interface.");
-       ("--unsafe", (Arg.Set fast),
-         "Use unsafe functions for arrays (more efficient).");
-       ("--position-from-parser", (Arg.Set Quote.quote_parser_position),
-         "Report position from quotation in parser (usefull to debug quotation).");
-       ("--debug", (Arg.Set_int Earley.debug_lvl),
-         "Sets the value of \"Earley.debug_lvl\".")] : (Arg.key * Arg.spec *
-                                                         Arg.doc) list)
+    let spec : (Arg.key * Arg.spec * Arg.doc) list =
+      [("--ascii", (Arg.Set ascii),
+         "Output ASCII text instead of serialized AST.");
+      ("--impl", (Arg.Unit ((fun ()  -> entry := Impl))),
+        "Treat file as an implementation.");
+      ("--intf", (Arg.Unit ((fun ()  -> entry := Intf))),
+        "Treat file as an interface.");
+      ("--unsafe", (Arg.Set fast),
+        "Use unsafe functions for arrays (more efficient).");
+      ("--position-from-parser", (Arg.Set Quote.quote_parser_position),
+        "Report position from quotation in parser (usefull to debug quotation).");
+      ("--debug", (Arg.Set_int Earley.debug_lvl),
+        "Sets the value of \"Earley.debug_lvl\".")]
       
-    let before_parse_hook = (fun ()  -> () : unit -> unit) 
-    let char_litteral = (declare_grammar "char_litteral" : char grammar) 
-    let string_litteral =
-      (declare_grammar "string_litteral" : string grammar) 
-    let regexp_litteral =
-      (declare_grammar "regexp_litteral" : string grammar) 
+    let before_parse_hook : unit -> unit = fun ()  -> () 
+    let char_litteral : char grammar = declare_grammar "char_litteral" 
+    let string_litteral : string grammar = declare_grammar "string_litteral" 
+    let regexp_litteral : string grammar = declare_grammar "regexp_litteral" 
     type expression_prio =
       | Seq 
       | If 
@@ -169,10 +166,10 @@ module Initial =
     let ((expression_lvl : (alm * expression_prio) -> expression grammar),set_expression_lvl)
       = grammar_family ~param_to_string:string_exp "expression_lvl" 
     let expression = expression_lvl (Match, Seq) 
-    let structure_item =
-      (declare_grammar "structure_item" : structure_item list grammar) 
-    let signature_item =
-      (declare_grammar "signature_item" : signature_item list grammar) 
+    let structure_item : structure_item list grammar =
+      declare_grammar "structure_item" 
+    let signature_item : signature_item list grammar =
+      declare_grammar "signature_item" 
     let ((parameter :
            bool ->
              [ `Arg of (arg_label * expression option * pattern) 
@@ -233,31 +230,28 @@ module Initial =
     let ((pattern_lvl : (bool * pattern_prio) -> pattern grammar),set_pattern_lvl)
       = grammar_family "pattern_lvl" 
     let pattern = pattern_lvl (true, topPat) 
-    let let_binding =
-      (declare_grammar "let_binding" : value_binding list grammar) 
-    let class_body = (declare_grammar "class_body" : class_structure grammar) 
-    let class_expr = (declare_grammar "class_expr" : class_expr grammar) 
-    let value_path = (declare_grammar "value_path" : Longident.t grammar) 
-    let extra_expressions =
-      ([] : ((alm * expression_prio) -> expression grammar) list) 
-    let extra_prefix_expressions = ([] : expression grammar list) 
-    let extra_types = ([] : (type_prio -> core_type grammar) list) 
-    let extra_patterns =
-      ([] : ((bool * pattern_prio) -> pattern grammar) list) 
-    let extra_structure = ([] : structure_item list grammar list) 
-    let extra_signature = ([] : signature_item list grammar list) 
+    let let_binding : value_binding list grammar =
+      declare_grammar "let_binding" 
+    let class_body : class_structure grammar = declare_grammar "class_body" 
+    let class_expr : class_expr grammar = declare_grammar "class_expr" 
+    let value_path : Longident.t grammar = declare_grammar "value_path" 
+    let extra_expressions :
+      ((alm * expression_prio) -> expression grammar) list = [] 
+    let extra_prefix_expressions : expression grammar list = [] 
+    let extra_types : (type_prio -> core_type grammar) list = [] 
+    let extra_patterns : ((bool * pattern_prio) -> pattern grammar) list = [] 
+    let extra_structure : structure_item list grammar list = [] 
+    let extra_signature : signature_item list grammar list = [] 
     type record_field = (Longident.t Asttypes.loc * Parsetree.expression)
-    let constr_decl_list =
-      (declare_grammar "constr_decl_list" : constructor_declaration list
-                                              grammar)
-      
-    let field_decl_list =
-      (declare_grammar "field_decl_list" : label_declaration list grammar) 
-    let record_list =
-      (declare_grammar "record_list" : record_field list grammar) 
-    let match_cases = (declare_grammar "match_cases" : case list grammar) 
-    let module_expr = (declare_grammar "module_expr" : module_expr grammar) 
-    let module_type = (declare_grammar "module_type" : module_type grammar) 
+    let constr_decl_list : constructor_declaration list grammar =
+      declare_grammar "constr_decl_list" 
+    let field_decl_list : label_declaration list grammar =
+      declare_grammar "field_decl_list" 
+    let record_list : record_field list grammar =
+      declare_grammar "record_list" 
+    let match_cases : case list grammar = declare_grammar "match_cases" 
+    let module_expr : module_expr grammar = declare_grammar "module_expr" 
+    let module_type : module_type grammar = declare_grammar "module_type" 
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e) 
@@ -456,12 +450,9 @@ module Initial =
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Upto) to_kw;
            Earley.apply (fun _default_0  -> Downto) downto_kw])
-    let entry_points =
-      ([(".mli", (Interface (signature, ocaml_blank)));
-       (".ml", (Implementation (structure, ocaml_blank)))] : (string *
-                                                               entry_point)
-                                                               list)
-      
+    let entry_points : (string * entry_point) list =
+      [(".mli", (Interface (signature, ocaml_blank)));
+      (".ml", (Implementation (structure, ocaml_blank)))] 
   end
 module type Extension  = module type of Initial
 module type FExt  = functor (E : Extension) -> Extension
