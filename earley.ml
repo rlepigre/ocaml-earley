@@ -362,12 +362,19 @@ type _ pos =
 (* only one identity to benefit from physical equality *)
 let idt x = x
 
-let apply_pos: type a b.a pos -> position -> position -> a =
+let apply_pos: type a.a pos -> position -> position -> a =
   fun f p p' ->
     match f with
     | Idt -> idt
     | Simple f -> f
     | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
+
+let fix_begin : type a.a pos -> position -> a pos =
+  fun f p ->
+    match f with
+    | WithPos f -> let f = f (fst p) (snd p) in
+                   WithPos (fun _ _ p1 p2 -> f p1 p2)
+    | x -> x
 
 let first_pos pos1 pos2 =
   match pos1 with
@@ -862,9 +869,10 @@ let rec one_prediction_production
               if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
           }
         in
+        let f = fix_begin f pos_ab in
         begin match pre_rule rest2 with
         | Empty (g) when debut <> None ->
-          if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
+          if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPbiTIM %a\n%!" print_final element0;
           iter_rules (fun r ->
             let complete = protect errpos (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
@@ -912,11 +920,11 @@ let rec one_prediction_production
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
+                 let debut = first_pos d debut in
                  let x =
                    try apply_pos_debut acts debut pos pos_ab x
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
-                 let debut = first_pos d debut in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
                  let nouveau = D {debut; acts = x; stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
