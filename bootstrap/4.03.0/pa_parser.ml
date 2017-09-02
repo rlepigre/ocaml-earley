@@ -7,7 +7,7 @@ open Pa_lexing
 type action =
   | Default 
   | Normal of expression 
-  | DepSeq of (expression -> expression)* expression option* expression 
+  | DepSeq of ((expression -> expression)* expression option* expression) 
 let occur id e =
   Iter.do_local_ident := ((fun s  -> if s = id then raise Exit));
   (try

@@ -1671,14 +1671,20 @@ module Make(Initial:Extension) =
                     let tes =
                       match te with
                       | None  -> []
-                      | Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } ->
-                          tes
-                      | Some t -> [t] in
+                      | Some ({ ptyp_desc = Ptyp_tuple tes },false ) -> tes
+                      | Some (t,_) -> [t] in
                     (tes, None))
                  (Earley.option None
                     (Earley.apply (fun x  -> Some x)
-                       (Earley.sequence of_kw typexpr
-                          (fun _  -> fun _default_0  -> _default_0))));
+                       (Earley.fsequence of_kw
+                          (Earley.fsequence forced_open_paren
+                             (Earley.sequence typexpr forced_closed_paren
+                                (fun te  ->
+                                   fun cl  ->
+                                     fun op  ->
+                                       fun _  ->
+                                         if op <> cl then give_up ();
+                                         (te, op)))))));
               Earley.fsequence (Earley.char ':' ':')
                 (Earley.sequence
                    (Earley.option []

@@ -1656,14 +1656,20 @@ module Make(Initial:Extension) =
                     let tes =
                       match te with
                       | None  -> []
-                      | Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } ->
-                          tes
-                      | Some t -> [t]  in
+                      | Some ({ ptyp_desc = Ptyp_tuple tes },false ) -> tes
+                      | Some (t,_) -> [t]  in
                     (tes, None))
                  (Earley.option None
                     (Earley.apply (fun x  -> Some x)
-                       (Earley.sequence of_kw typexpr
-                          (fun _  -> fun _default_0  -> _default_0))));
+                       (Earley.fsequence of_kw
+                          (Earley.fsequence forced_open_paren
+                             (Earley.sequence typexpr forced_closed_paren
+                                (fun te  ->
+                                   fun cl  ->
+                                     fun op  ->
+                                       fun _  ->
+                                         if op <> cl then give_up ();
+                                         (te, op)))))));
               Earley.fsequence (Earley.char ':' ':')
                 (Earley.sequence
                    (Earley.option []
@@ -1695,9 +1701,10 @@ module Make(Initial:Extension) =
                             __loc__end__buf __loc__end__pos
                            in
                         let c = id_loc cn _loc_cn  in
+                        let tes = Pcstr_tuple tes  in
                         constructor_declaration
                           ~attributes:(attach_attrib ~local:true _loc [])
-                          _loc c (Pcstr_tuple tes) te))
+                          _loc c tes te))
     let field_decl = Earley.declare_grammar "field_decl" 
     ;;Earley.set_grammar field_decl
         (Earley.fsequence_position mutable_flag
@@ -1885,7 +1892,8 @@ module Make(Initial:Extension) =
                                      }
                                    -> tes
                                | Some t -> [t]  in
-                             ((id_loc cn _loc_cn), (Pcstr_tuple tes), _loc))))
+                             let tes = Pcstr_tuple tes  in
+                             ((id_loc cn _loc_cn), tes, _loc))))
     let exception_definition = Earley.declare_grammar "exception_definition" 
     ;;Earley.set_grammar exception_definition
         (Earley.alternatives

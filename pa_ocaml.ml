@@ -674,23 +674,29 @@ let parser constr_name2 =
   | STR("(") STR(")") -> "()"
 
 let parser constr_decl =
-  | cn:constr_name2 (tes,te):{ te:{_:of_kw typexpr}? ->
-			      let tes =
-				match te with
-				| None   -> []
-				| Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } -> tes
-				| Some t -> [t]
-			      in (tes, None)
-			    | CHR(':') ats:{te:(typexpr_lvl (next_type_prio ProdType)) tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}* arrow_re -> (te::tes)}?[[]] te:(typexpr_lvl (next_type_prio Arr)) -> (ats, Some te)
-                            }
-    -> (let c = id_loc cn _loc_cn in
-#ifversion < 4.03
-        constructor_declaration ~attributes:(attach_attrib ~local:true _loc []) _loc c tes te
-#else
-        constructor_declaration ~attributes:(attach_attrib ~local:true _loc []) _loc c (Pcstr_tuple tes) te
-(* FIXME: add record arguments ... *)
+  | cn:constr_name2
+    (tes,te):{ te:{_:of_kw op:forced_open_paren
+                           te:typexpr
+                           cl:forced_closed_paren
+               -> if op <> cl then give_up (); (te, op) }? ->
+		      let tes =
+		        match te with
+			| None   -> []
+			| Some ({ ptyp_desc = Ptyp_tuple tes }, false) -> tes
+			| Some (t,_) -> [t]
+		      in (tes, None)
+             | CHR(':') ats:{te:(typexpr_lvl (next_type_prio ProdType))
+                             tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
+                             arrow_re -> (te::tes)}?[[]]
+                        te:(typexpr_lvl (next_type_prio Arr)) -> (ats, Some te)
+             }
+    -> let c = id_loc cn _loc_cn in
+#ifversion >= 4.03
+       let tes =  Pcstr_tuple tes in
 #endif
-)
+       constructor_declaration ~attributes:(attach_attrib ~local:true _loc [])
+                               _loc c tes te
+       (* FIXME: add record arguments ... *)
 
 let parser field_decl =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
@@ -766,12 +772,12 @@ let parser exception_declaration =
         | None   -> []
         | Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } -> tes
         | Some t -> [t]
-#ifversion < 4.03
-      in (id_loc cn _loc_cn, tes, _loc))
-#else
-      in (id_loc cn _loc_cn, Pcstr_tuple tes, _loc))
-(* FIXME: record ... *)
+       in
+#ifversion >= 4.03
+      let tes = Pcstr_tuple tes in
 #endif
+      (id_loc cn _loc_cn, tes, _loc))
+      (* FIXME: record ... *)
 
 (* Exception definition *)
 let parser exception_definition =
