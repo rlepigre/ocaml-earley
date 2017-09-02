@@ -381,6 +381,16 @@ let first_pos pos1 pos2 =
   | None -> pos2
   | Some _ -> pos1
 
+let get_pos pos1 pos2 =
+  match pos1 with
+  | None -> pos2
+  | Some (pos1, _) -> pos1
+
+let get_pos_ab pos1 pos2 =
+  match pos1 with
+  | None -> pos2
+  | Some (_, pos1) -> pos1
+
 let apply_pos_debut: type a b.a pos
                      -> (position * position) option
                      -> position -> position -> a =
@@ -872,6 +882,7 @@ let rec one_prediction_production
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2 with
         | Empty (g) when debut <> None ->
+          let g = fix_begin g (get_pos_ab debut pos_ab) in
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPbiTIM %a\n%!" print_final element0;
           iter_rules (fun r ->
             let complete = protect errpos (function
