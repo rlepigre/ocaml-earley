@@ -541,18 +541,22 @@ let mkoption loc d =
 let extra_types_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_types))
 
-let _ = set_typexpr_lvl (fun lvl ->
+let _ = set_typexpr_lvl (fun (allow_par, lvl) ->
   parser
   | e:(extra_types_grammar lvl) -> e
-  | e:(typexpr_lvl (next_type_prio lvl)) when lvl < AtomType -> e
+  | e:(typexpr_lvl_raw (allow_par, next_type_prio lvl)) when lvl < AtomType -> e
   | "'" id:ident when lvl = AtomType ->
       loc_typ _loc (Ptyp_var id)
   | joker_kw when lvl = AtomType ->
       loc_typ _loc Ptyp_any
   | '(' module_kw pt:package_type ')' when lvl = AtomType ->
       loc_typ _loc pt
-  | '(' te:typexpr attribute? (*FIXME*) ')' when lvl = AtomType ->
-      te
+  | '(' te:typexpr at:attribute* ')' when lvl = AtomType && allow_par ->
+#if version >= 4.02
+     { te with ptyp_attributes = at }
+#else
+     te
+#endif
   | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl = Arr ->
 #if version >= 4.03
     loc_typ _loc (Ptyp_arrow (ln, te, te'))
@@ -673,30 +677,48 @@ let parser constr_name2 =
   | cn:constr_name    -> cn
   | STR("(") STR(")") -> "()"
 
+let parser of_constr_decl =
+  | te:{_:of_kw { _:'(' te:typexpr _:')' -> (te,true)
+                  | te:typexpr_nopar -> (te,false) }}? ->
+	       let tes =
+		 match te with
+		 | None   -> []
+		 | Some ({ ptyp_desc = Ptyp_tuple tes }, false) -> tes
+		 | Some (t,_) -> [t]
+	       in
+#ifversion >= 4.03
+               let tes =  Pcstr_tuple tes in
+#endif
+               tes
+#ifversion >= 4.03
+  | of_kw '{' fds:field_decl_list '}' -> Pcstr_record fds
+#endif
+
 let parser constr_decl =
   | cn:constr_name2
-    (tes,te):{ te:{_:of_kw op:forced_open_paren
-                           te:typexpr
-                           cl:forced_closed_paren
-               -> if op <> cl then give_up (); (te, op) }? ->
-		      let tes =
-		        match te with
-			| None   -> []
-			| Some ({ ptyp_desc = Ptyp_tuple tes }, false) -> tes
-			| Some (t,_) -> [t]
-		      in (tes, None)
-             | CHR(':') ats:{te:(typexpr_lvl (next_type_prio ProdType))
-                             tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
-                             arrow_re -> (te::tes)}?[[]]
-                        te:(typexpr_lvl (next_type_prio Arr)) -> (ats, Some te)
+    (tes,te):{ te:of_constr_decl -> (te, None)
+             | ':' tes:{te:(typexpr_lvl (next_type_prio ProdType))
+                        tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
+                        arrow_re -> (te::tes)}?[[]]
+                   te:(typexpr_lvl (next_type_prio Arr)) ->
+#ifversion >= 4.03
+                let tes =  Pcstr_tuple tes in
+#endif
+                (tes, Some te)
+#ifversion >= 4.03
+             | ':' '{' fds:field_decl_list '}' arrow_re
+                   te:(typexpr_lvl (next_type_prio Arr)) ->
+                (Pcstr_record fds, Some te)
+#endif
              }
     -> let c = id_loc cn _loc_cn in
-#ifversion >= 4.03
-       let tes =  Pcstr_tuple tes in
-#endif
        constructor_declaration ~attributes:(attach_attrib ~local:true _loc [])
                                _loc c tes te
-       (* FIXME: add record arguments ... *)
+
+(* NOTE: OCaml includes the semi column in the position *)
+let parser field_decl_semi =
+  | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
+      label_declaration _loc (id_loc fn _loc_fn) m pte
 
 let parser field_decl =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
@@ -714,7 +736,7 @@ let _ = set_grammar constr_decl_list (
 
 let parser field_decl_aux =
   | EMPTY -> []
-  | fs:field_decl_aux fd:field_decl semi_col -> fd::fs
+  | fs:field_decl_aux fd:field_decl_semi -> fd::fs
   (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') STR(";")? ls:field_decl_list -> Quote.make_antiquotation e*)
 
 let _ = set_grammar field_decl_list (
@@ -757,27 +779,21 @@ let typedef_gen = (fun attach constr filter ->
 	_loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
    )
 
-let typedef = apply (fun f -> f None) (typedef_gen true typeconstr_name (fun x -> x))
+let typedef = typedef_gen true typeconstr_name (fun x -> x)
 let typedef_in_constraint = typedef_gen false typeconstr Longident.last
 
 
 let parser type_definition =
-  | type_kw td:typedef tds:{and_kw td:typedef -> td}* -> (td::tds)
-
+#ifversion >= 4.02.0
+  | l:type_kw td:typedef tds:{l:and_kw td:typedef -> snd (td (Some _loc_l))}* ->
+                             snd (td (Some _loc_l))::tds
+#else
+  | l:type_kw td:typedef tds:{l:and_kw td:typedef -> td (Some _loc_l)}* ->
+                             td (Some _loc_l)::tds
+#endif
 
 let parser exception_declaration =
-  | exception_kw cn:constr_name te:{_:of_kw typexpr}? ->
-      (let tes =
-        match te with
-        | None   -> []
-        | Some { ptyp_desc = Ptyp_tuple tes; ptyp_loc = _ } -> tes
-        | Some t -> [t]
-       in
-#ifversion >= 4.03
-      let tes = Pcstr_tuple tes in
-#endif
-      (id_loc cn _loc_cn, tes, _loc))
-      (* FIXME: record ... *)
+  | exception_kw cn:constr_name te:of_constr_decl -> (id_loc cn _loc_cn, te, _loc)
 
 (* Exception definition *)
 let parser exception_definition =
@@ -1030,8 +1046,8 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
                | Some _ -> Open
       in
       loc_pat _loc (Ppat_record (all, cl))
-  | STR("[") p:pattern ps:{semi_col p:pattern -> p}* semi_col? STR("]") when lvl = AtomPat ->
-      pat_list _loc (p::ps)
+  | STR("[") p:pattern ps:{semi_col p:pattern -> p}* semi_col? c:STR("]") when lvl = AtomPat ->
+      pat_list _loc _loc_c (p::ps)
   | STR("[") STR("]") when lvl = AtomPat ->
       let nil = id_loc (Lident "[]") _loc in
       loc_pat _loc (ppat_construct (nil, None))
@@ -1562,6 +1578,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
       e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
+        (* NOTE: why OCaml does that for the final ';' *)
 	mk_seq (ls@[e'])
 
   | v:inst_var_name STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
@@ -1787,7 +1804,8 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
       | "array"      ->
 	generic_antiquote (quote_apply e_loc _loc (pa_ast "exp_array") [quote_location_t e_loc _loc _loc; e])
       | _      -> give_up ()
-    in Quote.pexp_antiquotation _loc f
+    in
+    Quote.pexp_antiquotation _loc f
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+ e':(expression_lvl (right_alm alm, next_exp Tupl))
       when lvl = Tupl ->
@@ -1973,13 +1991,9 @@ let parser structure_item_base =
 				      }))
 #endif
 #ifversion >= 4.03
-  | td:type_definition -> loc_str _loc (Pstr_type (Recursive, List.map snd td)) (* FIXME ? *)
-#else
-#ifversion >= 4.02
-  | td:type_definition -> loc_str _loc (Pstr_type (List.map snd td))
+  | td:type_definition -> loc_str _loc (Pstr_type (Recursive, td)) (* FIXME ? *)
 #else
   | td:type_definition -> loc_str _loc (Pstr_type td)
-#endif
 #endif
   | ex:exception_definition -> loc_str _loc ex
 #ifversion >= 4.02
@@ -1991,7 +2005,7 @@ let parser structure_item_base =
 #endif
     me:module_expr -> (module_binding _loc mn mt me)}* ->
       let m = (module_binding _loc mn mt me) in
-      loc_str _loc (Pstr_recmodule (m::ms))
+      Pstr_recmodule (m::ms)
 #ifversion >= 4.02
   |            mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type }? STR")" -> (mn, mt, _loc)}*
 #else
@@ -2002,20 +2016,20 @@ let parser structure_item_base =
      let me = List.fold_left (fun acc (mn,mt,_loc) ->
        mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
 #ifversion >= 4.02
-     loc_str _loc (Pstr_module(module_binding _loc mn None me))
+     Pstr_module(module_binding _loc mn None me)
 #else
      let (name, _, me) = module_binding _loc mn None me in
-     loc_str _loc (Pstr_module(name,me))
+     Pstr_module(name,me)
 #endif
 #ifversion >= 4.02
   |            type_kw mn:modtype_name mt:{STR"=" mt:module_type}? a:post_item_attributes ->
-      loc_str _loc (Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
- 		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc })
+      Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
+ 		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc }
 #else
   |            type_kw mn:modtype_name STR"=" mt:module_type ->
-      loc_str _loc (Pstr_modtype(id_loc mn _loc_mn, mt))
+      Pstr_modtype(id_loc mn _loc_mn, mt)
 #endif
-               } -> r
+               } -> loc_str _loc r
   | open_kw o:override_flag m:module_path a:post_item_attributes ->
 #ifversion >= 4.02
       loc_str _loc (Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
@@ -2082,13 +2096,9 @@ let parser signature_item_base =
       loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls)
   | td:type_definition ->
 #ifversion >= 4.03
-       loc_sig _loc (Psig_type (Recursive, List.map snd td))
-#else
-#ifversion >= 4.02
-       loc_sig _loc (Psig_type (List.map snd td))
+       loc_sig _loc (Psig_type (Recursive, td))
 #else
        loc_sig _loc (Psig_type td)
-#endif
 #endif
   | (name,ed,_loc'):exception_declaration a:post_item_attributes ->
 #ifversion >= 4.02
@@ -2154,7 +2164,7 @@ let parser signature_item_base =
 let _ = set_grammar signature_item (
   parser
   | e:(alternatives extra_signature) -> attach_sig _loc @ e
-  | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [s]
+  | s:signature_item_base _:double_semi_col? -> attach_sig _loc_s @ [s]
   )
 
 exception Top_Exit

@@ -182,26 +182,6 @@ let no_colon =
          else
            (let (c,buf,pos) = Input.read buf pos in
             if c = ':' then ((), true) else ((), false)))
-let no_open_paren =
-  Earley.test ~name:"no_open_paren" Charset.full
-    (fun buf  ->
-       fun pos  ->
-         let (c,buf,pos) = Input.read buf pos in
-         if c <> '(' then ((), true) else ((), false))
-let no_closed_paren =
-  Earley.test ~name:"no_closed_paren" Charset.full
-    (fun buf  ->
-       fun pos  ->
-         let (c,buf,pos) = Input.read buf pos in
-         if c <> ')' then ((), true) else ((), false))
-let forced_open_paren =
-  Earley.alternatives
-    [Earley.apply (fun _  -> true) (Earley.char '(' '(');
-    Earley.apply (fun _default_0  -> false) no_open_paren]
-let forced_closed_paren =
-  Earley.alternatives
-    [Earley.apply (fun _  -> true) (Earley.char ')' ')');
-    Earley.apply (fun _default_0  -> false) no_closed_paren]
 let make_reserved l =
   let cmp s1 s2 = String.compare s2 s1 in
   let re_from_list l =
@@ -361,7 +341,6 @@ let semi_col = single_char ';'
 let double_semi_col = double_char ';'
 let single_quote = single_char '\''
 let double_quote = double_char '\''
-let forced_semi = Earley.alternatives [semi_col; no_semi]
 let bool_lit : string Earley.grammar= Earley.declare_grammar "bool_lit"
 let _ =
   Earley.set_grammar bool_lit

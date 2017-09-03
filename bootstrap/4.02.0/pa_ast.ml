@@ -1,6 +1,10 @@
 open Asttypes
 open Parsetree
 open Longident
+let print_location ch { Location.loc_start = s; Location.loc_end = e } =
+  let open Lexing in
+    Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
+      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
 let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc }
 let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc }
 let const_string s = Const_string (s, None)
@@ -241,12 +245,13 @@ let pexp_assertfalse _loc =
 let make_case pat expr guard =
   { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
 let pexp_function cases = Pexp_function cases
-let pat_list _loc l =
-  let nil = id_loc (Lident "[]") (ghost _loc) in
+let pat_list _loc _loc_c l =
+  let nil = id_loc (Lident "[]") (ghost _loc_c) in
   let cons x xs =
-    let c = id_loc (Lident "::") (ghost _loc) in
-    let cons =
-      ppat_construct (c, (Some (loc_pat (ghost _loc) (Ppat_tuple [x; xs])))) in
+    let cloc = ghost (merge2 x.ppat_loc _loc) in
+    let c = id_loc (Lident "::") cloc in
+    let cons = ppat_construct (c, (Some (loc_pat cloc (Ppat_tuple [x; xs])))) in
     loc_pat _loc cons in
-  List.fold_right cons l (loc_pat (ghost _loc) (ppat_construct (nil, None)))
+  List.fold_right cons l
+    (loc_pat (ghost _loc_c) (ppat_construct (nil, None)))
 let ppat_list = pat_list

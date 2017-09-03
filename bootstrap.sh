@@ -5,6 +5,7 @@ export MAKE="make"
 set -v
 
 GOOD_BOOTSTRAPS=""
+ALL_VERSIONS="4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
 
 function build {
     opam switch $1
@@ -33,14 +34,22 @@ function build {
     # ./tests_pa_ocaml.sh
 }
 
-if [ "$1" = "--all" ] ; then
-    VERSIONS="4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0 4.01.0"
+if [ "$1" = "--all" -o "$1" = "--allnew" ] ; then
+    VERSIONS=$ALL_VERSIONS
     echo ALL: bootstraping all version \($VERSIONS\) from file in bootstrap
 elif [ "$1" = "--new" ] ; then
     echo NEW: bootstraping $2 from previous version
     VERSIONS=$2
+elif [ "$1" = "--earley" ] ; then
+    cd $2
+    for v in $ALL_VERSIONS; do
+	opam switch $v
+	eval `opam config env`
+	make clean && make && make install
+    done
+    exit 0
 else
-    echo you give option --new VERSION or --all
+    echo you give option --new VERSION or --all or --allnew or --earley dir
     exit 1
 fi
 

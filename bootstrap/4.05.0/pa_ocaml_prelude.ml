@@ -12,11 +12,6 @@ let entry = (ref FromExt : entry ref)
 let fast = (ref false : bool ref) 
 let file = (ref None : string option ref) 
 let ascii = (ref false : bool ref) 
-let print_location ch { Location.loc_start = s; Location.loc_end = e } =
-  let open Lexing in
-    Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
-      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
-  
 let string_location { Location.loc_start = s; Location.loc_end = e } =
   let open Lexing in
     Printf.sprintf "Position %d:%d to %d:%d%!" s.pos_lnum
@@ -195,8 +190,8 @@ module Initial =
       | AtomType 
     let type_prios =
       [TopType; As; Arr; ProdType; DashType; AppType; AtomType] 
-    let type_prio_to_string =
-      function
+    let type_prio_to_string (_,lvl) =
+      match lvl with
       | TopType  -> "TopType"
       | As  -> "As"
       | Arr  -> "Arr"
@@ -213,8 +208,10 @@ module Initial =
       | DashType  -> AppType
       | AppType  -> AtomType
       | AtomType  -> AtomType 
-    let ((typexpr_lvl : type_prio -> core_type grammar),set_typexpr_lvl) =
-      grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl" 
+    let ((typexpr_lvl_raw : (bool * type_prio) -> core_type grammar),set_typexpr_lvl)
+      = grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl" 
+    let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl) 
+    let typexpr_nopar = typexpr_lvl_raw (false, TopType) 
     let typexpr = typexpr_lvl TopType 
     type pattern_prio =
       | AltPat 

@@ -169,6 +169,9 @@ uninstall:
 clean:
 	- rm -f *.cm* *.o *.a
 	- rm -f bootstrap/*/*.cm* bootstrap/*/*.o bootstrap/*/*.a
+	- rm -f tests_pa_ocaml/*.ml*.ocamlc* tests_pa_ocaml/*.ml*.pa_ocaml* \
+                tests_pa_ocaml/*.ml*.*diff tests_pa_ocaml/*.cm*
+	- rm -f test_parsers ocaml.csv
 	$(MAKE) -e -j 1 -C ast_tools clean
 
 distclean: clean

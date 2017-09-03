@@ -263,23 +263,6 @@ let no_colon =
     let c,buf,pos = Input.read buf pos in
     if c = ':' then ((), true) else ((), false))
 
-let no_open_paren =
-   Earley.test ~name:"no_open_paren" Charset.full (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> '(' then ((), true) else ((), false))
-
-let no_closed_paren =
-   Earley.test ~name:"no_closed_paren" Charset.full (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> ')' then ((), true) else ((), false))
-
-let forced_open_paren =
-  parser '(' -> true | no_open_paren -> false
-
-let forced_closed_paren =
-  parser ')' -> true | no_closed_paren -> false
-
-
 (****************************************************************************
  * Identifiers.                                                             *
  ****************************************************************************)
@@ -375,8 +358,6 @@ let semi_col        = single_char ';'
 let double_semi_col = double_char ';'
 let single_quote    = single_char '\''
 let double_quote    = double_char '\''
-
-let forced_semi     = parser semi_col | no_semi
 
 (* Boolean litteral. *)
 

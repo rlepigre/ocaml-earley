@@ -60,12 +60,6 @@ let fast  : bool ref          = ref false
 let file  : string option ref = ref None
 let ascii : bool ref          = ref false
 
-let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
-  let open Lexing in
-  Printf.fprintf ch "Position %d:%d to %d:%d%!"
-    s.pos_lnum (s.pos_cnum - s.pos_bol)
-    e.pos_lnum (e.pos_cnum - e.pos_bol)
-
 let string_location {Location.loc_start = s ; Location.loc_end = e} =
   let open Lexing in
   Printf.sprintf "Position %d:%d to %d:%d%!"
@@ -216,7 +210,7 @@ let string_exp (b,lvl) =
   type type_prio = TopType | As | Arr | ProdType | DashType | AppType | AtomType
 
   let type_prios = [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
-  let type_prio_to_string = function
+  let type_prio_to_string (_, lvl) = match lvl with
     | TopType -> "TopType" | As -> "As" | Arr -> "Arr" | ProdType -> "ProdType"
     | DashType -> "DashType" | AppType -> "AppType" | AtomType -> "AtomType"
   let next_type_prio = function
@@ -228,7 +222,10 @@ let string_exp (b,lvl) =
     | AppType -> AtomType
     | AtomType -> AtomType
 
-  let (typexpr_lvl : type_prio -> core_type grammar), set_typexpr_lvl = grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl"
+  let (typexpr_lvl_raw : (bool * type_prio) -> core_type grammar), set_typexpr_lvl =
+    grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl"
+  let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
+  let typexpr_nopar = typexpr_lvl_raw (false, TopType)
   let typexpr = typexpr_lvl TopType
   type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
   let topPat = AltPat
@@ -353,13 +350,15 @@ let attach_gen build =
       | (start,end_,contents as c)::rest ->
          let start' = loc.loc_start in
          let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-         (* Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
-         (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;  *)
+         (*Printf.eprintf "sig [%d,%d] [%d,...]\n%!"
+           (line_num (fst start)) (line_num (fst end_)) start'.pos_lnum;*)
          if line_num (fst end_) < start'.pos_lnum then
            fn acc (build loc (mk_attrib loc "ocaml.text" contents) :: res) rest
          else
            fn (c::acc) res rest
     in
+    (*Printf.eprintf "attach [%d,...] %d\n%!"
+                     loc.loc_start.pos_lnum (List.length !ocamldoc_comments);*)
     try Hashtbl.find tbl loc.loc_start
     with Not_found ->
       let res = fn [] [] !ocamldoc_comments in
@@ -372,6 +371,8 @@ let attach_str = attach_gen (fun loc a  -> loc_str loc (Pstr_attribute a))
 let attach_sig = (fun loc -> [])
 let attach_str = (fun loc -> [])
 #endif
+
+
 
 (****************************************************************************
  * Basic syntactic elements (identifiers and litterals)                      *
