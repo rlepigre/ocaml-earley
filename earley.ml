@@ -873,7 +873,7 @@ let rec one_prediction_production
         begin match pre_rule rest2, debut with
         | Empty (g), Some(_,pos') ->
           let g = fix_begin g pos' in
-          if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPbiTIM %a\n%!" print_final element0;
+          if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
           iter_rules (fun r ->
             let complete = protect errpos (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
