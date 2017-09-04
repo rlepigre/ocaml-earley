@@ -204,7 +204,7 @@ let varify_constructors var_names t =
   loop t
 
 let wrap_type_annotation _loc newtypes core_type body =
-  let exp = loc_expr _loc (pexp_constraint(body,core_type)) in
+  let exp = loc_expr (ghost _loc) (pexp_constraint(body,core_type)) in
   let exp =
     List.fold_right (fun newtype exp -> loc_expr _loc (Pexp_newtype (newtype, exp)))
       newtypes exp
@@ -235,9 +235,6 @@ let string_of_tree (t:tree) : string =
 
 (* Naming labels *)
 let label_name = lident
-
-let parser label =
-  | '~' - ln:label_name no_colon -> ln (* no constructor, we add it later in this case *)
 
 let parser opt_label =
   | '?' - ln:label_name no_colon -> ln (* no constructor, we add it later in this case *)
@@ -411,7 +408,7 @@ let parser item_extension =
  ****************************************************************************)
 let parser only_poly_typexpr =
 #ifversion >= 4.05
-  | ids:{STR("'") id:ident -> id_loc id _loc_id}+ STR(".") te:typexpr ->
+  | ids:{STR("'") id:ident -> id_loc id _loc}+ STR(".") te:typexpr ->
 #else
   | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
 #endif
@@ -419,7 +416,7 @@ let parser only_poly_typexpr =
 
 let parser poly_typexpr =
 #ifversion >= 4.05
-  | ids:{STR("'") id:ident -> id_loc id _loc_id}+ STR(".") te:typexpr ->
+  | ids:{STR("'") id:ident -> id_loc id _loc}+ STR(".") te:typexpr ->
 #else
   | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
 #endif
@@ -638,7 +635,7 @@ let _ = set_typexpr_lvl (fun (allow_par, lvl) ->
        let e_loc = exp_ident _loc "_loc" in
        let generic_antiquote e = function
 	 | Quote_ptyp -> e
-	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+	 | _ -> failwith "invalid antiquotation" (* FIXME: print location *)
        in
        let f =
 	 match aq with
@@ -656,26 +653,26 @@ let _ = set_typexpr_lvl (fun (allow_par, lvl) ->
 
 (* Type definition *)
 let parser type_param =
-  | var:opt_variance CHR('\'') id:ident ->
+  | var:opt_variance id:{_:'\'' ident} ->
       (Some (id_loc id _loc_id), var)
   | var:opt_variance CHR('_') ->
       (None, var)
 
 let parser type_params =
   | tp:type_param -> [tp]
-  | STR("(") tp:type_param tps:{STR(",") tp:type_param -> tp}* STR(")") ->
+  | '(' tp:type_param tps:{',' tp:type_param -> tp}* ')' ->
       tp::tps
 
 let parser type_equation =
-  | CHR('=') p:private_flag te:typexpr -> (p,te)
+  | '=' p:private_flag te:typexpr -> (p,te)
 
 let parser type_constraint =
-  | constraint_kw STR("'") id:ident CHR('=') te:typexpr ->
+  | constraint_kw id:{_:'\'' ident} '=' te:typexpr ->
       (loc_typ _loc_id (Ptyp_var id), te, _loc)
 
 let parser constr_name2 =
   | cn:constr_name    -> cn
-  | STR("(") STR(")") -> "()"
+  | '(' ')' -> "()"
 
 let parser of_constr_decl =
   | te:{_:of_kw { _:'(' te:typexpr _:')' -> (te,true)
@@ -694,8 +691,12 @@ let parser of_constr_decl =
   | of_kw '{' fds:field_decl_list '}' -> Pcstr_record fds
 #endif
 
-let parser constr_decl =
-  | cn:constr_name2
+let parser bar with_bar =
+  | EMPTY when not with_bar
+  | '|'
+
+let parser constr_decl with_bar =
+  | (bar with_bar) cn:constr_name2
     (tes,te):{ te:of_constr_decl -> (te, None)
              | ':' tes:{te:(typexpr_lvl (next_type_prio ProdType))
                         tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
@@ -715,6 +716,16 @@ let parser constr_decl =
        constructor_declaration ~attributes:(attach_attrib ~local:true _loc [])
                                _loc c tes te
 
+let parser all_constr_decl with_bar =
+  | cd:(constr_decl with_bar) -> [cd]
+(*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
+
+let _ = set_grammar constr_decl_list (
+  parser
+  | cd:(all_constr_decl false) cds:{cd:(all_constr_decl true) -> cd}* -> List.flatten (cd::cds)
+  | EMPTY -> []
+  )
+
 (* NOTE: OCaml includes the semi column in the position *)
 let parser field_decl_semi =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
@@ -723,16 +734,6 @@ let parser field_decl_semi =
 let parser field_decl =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
       label_declaration _loc (id_loc fn _loc_fn) m pte
-
-let parser all_constr_decl =
-  | cd:constr_decl -> [cd]
-(*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> Quote.make_antiquotation e*)
-
-let _ = set_grammar constr_decl_list (
-  parser
-  | STR("|")? cd:all_constr_decl cds:{STR("|") cd:all_constr_decl -> cd}* -> List.flatten (cd::cds)
-  | EMPTY -> []
-  )
 
 let parser field_decl_aux =
   | EMPTY -> []
@@ -1089,7 +1090,9 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
        in
        let generic_antiquote e = function
 	 | Quote_ppat -> e
-	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+	 | _ -> failwith
+                  ("invalid antiquotation type ppat expected at "^
+                     string_location _loc)
        in
        let f =
 	 match aq with
@@ -1192,17 +1195,17 @@ let bigarray_get _loc arr arg =
   | coords ->
       <:expr<Bigarray.Genarray.$lid:get$ $arr$ $array:coords$ >>
 
-let bigarray_set loc arr arg newval =
+let bigarray_set _loc arr arg newval =
   let set = if !fast then "unsafe_set" else "set" in
   match untuplify arg with
   | [c1] ->
-      exp_apply loc (bigarray_function loc "Array1" set) [arr; c1; newval]
+      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $newval$>>
   | [c1;c2] ->
-      exp_apply loc (bigarray_function loc "Array2" set) [arr; c1; c2; newval]
+      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $c2$ $newval$>>
   | [c1;c2;c3] ->
-      exp_apply loc (bigarray_function loc "Array3" set) [arr; c1; c2; c3; newval]
+      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $c2$ $c3$ $newval$>>
   | coords ->
-      exp_apply loc (bigarray_function loc "Genarray" "set") [arr; loc_expr loc (Pexp_array coords); newval]
+      <:expr<Bigarray.Genarray.$lid:set$ $arr$ $array:coords$ $newval$ >>
 
 let parser constructor =
   | m:{ m:module_path STR"." }? id:{id:uident -> id | b:bool_lit -> b } ->
@@ -1211,11 +1214,16 @@ let parser constructor =
       | Some m -> Ldot(m, id)
 
 let parser argument =
-  | id:label -> (labelled id, loc_expr _loc (Pexp_ident(id_loc (Lident id) _loc)))
-  | id:ty_label e:(expression_lvl (NoMatch, next_exp App)) -> (id, e)
-  | id:opt_label -> (optional id, loc_expr _loc (Pexp_ident(id_loc (Lident id) _loc)))
-  | id:ty_opt_label e:(expression_lvl (NoMatch, next_exp App)) -> (id, e)
-  | e:(expression_lvl (NoMatch, next_exp App)) -> (nolabel, e)
+  | '~' id:lident no_colon ->
+        (labelled id, loc_expr _loc_id (Pexp_ident(id_loc (Lident id) _loc_id)))
+  | id:ty_label e:(expression_lvl (NoMatch, next_exp App)) ->
+       (id, e)
+  | id:opt_label ->
+       (optional id, loc_expr _loc (Pexp_ident(id_loc (Lident id) _loc)))
+  | id:ty_opt_label e:(expression_lvl (NoMatch, next_exp App)) ->
+       (id, e)
+  | e:(expression_lvl (NoMatch, next_exp App)) ->
+       (nolabel, e)
 
 let _ = set_parameter (fun allow_new_type ->
   parser
@@ -1228,7 +1236,7 @@ let _ = set_parameter (fun allow_new_type ->
       in
       `Arg (labelled id, None, pat))
   | id:ty_label pat:pattern -> `Arg (id, None, pat)
-  | '~' id:ident no_colon -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
+  | '~' id:lident no_colon -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
   | '?' '(' id:lident t:{ ':' t:typexpr -> t }? e:{'=' e:expression -> e}? ')' -> (
       let pat = loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
@@ -1324,7 +1332,7 @@ let _ = set_grammar match_cases (
        let open Quote in
        let generic_antiquote e = function
 	 | Quote_loc -> e
-	 | _ -> failwith "invalid antiquotation type" (* FIXME: print location *)
+	 | _ -> failwith "invalid antiquotation" (* FIXME: print location *)
        in
        let f =
 	 match aq with
@@ -1413,7 +1421,7 @@ let parser class_field =
       let ex =
         match te with
         | None   -> e
-        | Some t -> loc_expr _loc_te (pexp_constraint (e, t))
+        | Some t -> loc_expr (ghost _loc_te) (pexp_constraint (e, t))
       in
 #ifversion >= 4.02
       loc_pcf _loc (Pcf_val (ivn, m, Cfk_concrete(o,ex)))
@@ -1462,7 +1470,7 @@ let parser class_field =
 	match te with
 	  None -> e
 	| Some te ->
-	   loc_expr _loc (pexp_constraint (e, te))
+	   loc_expr (ghost _loc) (pexp_constraint (e, te))
       in
       let e : expression = apply_params ps e in
       let e = loc_expr _loc (Pexp_poly (e, None)) in
@@ -1555,11 +1563,11 @@ let parser extra_expressions_grammar lvl =
 let structure_item_simple = declare_grammar "structure_item_simple"
 
 let parser prefix_expression c =
-  | function_kw l:match_cases -> <:expr< function $l$>>
+  | function_kw l:match_cases -> <:expr< function $cases:l$>>
 
-  | match_kw e:expression with_kw l:match_cases -> <:expr< match $e$ with $l$>>
+  | match_kw e:expression with_kw l:match_cases -> <:expr< match $e$ with $cases:l$>>
 
-  | try_kw e:expression with_kw l:match_cases -> <:expr< try $e$ with $l$>>
+  | try_kw e:expression with_kw l:match_cases -> <:expr< try $e$ with $cases:l$>>
 
   | e:(alternatives extra_prefix_expressions) -> e
 
@@ -1578,7 +1586,11 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
       e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
-        (* NOTE: why OCaml does that for the final ';' *)
+        (* NOTE: why OCaml does that for the final ';' and the pos of e'
+           this will disappear if the reported bug is fixed in ocaml *)
+        let e' = if Quote.is_antiquotation e'.pexp_loc then e' else
+                   loc_expr (merge2 e'.pexp_loc _loc) e'.pexp_desc
+        in
 	mk_seq (ls@[e'])
 
   | v:inst_var_name STR("<-") e:(expression_lvl (right_alm alm, next_exp Aff)) when lvl = Aff ->
@@ -1624,24 +1636,31 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | '(' e:expression? ')' when lvl = Atom ->
        (match e with
-       | Some(e) -> if e.pexp_desc == Quote.dummy_pexp then e else loc_expr _loc e.pexp_desc
-       | None ->
-	  let cunit = id_loc (Lident "()") _loc in
-	  loc_expr _loc (pexp_construct(cunit, None)))
+        | Some(e) -> if Quote.is_antiquotation e.pexp_loc then e
+                     else loc_expr _loc e.pexp_desc
+        | None ->
+	   let cunit = id_loc (Lident "()") _loc in
+	   loc_expr _loc (pexp_construct(cunit, None)))
 
   | '(' no_parser e:expression t:type_coercion ')'  when lvl = Atom  ->
        (match t with
-	   | (Some t1, None) -> loc_expr _loc (pexp_constraint(e, t1))
-	   | (t1, Some t2) -> loc_expr _loc (pexp_coerce(e, t1, t2))
+	   | (Some t1, None) -> loc_expr (ghost _loc) (pexp_constraint(e, t1))
+	   | (t1, Some t2) -> loc_expr (ghost _loc) (pexp_coerce(e, t1, t2))
 	   | None, None -> assert false)
 
   | begin_kw e:expression? end_kw when lvl = Atom ->
-     (match e with Some e -> e | None ->
-       let cunit = id_loc (Lident "()") _loc in
-       loc_expr _loc (pexp_construct(cunit, None)))
+       (match e with
+        | Some e ->
+           if Quote.is_antiquotation e.pexp_loc then e
+           else loc_expr _loc e.pexp_desc
+        | None ->
+           let cunit = id_loc (Lident "()") _loc in
+           loc_expr _loc (pexp_construct(cunit, None)))
 
-  | assert_kw e:{ false_kw -> pexp_assertfalse _loc | _:no_false e:(expression_lvl (NoMatch, next_exp App)) when lvl = App -> Pexp_assert(e)} when (lvl = App)
-      -> (loc_expr _loc e)
+  | assert_kw e:{ false_kw -> pexp_assertfalse _loc
+                | _:no_false e:(expression_lvl (NoMatch, next_exp App)) when lvl = App ->
+                                             Pexp_assert(e) } when (lvl = App) ->
+       (loc_expr _loc e)
 
   | lazy_kw e:(expression_lvl (NoMatch, next_exp App)) when lvl = App ->
      loc_expr _loc (Pexp_lazy e)
@@ -1676,14 +1695,14 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | object_kw o:class_body end_kw when lvl = Atom -> loc_expr _loc (Pexp_object o)
 
-  | STR("{<") l:{ o:obj_item l:{_:semi_col o:obj_item}* _:semi_col? -> o::l }?[[]] STR(">}") when lvl = Atom ->
+  | "{<" l:{ o:obj_item l:{_:semi_col o:obj_item}* _:semi_col? -> o::l }?[[]] ">}" when lvl = Atom ->
      loc_expr _loc (Pexp_override l)
 
-  | STR("(") module_kw me:module_expr pt:{STR(":") pt:package_type}? STR(")") when lvl = Atom ->
+  | '(' module_kw me:module_expr pt:{STR(":") pt:package_type}? ')' when lvl = Atom ->
       let desc = match pt with
                  | None    -> Pexp_pack me
-                 | Some pt -> let me = loc_expr _loc_me (Pexp_pack me) in
-                              let pt = loc_typ _loc_pt pt in
+                 | Some pt -> let me = loc_expr (ghost _loc) (Pexp_pack me) in
+                              let pt = loc_typ (ghost _loc) pt in
                               pexp_constraint (me, pt)
       in loc_expr _loc desc
 
@@ -1904,7 +1923,7 @@ let parser module_expr_base =
       let e = match pt with
               | None    -> Pmod_unpack e
               | Some pt -> let pt = loc_typ _loc_pt pt in
-                           Pmod_unpack (loc_expr _loc (pexp_constraint (e, pt)))
+                           Pmod_unpack (loc_expr (ghost _loc) (pexp_constraint (e, pt)))
       in
       mexpr_loc _loc e
 (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_expr (start_pos _loc_dol).Lexing.pos_cnum e*)

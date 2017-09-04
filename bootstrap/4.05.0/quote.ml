@@ -75,8 +75,8 @@ let is_antiquotation loc =
 let is_list_antiquotation l =
   match l with
   | loc::qtyp::l' when l == l' ->
-      let loc = Obj.magic loc  in
-      if is_antiquotation (Obj.magic loc)
+      let loc = (Obj.magic loc : Location.t)  in
+      if is_antiquotation loc
       then Some (loc, (Obj.magic qtyp : quotation))
       else None
   | _ -> None 

@@ -55,6 +55,12 @@ let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
     s.pos_lnum (s.pos_cnum - s.pos_bol)
     e.pos_lnum (e.pos_cnum - e.pos_bol)
 
+let string_location {Location.loc_start = s ; Location.loc_end = e} =
+  let open Lexing in
+  Printf.sprintf "Position %d:%d to %d:%d%!"
+    s.pos_lnum (s.pos_cnum - s.pos_bol)
+    e.pos_lnum (e.pos_cnum - e.pos_bol)
+
 let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc; }
 let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc; }
 
