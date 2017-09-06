@@ -208,11 +208,10 @@ module Make(Initial:Extension) =
            label_name
            (fun o  ->
               fun ln  -> if o = None then labelled ln else optional ln))
-    let operator_name = Earley.declare_grammar "operator_name" 
-    ;;Earley.set_grammar operator_name
-        (Earley.alternatives
-           [alternatives (List.map infix_symbol infix_prios);
-           alternatives (List.map prefix_symbol prefix_prios)])
+    let operator_name =
+      alternatives ((prefix_symbol Prefix) ::
+        (List.map infix_symbol infix_prios))
+      
     let value_name = Earley.declare_grammar "value_name" 
     ;;Earley.set_grammar value_name
         (Earley.alternatives
@@ -2428,38 +2427,39 @@ module Make(Initial:Extension) =
       set_pattern_lvl
         (fun (as_ok,lvl)  ->
            Earley.alternatives ((extra_patterns_grammar (as_ok, lvl)) ::
-             (let y = (pattern_lvl (false, (next_pat_prio lvl))) ::
-                (let y =
-                   let y =
-                     let y =
-                       let y =
-                         let y =
-                           let y =
-                             let y =
-                               let y =
-                                 let y =
-                                   let y =
-                                     let y =
-                                       let y =
-                                         let y =
-                                           let y =
-                                             let y =
-                                               let y =
-                                                 let y =
-                                                   let y =
-                                                     let y =
-                                                       let y =
-                                                         let y =
-                                                           let y =
-                                                             let y =
-                                                               let y =
-                                                                 let y =
-                                                                   let y = []
-                                                                     in
-                                                                   if
+             (let y =
+                let y =
+                  let y =
+                    let y =
+                      let y =
+                        let y =
+                          let y =
+                            let y =
+                              let y =
+                                let y =
+                                  let y =
+                                    let y =
+                                      let y =
+                                        let y =
+                                          let y =
+                                            let y =
+                                              let y =
+                                                let y =
+                                                  let y =
+                                                    let y =
+                                                      let y =
+                                                        let y =
+                                                          let y =
+                                                            let y =
+                                                              let y =
+                                                                let y =
+                                                                  let y =
+                                                                    let y =
+                                                                    []  in
+                                                                    if
                                                                     lvl =
                                                                     ConsPat
-                                                                   then
+                                                                    then
                                                                     (Earley.fsequence_position
                                                                     (pattern_lvl
                                                                     (true,
@@ -2536,12 +2536,14 @@ module Make(Initial:Extension) =
                                                                     (Some
                                                                     args))))))
                                                                     :: y
-                                                                   else y  in
-                                                                 if
-                                                                   lvl =
+                                                                    else y
+                                                                     in
+                                                                  if
+                                                                    lvl =
                                                                     TupPat
-                                                                 then
-                                                                   (Earley.sequence_position
+                                                                  then
+                                                                    (
+                                                                    Earley.sequence_position
                                                                     (Earley.apply
                                                                     List.rev
                                                                     (Earley.fixpoint1
@@ -2594,18 +2596,17 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Ppat_tuple
                                                                     (ps @ [p]))))
-                                                                   :: y
-                                                                 else y  in
-                                                               if
-                                                                 lvl = AltPat
-                                                               then
-                                                                 (Earley.fsequence_position
-                                                                    (
-                                                                    pattern_lvl
+                                                                    :: y
+                                                                  else y  in
+                                                                if
+                                                                  lvl =
+                                                                    AltPat
+                                                                then
+                                                                  (Earley.fsequence_position
+                                                                    (pattern_lvl
                                                                     (true,
                                                                     AltPat))
-                                                                    (
-                                                                    Earley.sequence
+                                                                    (Earley.sequence
                                                                     (Earley.char
                                                                     '|' '|')
                                                                     (pattern_lvl
@@ -2641,14 +2642,15 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Ppat_or
                                                                     (p, p')))))
-                                                                 :: y
-                                                               else y  in
-                                                             if lvl = AtomPat
-                                                             then
-                                                               (Earley.fsequence_position
-                                                                  (Earley.char
+                                                                  :: y
+                                                                else y  in
+                                                              if
+                                                                lvl = AtomPat
+                                                              then
+                                                                (Earley.fsequence_position
+                                                                   (Earley.char
                                                                     '$' '$')
-                                                                  (Earley.fsequence
+                                                                   (Earley.fsequence
                                                                     (Earley.no_blank_test
                                                                     ())
                                                                     (Earley.fsequence
@@ -2859,18 +2861,20 @@ module Make(Initial:Extension) =
                                                                     ()  in
                                                                     Quote.ppat_antiquotation
                                                                     _loc f))))))
-                                                               :: y
-                                                             else y  in
-                                                           if lvl = AtomPat
-                                                           then
-                                                             (Earley.fsequence
-                                                                (Earley.char
-                                                                   '$' '$')
-                                                                (Earley.sequence
-                                                                   (Earley.no_blank_test
+                                                                :: y
+                                                              else y  in
+                                                            if lvl = AtomPat
+                                                            then
+                                                              (Earley.fsequence
+                                                                 (Earley.char
+                                                                    '$' '$')
+                                                                 (Earley.sequence
+                                                                    (
+                                                                    Earley.no_blank_test
                                                                     ())
-                                                                   uident
-                                                                   (fun _  ->
+                                                                    uident
+                                                                    (
+                                                                    fun _  ->
                                                                     fun c  ->
                                                                     fun _  ->
                                                                     try
@@ -2890,18 +2894,17 @@ module Make(Initial:Extension) =
                                                                      ->
                                                                     give_up
                                                                     ())))
-                                                             :: y
-                                                           else y  in
-                                                         if lvl = AtomPat
-                                                         then
-                                                           (Earley.fsequence_position
-                                                              (Earley.char
-                                                                 '(' '(')
-                                                              (Earley.fsequence
-                                                                 module_kw
-                                                                 (Earley.fsequence
-                                                                    (
-                                                                    Earley.apply_position
+                                                              :: y
+                                                            else y  in
+                                                          if lvl = AtomPat
+                                                          then
+                                                            (Earley.fsequence_position
+                                                               (Earley.char
+                                                                  '(' '(')
+                                                               (Earley.fsequence
+                                                                  module_kw
+                                                                  (Earley.fsequence
+                                                                    (Earley.apply_position
                                                                     (fun x 
                                                                     ->
                                                                     fun str 
@@ -2917,8 +2920,7 @@ module Make(Initial:Extension) =
                                                                     str' pos'),
                                                                     x))
                                                                     module_name)
-                                                                    (
-                                                                    Earley.sequence
+                                                                    (Earley.sequence
                                                                     (Earley.apply_position
                                                                     (fun x 
                                                                     ->
@@ -3008,108 +3010,109 @@ module Make(Initial:Extension) =
                                                                     pt)  in
                                                                     loc_pat
                                                                     _loc pat)))))
-                                                           :: y
-                                                         else y  in
-                                                       if lvl = AtomPat
-                                                       then
-                                                         (Earley.sequence_position
-                                                            begin_kw end_kw
-                                                            (fun _default_1 
-                                                               ->
-                                                               fun _default_0
-                                                                  ->
-                                                                 fun
-                                                                   __loc__start__buf
-                                                                    ->
-                                                                   fun
-                                                                    __loc__start__pos
-                                                                     ->
-                                                                    fun
-                                                                    __loc__end__buf
-                                                                     ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                     ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos
-                                                                     in
-                                                                    let unt =
-                                                                    id_loc
-                                                                    (Lident
-                                                                    "()")
-                                                                    _loc  in
-                                                                    loc_pat
-                                                                    _loc
-                                                                    (ppat_construct
-                                                                    (unt,
-                                                                    None))))
-                                                         :: y
-                                                       else y  in
-                                                     if lvl = AtomPat
-                                                     then
-                                                       (Earley.sequence_position
-                                                          (Earley.string "("
-                                                             "(")
-                                                          (Earley.string ")"
-                                                             ")")
-                                                          (fun _  ->
-                                                             fun _  ->
-                                                               fun
-                                                                 __loc__start__buf
-                                                                  ->
-                                                                 fun
-                                                                   __loc__start__pos
-                                                                    ->
-                                                                   fun
-                                                                    __loc__end__buf
-                                                                     ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                     ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos
-                                                                     in
-                                                                    let unt =
-                                                                    id_loc
-                                                                    (Lident
-                                                                    "()")
-                                                                    _loc  in
-                                                                    loc_pat
-                                                                    _loc
-                                                                    (ppat_construct
-                                                                    (unt,
-                                                                    None))))
-                                                       :: y
-                                                     else y  in
-                                                   if lvl = AtomPat
-                                                   then
-                                                     (Earley.sequence_position
-                                                        (Earley.string "[|"
-                                                           "[|")
-                                                        (Earley.string "|]"
-                                                           "|]")
-                                                        (fun _  ->
-                                                           fun _  ->
-                                                             fun
-                                                               __loc__start__buf
+                                                            :: y
+                                                          else y  in
+                                                        if lvl = AtomPat
+                                                        then
+                                                          (Earley.sequence_position
+                                                             begin_kw end_kw
+                                                             (fun _default_1 
                                                                 ->
-                                                               fun
-                                                                 __loc__start__pos
+                                                                fun
+                                                                  _default_0 
                                                                   ->
-                                                                 fun
-                                                                   __loc__end__buf
-                                                                    ->
-                                                                   fun
+                                                                  fun
+                                                                    __loc__start__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos
+                                                                     in
+                                                                    let unt =
+                                                                    id_loc
+                                                                    (Lident
+                                                                    "()")
+                                                                    _loc  in
+                                                                    loc_pat
+                                                                    _loc
+                                                                    (ppat_construct
+                                                                    (unt,
+                                                                    None))))
+                                                          :: y
+                                                        else y  in
+                                                      if lvl = AtomPat
+                                                      then
+                                                        (Earley.sequence_position
+                                                           (Earley.string "("
+                                                              "(")
+                                                           (Earley.string ")"
+                                                              ")")
+                                                           (fun _  ->
+                                                              fun _  ->
+                                                                fun
+                                                                  __loc__start__buf
+                                                                   ->
+                                                                  fun
+                                                                    __loc__start__pos
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                     ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos
+                                                                     in
+                                                                    let unt =
+                                                                    id_loc
+                                                                    (Lident
+                                                                    "()")
+                                                                    _loc  in
+                                                                    loc_pat
+                                                                    _loc
+                                                                    (ppat_construct
+                                                                    (unt,
+                                                                    None))))
+                                                        :: y
+                                                      else y  in
+                                                    if lvl = AtomPat
+                                                    then
+                                                      (Earley.sequence_position
+                                                         (Earley.string "[|"
+                                                            "[|")
+                                                         (Earley.string "|]"
+                                                            "|]")
+                                                         (fun _  ->
+                                                            fun _  ->
+                                                              fun
+                                                                __loc__start__buf
+                                                                 ->
+                                                                fun
+                                                                  __loc__start__pos
+                                                                   ->
+                                                                  fun
+                                                                    __loc__end__buf
+                                                                     ->
+                                                                    fun
                                                                     __loc__end__pos
                                                                      ->
                                                                     let _loc
@@ -3124,21 +3127,21 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Ppat_array
                                                                     [])))
-                                                     :: y
-                                                   else y  in
-                                                 if lvl = AtomPat
-                                                 then
-                                                   (Earley.fsequence_position
-                                                      (Earley.string "[|"
-                                                         "[|")
-                                                      (Earley.fsequence
-                                                         pattern
-                                                         (Earley.fsequence
-                                                            (Earley.apply
-                                                               List.rev
-                                                               (Earley.fixpoint
-                                                                  []
-                                                                  (Earley.apply
+                                                      :: y
+                                                    else y  in
+                                                  if lvl = AtomPat
+                                                  then
+                                                    (Earley.fsequence_position
+                                                       (Earley.string "[|"
+                                                          "[|")
+                                                       (Earley.fsequence
+                                                          pattern
+                                                          (Earley.fsequence
+                                                             (Earley.apply
+                                                                List.rev
+                                                                (Earley.fixpoint
+                                                                   []
+                                                                   (Earley.apply
                                                                     (fun x 
                                                                     ->
                                                                     fun y  ->
@@ -3151,19 +3154,19 @@ module Make(Initial:Extension) =
                                                                      ->
                                                                     fun p  ->
                                                                     p)))))
-                                                            (Earley.sequence
-                                                               (Earley.option
-                                                                  None
-                                                                  (Earley.apply
+                                                             (Earley.sequence
+                                                                (Earley.option
+                                                                   None
+                                                                   (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
                                                                     semi_col))
-                                                               (Earley.string
-                                                                  "|]" "|]")
-                                                               (fun
-                                                                  _default_0 
-                                                                  ->
-                                                                  fun _  ->
+                                                                (Earley.string
+                                                                   "|]" "|]")
+                                                                (fun
+                                                                   _default_0
+                                                                    ->
+                                                                   fun _  ->
                                                                     fun ps 
                                                                     ->
                                                                     fun p  ->
@@ -3192,80 +3195,80 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Ppat_array
                                                                     (p :: ps)))))))
-                                                   :: y
-                                                 else y  in
-                                               if lvl = AtomPat
-                                               then
-                                                 (Earley.sequence_position
-                                                    (Earley.string "[" "[")
-                                                    (Earley.string "]" "]")
-                                                    (fun _  ->
-                                                       fun _  ->
-                                                         fun
-                                                           __loc__start__buf 
-                                                           ->
-                                                           fun
-                                                             __loc__start__pos
-                                                              ->
-                                                             fun
-                                                               __loc__end__buf
-                                                                ->
-                                                               fun
-                                                                 __loc__end__pos
-                                                                  ->
-                                                                 let _loc =
-                                                                   locate
+                                                    :: y
+                                                  else y  in
+                                                if lvl = AtomPat
+                                                then
+                                                  (Earley.sequence_position
+                                                     (Earley.string "[" "[")
+                                                     (Earley.string "]" "]")
+                                                     (fun _  ->
+                                                        fun _  ->
+                                                          fun
+                                                            __loc__start__buf
+                                                             ->
+                                                            fun
+                                                              __loc__start__pos
+                                                               ->
+                                                              fun
+                                                                __loc__end__buf
+                                                                 ->
+                                                                fun
+                                                                  __loc__end__pos
+                                                                   ->
+                                                                  let _loc =
+                                                                    locate
                                                                     __loc__start__buf
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos
-                                                                    in
-                                                                 let nil =
-                                                                   id_loc
+                                                                     in
+                                                                  let nil =
+                                                                    id_loc
                                                                     (Lident
                                                                     "[]")
+                                                                    _loc  in
+                                                                  loc_pat
                                                                     _loc
-                                                                    in
-                                                                 loc_pat _loc
-                                                                   (ppat_construct
+                                                                    (
+                                                                    ppat_construct
                                                                     (nil,
                                                                     None))))
-                                                 :: y
-                                               else y  in
-                                             if lvl = AtomPat
-                                             then
-                                               (Earley.fsequence_position
-                                                  (Earley.string "[" "[")
-                                                  (Earley.fsequence pattern
-                                                     (Earley.fsequence
-                                                        (Earley.apply
-                                                           List.rev
-                                                           (Earley.fixpoint
-                                                              []
-                                                              (Earley.apply
-                                                                 (fun x  ->
+                                                  :: y
+                                                else y  in
+                                              if lvl = AtomPat
+                                              then
+                                                (Earley.fsequence_position
+                                                   (Earley.string "[" "[")
+                                                   (Earley.fsequence pattern
+                                                      (Earley.fsequence
+                                                         (Earley.apply
+                                                            List.rev
+                                                            (Earley.fixpoint
+                                                               []
+                                                               (Earley.apply
+                                                                  (fun x  ->
                                                                     fun y  ->
                                                                     x :: y)
-                                                                 (Earley.sequence
+                                                                  (Earley.sequence
                                                                     semi_col
                                                                     pattern
-                                                                    (
-                                                                    fun
+                                                                    (fun
                                                                     _default_0
                                                                      ->
                                                                     fun p  ->
                                                                     p)))))
-                                                        (Earley.sequence
-                                                           (Earley.option
-                                                              None
-                                                              (Earley.apply
-                                                                 (fun x  ->
+                                                         (Earley.sequence
+                                                            (Earley.option
+                                                               None
+                                                               (Earley.apply
+                                                                  (fun x  ->
                                                                     Some x)
-                                                                 semi_col))
-                                                           (Earley.apply_position
-                                                              (fun x  ->
-                                                                 fun str  ->
-                                                                   fun pos 
+                                                                  semi_col))
+                                                            (Earley.apply_position
+                                                               (fun x  ->
+                                                                  fun str  ->
+                                                                    fun pos 
                                                                     ->
                                                                     fun str' 
                                                                     ->
@@ -3275,15 +3278,16 @@ module Make(Initial:Extension) =
                                                                     str pos
                                                                     str' pos'),
                                                                     x))
-                                                              (Earley.string
-                                                                 "]" "]"))
-                                                           (fun _default_0 
-                                                              ->
-                                                              fun c  ->
-                                                                let (_loc_c,c)
-                                                                  = c  in
-                                                                fun ps  ->
-                                                                  fun p  ->
+                                                               (Earley.string
+                                                                  "]" "]"))
+                                                            (fun _default_0 
+                                                               ->
+                                                               fun c  ->
+                                                                 let 
+                                                                   (_loc_c,c)
+                                                                   = c  in
+                                                                 fun ps  ->
+                                                                   fun p  ->
                                                                     fun _  ->
                                                                     fun
                                                                     __loc__start__buf
@@ -3309,43 +3313,45 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     _loc_c (p
                                                                     :: ps))))))
-                                               :: y
-                                             else y  in
-                                           if lvl = AtomPat
-                                           then
-                                             (Earley.fsequence_position
-                                                (Earley.char '{' '{')
-                                                (Earley.fsequence
-                                                   (Earley.apply_position
-                                                      (fun x  ->
-                                                         fun str  ->
-                                                           fun pos  ->
-                                                             fun str'  ->
-                                                               fun pos'  ->
-                                                                 ((locate str
-                                                                    pos str'
-                                                                    pos'), x))
-                                                      field)
-                                                   (Earley.fsequence
-                                                      (Earley.option None
-                                                         (Earley.apply
-                                                            (fun x  -> Some x)
-                                                            (Earley.sequence
-                                                               (Earley.char
-                                                                  '=' '=')
-                                                               pattern
-                                                               (fun _  ->
-                                                                  fun p  -> p))))
-                                                      (Earley.fsequence
-                                                         (Earley.apply
-                                                            List.rev
-                                                            (Earley.fixpoint
-                                                               []
-                                                               (Earley.apply
-                                                                  (fun x  ->
+                                                :: y
+                                              else y  in
+                                            if lvl = AtomPat
+                                            then
+                                              (Earley.fsequence_position
+                                                 (Earley.char '{' '{')
+                                                 (Earley.fsequence
+                                                    (Earley.apply_position
+                                                       (fun x  ->
+                                                          fun str  ->
+                                                            fun pos  ->
+                                                              fun str'  ->
+                                                                fun pos'  ->
+                                                                  ((locate
+                                                                    str pos
+                                                                    str' pos'),
+                                                                    x)) field)
+                                                    (Earley.fsequence
+                                                       (Earley.option None
+                                                          (Earley.apply
+                                                             (fun x  ->
+                                                                Some x)
+                                                             (Earley.sequence
+                                                                (Earley.char
+                                                                   '=' '=')
+                                                                pattern
+                                                                (fun _  ->
+                                                                   fun p  ->
+                                                                    p))))
+                                                       (Earley.fsequence
+                                                          (Earley.apply
+                                                             List.rev
+                                                             (Earley.fixpoint
+                                                                []
+                                                                (Earley.apply
+                                                                   (fun x  ->
                                                                     fun y  ->
                                                                     x :: y)
-                                                                  (Earley.fsequence
+                                                                   (Earley.fsequence
                                                                     semi_col
                                                                     (Earley.sequence
                                                                     (Earley.apply_position
@@ -3388,13 +3394,13 @@ module Make(Initial:Extension) =
                                                                     ((id_loc
                                                                     f _loc_f),
                                                                     p)))))))
-                                                         (Earley.fsequence
-                                                            (Earley.option
-                                                               None
-                                                               (Earley.apply
-                                                                  (fun x  ->
+                                                          (Earley.fsequence
+                                                             (Earley.option
+                                                                None
+                                                                (Earley.apply
+                                                                   (fun x  ->
                                                                     Some x)
-                                                                  (Earley.sequence
+                                                                   (Earley.sequence
                                                                     semi_col
                                                                     joker_kw
                                                                     (fun
@@ -3403,19 +3409,19 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                      -> ()))))
-                                                            (Earley.sequence
-                                                               (Earley.option
-                                                                  None
-                                                                  (Earley.apply
+                                                             (Earley.sequence
+                                                                (Earley.option
+                                                                   None
+                                                                   (Earley.apply
                                                                     (fun x 
                                                                     -> Some x)
                                                                     semi_col))
-                                                               (Earley.char
-                                                                  '}' '}')
-                                                               (fun
-                                                                  _default_0 
-                                                                  ->
-                                                                  fun _  ->
+                                                                (Earley.char
+                                                                   '}' '}')
+                                                                (fun
+                                                                   _default_0
+                                                                    ->
+                                                                   fun _  ->
                                                                     fun clsd 
                                                                     ->
                                                                     fun fps 
@@ -3497,200 +3503,282 @@ module Make(Initial:Extension) =
                                                                     _loc
                                                                     (Ppat_record
                                                                     (all, cl)))))))))
-                                             :: y
-                                           else y  in
-                                         if lvl = AtomPat
-                                         then
-                                           (Earley.sequence_position
-                                              (Earley.char '#' '#')
-                                              (Earley.apply_position
-                                                 (fun x  ->
-                                                    fun str  ->
-                                                      fun pos  ->
-                                                        fun str'  ->
-                                                          fun pos'  ->
-                                                            ((locate str pos
-                                                                str' pos'),
-                                                              x)) typeconstr)
-                                              (fun s  ->
-                                                 fun t  ->
-                                                   let (_loc_t,t) = t  in
-                                                   fun __loc__start__buf  ->
-                                                     fun __loc__start__pos 
-                                                       ->
-                                                       fun __loc__end__buf 
-                                                         ->
-                                                         fun __loc__end__pos 
-                                                           ->
-                                                           let _loc =
-                                                             locate
-                                                               __loc__start__buf
-                                                               __loc__start__pos
-                                                               __loc__end__buf
-                                                               __loc__end__pos
-                                                              in
-                                                           loc_pat _loc
-                                                             (Ppat_type
-                                                                (id_loc t
-                                                                   _loc_t))))
-                                           :: y
-                                         else y  in
-                                       if lvl = AtomPat
-                                       then
-                                         (Earley.apply_position
-                                            (fun c  ->
-                                               fun __loc__start__buf  ->
-                                                 fun __loc__start__pos  ->
-                                                   fun __loc__end__buf  ->
-                                                     fun __loc__end__pos  ->
-                                                       let _loc =
-                                                         locate
-                                                           __loc__start__buf
-                                                           __loc__start__pos
-                                                           __loc__end__buf
-                                                           __loc__end__pos
-                                                          in
-                                                       loc_pat _loc
-                                                         (Ppat_variant
-                                                            (c, None)))
-                                            tag_name)
-                                         :: y
-                                       else y  in
-                                     if lvl = ConstrPat
-                                     then
-                                       (Earley.sequence_position tag_name
-                                          (pattern_lvl (false, ConstrPat))
-                                          (fun c  ->
-                                             fun p  ->
-                                               fun __loc__start__buf  ->
-                                                 fun __loc__start__pos  ->
-                                                   fun __loc__end__buf  ->
-                                                     fun __loc__end__pos  ->
-                                                       let _loc =
-                                                         locate
-                                                           __loc__start__buf
-                                                           __loc__start__pos
-                                                           __loc__end__buf
-                                                           __loc__end__pos
-                                                          in
-                                                       loc_pat _loc
-                                                         (Ppat_variant
-                                                            (c, (Some p)))))
-                                       :: y
-                                     else y  in
-                                   if lvl = AtomPat
-                                   then
-                                     (Earley.apply_position
-                                        (fun b  ->
-                                           fun __loc__start__buf  ->
-                                             fun __loc__start__pos  ->
-                                               fun __loc__end__buf  ->
-                                                 fun __loc__end__pos  ->
-                                                   let _loc =
-                                                     locate __loc__start__buf
-                                                       __loc__start__pos
-                                                       __loc__end__buf
-                                                       __loc__end__pos
-                                                      in
-                                                   let fls =
-                                                     id_loc (Lident b) _loc
-                                                      in
-                                                   loc_pat _loc
-                                                     (ppat_construct
-                                                        (fls, None)))
-                                        bool_lit)
-                                     :: y
-                                   else y  in
-                                 if lvl = AtomPat
-                                 then
-                                   (Earley.apply_position
-                                      (fun c  ->
-                                         let (_loc_c,c) = c  in
-                                         fun __loc__start__buf  ->
-                                           fun __loc__start__pos  ->
-                                             fun __loc__end__buf  ->
-                                               fun __loc__end__pos  ->
-                                                 let _loc =
-                                                   locate __loc__start__buf
-                                                     __loc__start__pos
-                                                     __loc__end__buf
-                                                     __loc__end__pos
-                                                    in
-                                                 let ast =
-                                                   ppat_construct
-                                                     ((id_loc c _loc_c),
-                                                       None)
-                                                    in
-                                                 loc_pat _loc ast)
+                                              :: y
+                                            else y  in
+                                          if lvl = AtomPat
+                                          then
+                                            (Earley.sequence_position
+                                               (Earley.char '#' '#')
+                                               (Earley.apply_position
+                                                  (fun x  ->
+                                                     fun str  ->
+                                                       fun pos  ->
+                                                         fun str'  ->
+                                                           fun pos'  ->
+                                                             ((locate str pos
+                                                                 str' pos'),
+                                                               x)) typeconstr)
+                                               (fun s  ->
+                                                  fun t  ->
+                                                    let (_loc_t,t) = t  in
+                                                    fun __loc__start__buf  ->
+                                                      fun __loc__start__pos 
+                                                        ->
+                                                        fun __loc__end__buf 
+                                                          ->
+                                                          fun __loc__end__pos
+                                                             ->
+                                                            let _loc =
+                                                              locate
+                                                                __loc__start__buf
+                                                                __loc__start__pos
+                                                                __loc__end__buf
+                                                                __loc__end__pos
+                                                               in
+                                                            loc_pat _loc
+                                                              (Ppat_type
+                                                                 (id_loc t
+                                                                    _loc_t))))
+                                            :: y
+                                          else y  in
+                                        if lvl = AtomPat
+                                        then
+                                          (Earley.apply_position
+                                             (fun c  ->
+                                                fun __loc__start__buf  ->
+                                                  fun __loc__start__pos  ->
+                                                    fun __loc__end__buf  ->
+                                                      fun __loc__end__pos  ->
+                                                        let _loc =
+                                                          locate
+                                                            __loc__start__buf
+                                                            __loc__start__pos
+                                                            __loc__end__buf
+                                                            __loc__end__pos
+                                                           in
+                                                        loc_pat _loc
+                                                          (Ppat_variant
+                                                             (c, None)))
+                                             tag_name)
+                                          :: y
+                                        else y  in
+                                      if lvl = ConstrPat
+                                      then
+                                        (Earley.sequence_position tag_name
+                                           (pattern_lvl (false, ConstrPat))
+                                           (fun c  ->
+                                              fun p  ->
+                                                fun __loc__start__buf  ->
+                                                  fun __loc__start__pos  ->
+                                                    fun __loc__end__buf  ->
+                                                      fun __loc__end__pos  ->
+                                                        let _loc =
+                                                          locate
+                                                            __loc__start__buf
+                                                            __loc__start__pos
+                                                            __loc__end__buf
+                                                            __loc__end__pos
+                                                           in
+                                                        loc_pat _loc
+                                                          (Ppat_variant
+                                                             (c, (Some p)))))
+                                        :: y
+                                      else y  in
+                                    if lvl = AtomPat
+                                    then
                                       (Earley.apply_position
-                                         (fun x  ->
-                                            fun str  ->
-                                              fun pos  ->
-                                                fun str'  ->
-                                                  fun pos'  ->
-                                                    ((locate str pos str'
-                                                        pos'), x)) constr))
-                                   :: y
-                                 else y  in
-                               if lvl = ConstrPat
-                               then
-                                 (Earley.sequence_position
+                                         (fun b  ->
+                                            fun __loc__start__buf  ->
+                                              fun __loc__start__pos  ->
+                                                fun __loc__end__buf  ->
+                                                  fun __loc__end__pos  ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos
+                                                       in
+                                                    let fls =
+                                                      id_loc (Lident b) _loc
+                                                       in
+                                                    loc_pat _loc
+                                                      (ppat_construct
+                                                         (fls, None)))
+                                         bool_lit)
+                                      :: y
+                                    else y  in
+                                  if lvl = AtomPat
+                                  then
                                     (Earley.apply_position
-                                       (fun x  ->
-                                          fun str  ->
-                                            fun pos  ->
-                                              fun str'  ->
-                                                fun pos'  ->
-                                                  ((locate str pos str' pos'),
-                                                    x)) constr)
-                                    (pattern_lvl (false, ConstrPat))
-                                    (fun c  ->
-                                       let (_loc_c,c) = c  in
-                                       fun p  ->
-                                         fun __loc__start__buf  ->
-                                           fun __loc__start__pos  ->
-                                             fun __loc__end__buf  ->
-                                               fun __loc__end__pos  ->
-                                                 let _loc =
-                                                   locate __loc__start__buf
-                                                     __loc__start__pos
-                                                     __loc__end__buf
-                                                     __loc__end__pos
-                                                    in
-                                                 let ast =
-                                                   ppat_construct
-                                                     ((id_loc c _loc_c),
-                                                       (Some p))
-                                                    in
-                                                 loc_pat _loc ast))
-                                 :: y
-                               else y  in
-                             if lvl = ConstrPat
-                             then
-                               (Earley.sequence_position exception_kw
-                                  (pattern_lvl (false, ConstrPat))
-                                  (fun _default_0  ->
-                                     fun p  ->
-                                       fun __loc__start__buf  ->
-                                         fun __loc__start__pos  ->
-                                           fun __loc__end__buf  ->
-                                             fun __loc__end__pos  ->
-                                               let _loc =
-                                                 locate __loc__start__buf
-                                                   __loc__start__pos
-                                                   __loc__end__buf
-                                                   __loc__end__pos
-                                                  in
-                                               let ast = Ppat_exception p  in
-                                               loc_pat _loc ast))
-                               :: y
-                             else y  in
-                           if lvl = ConstrPat
-                           then
-                             (Earley.sequence_position lazy_kw
-                                (pattern_lvl (false, ConstrPat))
-                                (fun _default_0  ->
-                                   fun p  ->
+                                       (fun c  ->
+                                          let (_loc_c,c) = c  in
+                                          fun __loc__start__buf  ->
+                                            fun __loc__start__pos  ->
+                                              fun __loc__end__buf  ->
+                                                fun __loc__end__pos  ->
+                                                  let _loc =
+                                                    locate __loc__start__buf
+                                                      __loc__start__pos
+                                                      __loc__end__buf
+                                                      __loc__end__pos
+                                                     in
+                                                  let ast =
+                                                    ppat_construct
+                                                      ((id_loc c _loc_c),
+                                                        None)
+                                                     in
+                                                  loc_pat _loc ast)
+                                       (Earley.apply_position
+                                          (fun x  ->
+                                             fun str  ->
+                                               fun pos  ->
+                                                 fun str'  ->
+                                                   fun pos'  ->
+                                                     ((locate str pos str'
+                                                         pos'), x)) constr))
+                                    :: y
+                                  else y  in
+                                if lvl = ConstrPat
+                                then
+                                  (Earley.sequence_position
+                                     (Earley.apply_position
+                                        (fun x  ->
+                                           fun str  ->
+                                             fun pos  ->
+                                               fun str'  ->
+                                                 fun pos'  ->
+                                                   ((locate str pos str' pos'),
+                                                     x)) constr)
+                                     (pattern_lvl (false, ConstrPat))
+                                     (fun c  ->
+                                        let (_loc_c,c) = c  in
+                                        fun p  ->
+                                          fun __loc__start__buf  ->
+                                            fun __loc__start__pos  ->
+                                              fun __loc__end__buf  ->
+                                                fun __loc__end__pos  ->
+                                                  let _loc =
+                                                    locate __loc__start__buf
+                                                      __loc__start__pos
+                                                      __loc__end__buf
+                                                      __loc__end__pos
+                                                     in
+                                                  let ast =
+                                                    ppat_construct
+                                                      ((id_loc c _loc_c),
+                                                        (Some p))
+                                                     in
+                                                  loc_pat _loc ast))
+                                  :: y
+                                else y  in
+                              if lvl = ConstrPat
+                              then
+                                (Earley.sequence_position exception_kw
+                                   (pattern_lvl (false, ConstrPat))
+                                   (fun _default_0  ->
+                                      fun p  ->
+                                        fun __loc__start__buf  ->
+                                          fun __loc__start__pos  ->
+                                            fun __loc__end__buf  ->
+                                              fun __loc__end__pos  ->
+                                                let _loc =
+                                                  locate __loc__start__buf
+                                                    __loc__start__pos
+                                                    __loc__end__buf
+                                                    __loc__end__pos
+                                                   in
+                                                let ast = Ppat_exception p
+                                                   in
+                                                loc_pat _loc ast))
+                                :: y
+                              else y  in
+                            if lvl = ConstrPat
+                            then
+                              (Earley.sequence_position lazy_kw
+                                 (pattern_lvl (false, ConstrPat))
+                                 (fun _default_0  ->
+                                    fun p  ->
+                                      fun __loc__start__buf  ->
+                                        fun __loc__start__pos  ->
+                                          fun __loc__end__buf  ->
+                                            fun __loc__end__pos  ->
+                                              let _loc =
+                                                locate __loc__start__buf
+                                                  __loc__start__pos
+                                                  __loc__end__buf
+                                                  __loc__end__pos
+                                                 in
+                                              let ast = Ppat_lazy p  in
+                                              loc_pat _loc ast))
+                              :: y
+                            else y  in
+                          if lvl = AtomPat
+                          then
+                            (Earley.fsequence_position (Earley.char '(' '(')
+                               (Earley.fsequence pattern
+                                  (Earley.sequence
+                                     (Earley.option None
+                                        (Earley.apply (fun x  -> Some x)
+                                           (Earley.sequence
+                                              (Earley.char ':' ':') typexpr
+                                              (fun _  ->
+                                                 fun _default_0  ->
+                                                   _default_0))))
+                                     (Earley.char ')' ')')
+                                     (fun ty  ->
+                                        fun _  ->
+                                          fun p  ->
+                                            fun _  ->
+                                              fun __loc__start__buf  ->
+                                                fun __loc__start__pos  ->
+                                                  fun __loc__end__buf  ->
+                                                    fun __loc__end__pos  ->
+                                                      let _loc =
+                                                        locate
+                                                          __loc__start__buf
+                                                          __loc__start__pos
+                                                          __loc__end__buf
+                                                          __loc__end__pos
+                                                         in
+                                                      let p =
+                                                        match ty with
+                                                        | None  ->
+                                                            loc_pat _loc
+                                                              p.ppat_desc
+                                                        | Some ty ->
+                                                            loc_pat _loc
+                                                              (Ppat_constraint
+                                                                 (p, ty))
+                                                         in
+                                                      p))))
+                            :: y
+                          else y  in
+                        if lvl = AtomPat
+                        then
+                          (Earley.apply_position
+                             (fun c  ->
+                                fun __loc__start__buf  ->
+                                  fun __loc__start__pos  ->
+                                    fun __loc__end__buf  ->
+                                      fun __loc__end__pos  ->
+                                        let _loc =
+                                          locate __loc__start__buf
+                                            __loc__start__pos __loc__end__buf
+                                            __loc__end__pos
+                                           in
+                                        loc_pat _loc (Ppat_constant c))
+                             (Earley.alternatives [constant; neg_constant]))
+                          :: y
+                        else y  in
+                      if lvl = AtomPat
+                      then
+                        (Earley.fsequence_position char_litteral
+                           (Earley.sequence (Earley.string ".." "..")
+                              char_litteral
+                              (fun _  ->
+                                 fun c2  ->
+                                   fun c1  ->
                                      fun __loc__start__buf  ->
                                        fun __loc__start__pos  ->
                                          fun __loc__end__buf  ->
@@ -3701,137 +3789,62 @@ module Make(Initial:Extension) =
                                                  __loc__end__buf
                                                  __loc__end__pos
                                                 in
-                                             let ast = Ppat_lazy p  in
-                                             loc_pat _loc ast))
-                             :: y
-                           else y  in
-                         if lvl = AtomPat
-                         then
-                           (Earley.fsequence_position (Earley.char '(' '(')
-                              (Earley.fsequence pattern
-                                 (Earley.sequence
-                                    (Earley.option None
-                                       (Earley.apply (fun x  -> Some x)
-                                          (Earley.sequence
-                                             (Earley.char ':' ':') typexpr
-                                             (fun _  ->
-                                                fun _default_0  -> _default_0))))
-                                    (Earley.char ')' ')')
-                                    (fun ty  ->
-                                       fun _  ->
-                                         fun p  ->
-                                           fun _  ->
-                                             fun __loc__start__buf  ->
-                                               fun __loc__start__pos  ->
-                                                 fun __loc__end__buf  ->
-                                                   fun __loc__end__pos  ->
-                                                     let _loc =
-                                                       locate
-                                                         __loc__start__buf
-                                                         __loc__start__pos
-                                                         __loc__end__buf
-                                                         __loc__end__pos
-                                                        in
-                                                     let p =
-                                                       match ty with
-                                                       | None  ->
-                                                           loc_pat _loc
-                                                             p.ppat_desc
-                                                       | Some ty ->
-                                                           loc_pat _loc
-                                                             (Ppat_constraint
-                                                                (p, ty))
-                                                        in
-                                                     p))))
-                           :: y
-                         else y  in
-                       if lvl = AtomPat
-                       then
-                         (Earley.apply_position
-                            (fun c  ->
-                               fun __loc__start__buf  ->
-                                 fun __loc__start__pos  ->
-                                   fun __loc__end__buf  ->
-                                     fun __loc__end__pos  ->
-                                       let _loc =
-                                         locate __loc__start__buf
-                                           __loc__start__pos __loc__end__buf
-                                           __loc__end__pos
-                                          in
-                                       loc_pat _loc (Ppat_constant c))
-                            (Earley.alternatives [constant; neg_constant]))
-                         :: y
-                       else y  in
-                     if lvl = AtomPat
-                     then
-                       (Earley.fsequence_position char_litteral
-                          (Earley.sequence (Earley.string ".." "..")
-                             char_litteral
-                             (fun _  ->
-                                fun c2  ->
-                                  fun c1  ->
-                                    fun __loc__start__buf  ->
-                                      fun __loc__start__pos  ->
-                                        fun __loc__end__buf  ->
-                                          fun __loc__end__pos  ->
-                                            let _loc =
-                                              locate __loc__start__buf
-                                                __loc__start__pos
-                                                __loc__end__buf
-                                                __loc__end__pos
-                                               in
-                                            let (ic1,ic2) =
-                                              ((Char.code c1),
-                                                (Char.code c2))
-                                               in
-                                            if ic1 > ic2 then assert false;
-                                            loc_pat _loc
-                                              (Ppat_interval
-                                                 ((const_char (Char.chr ic1)),
-                                                   (const_char (Char.chr ic2)))))))
-                       :: y
-                     else y  in
-                   if lvl = AtomPat
-                   then
-                     (Earley.apply_position
-                        (fun _default_0  ->
-                           fun __loc__start__buf  ->
-                             fun __loc__start__pos  ->
-                               fun __loc__end__buf  ->
-                                 fun __loc__end__pos  ->
-                                   let _loc =
-                                     locate __loc__start__buf
-                                       __loc__start__pos __loc__end__buf
-                                       __loc__end__pos
-                                      in
-                                   loc_pat _loc Ppat_any) joker_kw)
-                     :: y
-                   else y  in
-                 if lvl = AtomPat
-                 then
-                   (Earley.apply_position
-                      (fun vn  ->
-                         let (_loc_vn,vn) = vn  in
-                         fun __loc__start__buf  ->
-                           fun __loc__start__pos  ->
-                             fun __loc__end__buf  ->
-                               fun __loc__end__pos  ->
-                                 let _loc =
-                                   locate __loc__start__buf __loc__start__pos
-                                     __loc__end__buf __loc__end__pos
-                                    in
-                                 loc_pat _loc (Ppat_var (id_loc vn _loc_vn)))
+                                             let (ic1,ic2) =
+                                               ((Char.code c1),
+                                                 (Char.code c2))
+                                                in
+                                             if ic1 > ic2 then assert false;
+                                             loc_pat _loc
+                                               (Ppat_interval
+                                                  ((const_char (Char.chr ic1)),
+                                                    (const_char
+                                                       (Char.chr ic2)))))))
+                        :: y
+                      else y  in
+                    if lvl = AtomPat
+                    then
                       (Earley.apply_position
-                         (fun x  ->
-                            fun str  ->
-                              fun pos  ->
-                                fun str'  ->
-                                  fun pos'  ->
-                                    ((locate str pos str' pos'), x))
-                         value_name))
-                   :: y
-                 else y)
-                 in
+                         (fun _default_0  ->
+                            fun __loc__start__buf  ->
+                              fun __loc__start__pos  ->
+                                fun __loc__end__buf  ->
+                                  fun __loc__end__pos  ->
+                                    let _loc =
+                                      locate __loc__start__buf
+                                        __loc__start__pos __loc__end__buf
+                                        __loc__end__pos
+                                       in
+                                    loc_pat _loc Ppat_any) joker_kw)
+                      :: y
+                    else y  in
+                  if lvl = AtomPat
+                  then
+                    (Earley.apply_position
+                       (fun vn  ->
+                          let (_loc_vn,vn) = vn  in
+                          fun __loc__start__buf  ->
+                            fun __loc__start__pos  ->
+                              fun __loc__end__buf  ->
+                                fun __loc__end__pos  ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos
+                                     in
+                                  loc_pat _loc (Ppat_var (id_loc vn _loc_vn)))
+                       (Earley.apply_position
+                          (fun x  ->
+                             fun str  ->
+                               fun pos  ->
+                                 fun str'  ->
+                                   fun pos'  ->
+                                     ((locate str pos str' pos'), x))
+                          value_name))
+                    :: y
+                  else y  in
+                if lvl < AtomPat
+                then (pattern_lvl (false, (next_pat_prio lvl))) :: y
+                else y  in
               if as_ok
               then
                 (Earley.fsequence_position (pattern_lvl (as_ok, lvl))

@@ -255,9 +255,8 @@ let parser maybe_opt_label =
 
 (* FIXME: add antiquotations for all as done for field_name *)
 
-let parser operator_name =
-  | op:(alternatives (List.map infix_symbol infix_prios))  -> op
-  | op:(alternatives (List.map prefix_symbol prefix_prios)) -> op
+let operator_name =
+  alternatives (prefix_symbol Prefix :: List.map infix_symbol infix_prios)
 
 let parser value_name =
     id:lident -> id
@@ -976,7 +975,7 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
   | p:(pattern_lvl (as_ok, lvl)) as_kw vn:value_name when as_ok ->
       loc_pat _loc (Ppat_alias(p, id_loc vn _loc_vn))
 
-   | p:(pattern_lvl (false, next_pat_prio lvl)) -> p
+   | p:(pattern_lvl (false, next_pat_prio lvl)) when lvl < AtomPat -> p
 
   | vn:value_name when lvl = AtomPat ->
       loc_pat _loc (Ppat_var (id_loc vn _loc_vn))

@@ -1,4 +1,4 @@
-open Decap
+open Earley
 
 let blank = blank_regexp ''[ \t\n\r]*''
 

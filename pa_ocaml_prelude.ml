@@ -234,7 +234,7 @@ let string_exp (b,lvl) =
     | TupPat -> ConsPat
     | ConsPat -> ConstrPat
     | ConstrPat -> AtomPat
-    | AtomPat -> AtomPat
+    | AtomPat -> assert false
   let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl = grammar_family "pattern_lvl"
   let pattern = pattern_lvl (true,topPat)
 
