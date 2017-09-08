@@ -442,7 +442,6 @@ type _ res =
   | Sin : 'a -> 'a res
   | Cps : ('a -> 'b) res * ('b -> 'c) res -> ('a -> 'c) res
   | Csp : ('a -> 'b) res * ('c -> 'd) res -> ('a -> ('b -> 'c) -> 'd) res
-  | App : 'a res * ('a -> 'b) res -> 'b res
   | Giv : 'a res -> (('a -> 'b) -> 'b) res
 
 let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
@@ -452,7 +451,6 @@ let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
   | Cns(x,g) -> Printf.fprintf ch "(%a::%a)" print_res x print_res g
   | Cps(f,g) -> Printf.fprintf ch "%a o %a" print_res g print_res f
   | Csp(f,g) -> Printf.fprintf ch "(y -> %a o y o %a)" print_res g print_res f
-  | App(f,g) -> Printf.fprintf ch "(%a %a)" print_res g print_res f
   | Giv(a)   -> Printf.fprintf ch "(f -> f %a)" print_res a
 
 let sin : type a b. a -> a res = fun f ->
@@ -477,7 +475,6 @@ let rec eq_res : type a b. a res -> b res -> bool = fun a b ->
     | Nil, Nil -> true
     | Sin a, Sin b -> eq a b
     | Cns(a,l), Cns(b,p) -> eq a b && eq_res l p
-    | App(f,g), App(h,k) -> eq_res f h && eq_res g k
     | Cps(f,g), Cps(h,k) -> eq_res f h && eq_res g k
     | Csp(f,g), Csp(h,k) -> eq_res f h && eq_res g k
     | Giv(a), Giv(b)     -> eq_res a b
@@ -750,9 +747,9 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            D {debut=d; rest; full; stack; acts},
            D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
          ->
-         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
+(*         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
-           (eq rest r') (eq full fu') print_res acts print_res acts';
+           (eq rest r') (eq full fu') print_res acts print_res acts';*)
          (match
            eq_pos d d', rest === r', full === fu', acts, acts' with
            | true, Eq, Eq, act, acts' ->
