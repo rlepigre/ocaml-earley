@@ -273,6 +273,8 @@ let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
      invalid_arg "block only for ===";*) (* FIXME *)
   if repr r1 == repr r2 then magic Eq else Neq
 
+let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
+
 module Container : sig
   type t
   type 'a table
@@ -417,7 +419,7 @@ let pos_apply : type a b.(a -> b) -> a pos -> b pos =
     | Simple g -> Simple(f g)
     | WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
 
-let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos=
+let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos =
    fun f a b ->
      let a : a pos = match a with Idt -> Simple idt | a -> a
      and b : b pos = match b with Idt -> Simple idt | b -> b in
@@ -428,6 +430,75 @@ let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos=
     | WithPos g, Simple h  -> WithPos(fun b p b' p' -> f (g b p b' p') h)
     | Simple g, WithPos h  -> WithPos(fun b p b' p' -> f g (h b p b' p'))
     | WithPos g, WithPos h  -> WithPos(fun b p b' p' -> f (g b p b' p') (h b p b' p'))
+
+let pos_apply3 : type a b c d.(a -> b -> c -> d) -> a pos -> b pos -> c pos -> d pos =
+  fun f a b c -> app_pos (pos_apply2 f a b) c
+
+(* Combinators to compose actions *)
+(* Cleanly tuned to correctly detect ambiguïties *)
+type _ res =
+  | Nil : ('a -> 'a) res
+  | Cns : 'a res * ('b -> 'c) res -> (('a -> 'b) -> 'c) res
+  | Sin : 'a -> 'a res
+  | Cps : ('a -> 'b) res * ('b -> 'c) res -> ('a -> 'c) res
+  | Csp : ('a -> 'b) res * ('c -> 'd) res -> ('a -> ('b -> 'c) -> 'd) res
+  | App : 'a res * ('a -> 'b) res -> 'b res
+  | Giv : 'a res -> (('a -> 'b) -> 'b) res
+
+let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
+  match r with
+  | Nil -> Printf.fprintf ch "Nil"
+  | Sin x -> Printf.fprintf ch "x"
+  | Cns(x,g) -> Printf.fprintf ch "(%a::%a)" print_res x print_res g
+  | Cps(f,g) -> Printf.fprintf ch "%a o %a" print_res g print_res f
+  | Csp(f,g) -> Printf.fprintf ch "(y -> %a o y o %a)" print_res g print_res f
+  | App(f,g) -> Printf.fprintf ch "(%a %a)" print_res g print_res f
+  | Giv(a)   -> Printf.fprintf ch "(f -> f %a)" print_res a
+
+let sin : type a b. a -> a res = fun f ->
+  if eq f idt then Obj.magic Nil else Sin f
+
+let cps : type a b c.(a -> b) res * (b -> c) res -> (a -> c) res = function
+  | Nil, g -> g
+  | f, Nil -> f
+  | (Sin f0 as f), g -> (match f0 === idt with Eq -> g | _ -> Cps(f,g))
+  | f, (Sin g0 as g) -> (match g0 === idt with Eq -> f | _ -> Cps(f,g))
+  | f, g -> Cps(f,g)
+
+let cns : type a b c.a res * (b -> c) res -> ((a -> b) -> c) res = fun (a, f) ->
+  match f with
+  | Nil -> Giv(a)
+  | Sin f0 as f -> (match f0 === idt with Eq -> Giv a | _ -> Cns(a,f))
+  | f -> Cns(a,f)
+
+let rec eq_res : type a b. a res -> b res -> bool = fun a b ->
+  if eq a b then true else
+    match a,b with
+    | Nil, Nil -> true
+    | Sin a, Sin b -> eq a b
+    | Cns(a,l), Cns(b,p) -> eq a b && eq_res l p
+    | App(f,g), App(h,k) -> eq_res f h && eq_res g k
+    | Cps(f,g), Cps(h,k) -> eq_res f h && eq_res g k
+    | Csp(f,g), Csp(h,k) -> eq_res f h && eq_res g k
+    | Giv(a), Giv(b)     -> eq_res a b
+    | _ -> false
+
+let rec eval : type a. a res -> a =
+  fun r ->
+    match r with
+    | Nil -> idt
+    | Sin b -> b
+    | _ -> assert false
+
+let rec apply : type a b. (a -> b) res -> a res -> b res = fun r a ->
+  match (r, a) with
+  | Sin f   , Sin x -> sin (f x)
+  | Nil     , a     -> a
+  | Cns(x,f), a     -> apply f (apply a x)
+  | Cps(f,g), a     -> apply g (apply f a)
+  | Csp(f,g), a     -> cns(apply f a,g)
+  | Giv a   , f     -> apply f a
+  | r       , a     -> assert false
 
 (** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
     the type of the semantics of the grammar. For example, parsing using a
@@ -466,93 +537,57 @@ and 'a rule = ('a prerule * Container.t)
 
 (* type paragé par les deux types ci-dessous *)
 type ('a,'b,'c,'r) cell = {
-  debut : (position * position) option; (* position in the buffer, before and after blank *)
+  debut : (position * position) option; (* position in the buffer, before and after blank
+                                           None if nothing was parsed *)
   stack : ('c, 'r) element list ref;    (* tree of stack of what should be do after reading
                                            the rule *)
-  acts  : 'a;
-  rest  : 'b rule;
-  full  : 'c rule }
+  acts  : 'a;                           (* action to produce the final 'c. either
+                                           ('b -> 'c) or ('x -> 'b -> 'c) pos *)
+  rest  : 'b rule;                      (* remaining to parse, will produce 'b *)
+  full  : 'c rule                       (* full rule. rest is a suffix of full.
+                                           only use as a reference *)
+  }
 
 (* next element of an earley stack *)
 and (_,_) element =
   (* cons cell of the stack *)
-  | C : (('a -> 'b -> 'c) pos, 'b, 'c, 'r) cell -> ('a,'r) element
+  | C : (('a -> 'b -> 'c) res pos, 'b, 'c, 'r) cell -> ('a,'r) element
   (* end of the stack *)
-  | B : ('a -> 'b) pos -> ('a,'b) element
+  | B : ('a -> 'b) res pos -> ('a,'b) element
 
-(* tête de pile de earley *)
-type _ final = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
+(* head of the stack *)
+type _ final = D : (('b -> 'c) res, 'b, 'c, 'r) cell -> 'r final
 
-(* si t : table et t.(j) = (i, R, R' R) cela veut dire qu'entre i et j on a parsé
-   la règle R' et qu'il reste R à parser. On a donc toujours
-   i <= j et R suffix de R' R (c'est pour ça que j'ai écris R' R)
+(* INVARIANTS:
+
+1° Consider two C elements (or two D elements) of a stack.  If their
+   have the same debut, rest and full is means we have parsed the same
+   prefix of the rule from debut to produce a value of the same type.
+
+   Then, the two cell MUST HAVE PHYSICALLY EQUAL stack
+
+2° For D nodes only, we keep only one for each (debut, rest, full) triple
+   so acts are necessarily physically equal
 *)
-
-
-(* a comparison for closure, that is a bit stronger than == *)
-(* TODO: check if === is not as good *)
-let eq_closure : type a b. a -> b -> bool =
-  fun f g ->
-    let open Obj in
-    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
-    let adone = ref [] in
-    let rec fneq f g =
-      f == g ||
-        match is_int f, is_int g with
-        | true, true -> f = g
-        | false, true | true, false -> false
-        | false, false ->
-           (*      if !debug_lvl > 10 then Printf.eprintf "*%!";*)
-           let ft = tag f and gt = tag g in
-           if ft = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq (field f 0) g)
-           else if gt = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq f (field g 0))
-           else if ft = custom_tag || gt = custom_tag then f = g
-           else if ft <> gt then false
-           else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
-           if ft = string_tag || ft = double_tag || ft = double_array_tag then f = g
-           else if ft = abstract_tag || ft = out_of_heap_tag || ft = no_scan_tag then f == g
-           else if ft =  infix_tag then (
-             Printf.eprintf "INFIX TAG\n%!"; (* FIXME *)
-             assert false;)
-           else
-               size f == size g &&
-               let rec gn i =
-                 if i < 0 then true
-                 else fneq (field f i) (field g i) && gn (i - 1)
-               in
-               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
-                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
-                 (adone := (f,g)::!adone;
-                  let r = gn (size f - 1) in
-                  r)))
-
-    in fneq (repr f) (repr g)
-
-let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
 
 let eq_pos p1 p2 = match p1, p2 with
   | Some((buf,pos),_), Some((buf',pos'),_) -> buffer_equal buf buf' && pos = pos'
   | None, None -> true
   | _ -> false
 
-
-let eq_D (D {debut; rest; full; stack})
-         (D {debut=d'; rest=r'; full=fu'; stack = stack'}) =
-  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack'); true)
+let eq_D (D {debut; rest; full; stack; acts})
+         (D {debut=d'; rest=r'; full=fu'; stack = stack'; acts=acts'}) =
+  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack');
+                                                   assert (eq acts acts'); true)
 
 let eq_C c1 c2 = eq c1 c2 ||
   match c1, c2 with
     (C {debut; rest; full; stack; acts},
      C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
       eq_pos debut d' && eq rest r' && eq full fu'
-      && (assert (eq stack stack'); eq_closure acts acts')
-  | (B acts, B acts') -> eq_closure acts acts'
+      && (assert (eq stack stack'); assert(eq acts acts'); true)
+  | (B acts, B acts') -> assert (eq acts acts'); true
   | _ -> false
-
 
 let idtCell = Container.create ()
 let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
@@ -700,12 +735,6 @@ let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buffer_uid buf, pos) v
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
-let merge_acts o n =
-  let rec fnacts acc = function
-    | [] -> acc
-    | a::l -> if List.exists (eq_closure a) acc then fnacts acc l else fnacts (a::acc) l
-  in fnacts o n
-
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
   fun info pos_final element elements ->
@@ -721,13 +750,13 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
            D {debut=d; rest; full; stack; acts},
            D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
          ->
-         (*if !debug_lvl > 3 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b\n%!"
+         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
-           (eq rest r') (eq full fu');*)
+           (eq rest r') (eq full fu') print_res acts print_res acts';
          (match
            eq_pos d d', rest === r', full === fu', acts, acts' with
            | true, Eq, Eq, act, acts' ->
-              if not (eq_closure acts acts') && !warn_merge then
+              if not (eq_res acts acts') && !warn_merge then
                 Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
                   print_final element print_pos (debut pos_final element)
                   print_pos pos_final (filename (fst pos_final));
@@ -776,12 +805,16 @@ let protect errpos f a = try f a with Error -> ()
 
 let protect_cons errpos f a acc = try f a :: acc with Error -> acc
 
-let combine2 : type a0 a1 a2 b bb c.(a2 -> b) -> (b -> c) pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) pos =
-   fun acts acts' g f ->
-     compose acts' (pos_apply (fun g x -> acts (g x)) (compose g f))
+let combine2 : type a0 a1 a2 b bb c.(a2 -> b) res -> (b -> c) res pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) res pos =
+  fun acts acts' g f ->
+    pos_apply3 (fun acts' g f ->
+        cps(sin f,cps(sin g,cps(acts,acts')))
+      ) acts' g f
 
-let combine1 : type a b c d.(c -> d) -> (a -> b) pos -> (a -> (b -> c) -> d) pos =
-   fun acts g -> pos_apply (fun g x -> let y = g x in fun h -> acts (h y)) g
+let combine1 : type a b c d.(c -> d) res -> (a -> b) pos -> (a -> (b -> c) -> d) res pos =
+  fun acts g ->
+    match acts, g with
+    | _ -> pos_apply (fun g -> Csp(sin g,acts)) g
 
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
 let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
@@ -804,7 +837,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;})
+               (D {debut; stack; acts = cns(sin a,acts); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -821,7 +854,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = (fun f -> acts (f a)); rest=rest0; full;})
+               (D {debut; stack; acts = cns(sin a,acts); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -864,7 +897,7 @@ let rec one_prediction_production
         let act =
           { a = (fun rule stack ->
             if good c (rule_info rule) then (
-              let nouveau = D {debut=None; acts = idt; stack; rest = rule; full = rule} in
+              let nouveau = D {debut=None; acts = Nil; stack; rest = rule; full = rule} in
               let b = add "P" pos nouveau elements in
               if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
           }
@@ -895,15 +928,16 @@ let rec one_prediction_production
        if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
        let a =
          let a = ref None in
-         try let _ = acts (fun x -> a := Some x; raise Exit) in assert false
+         try let _ = apply acts (Sin (fun x -> a := Some x; raise Exit)) in assert false
          with Exit ->
            match !a with None -> assert false | Some a -> a
        in
-       let cc = C { debut;  acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
+       let cc = C { debut;
+                    acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
                    rest = idtEmpty; full } in
        let rule = r a in
        let stack' = add_assq rule cc dlr in
-       let nouveau = D {debut; acts = idt; stack = stack'; rest = rule; full = rule } in
+       let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule; full = rule } in
        let b = add "P" pos nouveau elements in
        if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
 
@@ -911,8 +945,9 @@ let rec one_prediction_production
      | Empty(a) ->
         (try
            if !debug_lvl > 1 then
-             Printf.eprintf "action for completion of %a =>" print_final element0;
-           let x = try acts (apply_pos_debut a debut pos pos_ab)
+             Printf.eprintf "action for completion of %a: (%a x)=>" print_final element0
+               print_res acts;
+           let x = try apply acts (sin (apply_pos_debut a debut pos pos_ab))
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
           let complete = fun element ->
@@ -920,14 +955,14 @@ let rec one_prediction_production
             | C {debut=d; stack=els'; acts; rest; full} ->
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
-                   Printf.eprintf "action for completion bis of %a =>" print_final element0;
+                   Printf.eprintf "action for completion bis of %a: (%a x) =>" print_final element0 print_res (apply_pos_debut acts debut pos pos_ab);
                  let debut = first_pos d debut in
-                 let x =
-                   try apply_pos_debut acts debut pos pos_ab x
+                 let acts =
+                   try apply (apply_pos_debut acts debut pos pos_ab) x
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
-                 if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut; acts = x; stack=els'; rest; full } in
+                 if !debug_lvl > 1 then Printf.eprintf "succes %a\n%!" print_res acts;
+                 let nouveau = D {debut; acts; stack=els'; rest; full } in
                  let b = add "C" pos nouveau elements in
                  if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
                end
@@ -945,8 +980,8 @@ let rec one_prediction_production
           let (a,b) = f (fst pos) (snd pos) (fst j) (snd j) in
           if b then begin
             if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-            let nouveau = D {debut; stack; rest; full;
-                             acts = let x = apply_pos g j j a in fun h -> acts (h x)} in
+            let x = apply_pos g j j a in
+            let nouveau = D {debut; stack; rest; full; acts =  cns(sin x,acts)} in
             let b = add "T" pos nouveau elements in
             if b then one_prediction_production errpos nouveau elements dlr  pos pos_ab c c'
           end
@@ -963,8 +998,8 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
     let r0 : a rule = grammar_to_rule main in
-    let s0 : (a, a) element list ref = ref [B Idt] in
-    let init = D {debut=None; acts = idt; stack=s0; rest=r0; full=r0 } in
+    let s0 : (a, a) element list ref = ref [B (Simple Nil)] in
+    let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0 } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let last_success = ref [] in
@@ -1038,11 +1073,11 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       | [] -> raise Not_found
       | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
          (try
-           let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
-           let rec gn : type a b.(unit -> a) -> b -> (b,a) element list -> a =
+           let x = apply acts (sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
+           let rec gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
              fun cont x -> function
              | B (ls)::l ->
-               (try apply_pos ls (buf0, pos0) (!buf, !pos) x
+               (try eval (apply (apply_pos ls (buf0, pos0) (!buf, !pos)) x)
                 with Error -> gn cont x l)
              | C _:: l ->
                 gn cont x l
