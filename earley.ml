@@ -453,8 +453,8 @@ let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
   | Csp(f,g) -> Printf.fprintf ch "(y -> %a o y o %a)" print_res g print_res f
   | Giv(a)   -> Printf.fprintf ch "(f -> f %a)" print_res a
 
-let sin : type a b. a -> a res = fun f ->
-  if eq f idt then Obj.magic Nil else Sin f
+let sin : type a b. (a -> b) -> (a -> b) res = fun f ->
+  match f === idt with Eq -> Nil | _ -> Sin f
 
 let cps : type a b c.(a -> b) res * (b -> c) res -> (a -> c) res = function
   | Nil, g -> g
@@ -489,7 +489,7 @@ let rec eval : type a. a res -> a =
 
 let rec apply : type a b. (a -> b) res -> a res -> b res = fun r a ->
   match (r, a) with
-  | Sin f   , Sin x -> sin (f x)
+  | Sin f   , Sin x -> Sin (f x)
   | Nil     , a     -> a
   | Cns(x,f), a     -> apply f (apply a x)
   | Cps(f,g), a     -> apply g (apply f a)
@@ -834,7 +834,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns(sin a,acts); rest=rest0; full;})
+               (D {debut; stack; acts = cns(Sin a,acts); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -851,7 +851,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns(sin a,acts); rest=rest0; full;})
+               (D {debut; stack; acts = cns(Sin a,acts); rest=rest0; full;})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -944,7 +944,7 @@ let rec one_prediction_production
            if !debug_lvl > 1 then
              Printf.eprintf "action for completion of %a: (%a x)=>" print_final element0
                print_res acts;
-           let x = try apply acts (sin (apply_pos_debut a debut pos pos_ab))
+           let x = try apply acts (Sin (apply_pos_debut a debut pos pos_ab))
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
           let complete = fun element ->
@@ -978,7 +978,7 @@ let rec one_prediction_production
           if b then begin
             if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
             let x = apply_pos g j j a in
-            let nouveau = D {debut; stack; rest; full; acts =  cns(sin x,acts)} in
+            let nouveau = D {debut; stack; rest; full; acts =  cns(Sin x,acts)} in
             let b = add "T" pos nouveau elements in
             if b then one_prediction_production errpos nouveau elements dlr  pos pos_ab c c'
           end
@@ -1070,7 +1070,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       | [] -> raise Not_found
       | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
          (try
-           let x = apply acts (sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
+           let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
            let rec gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
              fun cont x -> function
              | B (ls)::l ->
