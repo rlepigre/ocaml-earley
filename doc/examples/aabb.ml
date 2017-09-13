@@ -1,5 +1,4 @@
-#226 "Parsers.typ"
-open Decap
+open Earley
 
 let parser aabb =
   | 'a' aabb 'b'

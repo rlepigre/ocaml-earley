@@ -1,5 +1,4 @@
-#270 "Parsers.typ"
-open Decap
+open Earley
 
 type calc_prio = Sum | Prod | Pow | Atom
 
@@ -15,13 +14,13 @@ let parser sum_sym =
   | '+' -> ( +. )
   | '-' -> ( -. )
 
-let parser expr prio : float grammar =
+let parser expr prio =
   | f:float_num          when prio = Atom -> f
   | '(' e:(expr Sum) ')' when prio = Atom -> e
   | '-' e:(expr Pow)     when prio = Pow -> -. e
   | '+' e:(expr Pow)     when prio = Pow -> e
   | e:(expr Atom) e':{"**" (expr Pow)}? when prio = Pow ->
-      match e' with None -> e | Some e' -> e ** e'
+      (match e' with None -> e | Some e' -> e ** e')
   | e:(expr Pow) l:{prod_sym (expr Pow)}*
                          when prio = Prod ->
       List.fold_left (fun acc (fn, e') -> fn acc e') e l

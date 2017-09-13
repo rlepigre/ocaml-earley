@@ -144,8 +144,8 @@ any valid string it receives as a command-line argument.
 ###
 
 ###
-### OCaml "calc_base.ml"
-open Decap
+### OCaml "examples/calc_base.ml"
+open Earley
 
 let int = parser
   | n:''[0-9]+'' -> int_of_string n
@@ -222,8 +222,8 @@ program fails and prints an error message.
 ###
 
 ###
-### OCaml "aabb.ml"
-open Decap
+### OCaml "examples/aabb.ml"
+open Earley
 
 let parser aabb =
   | 'a' aabb 'b'
@@ -266,8 +266,8 @@ and implemented using a ##grammar_family##.
 ###
 
 ###
-### OCaml "calc_prio.ml"
-open Decap
+### OCaml "examples/calc_prio.ml"
+open Earley
 
 type calc_prio = Sum | Prod | Pow | Atom
 
@@ -283,13 +283,13 @@ let parser sum_sym =
   | '+' -> ( +. )
   | '-' -> ( -. )
 
-let parser expr prio : float grammar =
+let parser expr prio =
   | f:float_num          when prio = Atom -> f
   | '(' e:(expr Sum) ')' when prio = Atom -> e
   | '-' e:(expr Pow)     when prio = Pow -> -. e
   | '+' e:(expr Pow)     when prio = Pow -> e
   | e:(expr Atom) e':{"**" (expr Pow)}? when prio = Pow ->
-      match e' with None -> e | Some e' -> e ** e'
+      (match e' with None -> e | Some e' -> e ** e')
   | e:(expr Pow) l:{prod_sym (expr Pow)}*
                          when prio = Prod ->
       List.fold_left (fun acc (fn, e') -> fn acc e') e l
@@ -336,8 +336,8 @@ grammar, which accepts for example the words ##""##, ##"abc"## or ##"aabbcc"##.
 ###
 
 ###
-### OCaml "aabbcc.ml"
-open Decap
+### OCaml "examples/aabbcc.ml"
+open Earley
 
 let parser nb_cc nb =
   | 'c' (nb_cc (nb - 1))  when nb > 0
@@ -361,7 +361,7 @@ On important feature is that the blank function can be changed using the functio
 
 ### OCaml
 
-change_layout : ?new_blank_before:bool -> ?old_blank_after:bool -> 
+change_layout : ?new_blank_before:bool -> ?old_blank_after:bool ->
   'a grammar -> blank -> 'a grammar
 
 ###
@@ -389,14 +389,14 @@ leaving a line empty.
 ###
 
 ###
-### OCaml "text.ml"
-open Decap
+### OCaml "examples/text.ml"
+open Earley
 
 let inter_paragraph = blank_regexp ''[ \t\r\n]*''
 
 let inter_word str pos =
   let gram = parser ''[ \t\r]*'' '\n'? ''[ \t\r]*'' in
-  let str, pos, _ = partial_parse_buffer gram no_blank str pos in
+  let _, str, pos = partial_parse_buffer gram no_blank str pos in
   str, pos
 
 let word = parser w:''[^ \n\t\r]+'' -> w
@@ -446,7 +446,7 @@ some characters ##"a"## for ##<h>## to consume (for example, we could have
 ##<h> ::= "a" "a" "b"##). This means that the parsing of ##<g>*## for a
 given grammar ##<g>## will keep an exception handler around the parsing of
 the rest of the stream to be able to backtrack. This is done using a
-//continuation passing style// approach to parsing combinator. 
+//continuation passing style// approach to parsing combinator.
 
 This may leads to numerous failed partial parsing attempts which may takes
 a lot of time. It may also create to a reasonably fast parser using a
@@ -516,7 +516,7 @@ Therefore, a possible implementation for ##locate## could be:
 
 ### OCaml
 
-open Decap
+open Earley
 
 type position = Lexing.position * Lexing.position
 
@@ -539,8 +539,8 @@ definition of ##locate##:
 
  #define LOCATE locate
 
- let ints: (position * (position * int) list) grammar = 
+ let ints: (position * (position * int) list) grammar =
    parser
      "ints" l:{ i:''[0-9]+'') -> (_loc, int_of_string i) }*
-       -> (_loc_l, l) 
+       -> (_loc_l, l)
 ###

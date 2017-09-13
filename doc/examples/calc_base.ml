@@ -1,5 +1,4 @@
-#148 "Parsers.typ"
-open Decap
+open Earley
 
 let int = parser
   | n:''[0-9]+'' -> int_of_string n

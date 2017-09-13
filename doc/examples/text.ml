@@ -1,11 +1,10 @@
-#393 "Parsers.typ"
-open Decap
+open Earley
 
 let inter_paragraph = blank_regexp ''[ \t\r\n]*''
 
 let inter_word str pos =
   let gram = parser ''[ \t\r]*'' '\n'? ''[ \t\r]*'' in
-  let str, pos, _ = partial_parse_buffer gram no_blank str pos in
+  let _, str, pos = partial_parse_buffer gram no_blank str pos in
   str, pos
 
 let word = parser w:''[^ \n\t\r]+'' -> w

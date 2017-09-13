@@ -3,12 +3,12 @@
   Getting started writing parsers and syntax extensions using ##DeCaP## and
   ##pa_ocaml##
 ------------------------------------------------------------------------------
-  Rodolphe Lepigre & Christophe Raffalli
+  Rodolphe Lepigre and Christophe Raffalli
 ------------------------------------------------------------------------------
   Lama, UMR 5127 CNRS, Université Savoie Mont-Blanc
 ==============================================================================
 
-\linesBefore(2) 
+\linesBefore(2)
 \Caml(
 let _ = TableOfContents.do_begin_env()
 let _ = TableOfContents.do_end_env()

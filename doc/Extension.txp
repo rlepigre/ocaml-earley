@@ -14,19 +14,19 @@ differences with the original OCaml parser:
       ##a ; if b then c else (d : t)##.
       For patterns, type coercion is at the lowest priority level:
       ##a , b : t## means ##(a, b) : t##.
-\item A preprocessor is available. This may break some code if a "#" symbol
+\item A preprocessor is available. This may break some code if a "\#" symbol
       occurs at a beginning of a line.
-\end{itemize} 
+\end{itemize}
 
-The supported preprocessor directives, are listed bellow. Note that the "#"
+The supported preprocessor directives, are listed bellow. Note that the "\#"
 character needs to be the first character on the line.
 
 \begin{itemize}
 \item The line number indication directive as in OCaml.
-\item ``#define macro value`` defining a macro with no parameter
-\item ``#ifdef macro`` and ``#ifundef macro`` which are classical
-\item ``#ifversion [<|>|=|<=|>=] XX.XX`` to test the ocaml version.
-\item ``#endif``, ``#else`` and ``#elif ...`` to close the conditional directive.
+\item ``\#define macro value`` defining a macro with no parameter
+\item ``\#ifdef macro`` and ``\#ifundef macro`` which are classical
+\item ``\#ifversion [<|>|=|<=|>=] XX.XX`` to test the ocaml version.
+\item ``\#endif``, ``\#else`` and ``\#elif ...`` to close the conditional directive.
 \end{itemize}
 
 Moreover, OCaml can access the environment variables ##VAR## with the syntax
@@ -65,45 +65,44 @@ implies that the following example depends upon OCaml's version.//
 ###
 
 ###
-### OCaml "pa_do_try.ml"
+### OCaml "examples/pa_do_try.ml"
   open Pa_ocaml_prelude
 
   #define LOCATE locate
 
-  module Ext = functor(In:Extension) -> 
+  module Ext = functor(In:Extension) ->
   struct
     include In
 
-    let extension lvl = parser
-    | STR("do") e:(expr) STR("where") r:STR("rec")? b:let_binding ->
-        (Let, if r<>None then
+    let extension (alm,lvl) = parser
+    | STR("do") e:(expression) STR("where") r:STR("rec")? b:let_binding ->
+        if r<>None then
                 <:expr<let rec $bindings:b$ in $e$>>
-              else 
-                <:expr<let $bindings:b$ in $e$>>)
+              else
+                <:expr<let $bindings:b$ in $e$>>
 
-    | STR("let") STR("try") b:let_binding 
-      STR("in") e:(expr) STR("with") c:(match_cases Top) ->
+    | STR("let") STR("try") b:let_binding
+      STR("in") e:(expression) STR("with") c:(match_cases) ->
 
       (* missing quotation in pattern yet *)
   #ifversion >= 4.02
-         let c = List.map 
-             Parsetree.(fun ({ pc_rhs = e; _ } as b) -> 
+         let c = List.map
+             Parsetree.(fun ({ pc_rhs = e; _ } as b) ->
                 { b with pc_rhs = <:expr< fun () -> $e$ >> }) c
   #else
-         let c = List.map 
+         let c = List.map
             (fun (pat, e) -> (pat, <:expr< fun () -> $e$ >>)) c
   #endif
          in
-         (Let, 
-          <:expr<(try let $bindings:b$ in fun () -> $e$ with $cases:c$) ()>>)
+          <:expr<(try let $bindings:b$ in fun () -> $e$ with $cases:c$) ()>>
 
     let extra_expressions = extension::extra_expressions
-    let _ = add_reserved_id "where"
+    let _ = Pa_lexing.add_reserved_id "where"
 
   end
 
   module M = Pa_main.Start(Pa_ocaml.Make(Ext(Initial)))
-### 
+###
 ###
 
 ###
@@ -153,17 +152,17 @@ Here are the entry points available in the module ##Pa_ocaml_prelude.Initial : E
 
 The priority levels for expressions, types and patterns are:
 
-### OCaml 
+### OCaml
 
 type expression_prio =
-  | Top | Let | Seq | Coerce | If | Aff | Tupl | Disj 
-  | Conj | Eq | Append | Cons | Sum | Prod | Pow | Opp 
+  | Top | Let | Seq | Coerce | If | Aff | Tupl | Disj
+  | Conj | Eq | Append | Cons | Sum | Prod | Pow | Opp
   | App | Dash | Dot | Prefix | Atom
 
 type type_prio = TopType | As | Arr | ProdType | DashType
   | AppType | AtomType
 
-type pattern_prio = TopPat | AsPat | AltPat | TupPat 
+type pattern_prio = TopPat | AsPat | AltPat | TupPat
   | ConsPat | ConstrPat | AtomPat
 
 ###
@@ -182,4 +181,3 @@ Moreover, named quotation ##$id:...$## are available with the following value of
 \item inside let bindings: ##bindings: value_binding list## (named to avoid parsing ambiguïties),
 \item inside match cases: ##cases: case list## (named to avoid parsing ambiguïties).
 \end{itemize}
-

@@ -1,5 +1,4 @@
-#340 "Parsers.typ"
-open Decap
+open Earley
 
 let parser nb_cc nb =
   | 'c' (nb_cc (nb - 1))  when nb > 0
