@@ -1,4 +1,6 @@
 Charset
 Input
 Regexp
+EarleyUtils
+EarleyEngine
 Earley
