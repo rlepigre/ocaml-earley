@@ -1112,7 +1112,7 @@ let _ = set_pattern_lvl (fun (as_ok, lvl) ->
 	       in
 	       generic_antiquote (locate _loc e)
 	    | "list"      ->
-	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_list") [quote_location_t e_loc _loc _loc; e])
+	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_list") [quote_location_t e_loc _loc _loc; quote_location_t e_loc _loc _loc; e])
 	    | "tuple"      ->
 	       generic_antiquote (quote_apply e_loc _loc (pa_ast "pat_tuple") [quote_location_t e_loc _loc _loc; e])
 	    | "array"      ->
@@ -1200,9 +1200,9 @@ let bigarray_set _loc arr arg newval =
   | [c1] ->
       <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $newval$>>
   | [c1;c2] ->
-      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $c2$ $newval$>>
+      <:expr<Bigarray.Array2.$lid:set$ $arr$ $c1$ $c2$ $newval$>>
   | [c1;c2;c3] ->
-      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $c2$ $c3$ $newval$>>
+      <:expr<Bigarray.Array3.$lid:set$ $arr$ $c1$ $c2$ $c3$ $newval$>>
   | coords ->
       <:expr<Bigarray.Genarray.$lid:set$ $arr$ $array:coords$ $newval$ >>
 
@@ -1314,8 +1314,20 @@ let _ = set_grammar let_binding (
     in
     let loc = merge2 _loc_vn _loc_e in
     value_binding ~attributes:(attach_attrib loc a) loc pat e::l
-(*  | dol:CHR('$') - STR("bindings") CHR(':') e:(expression_lvl App) - CHR('$') l:{_:and_kw let_binding}?[[]] ->
-    push_pop_let_binding (start_pos _loc_dol).Lexing.pos_cnum e @ l*)
+  | dol:CHR('$') - aq:{c:"bindings" ":" -> c}?["bindings"] e:(expression_lvl (NoMatch,App)) - CHR('$') l:{_:and_kw let_binding}?[[]] ->
+     begin
+       let open Quote in
+       let generic_antiquote e = function
+	 | Quote_loc -> e
+	 | _ -> failwith "invalid antiquotation" (* FIXME: print location *)
+       in
+       let f =
+	 match aq with
+	    | "bindings" -> generic_antiquote e
+	    | _ -> give_up ()
+       in
+       make_list_antiquotation _loc Quote_loc f
+    end
   )
 
 let parser match_case c =
