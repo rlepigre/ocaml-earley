@@ -26,7 +26,7 @@ pa_do_try: pa_do_try.ml $(PA_OCAML) $(EARLEY_DIR)/earley_ocaml.cmxa
 	ocamlfind ocamlopt $(OPTS) -I +compiler-libs -package unix -package earley_ocaml -o $@ $<
 
 clean:
-	rm -f *.cmi *.cmo
+	rm -f *.cmi *.cmo *.cmx *.o
 
 distclean: clean
 	rm -f calc_base calc_prio aabb aabbcc text pa_do_try

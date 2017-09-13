@@ -173,10 +173,13 @@ clean:
                 tests_pa_ocaml/*.ml*.*diff tests_pa_ocaml/*.cm*
 	- rm -f test_parsers ocaml.csv
 	$(MAKE) -e -j 1 -C ast_tools clean
+	$(MAKE) -e -j 1 -C doc/examples clean
 
 distclean: clean
 	- rm -f pa_ocaml pa_ocaml-* pa_ocaml.byt *~ \#*\#
 	$(MAKE) -e -j 1 -C ast_tools distclean
+	- cd doc; patoline --clean;
+	$(MAKE) -e -j 1 -C doc/examples distclean
 
 .PHONY: release
 release: distclean
