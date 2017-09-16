@@ -276,23 +276,17 @@ type _ final = D : (('b -> 'c) res, 'b, 'c, 'r) cell -> 'r final
 *)
 
 let eq_pos p1 p2 = match p1, p2 with
-  | Some((buf,pos),_), Some((buf',pos'),_) -> buffer_equal buf buf' && pos = pos'
+  | Some((buf,pos),_), Some((buf',pos'),_) ->
+     buffer_equal buf buf' && pos = pos'
   | None, None -> true
   | _ -> false
 
 let eq_D (D {debut; rest; full; stack; acts})
-         (D {debut=d'; rest=r'; full=fu'; stack = stack'; acts=acts'}) =
-  eq_pos debut d' && eq rest r' && eq full fu' && (assert (eq stack stack');
-                                                   assert (eq acts acts'); true)
-
-let eq_C c1 c2 = eq c1 c2 ||
-  match c1, c2 with
-  |  (C {debut; rest; full; stack; acts},
-     C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
-      eq_pos debut d' && eq rest r' && eq full fu'
-      && (assert (eq stack stack'); assert(eq acts acts'); true)
-  | (B acts, B acts') -> assert (eq acts acts'); true
-  | _ -> false
+         (D {debut=debut'; rest=rest'; full=full'; stack=stack'; acts=acts'}) =
+  eq_pos debut debut' &&
+    match rest === rest', full === full' with
+    | Eq, Eq -> assert(acts == acts'); assert(stack == stack'); true
+    | _ -> false
 
 let idtCell = Container.create ()
 let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
