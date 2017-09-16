@@ -287,7 +287,7 @@ let eq_D (D {debut; rest; full; stack; acts})
 
 let eq_C c1 c2 = eq c1 c2 ||
   match c1, c2 with
-    (C {debut; rest; full; stack; acts},
+  |  (C {debut; rest; full; stack; acts},
      C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
       eq_pos debut d' && eq rest r' && eq full fu'
       && (assert (eq stack stack'); assert(eq acts acts'); true)
@@ -390,46 +390,64 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
     Printf.fprintf ch "B"
 
 (* heart of earley: stack managment *)
-type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) list ref -> 'b dep_pair
+type _ dep_pair =
+  P : { rule : 'a rule
+      ; mutable stack : ('a, 'b) element list ref (* NOTE: needs a ref for sharing *)
+      ; mutable hooks : (('a, 'b) element -> unit) list } -> 'b dep_pair
 
 type 'b dep_pair_tbl = 'b dep_pair Container.table
+
+let elt_ckey : type a b. (a, b) element -> int * int * int * int =
+  function C { debut; rest; full } ->
+           (match debut with
+            | None -> (-1, -1, (* FIXME: find a better key *)
+                       Container.address (snd full),
+                       Container.address (snd rest))
+            | Some((buf, pos), _) -> (buffer_uid buf, pos,
+                                      Container.address (snd full),
+                                      Container.address (snd rest)))
+         | B _ -> (-2, -2, -2, -2)
 
 let hook_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
     try match Container.find dlr (snd r) with
-      P(r',ptr,g) ->
+      P({rule = r'; stack; hooks} as p )->
         match r === r' with
-        | Eq -> g := f::!g; List.iter f !ptr;
+        | Eq -> p.hooks <- f::hooks; List.iter f !stack;
         | _ -> assert false
     with Not_found ->
-      Container.add dlr (snd r) (P(r,ref [], ref [f]))
+      Container.add dlr (snd r) (P{rule = r; stack = ref []; hooks = [f]})
 
 (* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
   fun r el dlr ->
     try match Container.find dlr (snd r) with
-      P(r',stack,g) ->
+      P({rule = r'; stack; hooks}) ->
         match r === r' with
         | Eq ->
-           if not (List.exists (eq_C el) !stack) then (
+           if not (List.memq el !stack) then (
              if !debug_lvl > 3 then
-               Printf.eprintf "add stack %a ==> %a\n%!" print_rule r print_element el;
-             stack := el :: !stack; List.iter (fun f -> f el) !g); stack
+               Printf.eprintf "add stack %a ==> %a\n%!"
+                              print_rule r print_element el;
+             stack := el :: !stack;
+             List.iter (fun f -> f el) hooks); stack
         | _ -> assert false
     with Not_found ->
       if !debug_lvl > 3 then
         Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
-      let res = ref [el] in Container.add dlr (snd r) (P(r,res, ref [])) ; res
+      let stack = ref [el] in
+      Container.add dlr (snd r) (P{rule = r; stack; hooks=[]}) ; stack
 
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
     try match Container.find dlr (snd r) with
-      P(r',stack,g) ->
+      P{rule = r';stack; hooks} ->
         match r === r' with
         | Eq -> stack
         | _ -> assert false
     with Not_found ->
-      let res = ref [] in Container.add dlr (snd r) (P(r,res, ref [])); res
+      let stack = ref [] in
+      Container.add dlr (snd r) (P{rule = r; stack; hooks=[]}); stack
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 
@@ -516,6 +534,8 @@ let add_errmsg errpos buf pos (msg:unit->string) =
 
 let protect errpos f a = try f a with Error -> ()
 
+let protect2 errpos f a b = try f a b with Error -> ()
+
 let protect_cons errpos f a acc = try f a :: acc with Error -> acc
 
 let combine2 : type a0 a1 a2 b bb c.(a2 -> b) res -> (b -> c) res pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) res pos =
@@ -590,8 +610,6 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
        | _ -> ()) elements;
     !tbl
 
-(* selectionnne les éléments commençant par un terminal
-   ayant la règle donnée *)
 type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
 
 let taille_tables els forward =
@@ -720,7 +738,8 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
     let r0 : a rule = grammar_to_rule main in
-    let s0 : (a, a) element list ref = ref [B (Simple Nil)] in
+    let final_elt = B (Simple Nil) in
+    let s0 : (a, a) element list ref = ref [final_elt] in
     let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0; read = false } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
@@ -799,14 +818,18 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
          (try
            let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
-           let rec gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
-             fun cont x -> function
-             | B (ls)::l ->
-               (try eval (apply (apply_pos ls (buf0, pos0) (!buf, !pos)) x)
-                with Error -> gn cont x l)
-             | C _:: l ->
-                gn cont x l
-             | [] -> cont ()
+           let gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
+            fun cont x l ->
+              let rec hn =
+                function
+                | B (ls)::l ->
+                   (try eval (apply (apply_pos ls (buf0, pos0) (!buf, !pos)) x)
+                    with Error -> hn l)
+                | C _:: l ->
+                   hn l
+                | [] -> cont ()
+              in
+              hn l
            in
            gn (fun () -> fn els) x !s1
           with Error -> fn els)
