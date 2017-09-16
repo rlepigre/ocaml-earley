@@ -274,6 +274,7 @@ module Container : sig
   val find : 'a table -> t -> 'a
   val reset : 'a table -> unit
   val create_table : unit -> 'a table
+  val address   : t -> int
 
 end = struct
 
@@ -281,15 +282,22 @@ end = struct
     | Cons : 'a table * 'a * clist -> clist
     | Nil  : clist
 
-  and t = clist ref
+  and t = clist ref * int
 
   and 'a table = 'a option * clist ref list ref
 
-  let create () : t = ref Nil
+  let create =
+    let c = ref 0 in
+    (fun () ->
+      let adr = !c in
+      c := adr + 1;
+      (ref Nil, adr))
+
+  let address = snd
 
   let create_table : type a.a option -> a table = fun a -> (a, ref [])
 
-  let add : type a. a table -> t -> a -> unit = fun t c a ->
+  let add : type a. a table -> t -> a -> unit = fun t (c, _) a ->
     if List.memq c !(snd t) then (
       let rec fn = function
         | Nil -> assert false
@@ -310,7 +318,7 @@ end = struct
         | Eq  -> x
         | Neq -> find_aux t r
 
-   let find : type a. a table -> t -> a = fun t c -> find_aux t !c
+   let find : type a. a table -> t -> a = fun t (c, _) -> find_aux t !c
 
    let reset : type a. a table -> unit = fun t ->
      let rec fn = function

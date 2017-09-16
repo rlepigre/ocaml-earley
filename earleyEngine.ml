@@ -433,10 +433,18 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 
-type 'a pos_tbl = (int * int, 'a final list) Hashtbl.t
+type 'a pos_tbl = (int * int * int * int, 'a final) Hashtbl.t
 
-let find_pos_tbl t (buf,pos) = Hashtbl.find t (buffer_uid buf, pos)
-let add_pos_tbl t (buf,pos) v = Hashtbl.replace t (buffer_uid buf, pos) v
+let elt_key : type a. a final -> int * int * int * int =
+  function D { debut; rest; full } ->
+    match debut with
+    | None -> (-1, -1,
+               Container.address (snd full), (* FIXME: find a better key *)
+               Container.address (snd rest))
+    | Some((buf, pos), _) -> (buffer_uid buf, pos,
+                              Container.address (snd full), (* FIXME: find a better key *)
+                              Container.address (snd rest))
+
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
@@ -444,35 +452,35 @@ let elt_pos pos el = char_pos (debut pos el)
 let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
   fun info pos_final element elements ->
     let deb = debut pos_final element in
-    let oldl = try find_pos_tbl elements deb with Not_found -> [] in
-    let rec fn = function
-      | [] ->
-         if !debug_lvl > 1 then Printf.eprintf "add %s %a %d %d\n%!" info print_final element
-           (char_pos deb) (char_pos pos_final);
-        add_pos_tbl elements deb (element :: oldl); true
-      | e::es ->
-         (match e, element with
-           D {debut=d; rest; full; stack; acts},
-           D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
-         ->
+    let key = elt_key element in
+    try
+      let e = Hashtbl.find elements key in
+      (match e, element with
+        D {debut=d; rest; full; stack; acts},
+        D {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
+        ->
 (*         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
-         (match
-           eq_pos d d', rest === r', full === fu', acts, acts' with
-           | true, Eq, Eq, act, acts' ->
-              if not (eq_res acts acts') && !warn_merge then
-                Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
-                  print_final element print_pos (debut pos_final element)
+        match
+           eq_pos d d', rest === r', full === fu' with
+         | true, Eq, Eq ->
+            if not (eq_res acts acts') && !warn_merge then
+              Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
+                             print_final element print_pos (debut pos_final element)
                   print_pos pos_final (filename (fst pos_final));
-              assert(stack == stack' ||
-                       (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!"
-                          info print_final element (elt_pos pos_final element)
-                          (char_pos pos_final); false));
-              false
-          | _ ->
-            fn es))
-    in fn oldl
+            assert(stack == stack' ||
+                     (Printf.eprintf "\027[31mshould be the same stack %s %a %d %d\027[0m\n%!"
+                                     info print_final element (elt_pos pos_final element)
+                                     (char_pos pos_final); false));
+            false
+         | _ -> assert false)
+    with Not_found ->
+         if !debug_lvl > 1 then
+           Printf.eprintf "add %s %a %d %d\n%!" info print_final element
+                          (char_pos deb) (char_pos pos_final);
+         Hashtbl.add elements key element;
+         true
 
 let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone ->
   let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
@@ -527,7 +535,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
     if !debug_lvl > 3 then Printf.eprintf "read at line = %d col = %d (%d)\n%!" (line_num (fst pos)) (snd pos) id;
     if !debug_lvl > 2 then Printf.eprintf "read after blank line = %d col = %d (%d)\n%!" (line_num (fst pos_ab)) (snd pos_ab) id;
     let tbl = ref tbl in
-    Hashtbl.iter (fun _ l -> List.iter (function
+    Hashtbl.iter (fun _ l -> match l with
     | D ({debut; stack;acts; rest; full; read} as r) as element ->
        if not read then match pre_rule rest with
        | Next(_,_,Term (_,f),g,rest) ->
@@ -579,7 +587,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                  tbl := insert_buf (fst pos) (snd pos) state !tbl
                end
            with Error -> ())
-       | _ -> ()) l) elements;
+       | _ -> ()) elements;
     !tbl
 
 (* selectionnne les éléments commençant par un terminal
@@ -587,11 +595,13 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
 type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
 
 let taille_tables els forward =
-  let adone = ref [] in
-  let res = ref 0 in
-  Hashtbl.iter (fun _ els -> List.iter (fun el -> res := !res + 1 + taille el adone) els) els;
-  iter_buf forward (fun el -> res := !res + 1 + taille el adone);
-  !res
+  if !debug_lvl > 0 then
+    let adone = ref [] in
+    let res = ref 0 in
+    Hashtbl.iter (fun _ el -> res := !res + 1 + taille el adone) els;
+    iter_buf forward (fun el -> res := !res + 1 + taille el adone);
+    !res
+  else 0
 
 let good c i =
   let (ae,set) = force i in
@@ -625,7 +635,9 @@ let rec one_prediction_production
         in
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
-        | Empty (g), Some(_,pos') ->
+        | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
+                                         may loop) for rule with only one non
+                                         terminal *)
           let g = fix_begin g pos' in
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
           iter_rules (fun r ->
@@ -639,7 +651,7 @@ let rec one_prediction_production
                  ignore (add_assq r c dlr))
             in
             assert (!stack <> []);
-            List.iter complete !stack;
+            List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
             act.a r (find_assq r dlr)) rules
         | _ ->
            let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack; read = false} in
@@ -813,7 +825,18 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
         in kn !last_success
       else
         try
-          let a = fn (find_pos_tbl elements (buf0,pos0)) in
+          let res = ref None in
+          let gn _ elt =
+            match elt with
+            | D { debut = Some((buf, pos), _) } when buf == buf0 && pos = pos0 ->
+               (try res := Some (fn [elt]) with Not_found -> ())
+            | _ -> ()
+          in
+          Hashtbl.iter gn elements;
+          let a = match !res with
+            | None -> raise Not_found
+            | Some a -> a
+          in
           if blank_after then (a, !buf', !pos') else (a, !buf, !pos)
         with Not_found -> parse_error ()
     in
