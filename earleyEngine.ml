@@ -222,9 +222,7 @@ and _ symbol =
   (** terminal symbol just read the input buffer *)
   | Test : Charset.t * 'a test -> 'a symbol
   (** test *)
-  | NonTerm : info Fixpoint.t * 'a rule list -> 'a symbol
-  (** non terminal *)
-  | RefTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
+  | NonTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
   (** non terminal trough a reference to define recursive rule lists *)
 
 (** BNF rule. *)
@@ -312,7 +310,7 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,
   | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,NonTerm(i,g),Idt,idtEmpty), Container.create ())
+     (Next(i,name,NonTerm(i,ref g),Idt,idtEmpty), Container.create ())
 
 let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
@@ -332,7 +330,7 @@ let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
 
 let symbol_info:type a.a symbol -> info Fixpoint.t  = function
   | Term(i,_) -> Fixpoint.from_val (false,i)
-  | NonTerm(i,_) | Greedy(i,_) | RefTerm(i,_) -> i
+  | NonTerm(i,_) | Greedy(i,_) -> i
   | Test(set,_) -> Fixpoint.from_val (true, set)
 
 let compose_info i1 i2 =
@@ -615,7 +613,7 @@ let rec one_prediction_production
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C %C)\n%!" print_final element0 c c';
      if not read then match pre_rule rest with
-     | Next(info,_,(NonTerm (_,rules) | RefTerm(_,{contents = rules})),f,rest2) when good c info ->
+     | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) when good c info ->
         r.read <- true;
         let act =
           { a = (fun rule stack ->
