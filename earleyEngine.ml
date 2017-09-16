@@ -604,8 +604,6 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
        | _ -> ()) elements;
     !tbl
 
-type 'b action = { a : 'a.'a rule -> ('a, 'b) element list ref -> unit }
-
 let taille_tables els forward =
   if !debug_lvl > 0 then
     let adone = ref [] in
@@ -637,13 +635,11 @@ let rec one_prediction_production
      if not read then match pre_rule rest with
      | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) when good c info ->
         r.read <- true;
-        let act =
-          { a = (fun rule stack ->
+        let act : type b.b rule -> (b, a) element list ref -> unit = fun rule stack ->
             if good c (rule_info rule) then (
               let nouveau = D {debut=None; acts = Nil; stack; rest = rule; full = rule; read = false} in
               let b = add "P" pos nouveau elements in
-              if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'))
-          }
+              if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c')
         in
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
@@ -664,10 +660,10 @@ let rec one_prediction_production
             in
             assert (!stack <> []);
             List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
-            act.a r (find_assq r dlr)) rules
+            act r (find_assq r dlr)) rules
         | _ ->
            let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack; read = false} in
-           iter_rules (fun r -> act.a r (add_assq r c dlr)) rules
+           iter_rules (fun r -> act r (add_assq r c dlr)) rules
         end
      | Dep(rule) ->
         r.read <- true;
