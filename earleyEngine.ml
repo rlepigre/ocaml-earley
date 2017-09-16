@@ -390,7 +390,7 @@ let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
     Printf.fprintf ch "B"
 
 (* heart of earley: stack managment *)
-type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) ref -> 'b dep_pair
+type _ dep_pair = P : 'a rule * ('a, 'b) element list ref * (('a, 'b) element -> unit) list ref -> 'b dep_pair
 
 type 'b dep_pair_tbl = 'b dep_pair Container.table
 
@@ -399,10 +399,10 @@ let hook_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -
     try match Container.find dlr (snd r) with
       P(r',ptr,g) ->
         match r === r' with
-        | Eq -> g := (let g = !g in (fun el -> f el; g el)); List.iter f !ptr;
+        | Eq -> g := f::!g; List.iter f !ptr;
         | _ -> assert false
     with Not_found ->
-      Container.add dlr (snd r) (P(r,ref [], ref f))
+      Container.add dlr (snd r) (P(r,ref [], ref [f]))
 
 (* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
@@ -414,12 +414,12 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
            if not (List.exists (eq_C el) !stack) then (
              if !debug_lvl > 3 then
                Printf.eprintf "add stack %a ==> %a\n%!" print_rule r print_element el;
-             stack := el :: !stack; !g el); stack
+             stack := el :: !stack; List.iter (fun f -> f el) !g); stack
         | _ -> assert false
     with Not_found ->
       if !debug_lvl > 3 then
         Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
-      let res = ref [el] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))) ; res
+      let res = ref [el] in Container.add dlr (snd r) (P(r,res, ref [])) ; res
 
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
@@ -429,7 +429,7 @@ let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
         | Eq -> stack
         | _ -> assert false
     with Not_found ->
-      let res = ref [] in Container.add dlr (snd r) (P(r,res, ref (fun el -> ()))); res
+      let res = ref [] in Container.add dlr (snd r) (P(r,res, ref [])); res
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 
