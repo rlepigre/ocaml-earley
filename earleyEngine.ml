@@ -460,12 +460,19 @@ let elt_key : type a. a final -> int * int * int * int =
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
 
+let good c i =
+  let (ae,set) = force i in
+  if !debug_lvl > 4 then Printf.eprintf "good %c %b %a" c ae Charset.print set;
+  let res = ae || Charset.mem set c in
+  if !debug_lvl > 4 then Printf.eprintf " => %b\n%!" res;
+  res
+
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
-let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
-  fun info pos_final element elements ->
-    let deb = debut pos_final element in
+let add : string -> position -> position -> char -> 'a final -> 'a pos_tbl -> bool =
+  fun info pos_final pos_ab c element elements ->
+    let test = match element with D { rest } -> good c (rule_info rest) in
     let key = elt_key element in
-    try
+    if not test then false else try
       let e = Hashtbl.find elements key in
       (match e, element with
         D {debut=d; rest; full; stack; acts},
@@ -489,8 +496,11 @@ let add : string -> position -> 'a final -> 'a pos_tbl -> bool =
          | _ -> assert false)
     with Not_found ->
          if !debug_lvl > 1 then
-           Printf.eprintf "add %s %a %d %d\n%!" info print_final element
-                          (char_pos deb) (char_pos pos_final);
+           begin
+             let deb = debut pos_final element in
+             Printf.eprintf "add %s %a %d %d\n%!" info print_final element
+                            (char_pos deb) (char_pos pos_final)
+           end;
          Hashtbl.add elements key element;
          true
 
@@ -613,25 +623,17 @@ let taille_tables els forward =
     !res
   else 0
 
-let good c i =
-  let (ae,set) = force i in
-  if !debug_lvl > 4 then Printf.eprintf "good %c %b %a" c ae Charset.print set;
-  let res = ae || Charset.mem set c in
-  if !debug_lvl > 4 then Printf.eprintf " => %b\n%!" res;
-  res
-
-
 (* fait toutes les prédictions et productions pour un element donné et
    comme une prédiction ou une production peut en entraîner d'autres,
    c'est une fonction récursive *)
 let rec one_prediction_production
- : type a. errpos -> a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char -> char ->  unit
- = fun errpos element0 elements dlr pos pos_ab c c' ->
+ : type a. errpos -> a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char ->  unit
+ = fun errpos element0 elements dlr pos pos_ab c ->
    match element0 with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D ({debut; acts; stack; rest; full; read} as r) ->
 
-     if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C %C)\n%!" print_final element0 c c';
+     if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
      if not read then match pre_rule rest with
      | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) when good c info ->
         r.read <- true;
@@ -641,8 +643,8 @@ let rec one_prediction_production
             (fun rule ->
               let stack = find_assq rule dlr in
               let nouveau = D {debut=None; acts = Nil; stack; rest = rule; full = rule; read = false} in
-              let b = add "P" pos nouveau elements in
-              if b then  one_prediction_production errpos nouveau elements dlr pos pos_ab c c') rules;
+              let b = add "P" pos pos_ab c nouveau elements in
+              if b then  one_prediction_production errpos nouveau elements dlr pos pos_ab c) rules;
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
         | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
@@ -679,8 +681,8 @@ let rec one_prediction_production
        let rule = rule a in
        let stack' = add_assq rule cc dlr in
        let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule; full = rule; read = false } in
-       let b = add "P" pos nouveau elements in
-       if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
+       let b = add "P" pos pos_ab c nouveau elements in
+       if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c
 
      (* production      (pos, i, ... o ) dans la table *)
      | Empty(a) ->
@@ -705,8 +707,8 @@ let rec one_prediction_production
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes %a\n%!" print_res acts;
                  let nouveau = D {debut; acts; stack=els'; rest; full; read = false } in
-                 let b = add "C" pos nouveau elements in
-                 if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c c'
+                 let b = add "C" pos pos_ab c nouveau elements in
+                 if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c
                end
             | B _ -> ()
           in
@@ -748,8 +750,8 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       let c',_,_ = Input.read !buf !pos in
       if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
-        if add msg (!buf,!pos) s elements then
-          one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c c') l;
+        if add msg (!buf,!pos) (!buf',!pos') c s elements then
+          one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c) l;
       if internal then begin
         try
           let found = ref false in
