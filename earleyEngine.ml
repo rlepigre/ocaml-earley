@@ -631,7 +631,7 @@ let rec one_prediction_production
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
      if not read then match pre_rule rest with
-     | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) when good c info ->
+     | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
         r.read <- true;
         let rules = List.filter (fun rule ->
                         good c (rule_info rule)) rules in
@@ -743,8 +743,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
           update_errpos errpos (!buf', !pos');
         end;
       let c,_,_ = Input.read !buf' !pos' in
-      let c',_,_ = Input.read !buf !pos in
-      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
+      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c;
       List.iter (fun s ->
         if add msg (!buf,!pos) (!buf',!pos') c s elements then
           one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c) l;
