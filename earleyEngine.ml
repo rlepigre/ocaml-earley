@@ -645,7 +645,7 @@ let rec one_prediction_production
               if b then  one_prediction_production errpos nouveau elements dlr pos pos_ab c c') rules;
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
-        | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
+        | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
           let g = fix_begin g pos' in
