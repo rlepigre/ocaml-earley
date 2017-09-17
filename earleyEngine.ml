@@ -862,10 +862,9 @@ let rec one_prediction_production
    match element0 with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D ({debut; acts; stack; rest; full; read} as r) ->
-
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
      if not read then match pre_rule rest with
-     | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) when good c info ->
+     | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
         let prep = match !prep with
           | None -> let p = advanced_prediction_production rules in
                     prep := Some p; p
@@ -981,8 +980,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
           update_errpos errpos (!buf', !pos');
         end;
       let c,_,_ = Input.read !buf' !pos' in
-      let c',_,_ = Input.read !buf !pos in
-      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
+      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c;
       List.iter (fun s ->
         if add msg (!buf,!pos) (!buf',!pos') c s elements then
           one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c) l;
