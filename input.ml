@@ -51,6 +51,18 @@ type line =
   ; uid          : int }  (* Unique identifier                       *)
 and buffer = line Lazy.t
 
+let rec dummy_buffer_fun = fun () ->
+      { is_eof = false
+      ; lnum = 0
+      ; loff = 0
+      ; llen = 0
+      ; data = ""
+      ; next = Lazy.from_fun dummy_buffer_fun
+      ; name = "DUMMY"
+      ; uid = 0 }
+
+let dummy_buffer = Lazy.from_fun dummy_buffer_fun
+
 (* Generate a unique identifier. *)
 let new_uid =
   let c = ref 0 in

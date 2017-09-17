@@ -100,7 +100,7 @@ let with_blank_test a = blank_test ~name:"BLANK" Charset.full
 let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
   (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
 
-let nonterm (i,s) = NonTerm(i,ref s)
+let nonterm (i,s) = NonTerm(i,ref s, ref None)
 
 let next_aux name s f r = (Next(compose_info s r, name, s,f,r), Container.create ())
 
@@ -198,11 +198,12 @@ let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let ptr = ref g in
   let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [(Next(j,name,NonTerm (j, ptr),Idt, idtEmpty),Container.create ())]
+  mk_grammar [(Next(j,name,NonTerm (j, ptr, ref None),Idt, idtEmpty),
+               Container.create ())]
 
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
   match snd p1 with
-  | [(Next(_,name,NonTerm(i,ptr),f,e),_)] ->
+  | [(Next(_,name,NonTerm(i,ptr,_),f,e),_)] ->
      (match f === Idt, e === idtEmpty with
      | Eq, Eq -> ptr := snd p2; Fixpoint.update i;
      | _ -> invalid_arg "set_grammar")
