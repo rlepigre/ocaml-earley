@@ -848,12 +848,14 @@ let rec one_prediction_production
           | Some p -> p
         in
         r.read <- true;
-        let act : type b.b rule -> (b, a) element list ref -> unit = fun rule stack ->
-            if good c (rule_info rule) then (
+        let rules = List.filter (fun rule ->
+                        good c (rule_info rule)) rules in
+        List.iter
+            (fun rule ->
+              let stack = find_assq rule dlr in
               let nouveau = D {debut=None; acts = Nil; stack; rest = rule; full = rule; read = false} in
               let b = add "P" pos nouveau elements in
-              if b then one_prediction_production nouveau elements dlr pos pos_ab c c')
-        in
+              if b then one_prediction_production nouveau elements dlr pos pos_ab c c') rules
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
         | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
@@ -861,23 +863,20 @@ let rec one_prediction_production
                                          terminal *)
           let g = fix_begin g pos' in
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
-          iter_rules (fun r ->
-            let complete = protect (function
+          let complete = protect (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
                  let debut = first_pos d debut in
                  let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack; read = false} in
-                 ignore(add_assq r c dlr)
+                 iter_rules (fun r -> ignore (add_assq r c dlr)) rules;
               | B acts' ->
                  let c = B (combine2 acts acts' g f) in
-                 ignore (add_assq r c dlr))
-            in
-            assert (!stack <> []);
-            List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
-            act r (find_assq r dlr)) rules
+                 iter_rules (fun r -> ignore (add_assq r c dlr)) rules)
+          in
+          List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
         | _ ->
            let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack; read = false} in
-           iter_rules (fun r -> act r (add_assq r c dlr)) rules
-        end
+           iter_rules (fun r -> ignore (add_assq r c dlr)) rules
+        end;
      | Dep(rule) ->
         r.read <- true;
         if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
