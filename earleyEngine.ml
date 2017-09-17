@@ -536,11 +536,7 @@ let add_errmsg errpos buf pos (msg:unit->string) =
     if not (List.memq msg errpos.messages) then
       errpos.messages <- msg :: errpos.messages
 
-let protect errpos f a = try f a with Error -> ()
-
-let protect2 errpos f a b = try f a b with Error -> ()
-
-let protect_cons errpos f a acc = try f a :: acc with Error -> acc
+let protect f a = try f a with Error -> ()
 
 let combine2 : type a0 a1 a2 b bb c.(a2 -> b) res -> (b -> c) res pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) res pos =
   fun acts acts' g f ->
@@ -627,8 +623,8 @@ let taille_tables els forward =
    comme une prédiction ou une production peut en entraîner d'autres,
    c'est une fonction récursive *)
 let rec one_prediction_production
- : type a. errpos -> a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char ->  unit
- = fun errpos element0 elements dlr pos pos_ab c ->
+ : type a. a final -> a pos_tbl -> a dep_pair_tbl -> position -> position -> char ->  unit
+ = fun element0 elements dlr pos pos_ab c ->
    match element0 with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D ({debut; acts; stack; rest; full; read} as r) ->
@@ -644,7 +640,7 @@ let rec one_prediction_production
               let stack = find_assq rule dlr in
               let nouveau = D {debut=None; acts = Nil; stack; rest = rule; full = rule; read = false} in
               let b = add "P" pos pos_ab c nouveau elements in
-              if b then  one_prediction_production errpos nouveau elements dlr pos pos_ab c) rules;
+              if b then  one_prediction_production nouveau elements dlr pos pos_ab c) rules;
         let f = fix_begin f pos_ab in
         begin match pre_rule rest2, debut with
         | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
@@ -652,7 +648,7 @@ let rec one_prediction_production
                                          terminal *)
           let g = fix_begin g pos' in
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
-          let complete = protect errpos (function
+          let complete = protect (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
                  let debut = first_pos d debut in
                  let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack; read = false} in
@@ -682,7 +678,7 @@ let rec one_prediction_production
        let stack' = add_assq rule cc dlr in
        let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule; full = rule; read = false } in
        let b = add "P" pos pos_ab c nouveau elements in
-       if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c
+       if b then one_prediction_production nouveau elements dlr pos pos_ab c
 
      (* production      (pos, i, ... o ) dans la table *)
      | Empty(a) ->
@@ -708,11 +704,11 @@ let rec one_prediction_production
                  if !debug_lvl > 1 then Printf.eprintf "succes %a\n%!" print_res acts;
                  let nouveau = D {debut; acts; stack=els'; rest; full; read = false } in
                  let b = add "C" pos pos_ab c nouveau elements in
-                 if b then one_prediction_production errpos nouveau elements dlr pos pos_ab c
+                 if b then one_prediction_production nouveau elements dlr pos pos_ab c
                end
             | B _ -> ()
           in
-          let complete = protect errpos complete in
+          let complete = protect complete in
           if debut = None then hook_assq full dlr complete
           else List.iter complete !stack;
          with Error -> ())
@@ -751,7 +747,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
       List.iter (fun s ->
         if add msg (!buf,!pos) (!buf',!pos') c s elements then
-          one_prediction_production errpos s elements dlr (!buf,!pos) (!buf',!pos') c) l;
+          one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c) l;
       if internal then begin
         try
           let found = ref false in
