@@ -548,6 +548,57 @@ let add_prep : string -> 'a prepa -> 'a pre_tbl -> bool =
          Hashtbl.add elements key element;
          true
 
+let rec merge_stack : type a b. (a, b) element list ref -> a rule -> b dep_pair_tbl -> (a, b) element list ref  = fun stack rule dlr ->
+  let new_stack = find_assq rule dlr in
+  List.iter (fun elt ->
+      match elt with
+      | C ({ stack; full } as r) ->
+         let stack = merge_stack stack full dlr in
+         ignore(add_assq rule (C { r with stack }) dlr)
+      | B _ -> ()) !stack;
+  new_stack
+
+(* ajoute un élément dans la table et retourne true si il est nouveau *)
+let add_merge : string -> position -> position -> 'a prepa -> 'a pos_tbl -> 'a dep_pair_tbl -> bool =
+  fun info pos_final pos_ab element elements dlr ->
+    let key = elt_pkey element in
+    try
+      let e = Hashtbl.find elements key in
+      (match e, element with
+        D {debut=d; rest; full; stack; acts},
+        E {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}
+        ->
+          let stack' = merge_stack stack' fu' dlr in
+          let acts' = apply_pos acts' pos_final pos_ab in
+          assert(d' = None);
+(*         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
+            info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
+           (eq rest r') (eq full fu') print_res acts print_res acts';*)
+        match
+           eq_pos d d', rest === r', full === fu' with
+         | true, Eq, Eq ->
+            if not (eq_res acts acts') && !warn_merge then
+              Printf.eprintf "\027[31mmerging %a %a [%s]\027[0m\n%!"
+                             print_prepa element
+                  print_pos pos_final (filename (fst pos_final));
+            assert(stack == stack' ||
+                     (Printf.eprintf "\027[31mshould be the same stack %s %a === %a\027[0m\n%!"
+                                     info print_final e print_prepa element; false));
+            false
+         | _ -> assert false)
+    with Not_found ->
+         let element = match element with
+         | E {debut; rest; full; stack; acts} ->
+            let stack = merge_stack stack full dlr in
+            let acts = apply_pos acts pos_final pos_ab in
+            D {debut; rest; full; stack; acts; read = false}
+         in
+         if !debug_lvl > 1 then
+           Printf.eprintf "add %s %a %d %d\n%!" info print_final element
+                          (char_pos pos_ab) (char_pos pos_final);
+         Hashtbl.add elements key element;
+         true
+
 let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone ->
   let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
   let res = ref 1 in
@@ -686,7 +737,17 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
         let b = add_prep "I" elt elements in
         if b then fn elt elements dlr) elts;
     let ls = ref [] in
-    Hashtbl.iter (fun _ f -> ls := f :: !ls) elements;
+    Hashtbl.iter (fun _ f ->
+        let keep = match f with
+        | E { rest } ->
+           match pre_rule rest with
+           | Empty _ -> true
+           | Dep _ -> false
+           | Next(_,_,NonTerm _,_,_) -> false
+           | Next(_,_,(Term _ | Test _ | Greedy _),_,_) -> true
+        in
+        if keep then ls := f :: !ls) elements;
+    Printf.eprintf "keep: %d\n%!" (List.length !ls);
     Container.reset dlr;
     !ls)
 
