@@ -43,7 +43,7 @@
 (* Comparison function accepting to compare everything. Be careful as it
    compares everything containing a closure with physical equality  only
    (even if closure appear deep in the compared structure). *)
-let closure_eq x y = try x = y with _ -> x == y
+let closure_eq x y = try x = y with Invalid_argument _ -> x == y
 
 (* Equality types *)
 type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
