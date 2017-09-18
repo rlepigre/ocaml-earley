@@ -745,7 +745,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list * a rul
     let final_elt = B (WithPos (fun _ -> assert false)) in
     let stack = ref [final_elt] in
     let a0 = Simple Nil in
-    let full as full0 = grammar_to_rule (any, rules) in
+    let full as full0 = grammar_to_rule ~name:"fresh" (any, rules) in
     let elt = E { debut=None; acts=a0; stack; rest=full; full; read=false } in
     add_ass_stack full dlr stack;
     let b = add_prep "EI" elt elements in
