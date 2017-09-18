@@ -58,7 +58,7 @@ let _ = test_one a "a"
 let _ = test_one b "b"
 let _ = test_one c "c"
 
-let abc = give_name "abc" (alternatives [a;b;c])
+let abc = alternatives [a;b;c]
 let abc' = apply (fun x l -> x @ l) abc
 
 let _ = test_one abc "a"
@@ -67,7 +67,7 @@ let _ = test_one abc "c"
 
 let _ = Printf.eprintf "Testing a*\n%!"
 
-let astar = give_name "a*" (fixpoint [] a')
+let astar = fixpoint [] a'
 
 let _ = test_one astar ""
 let _ = test_one astar "a"
@@ -78,7 +78,7 @@ let _ = test_one astar "aaaaa"
 
 let _ = Printf.eprintf "Testing a+\n%!"
 
-let aplus = give_name "a+" (fixpoint1 [] a')
+let aplus = fixpoint1 [] a'
 
 let _ = test_one ~must_fail:true aplus ""
 let _ = test_one aplus "a"
@@ -89,7 +89,7 @@ let _ = test_one aplus "aaaaa"
 
 let _ = Printf.eprintf "Testing abc*\n%!"
 
-let abcstar = (*give_name "abc*"*) (fixpoint [] abc')
+let abcstar = fixpoint [] abc'
 
 let _ = test_one abcstar ""
 let _ = test_one abcstar "a"
@@ -99,7 +99,7 @@ let _ = test_one abcstar "abca"
 let _ = test_one abcstar "acbab"
 let _ = test_one abcstar "abccba"
 
-let abcplus = give_name "abc+" (fixpoint1 [] abc')
+let abcplus = fixpoint1 [] abc'
 
 let _ = Printf.eprintf "Testing abc+\n%!"
 
@@ -114,7 +114,7 @@ let _ = test_one abcplus "abccba"
 let _ = Printf.eprintf "Testing a*(right)\n%!"
 
 let astar2 = declare_grammar "astar2"
-let _ = set_grammar astar2 (alternatives [empty []; sequence a astar2 (fun x l -> x @ l)])
+let _ = set_grammar astar2 (alternatives [empty []; sequence a astar2 (fun x l -> l @ x)])
 
 let _ = test_one astar2 ""
 let _ = test_one astar2 "a"
@@ -123,7 +123,7 @@ let _ = test_one astar2 "aaa"
 let _ = test_one astar2 "aaaa"
 let _ = test_one astar2 "aaaaa"
 
-let _ = Printf.eprintf "Testing b(a*)(right)\n%!"
+let _ = Printf.eprintf "Testing b(a*)(def)\n%!"
 
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives
@@ -136,12 +136,11 @@ let _ = test_one astar3 "baa"
 let _ = test_one astar3 "baaa"
 let _ = test_one astar3 "baaaa"
 let _ = test_one astar3 "baaaaa"
-(*
-let debug' s g =
-  sequence (debug s) g (fun () () -> ())
+
+let _ = Printf.eprintf "Testing b(a*)(right)\n%!"
 
 let astar3 = declare_grammar "astar3"
-let _ = set_grammar astar3 (alternatives [empty (); sequence astar3 a (fun _ _ -> ())])
+let _ = set_grammar astar3 (alternatives [empty []; sequence astar3 a (fun x l -> l @ x)])
 
 let _ = test_one astar3 ""
 let _ = test_one astar3 "a"
@@ -150,25 +149,33 @@ let _ = test_one astar3 "aaa"
 let _ = test_one astar3 "aaaa"
 let _ = test_one astar3 "aaaaa"
 
-let abo = sequence a (option '0' b) (fun _ _ -> ())
+let _ = Printf.eprintf "Testing ab?\n%!"
+
+let abo = sequence a (option [] b) (fun x y -> y @ x)
 
 let _ = test_one abo "a"
 let _ = test_one abo "ab"
-let _ = try test_one abo "b"; assert false with Parse_error _ -> ()
+let _ = test_one ~must_fail:true abo "b"
 
-let aboc = sequence abo c (fun _ _ -> ())
+let _ = Printf.eprintf "Testing ab?c\n%!"
+
+let aboc = sequence abo c (fun x l -> l @ x)
 
 let _ = test_one aboc "ac"
 let _ = test_one aboc "abc"
-let _ = try test_one aboc "bc"; assert false with Parse_error _ -> ()
+let _ = test_one ~must_fail:true aboc "bc"
 
-let abo' = apply (fun _ _ -> ()) abo
+let _ = Printf.eprintf "Testing apply ab?\n%!"
 
-let _ = test_one abo' "a" ()
-let _ = test_one abo' "ab" ()
-let _ = try test_one abo' "b" (); assert false with Parse_error _ -> ()
+let abo' = apply (fun x -> x) abo
 
-let abostar = fixpoint () (apply (fun _ _ -> ()) abo)
+let _ = test_one abo' "a"
+let _ = test_one abo' "ab"
+let _ = test_one ~must_fail:true abo' "b"
+
+let _ = Printf.eprintf "Testing apply (ab?)*\n%!"
+
+let abostar = fixpoint [] (apply (fun x l -> x @ l) abo)
 
 let _ = test_one abostar ""
 let _ = test_one abostar "a"
@@ -177,8 +184,14 @@ let _ = test_one abostar "aab"
 let _ = test_one abostar "aba"
 let _ = test_one abostar "abab"
 
-let _ = Printf.eprintf "OK\n%!"
 let _ = Printf.eprintf "two mutually recursive grammars test ...%!"
+
+let a = char 'a' 'a'
+let b = char 'b' 'b'
+let c = char 'c' 'c'
+let d = char 'd' 'd'
+let e = char 'e' 'e'
+let f = char 'f' 'f'
 
 let mutrec2a = declare_grammar "mutrec2a"
 let mutrec2b = declare_grammar "mutrec2b"
@@ -362,4 +375,3 @@ let _ = Printf.eprintf "gA%!"
 let _ = test gengB gB (test_cases (7, 11, 13))
 let _ = Printf.eprintf "gB%!"
 let _ = Printf.eprintf " OK%!\n"
- *)

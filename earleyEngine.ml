@@ -232,7 +232,7 @@ and _ symbol =
   (** terminal symbol just read the input buffer *)
   | Test : Charset.t * 'a test -> 'a symbol
   (** test *)
-  | NonTerm : info Fixpoint.t * 'a rule list ref * 'a prepa list option ref -> 'a symbol
+  | NonTerm : info Fixpoint.t * 'a rule list ref * ('a prepa list * 'a rule) option ref -> 'a symbol
   (** non terminal trough a reference to define recursive rule lists *)
 
 (** BNF rule. *)
@@ -427,6 +427,13 @@ let hook_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -
         | _ -> assert false
     with Not_found ->
       Container.add dlr (snd r) (P{rule = r; stack = ref []; hooks = [f]})
+
+(* ajout d'un element dans une pile *)
+let add_ass_stack : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref -> unit =
+  fun r dlr stack ->
+    try ignore (Container.find dlr (snd r)); assert false
+    with Not_found ->
+      Container.add dlr (snd r) (P{rule = r; stack; hooks=[]})
 
 (* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
@@ -674,13 +681,13 @@ let combine1p : type a b c d.(c -> d) res pos -> (a -> b) pos -> (a -> (b -> c) 
     match acts, g with
     | _ -> pos_apply2 (fun acts g -> Csp(sin g,acts)) acts g
 
-let advanced_prediction_production : type a. a rule list -> a prepa list =
+let advanced_prediction_production : type a. a rule list -> a prepa list * a rule =
   let rec fn : a prepa -> a pre_tbl -> a dep_pair_tbl -> unit =
    fun element0 elements dlr -> match element0 with
    (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | E { debut; acts; stack; rest; full } ->
 
-     if !debug_lvl > 1 then Printf.eprintf "predict/product for %a\n%!" print_prepa element0;
+     if !debug_lvl > 1 then Printf.eprintf "advanced predict/product for %a\n%!" print_prepa element0;
      match pre_rule rest with
      | Next(info,_,(NonTerm(_,{contents = rules},_)),f,rest2) ->
         let c = C {rest=rest2; acts=combine1p acts f; full; debut; stack; read = false} in
@@ -711,14 +718,14 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
      | Empty(a) ->
         (try
            if !debug_lvl > 1 then
-             Printf.eprintf "action for completion of %a =>" print_prepa element0;
+             Printf.eprintf "action for completion of %a\n%!" print_prepa element0;
            let x = ApplyRes (acts, a) in
           let complete = fun element ->
             match element with
             | C {debut=d; stack=els'; acts; rest; full} ->
                begin
                  if !debug_lvl > 1 then
-                   Printf.eprintf "action for completion bis of %a =>" print_prepa element0;
+                   Printf.eprintf "action for completion bis of %a\n%!" print_prepa element0;
                  let acts = ApplyRes2(acts, x) in
                  let nouveau = E { debut; acts; stack=els'; rest; full; read = false } in
                  let b = add_prep "EC" nouveau elements in
@@ -736,23 +743,19 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
     let elements : a pre_tbl = Hashtbl.create 31 in
     let dlr = Container.create_table () in
     let final_elt = B (WithPos (fun _ -> assert false)) in
+    let stack = ref [final_elt] in
     let a0 = Simple Nil in
-    let init full stack = E { debut=None; acts=a0; stack; rest=full; full; read=false }
-    in
-    let elts = List.map (fun rule ->
-                   let stack = add_assq rule final_elt dlr in
-                   init rule stack
-                 ) rules
-    in
-    List.iter (fun elt ->
-        let b = add_prep "EI" elt elements in
-        if b then fn elt elements dlr) elts;
+    let full as full0 = grammar_to_rule (any, rules) in
+    let elt = E { debut=None; acts=a0; stack; rest=full; full; read=false } in
+    add_ass_stack full dlr stack;
+    let b = add_prep "EI" elt elements in
+    if b then fn elt elements dlr;
     let ls = ref [] in
     Hashtbl.iter (fun _ f ->
         let keep = match f with
         | E { rest; full } ->
            match pre_rule rest with
-           | Empty _ -> List.exists (eq full) rules
+           | Empty _ -> eq full full0
            | Dep _ -> false
            | Next(_,_,NonTerm _,_,_) -> false
            | Next(_,_,(Term _ | Test _ | Greedy _),_,_) -> true
@@ -760,7 +763,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
         if keep then ls := f :: !ls) elements;
     (*Printf.eprintf "keep: %d\n%!" (List.length !ls);*)
     Container.reset dlr;
-    !ls)
+    (!ls, full0))
 
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
 let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
@@ -853,8 +856,9 @@ let rec one_prediction_production
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
      if not read then match pre_rule rest with
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
-        let prep = match !prep with
-          | None -> let p = advanced_prediction_production rules in
+        let prep, full0 = match !prep with
+          | None -> if !debug_lvl > 1 then Printf.eprintf "start advance predict/product\n%!";
+                    let p = advanced_prediction_production rules in
                     prep := Some p; p
           | Some p -> p
         in
@@ -872,7 +876,7 @@ let rec one_prediction_production
                         good c (rule_info rule)) rules in
         let f = FixBegin(f, pos_ab) in
         begin match pre_rule rest2, debut with
-        | Empty (g), Some(_,pos')-> (* NOTE: right recursion optim is bad (and
+        | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
           let g = FixBegin(g, pos') in
@@ -885,12 +889,12 @@ let rec one_prediction_production
                  List.iter (fun r -> ignore (add_assq r c dlr)) rules;
               | B acts' ->
                  let c = B (combine2 acts acts' g f) in
-                 List.iter (fun r -> ignore (add_assq r c dlr)) rules)
+                 ignore (add_assq full0 c dlr))
           in
           List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
         | _ ->
            let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack; read = false} in
-           List.iter (fun r -> ignore (add_assq r c dlr)) rules
+           ignore (add_assq full0 c dlr)
         end;
      | Dep(rule) ->
         r.read <- true;
