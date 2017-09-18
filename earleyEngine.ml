@@ -872,11 +872,9 @@ let rec one_prediction_production
             match b with
             | Some elt -> one_prediction_production elt elements dlr pos pos_ab c
             | None -> ()) prep;
-        let rules = List.filter (fun rule ->
-                        good c (rule_info rule)) rules in
         let f = FixBegin(f, pos_ab) in
         begin match pre_rule rest2, debut with
-        | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
+        | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
           let g = FixBegin(g, pos') in
@@ -886,7 +884,7 @@ let rec one_prediction_production
                  let debut = first_pos d debut in
                  let c = C {rest=rest2; acts=combine2 acts acts' g f; full
                            ; debut; stack; read = false} in
-                 List.iter (fun r -> ignore (add_assq r c dlr)) rules;
+                 ignore (add_assq full0 c dlr)
               | B acts' ->
                  let c = B (combine2 acts acts' g f) in
                  ignore (add_assq full0 c dlr))
