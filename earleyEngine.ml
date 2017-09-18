@@ -64,88 +64,6 @@ type errpos = {
 
 let init_errpos buf pos = { position = (buf, pos); messages = [] }
 
-(* type for action with or without position and its combinators *)
-type _ pos =
-  | Idt : ('a -> 'a) pos
-  | Simple : 'a -> 'a pos
-  | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
-
-(* only one identity to benefit from physical equality *)
-let idt x = x
-
-let apply_pos: type a.a pos -> position -> position -> a =
-  fun f p p' ->
-    match f with
-    | Idt -> idt
-    | Simple f -> f
-    | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
-
-let fix_begin : type a.a pos -> position -> a pos =
-  fun f p ->
-    match f with
-    | WithPos f -> let f = f (fst p) (snd p) in
-                   WithPos (fun _ _ p1 p2 -> f p1 p2)
-    | x -> x
-
-let first_pos pos1 pos2 =
-  match pos1 with
-  | None -> pos2
-  | Some _ -> pos1
-
-let apply_pos_debut: type a b.a pos
-                     -> (position * position) option
-                     -> position -> position -> a =
-  fun f debut pos pos_ab ->
-    match debut with
-    | None -> apply_pos f pos_ab pos_ab
-    | Some(_,p) -> apply_pos f p pos
-
-let app_pos:type a b.(a -> b) pos -> a pos -> b pos = fun f g ->
-  match f,g with
-  | Idt, _ -> g
-  | Simple f, Idt -> Simple(f idt)
-  | WithPos f, Idt -> WithPos(fun b p b' p' -> f b p b' p' idt)
-  | Simple f, Simple g -> Simple(f g)
-  | Simple f, WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-  | WithPos f, Simple g -> WithPos(fun b p b' p' -> f b p b' p' g)
-  | WithPos f, WithPos g -> WithPos(fun b p b' p' -> f b p b' p' (g b p b' p'))
-
-let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
-  match f,g with
-  | Idt, _ -> g
-  | _, Idt -> f
-  | Simple f, Simple g -> Simple(fun x -> f (g x))
-  | Simple f, WithPos g -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
-  | WithPos f, Simple g -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
-  | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p' (g b p b' p' x))
-
-let compose3 f g h = compose f (compose g h)
-
-let pos_apply : type a b.(a -> b) -> a pos -> b pos =
-  fun f a ->
-    match a with
-    | Idt -> Simple(f idt)
-    | Simple g -> Simple(f g)
-    | WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-
-let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos =
-   fun f a b ->
-     let a : a pos = match a with Idt -> Simple idt | a -> a
-     and b : b pos = match b with Idt -> Simple idt | b -> b in
-    match a, b with
-    | Idt, _ -> assert false
-    | _, Idt -> assert false
-    | Simple g, Simple h -> Simple(f g h)
-    | WithPos g, Simple h  -> WithPos(fun b p b' p' -> f (g b p b' p') h)
-    | Simple g, WithPos h  -> WithPos(fun b p b' p' -> f g (h b p b' p'))
-    | WithPos g, WithPos h  -> WithPos(fun b p b' p' -> f (g b p b' p') (h b p b' p'))
-
-let pos_apply3 : type a b c d.(a -> b -> c -> d) -> a pos -> b pos -> c pos -> d pos =
-  fun f a b c -> app_pos (pos_apply2 f a b) c
-
-let pos_apply4 : type a b c d e.(a -> b -> c -> d -> e) -> a pos -> b pos -> c pos -> d pos -> e pos =
-  fun f a b c d -> app_pos (pos_apply3 f a b c) d
-
 (* Combinators to compose actions *)
 (* Cleanly tuned to correctly detect ambiguïties *)
 type _ res =
@@ -155,6 +73,9 @@ type _ res =
   | Cps : ('a -> 'b) res * ('b -> 'c) res -> ('a -> 'c) res
   | Csp : ('a -> 'b) res * ('c -> 'd) res -> ('a -> ('b -> 'c) -> 'd) res
   | Giv : 'a res -> (('a -> 'b) -> 'b) res
+
+(* only one identity to benefit from physical equality *)
+let idt x = x
 
 let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
   match r with
@@ -208,6 +129,92 @@ let rec apply : type a b. (a -> b) res -> a res -> b res = fun r a ->
   | Csp(f,g), a     -> cns(apply f a,g)
   | Giv a   , f     -> apply f a
   | r       , a     -> assert false
+
+(* type for action with or without position and its combinators *)
+type _ pos =
+  | Idt : ('a -> 'a) pos
+  | Simple : 'a -> 'a pos
+  | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
+  | ApplyPos : ('a -> 'b) pos * 'a pos -> 'b pos
+  | Compose : ('b -> 'c) pos * ('a -> 'b) pos -> ('a -> 'c) pos
+  | FixBegin : 'a pos * position -> 'a pos
+  | ApplyRes : ('a -> 'b) res pos * 'a pos -> 'b res pos
+  | ApplyRes2 : ('a -> 'b) res pos * 'a res pos -> 'b res pos
+
+let rec apply_pos: type a.a pos -> position -> position -> a =
+  fun f p p' ->
+    match f with
+    | Idt -> idt
+    | Simple f -> f
+    | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
+    | FixBegin(f, p0) -> apply_pos f p0 p'
+    | ApplyPos(a,b) -> (apply_pos a p p') (apply_pos b p p')
+    | ApplyRes(a,b) -> apply (apply_pos a p p') (Sin (apply_pos b p p'))
+    | ApplyRes2(a,b) -> apply (apply_pos a p p') (apply_pos b p p')
+    | Compose(g,f) -> (fun x -> apply_pos g p p' (apply_pos f p p' x))
+
+let eq_pos (buf,pos) (buf',pos') = buffer_equal buf buf' && pos = pos'
+
+let eq_opos p1 p2 = match p1, p2 with
+  | Some(p1,_), Some(p2,_) -> eq_pos p1 p2
+  | None, None -> true
+  | _ -> false
+
+let rec eq_rpos: type a b. a res pos -> b res pos -> bool =
+  fun p1 p2 -> match p1, p2 with
+               | Simple f, Simple g -> eq_res f g
+               | FixBegin(f, p), FixBegin(g, q) ->
+                  eq_pos p q && eq_rpos f g
+               | ApplyRes(a,b), ApplyRes(c,d) ->
+                  eq_rpos a c && eq_cpos b d
+               | ApplyRes2(a,b), ApplyRes2(c,d) ->
+                  eq_rpos a c && eq_rpos b d
+               | _ -> false
+
+and eq_cpos: type a b. a pos -> b pos -> bool =
+  fun p1 p2 -> match p1, p2 with
+               | Idt, Idt -> true
+               | Simple f, Simple g -> eq f g
+               | FixBegin(f, p), FixBegin(g, q) ->
+                  eq_pos p q && eq_cpos f g
+               | ApplyPos(a,b), ApplyPos(c,d) ->
+                  eq_cpos a c && eq_cpos b d
+               | ApplyRes(a,b), ApplyRes(c,d) ->
+                  eq_rpos a c && eq_cpos b d
+               | ApplyRes2(a,b), ApplyRes2(c,d) ->
+                  eq_rpos a c && eq_rpos b d
+               | Compose(a,b), Compose(c,d) ->
+                  eq_cpos a c && eq_cpos b d
+               | _ -> false
+
+let first_pos pos1 pos2 =
+  match pos1 with
+  | None -> pos2
+  | Some _ -> pos1
+
+let apply_pos_debut: type a b.a pos
+                     -> (position * position) option
+                     -> position -> position -> a =
+  fun f debut pos pos_ab ->
+    match debut with
+    | None -> apply_pos f pos_ab pos_ab
+    | Some(_,p) -> apply_pos f p pos
+
+let compose3 f g h = Compose(f, Compose(g, h))
+
+let pos_apply : type a b.(a -> b) -> a pos -> b pos =
+  fun f a ->
+    match f === idt with Eq -> a | _ -> ApplyPos(Simple f, a)
+
+let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos =
+   fun f a b -> ApplyPos (pos_apply f a, b)
+
+let pos_apply3 : type a b c d.(a -> b -> c -> d) -> a pos -> b pos -> c pos -> d pos =
+  fun f a b c -> ApplyPos (pos_apply2 f a b, c)
+
+let pos_apply4 : type a b c d e.(a -> b -> c -> d -> e) -> a pos -> b pos -> c pos -> d pos -> e pos =
+  fun f a b c d -> ApplyPos (pos_apply3 f a b c, d)
+
 
 (** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
     the type of the semantics of the grammar. For example, parsing using a
@@ -280,15 +287,9 @@ and _ prepa = E : (('b -> 'c) res pos, 'b, 'c, 'r) cell -> 'r prepa
    so acts are necessarily physically equal
 *)
 
-let eq_pos p1 p2 = match p1, p2 with
-  | Some((buf,pos),_), Some((buf',pos'),_) ->
-     buffer_equal buf buf' && pos = pos'
-  | None, None -> true
-  | _ -> false
-
 let eq_D (D {debut; rest; full; stack; acts})
          (D {debut=debut'; rest=rest'; full=full'; stack=stack'; acts=acts'}) =
-  eq_pos debut debut' &&
+  eq_opos debut debut' &&
     match rest === rest', full === full' with
     | Eq, Eq -> assert(acts == acts'); assert(stack == stack'); true
     | _ -> false
@@ -505,7 +506,7 @@ let add : string -> position -> position -> char -> 'a final -> 'a pos_tbl -> bo
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
         match
-           eq_pos d d', rest === r', full === fu' with
+           eq_opos d d', rest === r', full === fu' with
          | true, Eq, Eq ->
             if not (eq_res acts acts') && !warn_merge then
               Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
@@ -542,7 +543,7 @@ let add_prep : string -> 'a prepa -> 'a pre_tbl -> bool =
         match
            rest === r', full === fu' with
          | Eq, Eq ->
-            if not (acts == acts') && !warn_merge then
+            if not (eq_rpos acts acts') && !warn_merge then
               Printf.eprintf "\027[31mmerging %a\027[0m\n%!"
                              print_prepa element;
             assert(stack == stack' ||
@@ -552,7 +553,7 @@ let add_prep : string -> 'a prepa -> 'a pre_tbl -> bool =
          | _ -> assert false)
     with Not_found ->
          if !debug_lvl > 1 then
-           Printf.eprintf "add %s %a\n%!" info print_prepa element;
+           Printf.eprintf "add(P) %s %a\n%!" info print_prepa element;
          Hashtbl.add elements key element;
          true
 
@@ -591,10 +592,10 @@ let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tb
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
         match
-           eq_pos d d', rest === r', full === fu' with
+           eq_opos d d', rest === r', full === fu' with
          | true, Eq, Eq ->
             if not (eq_res acts acts') && !warn_merge then
-              Printf.eprintf "\027[31mmerging %a %a [%s]\027[0m\n%!"
+              Printf.eprintf "\027[31mmerging (2) %a %a [%s]\027[0m\n%!"
                              print_prepa element
                   print_pos pos_final (filename (fst pos_final));
             assert(stack == stack' ||
@@ -605,12 +606,13 @@ let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tb
     with Not_found ->
          let element = match element with
          | E {debut; rest; full; stack; acts } ->
+            assert(debut=None);
             let stack = merge_stack stack full dlr in
             let acts = apply_pos acts pos_final pos_ab in
             D {debut; rest; full; stack; acts; read = false}
          in
          if !debug_lvl > 1 then
-           Printf.eprintf "add %s %a %d %d\n%!" info print_final element
+           Printf.eprintf "add(M) %s %a %d %d\n%!" info print_final element
                           (char_pos pos_ab) (char_pos pos_final);
          Hashtbl.add elements key element;
          Some(element)
@@ -685,7 +687,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
         List.iter (fun rule ->
             let stack = add_assq rule c dlr in
             let nouveau = E { debut=None; acts = Simple Nil; stack; rest = rule; full = rule; read = false } in
-            let b = add_prep "P" nouveau elements in
+            let b = add_prep "EP" nouveau elements in
             if b then fn nouveau elements dlr) rules
      | Dep(rule) ->
         if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
@@ -702,7 +704,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
        let rule = rule a in
        let stack' = add_assq rule cc dlr in
        let nouveau = E {debut; acts = Simple Nil; stack = stack'; rest = rule; full = rule; read = false } in
-       let b = add_prep "P" nouveau elements in
+       let b = add_prep "EP" nouveau elements in
        if b then fn nouveau elements dlr
 
      (* production      (pos, i, ... o ) dans la table *)
@@ -710,16 +712,16 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
         (try
            if !debug_lvl > 1 then
              Printf.eprintf "action for completion of %a =>" print_prepa element0;
-           let x = fun p1 p2 -> apply (apply_pos acts p1 p2) (Sin (apply_pos a p1 p2)) in
+           let x = ApplyRes (acts, a) in
           let complete = fun element ->
             match element with
             | C {debut=d; stack=els'; acts; rest; full} ->
                begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_prepa element0;
-                 let acts = WithPos (fun b1 p1 b2 p2 -> apply (apply_pos acts (b1,p1) (b2,p2)) (x (b1,p1) (b2,p2))) in
+                 let acts = ApplyRes2(acts, x) in
                  let nouveau = E { debut; acts; stack=els'; rest; full; read = false } in
-                 let b = add_prep "C" nouveau elements in
+                 let b = add_prep "EC" nouveau elements in
                  if b then fn nouveau elements dlr
                end
             | B _ -> ()
@@ -743,7 +745,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
                  ) rules
     in
     List.iter (fun elt ->
-        let b = add_prep "I" elt elements in
+        let b = add_prep "EI" elt elements in
         if b then fn elt elements dlr) elts;
     let ls = ref [] in
     Hashtbl.iter (fun _ f ->
@@ -756,7 +758,7 @@ let advanced_prediction_production : type a. a rule list -> a prepa list =
            | Next(_,_,(Term _ | Test _ | Greedy _),_,_) -> true
         in
         if keep then ls := f :: !ls) elements;
-    Printf.eprintf "keep: %d\n%!" (List.length !ls);
+    (*Printf.eprintf "keep: %d\n%!" (List.length !ls);*)
     Container.reset dlr;
     !ls)
 
@@ -862,18 +864,18 @@ let rec one_prediction_production
                          good c (rule_info rest)) prep
         in
         List.iter (fun elt ->
-            let b = add_merge "P" pos pos_ab elt elements dlr in
+            let b = add_merge "MP" pos pos_ab elt elements dlr in
             match b with
             | Some elt -> one_prediction_production elt elements dlr pos pos_ab c
             | None -> ()) prep;
         let rules = List.filter (fun rule ->
                         good c (rule_info rule)) rules in
-        let f = fix_begin f pos_ab in
+        let f = FixBegin(f, pos_ab) in
         begin match pre_rule rest2, debut with
         | Empty (g), Some(_,pos')-> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
-          let g = fix_begin g pos' in
+          let g = FixBegin(g, pos') in
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
           let complete = protect (function
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->

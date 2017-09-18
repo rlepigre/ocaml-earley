@@ -36,6 +36,11 @@ doc: earley.docdir/index.html
 earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
 	$(OCAMLBUILD) $@
 
+.PHONY: tests
+tests:
+	$(OCAMLBUILD) tests/test.byte
+	./test.byte
+
 uninstall:
 	@ocamlfind remove earley
 

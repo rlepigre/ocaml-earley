@@ -359,8 +359,6 @@ let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
        next res Idt (next f1 Idt idtEmpty)]) in
     res
 
-let delim g = g
-
 let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
   mk_grammar (List.flatten (List.map snd g))
 
