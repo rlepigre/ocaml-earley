@@ -45,17 +45,6 @@
    (even if closure appear deep in the compared structure). *)
 let closure_eq x y = try x = y with Invalid_argument _ -> x == y
 
-(* Equality types *)
-type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
-
-let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
-  let open Obj in
-  (* if not (is_block (repr r1) && is_block (repr r2)) then
-     invalid_arg "block only for ===";*) (* FIXME *)
-  if repr r1 == repr r2 then magic Eq else Neq
-
-let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq
-
 (* Custom hash table module. [Hashtbl] won't  do  because  it  does  not
    accept keys that contain closures. Here a custom  comparing  function
    can be provided at the creation of the hash table. *)
@@ -265,7 +254,7 @@ module Fixpoint :
       in fn b
   end
 
- let eq_closure : type a b. a -> b -> bool =
+let eq_closure : type a b. a -> b -> bool =
   fun f g ->
     let open Obj in
     (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
@@ -304,3 +293,14 @@ module Fixpoint :
                   r)))
 
     in fneq (repr f) (repr g)
+
+(* Equality types *)
+type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
+
+let (===) : type a b.a -> b -> (a,b) eq = fun r1 r2 ->
+  let open Obj in
+  (* if not (is_block (repr r1) && is_block (repr r2)) then
+     invalid_arg "block only for ===";*) (* FIXME *)
+  if repr r1 == repr r2 then magic Eq else Neq
+
+let eq : 'a 'b.'a -> 'b -> bool = fun x y -> (x === y) <> Neq

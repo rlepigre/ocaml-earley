@@ -74,9 +74,6 @@ type _ res =
   | Csp : ('a -> 'b) res * ('c -> 'd) res -> ('a -> ('b -> 'c) -> 'd) res
   | Giv : 'a res -> (('a -> 'b) -> 'b) res
 
-(* only one identity to benefit from physical equality *)
-let idt x = x
-
 let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
   match r with
   | Nil -> Printf.fprintf ch "Nil"
@@ -86,20 +83,14 @@ let rec print_res : type a. out_channel -> a res -> unit = fun ch r ->
   | Csp(f,g) -> Printf.fprintf ch "(y -> %a o y o %a)" print_res g print_res f
   | Giv(a)   -> Printf.fprintf ch "(f -> f %a)" print_res a
 
-let sin : type a b. (a -> b) -> (a -> b) res = fun f ->
-  match f === idt with Eq -> Nil | _ -> Sin f
-
 let cps : type a b c.(a -> b) res * (b -> c) res -> (a -> c) res = function
   | Nil, g -> g
   | f, Nil -> f
-  | (Sin f0 as f), g -> (match f0 === idt with Eq -> g | _ -> Cps(f,g))
-  | f, (Sin g0 as g) -> (match g0 === idt with Eq -> f | _ -> Cps(f,g))
   | f, g -> Cps(f,g)
 
 let cns : type a b c.a res * (b -> c) res -> ((a -> b) -> c) res = fun (a, f) ->
   match f with
   | Nil -> Giv(a)
-  | Sin f0 as f -> (match f0 === idt with Eq -> Giv a | _ -> Cns(a,f))
   | f -> Cns(a,f)
 
 let rec eq_res : type a b. a res -> b res -> bool = fun a b ->
@@ -116,7 +107,7 @@ let rec eq_res : type a b. a res -> b res -> bool = fun a b ->
 let rec eval : type a. a res -> a =
   fun r ->
     match r with
-    | Nil -> idt
+    | Nil -> (fun x -> x)
     | Sin b -> b
     | _ -> assert false
 
@@ -144,7 +135,7 @@ type _ pos =
 let rec apply_pos: type a.a pos -> position -> position -> a =
   fun f p p' ->
     match f with
-    | Idt -> idt
+    | Idt -> (fun x -> x)
     | Simple f -> f
     | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
     | FixBegin(f, p0) -> apply_pos f p0 p'
@@ -174,7 +165,7 @@ let rec eq_rpos: type a b. a res pos -> b res pos -> bool =
 and eq_cpos: type a b. a pos -> b pos -> bool =
   fun p1 p2 ->  if eq p1 p2 then true else match p1, p2 with
                | Idt, Idt -> true
-               | Simple f, Simple g -> eq f g
+               | Simple f, Simple g -> eq_closure f g
                | FixBegin(f, p), FixBegin(g, q) ->
                   eq_pos p q && eq_cpos f g
                | ApplyPos(a,b), ApplyPos(c,d) ->
@@ -203,8 +194,7 @@ let apply_pos_debut: type a b.a pos
 let compose3 f g h = Compose(f, Compose(g, h))
 
 let pos_apply : type a b.(a -> b) -> a pos -> b pos =
-  fun f a ->
-    match f === idt with Eq -> a | _ -> ApplyPos(Simple f, a)
+  fun f a -> ApplyPos(Simple f, a)
 
 let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos =
    fun f a b -> ApplyPos (pos_apply f a, b)
@@ -222,6 +212,8 @@ let pos_apply4 : type a b c d e.(a -> b -> c -> d -> e) -> a pos -> b pos -> c p
 type 'a input = buffer -> int -> 'a * buffer * int
 type 'a input2 = buffer -> int -> 'a input
 type 'a test  = buffer -> int -> buffer -> int -> 'a * bool
+
+type _ tag = ..
 
 type 'a grammar = info Fixpoint.t * 'a rule list
 
@@ -246,8 +238,8 @@ and _ prerule =
 
 (* Each rule old assoc cell to associate data to the rule in O(1).
    the type of the associated data is not known ... *)
-and 'a rule = ('a prerule * Container.t)
-
+and 'a rule = { tag : 'a tag; eq : 'b.'b rule -> ('a,'b) eq
+              ; rule : 'a prerule ; cell : Container.t }
 
 (* type paragé par les deux types ci-dessous *)
 and ('a,'b,'c,'r) cell = {
@@ -288,16 +280,24 @@ and _ prepa = E : (('b -> 'c) res pos, 'b, 'c, 'r) cell -> 'r prepa
    so acts are necessarily physically equal
 *)
 
+let mkrule : type a. a prerule -> a rule = fun rule ->
+  let module M = struct type _ tag += T : a tag end in
+  let eq : type b. b rule -> (a,b) eq =
+    function { tag = M.T } -> Eq | _ -> Neq
+  in
+  { tag = M.T; eq; rule; cell = Container.create () }
+
+let eq_rule : type a b. a rule -> b rule -> (a, b) eq =
+  fun r1 r2 -> r1.eq r2
+
 let eq_D (D {debut; rest; full; stack; acts})
          (D {debut=debut'; rest=rest'; full=full'; stack=stack'; acts=acts'}) =
   eq_opos debut debut' &&
-    match rest === rest', full === full' with
+    match eq_rule rest rest', eq_rule full full' with
     | Eq, Eq -> assert(acts == acts'); assert(stack == stack'); true
     | _ -> false
 
-let idtCell = Container.create ()
-let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
-
+let idtEmpty : type a.unit -> (a->a) rule = fun () -> mkrule (Empty Idt)
 
 let new_name =
   let c = ref 0 in
@@ -311,18 +311,16 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,
   | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,NonTerm(i,ref g,ref None),Idt,idtEmpty), Container.create ())
+     mkrule (Next(i,name,NonTerm(i,ref g,ref None),Idt,idtEmpty ()))
 
 let force = Fixpoint.force
 
 let empty = Fixpoint.from_val (true, Charset.empty)
 let any = Fixpoint.from_val (true, Charset.full)
 
-let pre_rule (x,_) = x
-
 (* managment of info = accept empty + charset accepted as first char *)
 let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
-  match pre_rule r with
+  match r.rule with
   | Next(i,_,_,_,_) -> i
   | Empty _ -> empty
   | Dep(_) -> any
@@ -334,7 +332,7 @@ let symbol_info:type a.a symbol -> info Fixpoint.t  = function
 
 let compose_info i1 i2 =
   let i1 = symbol_info i1 in
-  match pre_rule i2 with
+  match i2.rule with
     Empty _ -> i1
   | _ ->
      let i2 = rule_info i2 in
@@ -351,7 +349,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
 
 (* affichage *)
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -362,7 +360,7 @@ let print_pos ch (buf, pos) =
 let print_final ch (D {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -374,7 +372,7 @@ let print_final ch (D {rest; full}) =
 let print_prepa ch (E {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -386,7 +384,7 @@ let print_prepa ch (E {rest; full}) =
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
     (*    | Dep _ -> Printf.fprintf ch "DEP "*)
     | Dep _ -> Printf.fprintf ch "DEP"
@@ -412,29 +410,32 @@ let elt_ckey : type a b. (a, b) element -> int * int * int * int =
   function C { debut; rest; full } ->
            (match debut with
             | None -> (-1, -1, (* FIXME: find a better key *)
-                       Container.address (snd full),
-                       Container.address (snd rest))
+                       Container.address full.cell,
+                       Container.address rest.cell)
             | Some((buf, pos), _) -> (buffer_uid buf, pos,
-                                      Container.address (snd full),
-                                      Container.address (snd rest)))
+                                      Container.address full.cell,
+                                      Container.address rest.cell))
          | B _ -> (-2, -2, -2, -2)
 
 let hook_assq : type a b. a rule -> b dep_pair_tbl -> ((a, b) element -> unit) -> unit =
   fun r dlr f ->
-    try match Container.find dlr (snd r) with
+    try match Container.find dlr r.cell with
       P({rule = r'; stack; hooks} as p )->
-        match r === r' with
+        match eq_rule r r' with
         | Eq -> p.hooks <- f::hooks; List.iter f !stack;
         | _ -> assert false
     with Not_found ->
-      Container.add dlr (snd r) (P{rule = r; stack = ref []; hooks = [f]})
+      Container.add dlr r.cell (P{rule = r; stack = ref []; hooks = [f]})
 
 let eq_C c1 c2 = eq c1 c2 ||
   match c1, c2 with
     (C {debut; rest; full; stack; acts},
      C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
-      eq_opos debut d' && eq rest r' && eq full fu'
-      && (assert (eq stack stack'); eq_rpos acts acts')
+    begin
+      match eq_opos debut d', eq_rule rest r', eq_rule full fu' with
+      | true, Eq, Eq -> assert (eq stack stack'); eq_rpos acts acts'
+      | _ -> false
+    end
   | (B acts, B acts') -> eq_rpos acts acts'
   | _ -> false
 
@@ -442,9 +443,9 @@ let eq_C c1 c2 = eq c1 c2 ||
 (* ajout d'un element dans une pile *)
 let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) element list ref =
   fun r el dlr ->
-    try match Container.find dlr (snd r) with
+    try match Container.find dlr r.cell with
       P({rule = r'; stack; hooks}) ->
-        match r === r' with
+        match eq_rule r r' with
         | Eq ->
            if not (List.exists (eq_C el) !stack) then (
              if !debug_lvl > 3 then
@@ -457,18 +458,18 @@ let add_assq : type a b. a rule -> (a, b) element  -> b dep_pair_tbl -> (a, b) e
       if !debug_lvl > 3 then
         Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
       let stack = ref [el] in
-      Container.add dlr (snd r) (P{rule = r; stack; hooks=[]}) ; stack
+      Container.add dlr r.cell (P{rule = r; stack; hooks=[]}) ; stack
 
 let find_assq : type a b. a rule -> b dep_pair_tbl -> (a, b) element list ref =
   fun r dlr ->
-    try match Container.find dlr (snd r) with
+    try match Container.find dlr r.cell with
       P{rule = r';stack; hooks} ->
-        match r === r' with
+        match eq_rule r r' with
         | Eq -> stack
         | _ -> assert false
     with Not_found ->
       let stack = ref [] in
-      Container.add dlr (snd r) (P{rule = r; stack; hooks=[]}); stack
+      Container.add dlr r.cell (P{rule = r; stack; hooks=[]}); stack
 
 let debut pos = function D { debut } -> match debut with None -> pos | Some (p,_) -> p
 
@@ -480,17 +481,17 @@ let elt_key : type a. a final -> int * int * int * int =
   function D { debut; rest; full } ->
     match debut with
     | None -> (-1, -1,
-               Container.address (snd full), (* FIXME: find a better key *)
-               Container.address (snd rest))
+               Container.address full.cell, (* FIXME: find a better key *)
+               Container.address rest.cell)
     | Some((buf, pos), _) -> (buffer_uid buf, pos,
-                              Container.address (snd full), (* FIXME: find a better key *)
-                              Container.address (snd rest))
+                              Container.address full.cell, (* FIXME: find a better key *)
+                              Container.address rest.cell)
 
 let elt_pkey : 'a prepa -> int * int * int * int =
   function E { debut; rest; full } ->
            (-1, -1,
-               Container.address (snd full), (* FIXME: find a better key *)
-               Container.address (snd rest))
+               Container.address full.cell, (* FIXME: find a better key *)
+               Container.address rest.cell)
 
 let char_pos (buf,pos) = line_offset buf + pos
 let elt_pos pos el = char_pos (debut pos el)
@@ -517,7 +518,7 @@ let add : string -> position -> position -> char -> 'a final -> 'a pos_tbl -> bo
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
         match
-           eq_opos d d', rest === r', full === fu' with
+           eq_opos d d', eq_rule rest r', eq_rule full fu' with
          | true, Eq, Eq ->
             if not (eq_res acts acts') && !warn_merge then
               Printf.eprintf "\027[31mmerging %a %a %a [%s]\027[0m\n%!"
@@ -551,8 +552,7 @@ let add_prep : string -> 'a prepa -> 'a pre_tbl -> bool =
 (*         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
-        match
-           rest === r', full === fu' with
+        match eq_rule rest r', eq_rule full fu' with
          | Eq, Eq ->
             if not (eq_rpos acts acts') && !warn_merge then
               Printf.eprintf "\027[31mmerging %a\027[0m\n%!"
@@ -653,32 +653,37 @@ let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tb
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
         match
-           eq_opos d d', rest === r', full === fu' with
+           eq_opos d d', eq_rule rest r', eq_rule full fu' with
          | true, Eq, Eq ->
-            let stack' = merge_stack stack' fu' els dlr adone in
-            let acts' = apply_pos acts' pos_final pos_ab in
-            if not (eq_res acts acts') && !warn_merge then
-              Printf.eprintf "\027[31mmerging (2) %a %a [%s]\027[0m\n%!"
-                             print_prepa element
-                  print_pos pos_final (filename (fst pos_final));
-            assert(stack == stack' ||
-                     (Printf.eprintf "\027[31mshould be the same stack %s %a === %a\027[0m\n%!"
-                                     info print_final e print_prepa element; false));
-            None
+            (try
+              let acts' = apply_pos acts' pos_final pos_ab in
+              let stack' = merge_stack stack' fu' els dlr adone in
+              if not (eq_res acts acts') && !warn_merge then
+                Printf.eprintf "\027[31mmerging (2) %a %a [%s]\027[0m\n%!"
+                               print_prepa element
+                               print_pos pos_final (filename (fst pos_final));
+              assert(stack == stack' ||
+                       (Printf.eprintf "\027[31mshould be the same stack %s %a === %a\027[0m\n%!"
+                                       info print_final e print_prepa element; false));
+              None
+            with Error -> None)
          | _ -> assert false)
     with Not_found ->
+       try
          let element = match element with
          | E {debut; rest; full; stack; acts } ->
             assert(debut=None);
-            let stack = merge_stack stack full els dlr adone in
-            let acts = apply_pos acts pos_final pos_ab in
-            D {debut; rest; full; stack; acts; read = false; asso = Container.create ()}
+              let acts = apply_pos acts pos_final pos_ab in
+              let stack = merge_stack stack full els dlr adone in
+              D {debut; rest; full; stack; acts; read = false; asso = Container.create ()}
          in
          if !debug_lvl > 1 then
            Printf.eprintf "add(M) %s %a %d %d\n%!" info print_final element
                           (char_pos pos_ab) (char_pos pos_final);
          Hashtbl.add elements key element;
          Some(element)
+      with
+        Error -> None
 
 let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone ->
   let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
@@ -718,34 +723,34 @@ let protect f a = try f a with Error -> ()
 let combine2 : type a0 a1 a2 b bb c.(a2 -> b) res -> (b -> c) res pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) res pos =
   fun acts acts' g f ->
     pos_apply3 (fun acts' g f ->
-        cps(sin f,cps(sin g,cps(acts,acts')))
+        cps(Sin f,cps(Sin g,cps(acts,acts')))
       ) acts' g f
 
 let combine2p : type a0 a1 a2 b bb c.(a2 -> b) res pos -> (b -> c) res pos -> (a1 -> a2) pos -> (a0 -> a1) pos -> (a0 -> c) res pos =
   fun acts acts' g f ->
     pos_apply4 (fun acts acts' g f ->
-        cps(sin f,cps(sin g,cps(acts,acts')))
+        cps(Sin f,cps(Sin g,cps(acts,acts')))
       ) acts acts' g f
 
 let combine1 : type a b c d.(c -> d) res -> (a -> b) pos -> (a -> (b -> c) -> d) res pos =
   fun acts g ->
     match acts, g with
-    | _ -> pos_apply (fun g -> Csp(sin g,acts)) g
+    | _ -> pos_apply (fun g -> Csp(Sin g,acts)) g
 
 let combine1p : type a b c d.(c -> d) res pos -> (a -> b) pos -> (a -> (b -> c) -> d) res pos =
   fun acts g ->
     match acts, g with
-    | _ -> pos_apply2 (fun acts g -> Csp(sin g,acts)) acts g
+    | _ -> pos_apply2 (fun acts g -> Csp(Sin g,acts)) acts g
 
-let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.table -> a prepa list =
-  fun rules pdone ->
+let rec advanced_prediction_production : type a. a rule list -> a prepa list =
+  fun rules ->
   let rec fn : a prepa -> a pre_tbl -> a dep_pair_tbl -> unit =
    fun element0 elements dlr -> match element0 with
    (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | E { debut; acts; stack; rest; full; asso } ->
 
      if !debug_lvl > 1 then Printf.eprintf "advanced predict/product for %a\n%!" print_prepa element0;
-     match pre_rule rest with
+     match rest.rule with
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
         (*
         (try
@@ -765,7 +770,6 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
         Container.reset adone;
         with Not_found ->*)
         let c = C {rest=rest2; acts=combine1p acts f; full; debut; stack; read = false; asso = Container.create ()} in
-        Container.add pdone asso (Obj.magic c);
         List.iter (fun rule ->
             let stack = add_assq rule c dlr in
             let nouveau = E { debut=None; acts = Simple Nil; stack; rest = rule; full = rule; read = false; asso = Container.create () } in
@@ -774,21 +778,23 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
 
      | Dep(rule) ->
         if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
-        let acts0 = apply_pos acts (dummy_buffer, 0)  (dummy_buffer, 0) in
-       let a =
-         let a = ref None in
-         try let _ = apply acts0 (Sin (fun x -> a := Some x; raise Exit)) in assert false
-         with Exit ->
-           match !a with None -> assert false | Some a -> a
-       in
-       let cc = C { debut;
-                    acts = WithPos (fun b1 p1 b2 p2 -> (Sin (fun b f -> f (eval (apply (apply_pos acts (b1,p1) (b2,p2)) (Sin (fun _ -> b))))))); stack;
-                   rest = idtEmpty; full; read = false; asso = Container.create () } in
-       let rule = rule a in
-       let stack' = add_assq rule cc dlr in
-       let nouveau = E {debut; acts = Simple Nil; stack = stack'; rest = rule; full = rule; read = false; asso = Container.create () } in
-       let b = add_prep "EP" nouveau elements in
-       if b then fn nouveau elements dlr
+        (try
+          let acts0 = apply_pos acts (dummy_buffer, 0)  (dummy_buffer, 0) in
+          let a =
+            let a = ref None in
+            try let _ = apply acts0 (Sin (fun x -> a := Some x; raise Exit)) in assert false
+            with Exit ->
+                 match !a with None -> assert false | Some a -> a
+          in
+          let cc = C { debut;
+                       acts = WithPos (fun b1 p1 b2 p2 -> (Sin (fun b f -> f (eval (apply (apply_pos acts (b1,p1) (b2,p2)) (Sin (fun _ -> b))))))); stack;
+                       rest = idtEmpty (); full; read = false; asso = Container.create () } in
+          let rule = rule a in
+          let stack' = add_assq rule cc dlr in
+          let nouveau = E {debut; acts = Simple Nil; stack = stack'; rest = rule; full = rule; read = false; asso = Container.create () } in
+          let b = add_prep "EP" nouveau elements in
+          if b then fn nouveau elements dlr
+        with Error -> ())
 
      (* production      (pos, i, ... o ) dans la table *)
      | Empty(a) ->
@@ -833,19 +839,29 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
     Hashtbl.iter (fun _ f ->
         let keep = match f with
         | E { rest; stack } ->
-           match pre_rule rest with
+           match rest.rule with
            | Empty _ -> List.exists test !stack
            | Dep _ -> false
            | Next(_,_,NonTerm _,_,_) -> false
            | Next(_,_,(Term _ | Test _ | Greedy _),_,_) -> true
         in
         if keep then ls := f :: !ls) elements;
-    let ls = List.map (function
+    let fn : type a.a prepa -> a prepa = function
       | E { rest; full; acts; stack } as e ->
-         match pre_rule rest with
-         | Empty _ -> Obj.magic (E { debut=None; rest; full; acts; stack = ref [final_elt]; read= false; asso = Container.create () })
-         | _ -> e) !ls
+         match rest.rule with
+         | Empty _ ->
+            let rec fn : type b c. b rule -> c rule -> (b -> c) res pos -> (c, a) element list -> a prepa
+              = fun rest full acts -> function
+              | [] -> assert false
+              | B (Simple Nil)::_ ->
+                 let stack = ref [final_elt] in
+                 E { debut=None; rest; full; acts; stack; read= false; asso = Container.create () }
+              | _::l -> fn rest full acts l
+            in
+            fn rest full acts !stack
+        | _ -> e
     in
+    let ls = List.map fn !ls in
     (*Printf.eprintf "keep: %d\n%!" (List.length !ls);*)
     Container.clear dlr;
     ls
@@ -859,7 +875,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
     let tbl = ref tbl in
     Hashtbl.iter (fun _ l -> match l with
     | D ({debut; stack;acts; rest; full; read} as r) as element ->
-       if not read then match pre_rule rest with
+       if not read then match rest.rule with
        | Next(_,_,Term (_,f),g,rest) ->
           (try
              r.read <- true;
@@ -940,13 +956,11 @@ let rec one_prediction_production
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
    | D ({debut; acts; stack; rest; full; read} as r) ->
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
-     if not read then match pre_rule rest with
+     if not read then match rest.rule with
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
         let prep = match !prep with
           | None -> if !debug_lvl > 1 then Printf.eprintf "start advance predict/product\n%!";
-                    let pdone = Container.create_table 101 in
-                    let p = advanced_prediction_production rules pdone in
-                    Container.clear pdone;
+                    let p = advanced_prediction_production rules in
                     prep := Some p; p
           | Some p -> p
         in
@@ -956,7 +970,7 @@ let rec one_prediction_production
                          good c (rule_info rest)) prep
         in
         let f = FixBegin(f, pos_ab) in
-        let tails = match pre_rule rest2, debut with
+        let tails = match rest2.rule, debut with
         | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
@@ -987,23 +1001,25 @@ let rec one_prediction_production
         Container.clear adone;
      | Dep(rule) ->
         r.read <- true;
-        if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
-       let a =
-         let a = ref None in
-         try let _ = apply acts (Sin (fun x -> a := Some x; raise Exit)) in assert false
-         with Exit ->
-           match !a with None -> assert false | Some a -> a
-       in
-       let cc = C { debut;
-                    acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
-                   rest = idtEmpty; full; read = false; asso = Container.create () } in
-       let rule = rule a in
-       let stack' = add_assq rule cc dlr in
-       let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule
-                       ; full = rule; read = false; asso = Container.create () }
-       in
-       let b = add "P" pos pos_ab c nouveau elements in
-       if b then one_prediction_production nouveau elements dlr pos pos_ab c
+        (try
+           if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
+           let a =
+             let a = ref None in
+             try let _ = apply acts (Sin (fun x -> a := Some x; raise Exit)) in assert false
+             with Exit ->
+                  match !a with None -> assert false | Some a -> a
+           in
+           let cc = C { debut;
+                        acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
+                        rest = idtEmpty (); full; read = false; asso = Container.create () } in
+           let rule = rule a in
+           let stack' = add_assq rule cc dlr in
+           let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule
+                            ; full = rule; read = false; asso = Container.create () }
+           in
+           let b = add "P" pos pos_ab c nouveau elements in
+           if b then one_prediction_production nouveau elements dlr pos pos_ab c
+         with Error -> ())
 
      (* production      (pos, i, ... o ) dans la table *)
      | Empty(a) ->
@@ -1020,7 +1036,7 @@ let rec one_prediction_production
             | C {debut=d; stack=els'; acts; rest; full} ->
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
-                   Printf.eprintf "action for completion bis of %a: (%a x) =>" print_final element0 print_res (apply_pos_debut acts debut pos pos_ab);
+                   Printf.eprintf "action for completion bis of %a =>" print_final element0;
                  let debut = first_pos d debut in
                  let acts =
                    try apply (apply_pos_debut acts debut pos pos_ab) x
@@ -1077,7 +1093,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       if internal then begin
         try
           let found = ref false in
-          List.iter (function D {stack=s1; rest=(Empty f,_); acts; full=r1} as elt ->
+          List.iter (function D {stack=s1; rest={rule = Empty f}; acts; full=r1} as elt ->
             if eq r0 r1 then (
               if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
               found := true;
@@ -1128,7 +1144,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
+      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els when eq r0 r1 ->
          (try
            let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
            let gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
