@@ -46,7 +46,13 @@ tests: earley.cmxa tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left3_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left4_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
-	./test.native
+	./test.native > /dev/null
+	./calc_prio_left_ml.native --quick > /dev/null
+	./calc_prio_left2_ml.native --quick > /dev/null
+	./calc_prio_left3_ml.native --quick > /dev/null
+	./calc_prio_left4_ml.native --quick > /dev/null
+	./calc_prio_left5_ml.native --quick > /dev/null
+
 
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
@@ -70,7 +76,8 @@ clean:
 	$(OCAMLBUILD) -clean
 
 distclean: clean
-	- rm -f *~ \#*\# .\#*
+	- rm -f *~ \#*\# .\#* *.native *.byte
+	- rm -f tests/*~ tests/\#*\# tests/.\#*
 
 .PHONY: release
 release: distclean
