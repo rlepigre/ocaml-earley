@@ -265,70 +265,42 @@ module Fixpoint :
       in fn b
   end
 
-module Container : sig
-  type t
-  type 'a table
+let eq_closure : type a b. a -> b -> bool =
+  fun f g ->
+    let open Obj in
+    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
+    let adone = ref [] in
+    let rec fneq f g =
+      f == g ||
+        match is_int f, is_int g with
+        | true, true -> f = g
+        | false, true | true, false -> false
+        | false, false ->
+           (*      if !debug_lvl > 10 then Printf.eprintf "*%!";*)
+           let ft = tag f and gt = tag g in
+           if ft = forward_tag then (
+             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
+             fneq (field f 0) g)
+           else if gt = forward_tag then (
+             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
+             fneq f (field g 0))
+           else if ft = custom_tag || gt = custom_tag then f = g
+           else if ft <> gt then false
+           else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
+           if ft = string_tag || ft = double_tag || ft = double_array_tag
+             then f = g
+           else if ft = abstract_tag || ft = out_of_heap_tag
+                   || ft = no_scan_tag || ft = infix_tag then f == g
+           else
+               size f == size g &&
+               let rec gn i =
+                 if i < 0 then true
+                 else fneq (field f i) (field g i) && gn (i - 1)
+               in
+               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
+                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
+                 (adone := (f,g)::!adone;
+                  let r = gn (size f - 1) in
+                  r)))
 
-  val create : unit -> t
-  val add : 'a table -> t -> 'a -> unit
-  val find : 'a table -> t -> 'a
-  val reset : 'a table -> unit
-  val create_table : unit -> 'a table
-  val address   : t -> int
-
-end = struct
-
-  type clist =
-    | Cons : 'a table * 'a * clist -> clist
-    | Nil  : clist
-
-  and t = clist ref * int
-
-  and 'a table = 'a option * clist ref list ref
-
-  let create =
-    let c = ref 0 in
-    (fun () ->
-      let adr = !c in
-      c := adr + 1;
-      (ref Nil, adr))
-
-  let address = snd
-
-  let create_table : type a.a option -> a table = fun a -> (a, ref [])
-
-  let add : type a. a table -> t -> a -> unit = fun t (c, _) a ->
-    if List.memq c !(snd t) then (
-      let rec fn = function
-        | Nil -> assert false
-        | Cons(t',x,r) ->
-           match t === t' with
-           | Eq -> Cons(t',a,r)
-           | Neq -> Cons(t',x,fn r)
-      in c:= fn !c
-    ) else (
-      c := Cons(t,a,!c);
-      snd t := c :: !(snd t))
-
-   let rec find_aux : type a. a table -> clist -> a = fun t c ->
-     match c with
-     | Nil -> raise Not_found
-     | Cons(t',x,r) ->
-        match t === t' with
-        | Eq  -> x
-        | Neq -> find_aux t r
-
-   let find : type a. a table -> t -> a = fun t (c, _) -> find_aux t !c
-
-   let reset : type a. a table -> unit = fun t ->
-     let rec fn = function
-       | Nil -> invalid_arg "reset"
-       | Cons(t',x,r) ->
-          match t === t' with Eq -> r | Neq -> Cons(t',x,fn r)
-     in
-     List.iter (fun l -> l := fn !l) !(snd t);
-     snd t := []
-
-   let create_table : type a. unit -> a table = fun () -> create_table None
-
-end
+    in fneq (repr f) (repr g)
