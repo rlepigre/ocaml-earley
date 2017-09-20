@@ -1,84 +1,95 @@
-(* Equality types *)
-type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
+(** Standard eq-type. *)
+type ('a,'b) eq =
+  | Y : ('a,'a) eq
+  | N : ('a,'b) eq
 
+(** GADT to represent types in the syntax (extended when needed). *)
 type _ tag = ..
 
-type clist =
-  | Cons : 'a tag * 'a * clist -> clist
-  | Nil  : clist
+(** Non-uniform list (containing elements of possibly different types). *)
+type nu_list =
+  | Cons : 'a tag * 'a * nu_list -> nu_list
+  | Nil  :                          nu_list
 
-type cell = { mutable contents : clist
-           ; adr : int }
+(** Actual container. *)
+type container =
+  { mutable data : nu_list (** Contents of each type. *)
+  ;         uid  : int     (** Unique identifier.     *) }
 
-module T = struct
-  type t = cell
-  let hash t = t.adr
-  let equal t1 t2 = t1 == t2
-end
+(** Creation function for containers. *)
+let create : unit -> container =
+  let counter = ref (-1) in
+  fun () -> incr counter; {data = Nil; uid = !counter}
 
-type t = cell
+(** Obtain the UID of a container. *)
+let address : container -> int = fun c -> c.uid
 
-module Hash = Weak.Make(T)
+(** Weak hash-tables of containers. *)
+module W = Weak.Make(
+  struct
+    type t = container
+    let hash c = c.uid
+    let equal c1 c2 = c1 == c2 (* FIXME why not [c1.uid = c2.uid]? *)
+  end)
 
-type 'a table = { id : 'a tag
-               ; eq : 'b. 'b tag -> ('a,'b) eq
-               ; hi : Hash.t }
+(** Exported name for [container]. *)
+type t = container
 
+(** Container table. *)
+type 'a table =
+  { tag  : 'a tag                   (** Unique tag for this table.   *)
+  ; eq   : 'b. 'b tag -> ('a,'b) eq (** Equality to the table's tag. *)
+  ; htbl : W.t                      (** Contents of the table.       *) }
 
-let create =
-  let c = ref 0 in
-  (fun () ->
-    let adr = !c in
-    c := adr + 1;
-    { contents = Nil; adr })
+(** Insert a new value associated to the given table and container. If a
+    value is already present, it is overwriten. *)
+let add : type a. a table -> container -> a -> unit = fun tab c v ->
+  if W.mem tab.htbl c then
+    begin
+      let rec fn = function
+        | Nil           -> assert false
+        | Cons(t, w, r) ->
+            match tab.eq t with
+            | Y -> Cons(t, v, r)
+            | N -> Cons(t, w, fn r)
+      in
+      c.data <- fn c.data
+    end
+  else
+    begin
+      c.data <- Cons(tab.tag, v, c.data);
+      W.add tab.htbl c
+    end
 
-let address t = t.adr
-
-let add : type a. a table -> cell -> a -> unit = fun t c a ->
-  if Hash.mem t.hi c then (
-    let rec fn = function
-      | Nil -> assert false
-      | Cons(tag,x,r) ->
-         match t.eq tag with
-         | Eq -> Cons(tag,a,r)
-         | Neq -> Cons(tag,x,fn r)
-    in
-    c.contents <- fn c.contents
-  ) else (
-    c.contents <- Cons(t.id,a,c.contents);
-    Hash.add t.hi c)
-
-let rec find_aux : type a. a table -> clist -> a = fun t c ->
-  match c with
-  | Nil -> raise Not_found
-  | Cons(tag,x,r) ->
-     match t.eq tag with
-     | Eq  -> x
-     | Neq -> find_aux t r
-
-let find : type a. a table -> cell -> a = fun t c -> find_aux t c.contents
-
-let rec clear_aux : type a. a table -> clist -> clist = fun t l ->
-  match l with
-  | Nil -> Nil
-  | Cons(tag,x,r) ->
-     match t.eq tag with
-     | Eq -> r
-     | Neq -> Cons(tag,x,clear_aux t r)
-
-let remove : type a. a table -> cell -> unit = fun t c ->
-  c.contents <- clear_aux t c.contents;
-  Hash.remove t.hi c
-
-let clear : type a. a table -> unit = fun t ->
-  Hash.iter (fun c -> c.contents <- clear_aux t c.contents) t.hi;
-  Hash.clear t.hi
-
-let create_table : type a.int -> a table = fun size ->
-  let module M = struct type _ tag += T : a tag end in
-  let eq : type b.b tag -> (a, b) eq =
-    function M.T -> Eq | _ -> Neq
+(* Find the value associated to the given table and container. *)
+let find : type a. a table -> container -> a =
+  let rec find : type a. a table -> nu_list -> a = fun tab c ->
+    match c with
+    | Nil         -> raise Not_found
+    | Cons(t,v,r) -> match tab.eq t with Y -> v | N -> find tab r
   in
-  let res = {id = M.T; eq; hi=Hash.create size} in
-  Gc.finalise clear res;
-  res
+  fun tab c -> find tab c.data
+
+(** Removes the given table from the given list. *)
+let rec remove_table : type a. a table -> nu_list -> nu_list = fun tab l ->
+  match l with
+  | Nil           -> Nil
+  | Cons(t, v, r) ->
+      match tab.eq t with
+      | Y -> r
+      | N -> Cons(t, v, remove_table tab r)
+
+(** Remove the given table from the given container. *)
+let remove : type a. a table -> container -> unit = fun tab c ->
+  c.data <- remove_table tab c.data;
+  W.remove tab.htbl c
+
+let clear : type a. a table -> unit = fun tab ->
+  W.iter (fun c -> c.data <- remove_table tab c.data) tab.htbl;
+  W.clear tab.htbl
+
+let create_table : type a. int -> a table = fun size ->
+  let module M = struct type _ tag += T : a tag end in
+  let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
+  let res = { tag  = M.T ; eq ; htbl = W.create size } in
+  Gc.finalise clear res; res
