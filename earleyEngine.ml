@@ -817,7 +817,7 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
   in
   try
     let elements : a pre_tbl = Hashtbl.create 31 in
-    let dlr = Container.create_table () in
+    let dlr = Container.create_table 101 in
     let final_elt = B (Simple Nil) in
     List.iter (fun rule ->
         let stack = add_assq rule final_elt dlr in
@@ -847,7 +847,7 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
          | _ -> e) !ls
     in
     (*Printf.eprintf "keep: %d\n%!" (List.length !ls);*)
-    Container.reset dlr;
+    Container.clear dlr;
     ls
   with Error -> assert false
 
@@ -944,9 +944,9 @@ let rec one_prediction_production
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
         let prep = match !prep with
           | None -> if !debug_lvl > 1 then Printf.eprintf "start advance predict/product\n%!";
-                    let pdone = Container.create_table () in
+                    let pdone = Container.create_table 101 in
                     let p = advanced_prediction_production rules pdone in
-                    Container.reset pdone;
+                    Container.clear pdone;
                     prep := Some p; p
           | Some p -> p
         in
@@ -977,14 +977,14 @@ let rec one_prediction_production
            [C {rest=rest2; acts=combine1 acts f; full; debut; stack
                ; read = false; asso = Container.create ()}]
         in
-        let adone  = Container.create_table () in
+        let adone  = Container.create_table 101 in
         List.iter (fun elt ->
             let b = add_merge "MP" pos pos_ab elt elements tails dlr adone in
             match b with
             | Some elt -> one_prediction_production elt elements dlr
                                                     pos pos_ab c
             | None -> ()) prep;
-        Container.reset adone;
+        Container.clear adone;
      | Dep(rule) ->
         r.read <- true;
         if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
@@ -1061,7 +1061,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let dlr = Container.create_table () in
+    let dlr = Container.create_table 101 in
     let prediction_production advance msg l =
       if advance then begin
           Hashtbl.clear elements;
@@ -1106,7 +1106,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
          if advance then (
            pos := pos';
            buf := buf';
-           Container.reset dlr; (* reset stack memo only if lecture makes progress.
+           Container.clear dlr; (* reset stack memo only if lecture makes progress.
                           this now allows for terminal parsing no input ! *));
          forward := forward';
          (advance, l)
@@ -1114,7 +1114,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
      in
      if l = [] then continue := false else prediction_production advance "L" l;
     done;
-    Container.reset dlr; (* don't forget final cleaning of assoc cell !! *)
+    Container.clear dlr; (* don't forget final cleaning of assoc cell !! *)
     (* useless but clean *)
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
