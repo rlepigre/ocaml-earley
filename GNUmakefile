@@ -36,6 +36,21 @@ doc: earley.docdir/index.html
 earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
 	$(OCAMLBUILD) $@
 
+.PHONY: tests
+tests: earley.cmxa tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
+                   tests/calc_prio_left3_ml.ml tests/calc_prio_left4_ml.ml\
+                   tests/calc_prio_left5_ml.ml
+	$(OCAMLBUILD) tests/test.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left2_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left3_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left4_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
+	./test.native
+
+tests/%_ml.ml: tests/%.ml
+	pa_ocaml --ascii $< > $@
+
 uninstall:
 	@ocamlfind remove earley
 
