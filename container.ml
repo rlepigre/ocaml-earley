@@ -7,12 +7,23 @@ type clist =
   | Cons : 'a tag * 'a * clist -> clist
   | Nil  : clist
 
- and t = { mutable contents : clist
-         ; adr : int }
+type cell = { mutable contents : clist
+           ; adr : int }
 
- and 'a table = { id : 'a tag
-                ; eq : 'b. 'b tag -> ('a,'b) eq
-                ; mutable hi : t Weak.t list }
+module T = struct
+  type t = cell
+  let hash t = t.adr
+  let equal t1 t2 = t1 == t2
+end
+
+type t = cell
+
+module Hash = Weak.Make(T)
+
+type 'a table = { id : 'a tag
+               ; eq : 'b. 'b tag -> ('a,'b) eq
+               ; hi : Hash.t }
+
 
 let create =
   let c = ref 0 in
@@ -23,14 +34,8 @@ let create =
 
 let address t = t.adr
 
-let rec memw x l = match l with
-  | [] -> false
-  | w::l -> match Weak.get w 0 with
-            | Some y when x == y -> true
-            | _ -> memw x l
-
-let add : type a. a table -> t -> a -> unit = fun t c a ->
-  if memw c t.hi then (
+let add : type a. a table -> cell -> a -> unit = fun t c a ->
+  if Hash.mem t.hi c then (
     let rec fn = function
       | Nil -> assert false
       | Cons(tag,x,r) ->
@@ -41,9 +46,7 @@ let add : type a. a table -> t -> a -> unit = fun t c a ->
     c.contents <- fn c.contents
   ) else (
     c.contents <- Cons(t.id,a,c.contents);
-    let w = Weak.create 1 in
-    Weak.set w 0 (Some c);
-    t.hi <- w :: t.hi)
+    Hash.add t.hi c)
 
 let rec find_aux : type a. a table -> clist -> a = fun t c ->
   match c with
@@ -53,27 +56,29 @@ let rec find_aux : type a. a table -> clist -> a = fun t c ->
      | Eq  -> x
      | Neq -> find_aux t r
 
-let find : type a. a table -> t -> a = fun t c -> find_aux t c.contents
+let find : type a. a table -> cell -> a = fun t c -> find_aux t c.contents
 
-let reset : type a. a table -> unit = fun t ->
-  let rec fn = function
-    | Nil -> invalid_arg "reset"
-    | Cons(tag,x,r) ->
-       match t.eq tag with
-       | Eq -> r
-       | Neq -> Cons(tag,x,fn r)
-  in
-  List.iter (fun w ->
-      match Weak.get w 0 with
-       | Some l -> l.contents <- fn l.contents
-       | None -> ()) t.hi;
-  t.hi <- []
+let rec clear_aux : type a. a table -> clist -> clist = fun t l ->
+  match l with
+  | Nil -> Nil
+  | Cons(tag,x,r) ->
+     match t.eq tag with
+     | Eq -> r
+     | Neq -> Cons(tag,x,clear_aux t r)
 
-let create_table : type a.unit -> a table = fun () ->
+let remove : type a. a table -> cell -> unit = fun t c ->
+  c.contents <- clear_aux t c.contents;
+  Hash.remove t.hi c
+
+let clear : type a. a table -> unit = fun t ->
+  Hash.iter (fun c -> c.contents <- clear_aux t c.contents) t.hi;
+  Hash.clear t.hi
+
+let create_table : type a.int -> a table = fun size ->
   let module M = struct type _ tag += T : a tag end in
   let eq : type b.b tag -> (a, b) eq =
     function M.T -> Eq | _ -> Neq
   in
-  let res = {id = M.T; eq; hi=[]} in
-  Gc.finalise reset res;
+  let res = {id = M.T; eq; hi=Hash.create size} in
+  Gc.finalise clear res;
   res

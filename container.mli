@@ -30,13 +30,21 @@ val create : unit -> t
     associated to this cell. *)
 val add : 'a table -> t -> 'a -> unit
 
+(** [ remove tab cell ] remove the association (tab, cell). Does
+    nothing if there was no such association. *)
+val remove : 'a table -> t -> unit
+
 (** [ find tab cell ] return the value associated to (tab, cell).
     raises Not_found if the are no such value *)
 val find : 'a table -> t -> 'a
 
-(** [ reset tab ] removed all value associated to a table.
-    Note: until the table is reset, a pointer to the cell
-    will be retained *)
-  val reset : 'a table -> unit
-  val create_table : unit -> 'a table
-  val address   : t -> int
+(** [ clear tab ] removed all value associated to a table. *)
+val clear : 'a table -> unit
+
+(** [ create_table n ] creates a new table. [ n ] is the initial size
+    of the internal hashtable. It should be the expected number of
+    cell assigned in this table *)
+val create_table : int -> 'a table
+
+(** [ address n ] return a unique id of each cell *)
+val address   : t -> int

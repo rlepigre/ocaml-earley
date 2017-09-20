@@ -734,7 +734,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let dlr = Container.create_table () in
+    let dlr = Container.create_table 101 in
     let prediction_production advance msg l =
       if advance then begin
           Hashtbl.clear elements;
@@ -779,7 +779,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
          if advance then (
            pos := pos';
            buf := buf';
-           Container.reset dlr; (* reset stack memo only if lecture makes progress.
+           Container.clear dlr; (* reset stack memo only if lecture makes progress.
                           this now allows for terminal parsing no input ! *));
          forward := forward';
          (advance, l)
@@ -787,7 +787,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
      in
      if l = [] then continue := false else prediction_production advance "L" l;
     done;
-    Container.reset dlr; (* don't forget final cleaning of assoc cell !! *)
+    Container.clear dlr; (* don't forget final cleaning of assoc cell !! *)
     (* useless but clean *)
     (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
