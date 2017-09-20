@@ -106,7 +106,7 @@ let rec eq_res : type a b. a res -> b res -> bool = fun a b ->
   if eq a b then true else
     match a,b with
     | Nil, Nil -> true
-    | Sin a, Sin b -> eq a b
+    | Sin a, Sin b -> eq_closure a b
     | Cns(a,l), Cns(b,p) -> eq_res a b && eq_res l p
     | Cps(f,g), Cps(h,k) -> eq_res f h && eq_res g k
     | Csp(f,g), Csp(h,k) -> eq_res f h && eq_res g k
@@ -597,7 +597,7 @@ let merge_stack : type a b c. (a, b) element list ref -> a rule -> (b, c) elemen
   find_assq rule dlr
 
 
-
+(*
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add_pmerge : type a b c.string -> c prepa -> a pre_tbl -> (c,a) element list -> a dep_pair_tbl -> (c,a) assoc_cell Container.table -> a prepa option =
   fun info element elements els dlr adone ->
@@ -636,6 +636,7 @@ let add_pmerge : type a b c.string -> c prepa -> a pre_tbl -> (c,a) element list
            Printf.eprintf "add(M) %s %a\n%!" info print_prepa element;
          Hashtbl.add elements key element;
          Some(element)
+ *)
 
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
 let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tbl -> (c,a) element list -> a dep_pair_tbl -> (c,a) assoc_cell Container.table -> a final option =
@@ -746,6 +747,7 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
      if !debug_lvl > 1 then Printf.eprintf "advanced predict/product for %a\n%!" print_prepa element0;
      match pre_rule rest with
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
+        (*
         (try
            let celt = Obj.magic (Container.find pdone asso) in
         let prep = match !prep with
@@ -761,14 +763,14 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
              | Some elt -> fn elt elements dlr
              | None -> ()) prep;
         Container.reset adone;
-        with Not_found ->
+        with Not_found ->*)
         let c = C {rest=rest2; acts=combine1p acts f; full; debut; stack; read = false; asso = Container.create ()} in
         Container.add pdone asso (Obj.magic c);
         List.iter (fun rule ->
             let stack = add_assq rule c dlr in
             let nouveau = E { debut=None; acts = Simple Nil; stack; rest = rule; full = rule; read = false; asso = Container.create () } in
             let b = add_prep "EP" nouveau elements in
-            if b then fn nouveau elements dlr) rules)
+            if b then fn nouveau elements dlr) rules
 
      | Dep(rule) ->
         if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
@@ -813,6 +815,7 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
 
      | _ -> ()
   in
+  try
     let elements : a pre_tbl = Hashtbl.create 31 in
     let dlr = Container.create_table () in
     let final_elt = B (Simple Nil) in
@@ -823,19 +826,30 @@ let rec advanced_prediction_production : type a. a rule list -> Obj.t Container.
         let b = add_prep "EI" elt elements in
         if b then fn elt elements dlr) rules;
     let ls = ref [] in
+    let test = function
+      | C _ -> false
+      | B _ as e -> assert (eq e final_elt); true
+    in
     Hashtbl.iter (fun _ f ->
         let keep = match f with
         | E { rest; stack } ->
            match pre_rule rest with
-           | Empty _ -> List.exists (eq final_elt) !stack
+           | Empty _ -> List.exists test !stack
            | Dep _ -> false
            | Next(_,_,NonTerm _,_,_) -> false
            | Next(_,_,(Term _ | Test _ | Greedy _),_,_) -> true
         in
         if keep then ls := f :: !ls) elements;
+    let ls = List.map (function
+      | E { rest; full; acts; stack } as e ->
+         match pre_rule rest with
+         | Empty _ -> Obj.magic (E { debut=None; rest; full; acts; stack = ref [final_elt]; read= false; asso = Container.create () })
+         | _ -> e) !ls
+    in
     (*Printf.eprintf "keep: %d\n%!" (List.length !ls);*)
     Container.reset dlr;
-    !ls
+    ls
+  with Error -> assert false
 
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
 let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a final buf_table -> a final buf_table =
@@ -943,7 +957,7 @@ let rec one_prediction_production
         in
         let f = FixBegin(f, pos_ab) in
         let tails = match pre_rule rest2, debut with
-        | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
+        | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
           let g = FixBegin(g, pos') in
