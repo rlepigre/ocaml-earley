@@ -1,10 +1,5 @@
 open Earley
-
-type kind = Quick | Normal | Full
-let kind = ref Normal
-
-let test_cases (a, b, c) =
-  match !kind with Quick -> a | Normal -> b | Full -> c
+open Common
 
 let compare s l =
   let s' = String.create (List.length l) in
