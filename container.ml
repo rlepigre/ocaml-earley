@@ -3,10 +3,10 @@ type ('a,'b) eq =
   | Y : ('a,'a) eq
   | N : ('a,'b) eq
 
-module Make(V:sig type ('a,'b) elt end) = struct
-  (** GADT to represent types in the syntax (extended when needed). *)
-  type _ tag = ..
+(** GADT to represent types in the syntax (extended when needed). *)
+type _ tag = ..
 
+module Make(V:sig type ('a,'b) elt end) = struct
   include V
 
   (** Non-uniform list (containing elements of possibly different types). *)
@@ -29,7 +29,8 @@ module Make(V:sig type ('a,'b) elt end) = struct
   (** Obtain the UID of a container. *)
   let address : 'b container -> int = fun c -> c.uid
 
-  type any = C : 'b container -> any
+  (** unboxed mandatory for weak hashtbl to work *)
+  type any = C : 'b container -> any [@@unboxed]
 
   (** Weak hash-tables of containers. *)
   module W =
