@@ -320,7 +320,7 @@ let eq_D (D {debut; rest; full; stack; acts})
     | _ -> false
 
 let idtCell = Container.create ()
-let idtEmpty : type a.(a->a) rule = (Empty Idt,idtCell)
+let idtEmpty : type a.unit -> (a->a) rule = fun () -> mkrule (Empty Idt)
 
 
 let new_name =
@@ -335,7 +335,7 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,
   | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,NonTerm(i,ref g),Idt,idtEmpty), Container.create ())
+     (Next(i,name,NonTerm(i,ref g),Idt,(idtEmpty ())), Container.create ())
 
 let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
@@ -705,7 +705,7 @@ let rec one_prediction_production
        in
        let cc = C { debut;
                     acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
-                   rest = idtEmpty; full; read = false } in
+                   rest = (idtEmpty ()); full; read = false } in
        let rule = rule a in
        let stack' = add_assq rule cc dlr in
        let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule; full = rule; read = false } in
