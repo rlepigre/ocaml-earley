@@ -48,3 +48,20 @@ val create_table : int -> 'a table
 
 (** [ address n ] return a unique id of each cell *)
 val address   : t -> int
+
+module type Param = sig
+  type 'a table
+  type 'b container
+  type ('a, 'b) elt
+  val create : unit -> 'b container
+  val create_table : int -> 'a table
+  val address : 'b container -> int
+  val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
+  val find : 'a table -> 'b container -> ('a, 'b) elt
+  val remove : 'a table -> 'b container -> unit
+  val clear : 'a table -> unit
+end
+
+
+module Make(T:sig type ('a,'b) elt end) : Param
+       with type ('a, 'b) elt = ('a,'b) T.elt

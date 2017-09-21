@@ -6,90 +6,117 @@ type ('a,'b) eq =
 (** GADT to represent types in the syntax (extended when needed). *)
 type _ tag = ..
 
-(** Non-uniform list (containing elements of possibly different types). *)
-type nu_list =
-  | Cons : 'a tag * 'a * nu_list -> nu_list
-  | Nil  :                          nu_list
+module Make(V:sig type ('a,'b) elt end) = struct
 
-(** Actual container. *)
-type container =
-  { mutable data : nu_list (** Contents of each type. *)
-  ;         uid  : int     (** Unique identifier.     *) }
+  include V
 
-(** Creation function for containers. *)
-let create : unit -> container =
-  let counter = ref (-1) in
-  fun () -> incr counter; {data = Nil; uid = !counter}
+  (** Non-uniform list (containing elements of possibly different types). *)
+  type 'b nu_list =
+    | Cons : 'a tag * ('a,'b) elt * 'b nu_list -> 'b nu_list
+    | Nil  : 'b nu_list
 
-(** Obtain the UID of a container. *)
-let address : container -> int = fun c -> c.uid
+  (** Actual container. *)
+  type 'b container =
+    { mutable data : 'b nu_list (** Contents for each table. *)
+    ;         uid  : int        (** Unique identifier.     *) }
 
-(** Weak hash-tables of containers. *)
-module W = Weak.Make(
-  struct
-    type t = container
-    let hash c = c.uid
-    let equal c1 c2 = c1 == c2 (* FIXME why not [c1.uid = c2.uid]? *)
-  end)
+  (** counter outside because of value restriction *)
+  let counter = ref (-1)
 
-(** Exported name for [container]. *)
-type t = container
+  (** Creation function for containers. *)
+  let create : unit -> 'b container =
+    fun () -> incr counter; {data = Nil; uid = !counter}
 
-(** Container table. *)
-type 'a table =
-  { tag  : 'a tag                   (** Unique tag for this table.   *)
-  ; eq   : 'b. 'b tag -> ('a,'b) eq (** Equality to the table's tag. *)
-  ; htbl : W.t                      (** Contents of the table.       *) }
+  (** Obtain the UID of a container. *)
+  let address : 'b container -> int = fun c -> c.uid
 
-(** Insert a new value associated to the given table and container. If a
-    value is already present, it is overwriten. *)
-let add : type a. a table -> container -> a -> unit = fun tab c v ->
-  if W.mem tab.htbl c then
-    begin
-      let rec fn = function
-        | Nil           -> assert false
-        | Cons(t, w, r) ->
-            match tab.eq t with
-            | Y -> Cons(t, v, r)
-            | N -> Cons(t, w, fn r)
-      in
-      c.data <- fn c.data
-    end
-  else
-    begin
-      c.data <- Cons(tab.tag, v, c.data);
-      W.add tab.htbl c
-    end
+  type any = C : 'b container -> any
 
-(* Find the value associated to the given table and container. *)
-let find : type a. a table -> container -> a =
-  let rec find : type a. a table -> nu_list -> a = fun tab c ->
+  (** Weak hash-tables of containers. *)
+  module W =
+    Weak.Make(
+        struct
+          type t = any
+          let hash (C c) = c.uid
+          let equal (C c1) (C c2) = c1.uid = c2.uid
+        end)
+
+  (** Container table. *)
+  type 'a table =
+    { tag  : 'a tag                   (** Unique tag for this table.   *)
+    ; eq   : 'b. 'b tag -> ('a,'b) eq (** Equality to the table's tag. *)
+    ; htbl : W.t                      (** Contents of the table.       *) }
+
+  (** Insert a new value associated to the given table and container. If a
+    value is already pre sent, it is overwriten. *)
+  let add : type a b. a table -> b container -> (a, b) elt -> unit =
+    fun tab c v ->
+    if W.mem tab.htbl (C c) then
+      begin
+        let rec fn = function
+          | Nil           -> assert false
+          | Cons(t, w, r) ->
+             match tab.eq t with
+             | Y -> Cons(t, v, r)
+             | N -> Cons(t, w, fn r)
+        in
+        c.data <- fn c.data
+      end
+    else
+      begin
+        c.data <- Cons(tab.tag, v, c.data);
+        W.add tab.htbl (C c)
+      end
+
+  (* Find the value associated to the given table and container. *)
+  let find : type a b. a table -> b container -> (a, b) elt =
+    let rec find : type a. a table -> b nu_list -> (a, b) elt = fun tab c ->
     match c with
     | Nil         -> raise Not_found
     | Cons(t,v,r) -> match tab.eq t with Y -> v | N -> find tab r
-  in
-  fun tab c -> find tab c.data
+                        in
+                        fun tab c -> find tab c.data
 
-(** Removes the given table from the given list. *)
-let rec remove_table : type a. a table -> nu_list -> nu_list = fun tab l ->
-  match l with
-  | Nil           -> Nil
-  | Cons(t, v, r) ->
-      match tab.eq t with
-      | Y -> r
-      | N -> Cons(t, v, remove_table tab r)
+  (** Removes the given table from the given list. *)
+  let rec remove_table : type a b. a table -> b nu_list -> b nu_list =
+    fun tab l ->
+    match l with
+    | Nil           -> Nil
+    | Cons(t, v, r) ->
+       match tab.eq t with
+       | Y -> r
+       | N -> Cons(t, v, remove_table tab r)
 
-(** Remove the given table from the given container. *)
-let remove : type a. a table -> container -> unit = fun tab c ->
-  c.data <- remove_table tab c.data;
-  W.remove tab.htbl c
+  (** Remove the given table from the given container. *)
+  let remove : type a b. a table -> b container -> unit = fun tab c ->
+    c.data <- remove_table tab c.data;
+    W.remove tab.htbl (C c)
 
-let clear : type a. a table -> unit = fun tab ->
-  W.iter (fun c -> c.data <- remove_table tab c.data) tab.htbl;
-  W.clear tab.htbl
+  let clear : type a. a table -> unit = fun tab ->
+    W.iter (fun (C c) -> c.data <- remove_table tab c.data) tab.htbl;
+    W.clear tab.htbl
 
-let create_table : type a. int -> a table = fun size ->
-  let module M = struct type _ tag += T : a tag end in
-  let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
-  let res = { tag  = M.T ; eq ; htbl = W.create size } in
-  Gc.finalise clear res; res
+  let create_table : type a. int -> a table = fun size ->
+    let module M = struct type _ tag += T : a tag end in
+    let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
+                  let res = { tag  = M.T ; eq ; htbl = W.create size } in
+                  Gc.finalise clear res; res
+end
+
+module type Param = sig
+  type 'a table
+  type 'b container
+  type ('a, 'b) elt
+  val create : unit -> 'b container
+  val create_table : int -> 'a table
+  val address : 'b container -> int
+  val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
+  val find : 'a table -> 'b container -> ('a, 'b) elt
+  val remove : 'a table -> 'b container -> unit
+  val clear : 'a table -> unit
+end
+
+include Make(struct type ('a, 'b) elt = 'a end)
+
+(** Exported name for [container]. *)
+type t = unit container
