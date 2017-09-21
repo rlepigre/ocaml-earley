@@ -243,7 +243,7 @@ module rec Types : sig
                    ; rule : 'a prerule ; cell : 'a StackContainer.container }
 
    (* type paragé par les deux types ci-dessous *)
-   and ('a,'b,'c,'r) cell = {
+   and ('i,'a,'b,'c,'r) cell = {
       debut : (position * position) option; (* position in the buffer, before and after blank
                                                None if nothing was parsed *)
       stack : ('c, 'r) stack;               (* tree of stack of what should be do after reading
@@ -254,22 +254,23 @@ module rec Types : sig
       full  : 'c rule;                      (* full rule. rest is a suffix of full.
                                                only use as a reference *)
       mutable read  : bool;                 (* to avoid lecture twice *)
-      asso  : Container.t
+      asso  : 'i
      }
 
    (* next element of an earley stack *)
    and (_,_) element =
      (* cons cell of the stack *)
-     | C : (('a -> 'b -> 'c) res pos, 'b, 'c, 'r) cell -> ('a,'r) element
+     | C : ('a EltContainer.container,
+            ('a -> 'b -> 'c) res pos, 'b, 'c, 'r) cell -> ('a,'r) element
      (* end of the stack *)
      | B : ('a -> 'b) res pos -> ('a,'b) element
 
    and ('a,'b) stack = ('a,'b) element list ref
 
    (* head of the stack *)
-   and _ final = D : (('b -> 'c) res, 'b, 'c, 'r) cell -> 'r final
+   and _ final = D : (unit, ('b -> 'c) res, 'b, 'c, 'r) cell -> 'r final
 
-   and _ prepa = E : (('b -> 'c) res pos, 'b, 'c, 'r) cell -> 'r prepa
+   and _ prepa = E : (unit, ('b -> 'c) res pos, 'b, 'c, 'r) cell -> 'r prepa
 
 (** stack in construction ... they have a hook ! *)
    type ('a,'b) pre_stack =
@@ -282,6 +283,9 @@ and StackContainer : Container.Param
                    with type ('b,'a) elt = ('a,'b) Types.pre_stack =
   Container.Make(struct type ('b,'a) elt = ('a,'b) Types.pre_stack end)
 
+and EltContainer : Container.Param
+                   with type ('b,'a) elt = ('a,'b) Types.element =
+  Container.Make(struct type ('b,'a) elt = ('a,'b) Types.element end)
 include Types
 
 (* INVARIANTS:
@@ -573,26 +577,23 @@ let add_prep : string -> 'a prepa -> 'a pre_tbl -> bool =
          Hashtbl.add elements key element;
          true
 
-type (_,_) assoc_cell = AC : ('a,'b) element * ('a, 'c) element -> ('b,'c) assoc_cell
 
-let merge_stack : type a b c. (a, b) stack -> a rule -> (b, c) element list -> c sct -> (b,c) assoc_cell Container.table -> (a, c) stack  = fun stack rule tails dlr adone ->
+let merge_stack : type a b c. (a, b) stack -> a rule -> (b, c) element list -> c sct -> c EltContainer.table -> (a, c) stack  = fun stack rule tails dlr adone ->
   let rec fn : type a. (a, b) stack -> a rule -> unit =
     fun stack rule ->
       List.iter (fun elt ->
           match (elt : (a, b) element) with
           | C ({ debut; acts; rest; full; stack; asso }) ->
              (try
-               match Container.find adone asso with
-               | AC(elt0,elt') ->
-               match elt0 === elt with Eq -> ignore(add_assq rule elt' dlr)
-                                     | _ -> assert false
+               let elt' = EltContainer.find adone asso in
+               ignore(add_assq rule elt' dlr)
               with Not_found ->
-                let stack' = find_assq full dlr in
+               let stack' = find_assq full dlr in
                let elt'  = C { debut; acts; rest; full; stack=stack'; read=false
-                               ; asso=Container.create () } in
-               Container.add adone asso (AC (elt, elt'));
-                fn stack full;
-               ignore(add_assq rule elt' dlr))
+                               ; asso=EltContainer.create () } in
+               EltContainer.add adone asso elt';
+               ignore(add_assq rule elt' dlr);
+               fn stack full)
           | B (Simple Nil) ->
              List.iter (fun elt -> ignore (add_assq rule elt dlr)) tails
           | B _ -> assert false
@@ -602,49 +603,8 @@ let merge_stack : type a b c. (a, b) stack -> a rule -> (b, c) element list -> c
   find_assq rule dlr
 
 
-(*
 (* ajoute un élément dans la table et retourne true si il est nouveau *)
-let add_pmerge : type a b c.string -> c prepa -> a pre_tbl -> (c,a) element list -> a sct -> (c,a) assoc_cell Container.table -> a prepa option =
-  fun info element elements els dlr adone ->
-    let key = elt_pkey element in
-    try
-      let e = Hashtbl.find elements key in
-      (match e, element with
-        E {debut=d; rest; full; stack; acts},
-        E { debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts' }
-        ->
-          assert(d' = None);
-(*         if !debug_lvl > 2 then Printf.eprintf "comparing %s %a %a %d %d %b %b %b %a %a\n%!"
-            info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
-           (eq rest r') (eq full fu') print_res acts print_res acts';*)
-        match
-           eq_opos d d', rest === r', full === fu' with
-         | true, Eq, Eq ->
-            let stack' = merge_stack stack' fu' els dlr adone in
-            if not (eq_rpos acts acts') && !warn_merge then
-              Printf.eprintf "\027[31mmerging (2) %a\027[0m\n%!"
-                             print_prepa element;
-
-            assert(stack == stack' ||
-                     (Printf.eprintf "\027[31mshould be the same stack %s %a === %a\027[0m\n%!"
-                                     info print_prepa e print_prepa element; false));
-            None
-         | _ -> assert false)
-    with Not_found ->
-         let element = match element with
-         | E {debut; rest; full; stack; acts } ->
-            assert(debut=None);
-            let stack = merge_stack stack full els dlr adone in
-            E {debut; rest; full; stack; acts; read = false; asso = Container.create ()}
-         in
-         if !debug_lvl > 1 then
-           Printf.eprintf "add(M) %s %a\n%!" info print_prepa element;
-         Hashtbl.add elements key element;
-         Some(element)
- *)
-
-(* ajoute un élément dans la table et retourne true si il est nouveau *)
-let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tbl -> (c,a) element list -> a sct -> (c,a) assoc_cell Container.table -> a final option =
+let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tbl -> (c,a) element list -> a sct -> a EltContainer.table -> a final option =
   fun info pos_final pos_ab element elements els dlr adone ->
     let key = elt_pkey element in
     try
@@ -680,7 +640,7 @@ let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tb
             assert(debut=None);
               let acts = apply_pos acts pos_final pos_ab in
               let stack = merge_stack stack full els dlr adone in
-              D {debut; rest; full; stack; acts; read = false; asso = Container.create ()}
+              D {debut; rest; full; stack; acts; read = false; asso = ()}
          in
          if !debug_lvl > 1 then
            Printf.eprintf "add(M) %s %a %d %d\n%!" info print_final element
@@ -757,27 +717,10 @@ let rec advanced_prediction_production : type a. a rule list -> a prepa list =
      if !debug_lvl > 1 then Printf.eprintf "advanced predict/product for %a\n%!" print_prepa element0;
      match rest.rule with
      | Next(info,_,(NonTerm(_,{contents = rules},prep)),f,rest2) ->
-        (*
-        (try
-           let celt = Obj.magic (Container.find pdone asso) in
-        let prep = match !prep with
-          | None -> if !debug_lvl > 1 then Printf.eprintf "start advance predict/product\n%!";
-                    let p = advanced_prediction_production rules pdone in
-                    prep := Some p; p
-          | Some p -> p
-        in
-        let adone = Container.create_table () in
-        List.iter (fun elt ->
-            let b = add_pmerge "EP" elt elements [celt] dlr adone in
-            match b with
-             | Some elt -> fn elt elements dlr
-             | None -> ()) prep;
-        Container.reset adone;
-        with Not_found ->*)
-        let c = C {rest=rest2; acts=combine1p acts f; full; debut; stack; read = false; asso = Container.create ()} in
+        let c = C {rest=rest2; acts=combine1p acts f; full; debut; stack; read = false; asso = EltContainer.create ()} in
         List.iter (fun rule ->
             let stack = add_assq rule c dlr in
-            let nouveau = E { debut=None; acts = Simple Nil; stack; rest = rule; full = rule; read = false; asso = Container.create () } in
+            let nouveau = E { debut=None; acts = Simple Nil; stack; rest = rule; full = rule; read = false; asso = () } in
             let b = add_prep "EP" nouveau elements in
             if b then fn nouveau elements dlr) rules
 
@@ -793,10 +736,10 @@ let rec advanced_prediction_production : type a. a rule list -> a prepa list =
           in
           let cc = C { debut;
                        acts = WithPos (fun b1 p1 b2 p2 -> (Sin (fun b f -> f (eval (apply (apply_pos acts (b1,p1) (b2,p2)) (Sin (fun _ -> b))))))); stack;
-                       rest = idtEmpty (); full; read = false; asso = Container.create () } in
+                       rest = idtEmpty (); full; read = false; asso = EltContainer.create () } in
           let rule = rule a in
           let stack' = add_assq rule cc dlr in
-          let nouveau = E {debut; acts = Simple Nil; stack = stack'; rest = rule; full = rule; read = false; asso = Container.create () } in
+          let nouveau = E {debut; acts = Simple Nil; stack = stack'; rest = rule; full = rule; read = false; asso = () } in
           let b = add_prep "EP" nouveau elements in
           if b then fn nouveau elements dlr
         with Error -> ())
@@ -814,7 +757,7 @@ let rec advanced_prediction_production : type a. a rule list -> a prepa list =
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a\n%!" print_prepa element0;
                  let acts = ApplyRes2(acts, x) in
-                 let nouveau = E { debut; acts; stack=els'; rest; full; read = false; asso = Container.create () } in
+                 let nouveau = E { debut; acts; stack=els'; rest; full; read = false; asso = () } in
                  let b = add_prep "EC" nouveau elements in
                  if b then fn nouveau elements dlr
                end
@@ -833,7 +776,7 @@ let rec advanced_prediction_production : type a. a rule list -> a prepa list =
     List.iter (fun rule ->
         let stack = add_assq rule final_elt dlr in
         let elt = E { debut=None; acts=Simple Nil; stack; rest=rule; full=rule;
-                      read=false; asso = Container.create () } in
+                      read=false; asso = () } in
         let b = add_prep "EI" elt elements in
         if b then fn elt elements dlr) rules;
     let ls = ref [] in
@@ -860,7 +803,7 @@ let rec advanced_prediction_production : type a. a rule list -> a prepa list =
               | [] -> assert false
               | B (Simple Nil)::_ ->
                  let stack = ref [final_elt] in
-                 E { debut=None; rest; full; acts; stack; read= false; asso = Container.create () }
+                 E { debut=None; rest; full; acts; stack; read= false; asso = () }
               | _::l -> fn rest full acts l
             in
             fn rest full acts !stack
@@ -894,7 +837,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns(Sin a,acts); rest; full; read = false; asso = Container.create ()})
+               (D {debut; stack; acts = cns(Sin a,acts); rest; full; read = false; asso = ()})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -912,7 +855,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns(Sin a,acts); rest; full; read = false; asso = Container.create ()})
+               (D {debut; stack; acts = cns(Sin a,acts); rest; full; read = false; asso = ()})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -926,7 +869,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
              if b then begin
                  if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
                  let x = apply_pos g j j a in
-                 let state = D {debut; stack; rest; full; acts = cns(Sin x,acts); read = false; asso = Container.create ()} in
+                 let state = D {debut; stack; rest; full; acts = cns(Sin x,acts); read = false; asso = ()} in
                  tbl := insert_buf (fst pos) (snd pos) state !tbl
                end
            with Error -> ())
@@ -975,7 +918,7 @@ let rec one_prediction_production
                          good c (rule_info rest)) prep
         in
         let f = FixBegin(f, pos_ab) in
-        let tails = match rest2.rule, debut with
+        let tails = if prep = [] then [] else match rest2.rule, debut with
         | Empty (g), Some(_,pos') when false -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
@@ -986,7 +929,7 @@ let rec one_prediction_production
               | C {rest=rest2; acts=acts'; full; debut=d; stack} ->
                  let debut = first_pos d debut in
                  C {rest=rest2; acts=combine2 acts acts' g f; full
-                    ; debut; stack; read = false; asso = Container.create ()}::acc
+                    ; debut; stack; read = false; asso = EltContainer.create ()}::acc
               | B acts' ->
                  B (combine2 acts acts' g f)::acc
             with Error -> acc
@@ -994,16 +937,16 @@ let rec one_prediction_production
           List.fold_left complete [] !stack; (* NOTE: should use hook_assq for debut = None *)
         | _ ->
            [C {rest=rest2; acts=combine1 acts f; full; debut; stack
-               ; read = false; asso = Container.create ()}]
+               ; read = false; asso = EltContainer.create ()}]
         in
-        let adone  = Container.create_table 101 in
+        let adone  = EltContainer.create_table 101 in
         List.iter (fun elt ->
             let b = add_merge "MP" pos pos_ab elt elements tails dlr adone in
             match b with
             | Some elt -> one_prediction_production elt elements dlr
                                                     pos pos_ab c
             | None -> ()) prep;
-        Container.clear adone;
+        EltContainer.clear adone;
      | Dep(rule) ->
         r.read <- true;
         (try
@@ -1016,11 +959,11 @@ let rec one_prediction_production
            in
            let cc = C { debut;
                         acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
-                        rest = idtEmpty (); full; read = false; asso = Container.create () } in
+                        rest = idtEmpty (); full; read = false; asso = EltContainer.create () } in
            let rule = rule a in
            let stack' = add_assq rule cc dlr in
            let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule
-                            ; full = rule; read = false; asso = Container.create () }
+                            ; full = rule; read = false; asso = () }
            in
            let b = add "P" pos pos_ab c nouveau elements in
            if b then one_prediction_production nouveau elements dlr pos pos_ab c
@@ -1049,7 +992,7 @@ let rec one_prediction_production
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes %a\n%!" print_res acts;
                  let nouveau = D {debut; acts; stack=els'; rest; full
-                                 ; read = false; asso = Container.create () } in
+                                 ; read = false; asso = () } in
                  let b = add "C" pos pos_ab c nouveau elements in
                  if b then one_prediction_production nouveau elements dlr pos pos_ab c
                end
@@ -1075,7 +1018,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let final_elt = B (Simple Nil) in
     let s0 : (a, a) stack = ref [final_elt] in
     let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0
-                 ; read = false; asso = Container.create () } in
+                 ; read = false; asso = () } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let last_success = ref [] in
