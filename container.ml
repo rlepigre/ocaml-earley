@@ -29,16 +29,20 @@ module Make(V:sig type ('a,'b) elt end) = struct
   (** Obtain the UID of a container. *)
   let address : 'b container -> int = fun c -> c.uid
 
-  (** unboxed mandatory for weak hashtbl to work *)
-  type any = C : 'b container -> any [@@unboxed]
+  (** unboxed mandatory for weak hashtbl to work, 4.04.0 only
+      we use Obj until 4.04.0 is more spreaded *)
+  (* type any = C : 'b container -> any [@@unboxed] *)
+  type empty = { f : 'a.'a }
+  type any = empty container
+  let cast : 'b container -> any = Obj.magic
 
   (** Weak hash-tables of containers. *)
   module W =
     Weak.Make(
         struct
           type t = any
-          let hash (C c) = c.uid
-          let equal (C c1) (C c2) = c1.uid = c2.uid
+          let hash c = c.uid
+          let equal c1 c2 = c1.uid = c2.uid
         end)
 
   (** Container table. *)
@@ -51,7 +55,7 @@ module Make(V:sig type ('a,'b) elt end) = struct
     value is already pre sent, it is overwriten. *)
   let add : type a b. a table -> b container -> (a, b) elt -> unit =
     fun tab c v ->
-    if W.mem tab.htbl (C c) then
+    if W.mem tab.htbl (cast c) then
       begin
         let rec fn = function
           | Nil           -> assert false
@@ -65,7 +69,7 @@ module Make(V:sig type ('a,'b) elt end) = struct
     else
       begin
         c.data <- Cons(tab.tag, v, c.data);
-        W.add tab.htbl (C c)
+        W.add tab.htbl (cast c)
       end
 
   (* Find the value associated to the given table and container. *)
@@ -90,10 +94,10 @@ module Make(V:sig type ('a,'b) elt end) = struct
   (** Remove the given table from the given container. *)
   let remove : type a b. a table -> b container -> unit = fun tab c ->
     c.data <- remove_table tab c.data;
-    W.remove tab.htbl (C c)
+    W.remove tab.htbl (cast c)
 
   let clear : type a. a table -> unit = fun tab ->
-    W.iter (fun (C c) -> c.data <- remove_table tab c.data) tab.htbl;
+    W.iter (fun c -> c.data <- remove_table tab c.data) tab.htbl;
     W.clear tab.htbl
 
   let create_table : type a. int -> a table = fun size ->

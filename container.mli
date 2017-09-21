@@ -11,6 +11,44 @@
     a value of type [ a Container.table ]. The with [ Container.add ]
     and [ Container.find ], you can store value in your field of
     type [ Container.t ] }
+
+    More precisely, consider the following type for oriented graphs:
+{|
+    type node = { name: string;
+                  mutable next: node list;
+                  ptrs : Container.t }
+    type graph = node list (* at least on node per component *)
+|}
+    If you want to traverse the graphe, you create a table
+    to associate a boolean to each note:
+{|
+    let iter graph f =
+      let visited : bool Container.table = Container.create_table 101 in
+      ....
+      (* the table is automatically freed when visited is collected *)
+|}
+    If you want to compute the distance between two nodes:
+{|
+    let distance a b =
+      let distance_to_a : int Container.table = Container.create_table 101 in
+      ....
+|}
+
+    The functorial interface is useful when you have a parametric
+    type.  Considier a record type [ 'a t ] to which you want to
+    associate values of type [ ('b,'a) v ]. It is enough for this to
+    call the functor with
+
+    [ module M = Constainer.Make(struct type ('a,'b) v end) ]
+
+    and have a field of type [ 'a M.container ] inside your record.
+    Then, you use the type [ 'b M.table ] when you want to start to
+    associate values of type [ ('a,'b) v ] to the record. The same
+    module [ M ] can be used for many types [ 'b ].
+
+    Remark: the non funtorial version is just defined by:
+      [ Container.Make(struct type ('a, 'b) elt = 'a end ]
+
  *)
 
 (** Type of a container cell *)
