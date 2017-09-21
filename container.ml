@@ -3,10 +3,9 @@ type ('a,'b) eq =
   | Y : ('a,'a) eq
   | N : ('a,'b) eq
 
-(** GADT to represent types in the syntax (extended when needed). *)
-type _ tag = ..
-
 module Make(V:sig type ('a,'b) elt end) = struct
+  (** GADT to represent types in the syntax (extended when needed). *)
+  type _ tag = ..
 
   include V
 
@@ -71,11 +70,11 @@ module Make(V:sig type ('a,'b) elt end) = struct
   (* Find the value associated to the given table and container. *)
   let find : type a b. a table -> b container -> (a, b) elt =
     let rec find : type a. a table -> b nu_list -> (a, b) elt = fun tab c ->
-    match c with
-    | Nil         -> raise Not_found
-    | Cons(t,v,r) -> match tab.eq t with Y -> v | N -> find tab r
-                        in
-                        fun tab c -> find tab c.data
+      match c with
+      | Nil         -> raise Not_found
+      | Cons(t,v,r) -> match tab.eq t with Y -> v | N -> find tab r
+    in
+    fun tab c -> find tab c.data
 
   (** Removes the given table from the given list. *)
   let rec remove_table : type a b. a table -> b nu_list -> b nu_list =
@@ -99,8 +98,9 @@ module Make(V:sig type ('a,'b) elt end) = struct
   let create_table : type a. int -> a table = fun size ->
     let module M = struct type _ tag += T : a tag end in
     let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
-                  let res = { tag  = M.T ; eq ; htbl = W.create size } in
-                  Gc.finalise clear res; res
+    let res = { tag  = M.T ; eq ; htbl = W.create size } in
+    Gc.finalise clear res;
+    res
 end
 
 module type Param = sig
