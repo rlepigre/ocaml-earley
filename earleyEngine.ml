@@ -225,7 +225,7 @@ module rec Types : sig
      (** terminal symbol just read the input buffer *)
      | Test : Charset.t * 'a test -> 'a symbol
      (** test *)
-     | NonTerm : info Fixpoint.t * 'a rule list ref * 'a prepa list option ref -> 'a symbol
+     | NonTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
    (** non terminal trough a reference to define recursive rule lists *)
 
    (** BNF rule. *)
@@ -254,7 +254,6 @@ module rec Types : sig
       full  : 'c rule;                      (* full rule. rest is a suffix of full.
                                                only use as a reference *)
       mutable read  : bool;                 (* to avoid lecture twice *)
-      asso  : Container.t
      }
 
    (* next element of an earley stack *)
@@ -268,8 +267,6 @@ module rec Types : sig
 
    (* head of the stack *)
    and _ final = D : (('b -> 'c) res, 'b, 'c, 'r) cell -> 'r final
-
-   and _ prepa = E : (('b -> 'c) res pos, 'b, 'c, 'r) cell -> 'r prepa
 
 (** stack in construction ... they have a hook ! *)
    type ('a,'b) pre_stack =
@@ -335,7 +332,7 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule = fun ?name (i,
   | [r] when name = None -> r
   | _ ->
      let name = match name with None -> new_name () | Some n -> n in
-     (Next(i,name,NonTerm(i,ref g),Idt,(idtEmpty ())), Container.create ())
+     mkrule (Next(i,name,NonTerm(i,ref g),Idt,(idtEmpty ())))
 
 let iter_rules : type a.(a rule -> unit) -> a rule list -> unit = List.iter
 
@@ -344,11 +341,9 @@ let force = Fixpoint.force
 let empty = Fixpoint.from_val (true, Charset.empty)
 let any = Fixpoint.from_val (true, Charset.full)
 
-let pre_rule (x,_) = x
-
 (* managment of info = accept empty + charset accepted as first char *)
 let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
-  match pre_rule r with
+  match r.rule with
   | Next(i,_,_,_,_) -> i
   | Empty _ -> empty
   | Dep(_) -> any
@@ -360,7 +355,7 @@ let symbol_info:type a.a symbol -> info Fixpoint.t  = function
 
 let compose_info i1 i2 =
   let i1 = symbol_info i1 in
-  match pre_rule i2 with
+  match i2.rule with
     Empty _ -> i1
   | _ ->
      let i2 = rule_info i2 in
@@ -377,7 +372,7 @@ let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
 
 (* affichage *)
 let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s %a" name print_rule rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -388,7 +383,7 @@ let print_pos ch (buf, pos) =
 let print_final ch (D {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -400,7 +395,7 @@ let print_final ch (D {rest; full}) =
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
-    match pre_rule rule with
+    match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
     (*    | Dep _ -> Printf.fprintf ch "DEP "*)
     | Dep _ -> Printf.fprintf ch "DEP"
@@ -441,11 +436,11 @@ let eq_C c1 c2 = eq c1 c2 ||
     (C {debut; rest; full; stack; acts},
      C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
     begin
-      match eq_opos debut d', eq_rule rest r', eq_rule full fu' with
-      | true, Eq, Eq -> assert (eq stack stack'); eq_rpos acts acts'
+      match eq_pos debut d', eq_rule rest r', eq_rule full fu' with
+      | true, Eq, Eq -> assert (eq stack stack'); eq_closure acts acts'
       | _ -> false
     end
-  | (B acts, B acts') -> eq_rpos acts acts'
+  | (B acts, B acts') -> eq_closure acts acts'
   | _ -> false
 
 (* ajout d'un element dans une pile *)
@@ -589,7 +584,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
     let tbl = ref tbl in
     Hashtbl.iter (fun _ l -> match l with
     | D ({debut; stack;acts; rest; full; read} as r) as element ->
-       if not read then match pre_rule rest with
+       if not read then match rest.rule with
        | Next(_,_,Term (_,f),g,rest) ->
           (try
              r.read <- true;
@@ -662,7 +657,7 @@ let rec one_prediction_production
    | D ({debut; acts; stack; rest; full; read} as r) ->
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
-     if not read then match pre_rule rest with
+     if not read then match rest.rule with
      | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
         r.read <- true;
         let rules = List.filter (fun rule ->
@@ -674,7 +669,7 @@ let rec one_prediction_production
               let b = add "P" pos pos_ab c nouveau elements in
               if b then  one_prediction_production nouveau elements dlr pos pos_ab c) rules;
         let f = fix_begin f pos_ab in
-        begin match pre_rule rest2, debut with
+        begin match rest2.rule, debut with
         | Empty (g), Some(_,pos') -> (* NOTE: right recursion optim is bad (and
                                          may loop) for rule with only one non
                                          terminal *)
@@ -705,7 +700,7 @@ let rec one_prediction_production
        in
        let cc = C { debut;
                     acts = Simple (Sin (fun b f -> f (eval (apply acts (Sin (fun _ -> b)))))); stack;
-                   rest = (idtEmpty ()); full; read = false } in
+                   rest = idtEmpty (); full; read = false } in
        let rule = rule a in
        let stack' = add_assq rule cc dlr in
        let nouveau = D {debut; acts = Nil; stack = stack'; rest = rule; full = rule; read = false } in
@@ -759,8 +754,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let r0 : a rule = grammar_to_rule main in
     let final_elt = B (Simple Nil) in
     let s0 : (a, a) stack = ref [final_elt] in
-    let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0
-                 ; read = false; asso = Container.create () } in
+    let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0; read = false } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let last_success = ref [] in
@@ -783,7 +777,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       if internal then begin
         try
           let found = ref false in
-          List.iter (function D {stack=s1; rest=(Empty f,_); acts; full=r1} as elt ->
+          List.iter (function D {stack=s1; rest={rule=Empty f}; acts; full=r1} as elt ->
             if eq r0 r1 then (
               if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
               found := true;
@@ -834,7 +828,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest=(Empty f,_); acts; full=r1} :: els when eq r0 r1 ->
+      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els when eq r0 r1 ->
          (try
            let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
            let gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
