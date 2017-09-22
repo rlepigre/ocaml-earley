@@ -63,7 +63,7 @@ let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buf
 
 let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
   let j = Fixpoint.from_val (accept_empty,set) in
-  (j, [(Next(j,name,Term (set, s),Idt,idtEmpty),Container.create ())])
+  (j, [mkrule (Next(j,name,Term (set, s),Idt,idtEmpty ()))])
 
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
@@ -80,17 +80,17 @@ let greedy_solo =
         Hashtbl.replace cache key l;
         r
     in
-    (i, [(Next(i,name,Greedy(i,s),Idt,idtEmpty),Container.create ())])
+    (i, [mkrule (Next(i,name,Greedy(i,s),Idt,idtEmpty ()))])
 
 let test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty),Container.create ())])
+  (j, [mkrule (Next(j,name,Test (set, (fun _ _ -> f)),Idt,idtEmpty ()))])
 
 let blank_test = fun ?(name=new_name ()) set f ->
   let i = (true,set) in
   let j = Fixpoint.from_val i in
-  (j, [(Next(j,name,Test (set, f),Idt,idtEmpty),Container.create ())])
+  (j, [mkrule (Next(j,name,Test (set, f),Idt,idtEmpty ()))])
 
 let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
@@ -102,11 +102,11 @@ let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
 
 let nonterm (i,s) = NonTerm(i,ref s)
 
-let next_aux name s f r = (Next(compose_info s r, name, s,f,r), Container.create ())
+let next_aux name s f r = mkrule (Next(compose_info s r, name, s,f,r))
 
 let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
   fun s f r -> match snd s with
-  | [(Next(i,name,s0,g,(Empty h,_)),_)] ->
+  | [{rule=Next(i,name,s0,g,{rule=Empty h})}] ->
      next_aux name s0 (compose3 f h g) r
   | _ -> next_aux (new_name ()) (nonterm s) f r
 
@@ -123,17 +123,17 @@ let give_name name (i,_ as g) =
   (i, [grammar_to_rule ~name g])
 
 let apply : type a b. (a -> b) -> a grammar -> b grammar = fun f l1 ->
-  mk_grammar [next l1 (Simple f) idtEmpty]
+  mk_grammar [next l1 (Simple f) (idtEmpty ())]
 
 let apply_position : type a b. (a -> buffer -> int -> buffer -> int -> b) -> a grammar -> b grammar = fun f l1 ->
-  mk_grammar [next l1 Idt (Empty(WithPos(fun b p b' p' a -> f a b p b' p')),Container.create ())]
+  mk_grammar [next l1 Idt (mkrule (Empty(WithPos(fun b p b' p' a -> f a b p b' p'))))]
 
 let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
-  = fun l1 l2 f -> mk_grammar [next l1 Idt (next l2 (Simple (fun b a -> f a b)) idtEmpty)]
+  = fun l1 l2 f -> mk_grammar [next l1 Idt (next l2 (Simple (fun b a -> f a b)) (idtEmpty ()))]
 
 let sequence_position : 'a grammar -> 'b grammar -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c) -> 'c grammar
    = fun l1 l2 f ->
-    mk_grammar [next l1 Idt (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),Container.create ()))]
+    mk_grammar [next l1 Idt (next l2 Idt (mkrule (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')))))]
 
 let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
   fun g blank buf ->
@@ -185,7 +185,7 @@ let error_message : (unit -> string) -> 'a grammar
       add_errmsg errpos buf pos msg;
       raise Error
     in
-    (j, [(Next(j,"error",Greedy (j, fn),Idt,idtEmpty),Container.create ())])
+    (j, [mkrule (Next(j,"error",Greedy (j, fn),Idt,idtEmpty ()))])
 
 let unset : string -> 'a grammar
   = fun msg ->
@@ -198,20 +198,18 @@ let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let ptr = ref g in
   let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [(Next(j,name,NonTerm (j, ptr),Idt, idtEmpty),Container.create ())]
+  mk_grammar [mkrule (Next(j,name,NonTerm (j, ptr),Idt, idtEmpty ()))]
 
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
   match snd p1 with
-  | [(Next(_,name,NonTerm(i,ptr),f,e),_)] ->
-     (match f === Idt, e === idtEmpty with
-     | Eq, Eq -> ptr := snd p2; Fixpoint.update i;
-     | _ -> invalid_arg "set_grammar")
+  | [{rule=Next(_,name,NonTerm(i,ptr),Idt,{rule=Empty Idt})}] ->
+     ptr := snd p2; Fixpoint.update i;
   (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
   | _ -> invalid_arg "set_grammar"
 
 let grammar_name : type a.a grammar -> string = fun p1 ->
   match snd p1 with
-  | [(Next(_,name,_,_,(Empty _,_)),_)] -> name
+  | [{rule=Next(_,name,_,_,{rule=Empty _})}] -> name
   | _ -> new_name ()
 
 let char : ?name:string -> char -> 'a -> 'a grammar
@@ -286,7 +284,7 @@ let string : ?name:string -> string -> 'a -> 'a grammar
     solo ~name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
 
 let option : 'a -> 'a grammar -> 'a grammar
-  = fun a (_,l) -> mk_grammar ((Empty (Simple a),Container.create())::l)
+  = fun a (_,l) -> mk_grammar (mkrule (Empty (Simple a))::l)
 
 let regexp : ?name:string -> string -> string array grammar =
   fun ?name str ->
@@ -312,7 +310,7 @@ let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> '
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
   = fun fn set accept_empty name -> solo ~name ~accept_empty set fn
 
-let empty : 'a -> 'a grammar = fun a -> (empty,[(Empty (Simple a), Container.create ())])
+let empty : 'a -> 'a grammar = fun a -> (empty,[mkrule (Empty (Simple a))])
 
 let sequence3 : 'a grammar -> 'b grammar -> 'c grammar -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
   = fun l1 l2 l3 f ->
@@ -327,12 +325,12 @@ let fsequence_position : 'a grammar -> ('a -> buffer -> int -> buffer -> int -> 
 
 let conditional_sequence : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> 'd) -> 'd grammar
   = fun l1 cond l2 f ->
-    mk_grammar [next l1 (Simple cond) (next l2 (Simple (fun b a -> f a b)) idtEmpty)]
+    mk_grammar [next l1 (Simple cond) (next l2 (Simple (fun b a -> f a b)) (idtEmpty ()))]
 
 let conditional_sequence_position : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> buffer -> int -> buffer -> int -> 'd) -> 'd grammar
    = fun l1 cond l2 f ->
      mk_grammar [next l1 (Simple cond)
-                  (next l2 Idt (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')),Container.create ()))]
+                  (next l2 Idt (mkrule (Empty(WithPos(fun b p b' p' a' a -> f a a' b p b' p')))))]
 
 let conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c grammar
   = fun l1 cond l2 ->
@@ -346,16 +344,16 @@ let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
     let res = declare_grammar "fixpoint" in
     let _ = set_grammar res
-      (mk_grammar [(Empty(Simple a),Container.create ());
-       next res Idt (next f1 Idt idtEmpty)]) in
+      (mk_grammar [mkrule (Empty(Simple a));
+       next res Idt (next f1 Idt (idtEmpty ()))]) in
     res
 
 let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
     let res = declare_grammar "fixpoint" in
     let _ = set_grammar res
-      (mk_grammar [next f1 (Simple(fun f -> f a)) idtEmpty;
-       next res Idt (next f1 Idt idtEmpty)]) in
+      (mk_grammar [next f1 (Simple(fun f -> f a)) (idtEmpty ());
+       next res Idt (next f1 Idt (idtEmpty ()))]) in
     res
 
 let delim g = g
@@ -418,7 +416,7 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
-                               (Simple (fun _ a -> a)) idtEmpty)] in
+                               (Simple (fun _ a -> a)) (idtEmpty ()))] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
       let (a,buf,pos) = internal_parse_buffer errpos l1 blank1
@@ -432,7 +430,7 @@ let greedy : 'a grammar -> 'a grammar
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
-                                                   (Simple (fun _ a -> a)) idtEmpty)] in
+                                                   (Simple (fun _ a -> a)) (idtEmpty ()))] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
     let fn errpos blank buf pos _ _ =
       let (a,buf,pos) = internal_parse_buffer errpos l1 blank buf pos in
@@ -445,12 +443,12 @@ let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
 let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
   = fun l1 f2 ->
     let tbl = EqHashtbl.create ~equal:closure_eq 31 in
-          mk_grammar [next l1 Idt (Dep (fun a ->
+          mk_grammar [next l1 Idt (mkrule (Dep (fun a ->
               try EqHashtbl.find tbl a
               with Not_found ->
                 let res = grammar_to_rule (f2 a) in
                 EqHashtbl.add tbl a res; res
-          ), Container.create ())]
+          )))]
 
 let iter : 'a grammar grammar -> 'a grammar
   = fun g -> dependent_sequence g (fun x -> x)
