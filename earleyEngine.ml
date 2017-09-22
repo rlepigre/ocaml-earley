@@ -641,7 +641,7 @@ let add_merge : type a b c.string -> position -> position -> c prepa -> a pos_tb
     with Not_found ->
        try
          let element = match element with
-         | E {debut; rest; full; stack; acts } ->
+         | E {debut; rest; full; stack; acts} ->
             assert(debut=None);
               let acts = apply_pos acts pos_final pos_ab in
               let stack = merge_stack stack full els dlr adone in
@@ -1025,13 +1025,16 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       mkrule (Next(info,"FINAL",NonTerm(info,ref g,ref None),Idt,r0t))
     in
     let final_elt = B (Simple Nil) in
+    let final_key = (buffer_uid buf0, pos0,
+                    StackContainer.address r0.cell,
+                    StackContainer.address r0t.cell) in
     let dlr = StackContainer.create_table 101 in
     let s0 = add_assq r0 final_elt dlr in
     let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0
                  ; read = false; asso = () } in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
-    let last_success = ref [] in
+    let last_success = ref None in
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
@@ -1047,20 +1050,13 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       List.iter (fun s ->
         if add msg (!buf,!pos) (!buf',!pos') c s elements then
           one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c) l;
-      if internal then begin
-        try
-          let found = ref false in
-          List.iter (function D {stack=s1; rest={rule = Empty f}; acts; full=r1} as elt ->
-            if eq r0 r1 then (
-              if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
-              found := true;
-              assert (!last_success <> []);
-              let (pos, l) = List.hd !last_success in
-              last_success := (pos, (elt :: l)) :: List.tl !last_success)
-          | _ -> ())
-            l
-        with Not_found -> ()
-      end;
+      if internal then
+        begin
+          try
+            let success = Hashtbl.find elements final_key in
+            last_success := Some(!buf,!pos,!buf',!pos',success)
+          with Not_found -> ()
+        end;
     in
 
     prediction_production true "I" [init];
@@ -1098,17 +1094,15 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
         let msgs = List.map (fun f -> f ()) errpos.messages in
         raise (Parse_error (buf, pos, msgs))
     in
-    let c,_,_ = Input.read !buf' !pos' in
-    if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d %C
-)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c;
-    let rec fn : type a.a final list -> a = function
-      | [] -> raise Not_found
-      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els ->
+    if !debug_lvl > 0 then
+      Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!"
+                     parse_id (line_num !buf) (line_num !buf') !pos !pos';
+    let rec fn : type a.a final -> a = function
+      D {stack=s1; rest={rule=Empty f}; acts; full=r1} ->
          (match eq_rule r0 r1 with Eq ->
-         (try
            let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
-           let gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
-            fun cont x l ->
+           let gn : type a b.b res -> (b,a) element list -> a =
+            fun x l ->
               let rec hn =
                 function
                 | B (ls)::l ->
@@ -1116,42 +1110,31 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
                     with Error -> hn l)
                 | C _:: l ->
                    hn l
-                | [] -> cont ()
+                | [] -> parse_error ()
               in
               hn l
            in
-           gn (fun () -> fn els) x !s1
-           with Error -> fn els)
-         | Neq -> fn els)
-      | _ :: els -> fn els
+           gn x !s1
+         | Neq -> assert false)
+      | _ -> parse_error ()
     in
     let a, buf, pos as result =
       if internal then
-        let rec kn = function
-          | [] -> parse_error ()
-          | ((b,p,b',p'), elts) :: rest ->
-             try
-               let a = fn elts in
-               if blank_after then (a, b', p') else (a, b, p)
-             with
-               Not_found -> kn rest
-        in kn !last_success
+        begin
+          match !last_success with
+          | None -> raise Error
+          | Some(b,p,b',p',elt) ->
+             let a = fn elt in
+             if blank_after then (a, b', p') else (a, b, p)
+        end
       else
-        try
-          let res = ref None in
-          let gn _ elt =
-            match elt with
-            | D { debut = Some((buf, pos), _) } when buffer_equal buf buf0 && pos = pos0 ->
-               (try res := Some (fn [elt]) with Not_found -> ())
-            | _ -> ()
+        begin
+          let final_elt = try Hashtbl.find elements final_key
+                          with Not_found -> parse_error ()
           in
-          Hashtbl.iter gn elements;
-          let a = match !res with
-            | None -> raise Not_found
-            | Some a -> a
-          in
+          let a = fn final_elt in
           if blank_after then (a, !buf', !pos') else (a, !buf, !pos)
-        with Not_found -> parse_error ()
+        end
     in
     if !debug_lvl > 0 then
       Printf.eprintf "exit parsing %d at line = %d, col = %d\n%!" parse_id (line_num buf) pos;
