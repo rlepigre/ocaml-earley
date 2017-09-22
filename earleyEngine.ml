@@ -380,7 +380,11 @@ let rec print_rule : type a.out_channel -> a rule -> unit = fun ch rule ->
 let print_pos ch (buf, pos) =
   Printf.fprintf ch "%d:%d" (line_num buf) pos
 
-let print_final ch (D {rest; full}) =
+let print_opos ch = function
+  | None -> Printf.fprintf ch "#"
+  | Some (p,p') -> Printf.fprintf ch "%a-%a" print_pos p print_pos p'
+
+let print_final ch (D {debut; rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
     if eq rule rest then Printf.fprintf ch "* " ;
     match rule.rule with
@@ -388,6 +392,7 @@ let print_final ch (D {rest; full}) =
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
   in
+  Printf.fprintf ch "%a => " print_opos debut;
   fn full;
   let (ae,set) = force (rule_info rest) in
   if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
@@ -751,17 +756,22 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
     let elements : a pos_tbl = Hashtbl.create 31 in
-    let r0 : a rule = grammar_to_rule main in
+    let r0t = idtEmpty () in
+    let (info, g) = main in
+    let r0 : a rule =
+      mkrule (Next(info,"FINAL",NonTerm(info,ref g),Idt,r0t))
+    in
     let final_elt = B (Simple Nil) in
-    let s0 : (a, a) stack = ref [final_elt] in
-    let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0; read = false } in
+    let dlr = StackContainer.create_table 101 in
+    let s0 = add_assq r0 final_elt dlr in
+    let init = D {debut=None; acts = Nil; stack=s0; rest=r0; full=r0
+                 ; read = false} in
     let pos = ref pos0 and buf = ref buf0 in
     let pos' = ref pos0 and buf' = ref buf0 in
     let last_success = ref [] in
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
-    let dlr = StackContainer.create_table 101 in
     let prediction_production advance msg l =
       if advance then begin
           Hashtbl.clear elements;
@@ -825,10 +835,13 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
         let msgs = List.map (fun f -> f ()) errpos.messages in
         raise (Parse_error (buf, pos, msgs))
     in
-    if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
+    let c,_,_ = Input.read !buf' !pos' in
+    if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d %C
+)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c;
     let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els when eq r0 r1 ->
+      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els ->
+         (match eq_rule r0 r1 with Eq ->
          (try
            let x = apply acts (Sin (apply_pos f (buf0, pos0) (!buf, !pos))) in
            let gn : type a b.(unit -> a) -> b res -> (b,a) element list -> a =
@@ -845,7 +858,8 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
               hn l
            in
            gn (fun () -> fn els) x !s1
-          with Error -> fn els)
+           with Error -> fn els)
+         | Neq -> fn els)
       | _ :: els -> fn els
     in
     let a, buf, pos as result =
@@ -864,7 +878,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
           let res = ref None in
           let gn _ elt =
             match elt with
-            | D { debut = Some((buf, pos), _) } when buf == buf0 && pos = pos0 ->
+            | D { debut = Some((buf, pos), _) } when buffer_equal buf buf0 && pos = pos0 ->
                (try res := Some (fn [elt]) with Not_found -> ())
             | _ -> ()
           in
