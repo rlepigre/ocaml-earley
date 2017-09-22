@@ -83,4 +83,4 @@ distclean: clean
 release: distclean
 	git push origin
 	git tag -a ocaml-earley_$(VERSION)
-	git push origin ocaml-bindlib_$(VERSION)
+	git push origin ocaml-earley_$(VERSION)
