@@ -10,7 +10,7 @@ let parser patocomment =
   (change_layout (
     parser
       _:"(*"
-      _:{_:''[^*]'' | _:'\n'}*
+      _:{_:''[^*]\|\([*][^)]\)'' | _:'\n'}*
       _:"*)"
   ) no_blank)
 
@@ -33,6 +33,24 @@ let blank2 = blank_grammar patocomments blank_mline
 
 open Common
 
-let _ = parse_string r blank " a b a b b ab   ab bba "
+let _ = parse_string r blank_sline " a b a b b ab\n   ab bba "
 
-let _ = parse_string r blank1 "a  aab aa  a a a a\na b a ba b "
+let _ =
+  try
+    parse_string r blank_sline " a b a b b ab\n \n  ab bba ";
+    assert false
+  with
+    Parse_error _ -> ()
+
+let _ = parse_string r blank_mline " a b a b b\n ab\n \n  ab bba "
+
+let _ = parse_string r blank1 "a  aab aa  a a a a\na b(*to*to*) a ba b "
+
+let _ =
+  try
+    parse_string r blank1 " a b a b b ab\n (*to*to*)\n \n ab bba ";
+    assert false
+  with
+    Parse_error _ -> ()
+
+let _ = parse_string r blank2 " a b a b b ab\n (*to*to*)\n \n ab bba "

@@ -1,5 +1,5 @@
 VERSION    := 1.0.0
-OCAMLBUILD := ocamlbuild -use-ocamlfind -pkg bytes -quiet
+OCAMLBUILD := ocamlbuild -use-ocamlfind -pkg bytes -quiet -cflag -g -lflag -g
 IMPLFILES  := $(wildcard *.ml)
 INTFFILES  := $(wildcard *.mli)
 
@@ -42,7 +42,7 @@ uninstall:
 .PHONY: tests
 tests: earley.cmxa tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
                    tests/calc_prio_left3_ml.ml tests/calc_prio_left4_ml.ml\
-                   tests/calc_prio_left5_ml.ml
+                   tests/calc_prio_left5_ml.ml tests/blank_ml.ml
 	$(OCAMLBUILD) tests/test.native
 	$(OCAMLBUILD) -pkgs unix,str tests/blank_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_ml.native
