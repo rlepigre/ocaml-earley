@@ -49,8 +49,11 @@ let _ = Printexc.record_backtrace true
 let debug_lvl  = ref 0
 let warn_merge = ref true
 
+(* Exception raised for parse error. Can be raise in the action of a
+   grammar using [give_up] *)
 exception Error
 
+(* A blank function is just a function progressing in a buffer *)
 type blank = buffer -> int -> buffer * int
 
 type info = bool * Charset.t
@@ -521,33 +524,36 @@ let rec pred_prod_lec
        | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
           let rules = List.filter (fun rule ->
                           good c (rule_info rule)) rules in
+          let f = fix_begin f pos_ab in
+          let tails =
+            match rest2.rule, eq_pos1 debut pos with
+            | Empty (g), false -> (* NOTE: right recursion optim is bad (and
+                                   may loop) for rule with only one non
+                                   terminal *)
+               let g = fix_begin g (debut.buf_ab, debut.pos_ab) in
+               if !debug_lvl > 1 then
+                 Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!"
+                                print_final element0;
+               let complete = function
+                 | C {rest=rest2; acts=acts'; full; debut; stack} ->
+                    C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack}
+
+                 | B acts' ->
+                    B (combine2 acts acts' g f)
+               in
+               List.map complete !stack
+            | _ ->
+               [C {rest=rest2; acts=combine1 acts f; full; debut; stack}]
+          in
           List.iter
             (fun rule ->
               let stack = find_assq rule dlr in
               let debut = { buf=fst pos; pos=snd pos; buf_ab=fst pos_ab; pos_ab=snd pos_ab } in
               let nouveau = D {debut; acts = idt; stack; rest = rule; full = rule} in
               let b = add "P" pos c nouveau elements in
-              if b then fn nouveau) rules;
-          let f = fix_begin f pos_ab in
-          begin match rest2.rule, eq_pos1 debut pos with
-          | Empty (g), false -> (* NOTE: right recursion optim is bad (and
-                                   may loop) for rule with only one non
-                                   terminal *)
-             let g = fix_begin g (debut.buf_ab, debut.pos_ab) in
-             if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
-          let complete = protect (function
-              | C {rest=rest2; acts=acts'; full; debut; stack} ->
-                 let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack} in
-                 iter_rules (fun r -> ignore (add_assq r c dlr)) rules;
-              | B acts' ->
-                 let c = B (combine2 acts acts' g f) in
-                 iter_rules (fun r -> ignore (add_assq r c dlr)) rules)
-          in
-          List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
-        | _ ->
-           let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack} in
-           iter_rules (fun r -> ignore (add_assq r c dlr)) rules
-        end;
+              List.iter (fun c -> ignore (add_assq rule c dlr)) tails;
+              if b then fn nouveau;
+            ) rules
      | Dep(rule) ->
        if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
        let a =
