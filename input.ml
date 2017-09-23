@@ -311,9 +311,43 @@ module OrdTbl = struct
 
 end
 
-(** Second kind of table: unordered, but more efficient *)
-
+(** Second kind of table: unordered, but imperative and more efficient *)
 module Tbl = struct
-type 'a table = 'a array Container.table
+  type 'a t = 'a option array Container.table
+
+  let add tbl buf pos x =
+    let buf = Lazy.force buf in
+    try
+      let a = Container.find tbl buf.ctnr in
+      a.(pos) <- Some x
+    with Not_found ->
+      let a = Array.make (buf.llen+1) None in
+      a.(pos) <- Some x;
+      Container.add tbl buf.ctnr a
+
+  let find tbl buf pos =
+    let buf = Lazy.force buf in
+    let a = Container.find tbl buf.ctnr in
+    match a.(pos) with
+    | None -> raise Not_found
+    | Some x -> x
+
+  let clear = Container.clear
+
+  let iter : type a. a t -> (a -> unit) -> unit = fun tbl f ->
+    let open Container in
+    let fn : type b.a option array -> unit =
+      fun a ->
+        Array.iter (function
+                    | None -> ()
+                    | Some x -> f x) a
+    in
+    (** FIXME: https://caml.inria.fr/mantis/view.php?id=7636 *)
+    iter { Container.f = Obj.magic fn } tbl
+
+  (** Tests for the above FIXME: the type is not abstract ! *)
+  let test1 : type a b. (a, b) Container.elt -> a = fun x -> x
+  let test2 : type a b. a -> (a, b) Container.elt = fun x -> x
+
 
 end

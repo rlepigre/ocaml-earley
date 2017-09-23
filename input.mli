@@ -196,3 +196,16 @@ module OrdTbl : sig
 
   val is_empty : 'a t -> bool
 end
+
+(** Second kind of table: unordered, but imperative and more efficient *)
+module Tbl : sig
+  type 'a t
+
+  val add : 'a t -> buffer -> int -> 'a -> unit
+
+  val find : 'a t -> buffer -> int -> 'a
+
+  val clear : 'a t -> unit
+
+  val iter : 'a t -> ('a -> unit) -> unit
+end
