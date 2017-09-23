@@ -492,8 +492,12 @@ let combine2 : type a0 a1 a2 b bb c.(a2 -> b) -> (b -> c) pos -> (a1 -> a2) pos 
 let combine1 : type a b c d.(c -> d) -> (a -> b) pos -> (a -> (b -> c) -> d) pos =
   fun acts g -> pos_apply (fun g a -> let b = g a in fun f -> acts (f b)) g
 
+(** type of a table with pending reading *)
+
+type 'a reads = 'a final OrdTbl.t ref
+
 (* phase de lecture d'un caractère, qui ne dépend pas de la bnf *)
-let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a final buf_table ref -> unit =
+let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl -> a reads -> unit =
   fun errpos blank id pos pos_ab elements tbl ->
     if !debug_lvl > 2 then Printf.eprintf "read at %a %a (%d)\n%!" print_pos1 pos print_pos1 pos_ab id;
     Hashtbl.iter (fun _ l -> match l with
@@ -514,7 +518,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
              in
              if not (buffer_before buf pos buf_ab pos_ab)
                 || not (Hashtbl.mem elements (elt_key state)) then
-               tbl := insert_buf buf pos state !tbl
+               tbl := OrdTbl.add buf pos state !tbl
            with Error -> ())
 
        | Next(_,_,Greedy(_,f),g,rest) ->
@@ -532,7 +536,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
              in
              if not (buffer_before buf pos buf_ab pos_ab)
                 || not (Hashtbl.mem elements (elt_key state)) then
-               tbl := insert_buf buf pos state !tbl
+               tbl := OrdTbl.add buf pos state !tbl
            with Error -> ())
 
        | _ -> ()) elements
@@ -542,7 +546,7 @@ let taille_tables els forward =
     let adone = ref [] in
     let res = ref 0 in
     Hashtbl.iter (fun _ el -> res := !res + 1 + taille el adone) els;
-    iter_buf forward (fun el -> res := !res + 1 + taille el adone);
+    OrdTbl.iter forward (fun el -> res := !res + 1 + taille el adone);
     !res
   else 0
 
@@ -680,7 +684,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let pos' = ref pos' and buf' = ref buf' in
     let init = D {debut; acts = idt; stack=s0; rest=r0; full=r0 } in
     let last_success = ref [] in
-    let forward = ref empty_buf in
+    let forward = ref OrdTbl.empty in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
       parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let dlr = StackContainer.create_table 101 in
@@ -719,7 +723,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       lecture errpos blank parse_id (!buf, !pos) (!buf', !pos') elements forward;
      let advance, l =
        try
-         let (buf', pos', l, forward') = pop_firsts_buf !forward in
+         let (buf', pos', l, forward') = OrdTbl.pop !forward in
          let advance = not (buffer_equal !buf buf' && !pos = pos') in
          if advance then (pos := pos'; buf := buf');
          forward := forward';

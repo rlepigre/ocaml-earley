@@ -48,7 +48,8 @@ type line =
   ; data         : string (* Contents of the line                    *)
   ; mutable next : buffer (* Following line                          *)
   ; name         : string (* The name of the buffer (e.g. file name) *)
-  ; uid          : int }  (* Unique identifier                       *)
+  ; uid          : int    (* Unique identifier                       *)
+  ; ctnr         : Container.t} (* for map table                     *)
 and buffer = line Lazy.t
 
 (* Generate a unique identifier. *)
@@ -60,7 +61,8 @@ let new_uid =
 let empty_buffer name lnum loff =
   let rec line = lazy
     { is_eof = true ; name ; lnum ; loff ; llen = 0
-    ; data = "" ; next = line ; uid = new_uid () }
+    ; data = "" ; next = line ; uid = new_uid ()
+    ; ctnr = Container.create () }
   in line
 
 (* Test if a buffer is empty. *)
@@ -205,7 +207,7 @@ include GenericInput(
             fun () ->
               { is_eof = false ; lnum ; loff ; llen ; data ; name
               ; next = lazy (fn name lnum (loff + llen) cont)
-              ; uid = new_uid () }
+              ; uid = new_uid () ; ctnr = Container.create ()}
           with End_of_file ->
             finalise file;
             fun () -> cont name lnum loff
@@ -249,7 +251,7 @@ module Make(PP : Preprocessor) =
               fun () ->
                 { is_eof = false ; lnum ; loff ; llen ; data ; name
                 ; next = lazy (fn name lnum (loff + llen) st cont)
-                ; uid = new_uid () }
+                ; uid = new_uid () ; ctnr = Container.create () }
             else
               fun () -> fn name lnum loff st cont
           with End_of_file ->
@@ -269,35 +271,49 @@ module Make(PP : Preprocessor) =
 
 module WithPP(PP : Preprocessor) = GenericInput(Make(PP))
 
-type 'a buf_table = (line * int * 'a list) list
-
-let empty_buf = []
-
 let leq_buf b1 i1 b2 i2 =
   match (b1, b2) with
     ({ uid=ident1; }, { uid=ident2; }) ->
       (ident1 = ident2 && i1 <= i2) || ident1 < ident2
 
-let insert_buf buf pos x tbl =
-  let buf = Lazy.force buf in
-  let rec fn acc = function
-  | [] -> List.rev_append acc [(buf, pos, [x])]
-  | ((buf',pos', y as c) :: rest) as tbl ->
-     if pos = pos' && buf.uid = buf'.uid then
-       List.rev_append acc ((buf', pos', (x::y)) :: rest)
-     else if leq_buf buf pos buf' pos' then
-       List.rev_append acc ((buf, pos, [x]) :: tbl)
-     else fn (c::acc) rest
-  in
-  fn [] tbl
-
-let pop_firsts_buf = function
-  | [] -> raise Not_found
-  | (buf,pos,l)::rest -> Lazy.from_val buf,pos,l,rest
-
-let iter_buf buf fn =
-  List.iter (fun (_,_,l) -> List.iter fn l) buf
-
-let is_empty_buf buf = buf = []
-
 let buffer_before b1 i1 b2 i2 = leq_buf (Lazy.force b1) i1 (Lazy.force b2) i2
+
+(** First kind of table: association list in file order
+    (first position in the beginning *)
+module OrdTbl = struct
+  type 'a t = (line * int * 'a list) list
+
+  let empty = []
+
+  let add buf pos x tbl =
+    let buf = Lazy.force buf in
+    let rec fn acc = function
+      | [] -> List.rev_append acc [(buf, pos, [x])]
+      | ((buf',pos', y as c) :: rest) as tbl ->
+         if pos = pos' && buf.uid = buf'.uid then
+           List.rev_append acc ((buf', pos', (x::y)) :: rest)
+         else if leq_buf buf pos buf' pos' then
+           List.rev_append acc ((buf, pos, [x]) :: tbl)
+         else fn (c::acc) rest
+    in
+    fn [] tbl
+
+  let pop = function
+    | [] -> raise Not_found
+    | (buf,pos,l)::rest -> Lazy.from_val buf,pos,l,rest
+
+  let is_empty tbl = tbl = []
+
+  let iter buf fn =
+    List.iter (fun (_,_,l) -> List.iter fn l) buf
+
+
+
+end
+
+(** Second kind of table: unordered, but more efficient *)
+
+module Tbl = struct
+type 'a table = 'a array Container.table
+
+end

@@ -179,14 +179,20 @@ val buffer_compare : buffer -> buffer -> int
 val buffer_before : buffer -> int -> buffer -> int -> bool
 
 (** .... *)
-type 'a buf_table
+(** First kind of table: association list in file order
+    (first position in the beginning *)
 
-val empty_buf : 'a buf_table
+module OrdTbl : sig
+  type 'a t
 
-val insert_buf : buffer -> int -> 'a -> 'a buf_table -> 'a buf_table
 
-val pop_firsts_buf : 'a buf_table -> buffer * int * 'a list * 'a buf_table
+  val empty : 'a t
 
-val iter_buf : 'a buf_table -> ('a -> unit) -> unit
+  val add : buffer -> int -> 'a -> 'a t -> 'a t
 
-val is_empty_buf : 'a buf_table -> bool
+  val pop : 'a t -> buffer * int * 'a list * 'a t
+
+  val iter : 'a t -> ('a -> unit) -> unit
+
+  val is_empty : 'a t -> bool
+end
