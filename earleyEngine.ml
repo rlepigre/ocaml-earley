@@ -96,9 +96,9 @@ let fix_begin : type a.a pos -> position -> a pos =
     | x -> x
 
 let apply_pos_debut =
-  fun f ({ buf; pos } as d) pos1 pos_ab1 ->
+  fun f ({ buf; pos; buf_ab; pos_ab } as d) pos1 pos_ab1 ->
   if eq_pos1 d pos1 then apply_pos f pos_ab1 pos_ab1
-  else apply_pos f (buf, pos) pos1
+  else apply_pos f (buf_ab, pos_ab) pos1
 
 let app_pos:type a b.(a -> b) pos -> a pos -> b pos = fun f g ->
   match f,g with
@@ -601,7 +601,7 @@ let rec one_prediction_production
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
           let complete = fun element ->
             match element with
-            | C {debut=d; stack=els'; acts; rest; full} ->
+            | C {debut; stack=els'; acts; rest; full} ->
                if good c (rule_info rest) then begin
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
@@ -610,7 +610,7 @@ let rec one_prediction_production
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut=d; acts; stack=els'; rest; full; read = false } in
+                 let nouveau = D {debut; acts; stack=els'; rest; full; read = false } in
                  let b = add "C" pos c nouveau elements in
                  if b then one_prediction_production nouveau elements dlr pos pos_ab c
                end
