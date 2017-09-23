@@ -154,8 +154,6 @@ type 'a input = buffer -> int -> 'a * buffer * int
 type 'a input2 = buffer -> int -> 'a input
 type 'a test  = buffer -> int -> buffer -> int -> 'a * bool
 
-type _ tag = ..
-
 module rec Types : sig
   type 'a grammar = info Fixpoint.t * 'a rule list
 
@@ -180,8 +178,7 @@ module rec Types : sig
 
    (* Each rule old assoc cell to associate data to the rule in O(1).
    the type of the associat    ed data is not known ... *)
-   and 'a rule = { tag : 'a tag; eq : 'b.'b rule -> ('a,'b) eq
-                   ; rule : 'a prerule ; cell : 'a StackContainer.container }
+   and 'a rule = { rule : 'a prerule ; cell : 'a StackContainer.container; adr : int }
 
    (* type paragé par les deux types ci-dessous *)
    and ('a,'b,'c,'r) cell = {
@@ -234,18 +231,18 @@ include Types
    so acts are necessarily physically equal
 *)
 
+let count_rule = ref 0
 let mkrule : type a. a prerule -> a rule = fun rule ->
-  let module M = struct type _ tag += T : a tag end in
-  let eq : type b. b rule -> (a,b) eq =
-    function { tag = M.T } -> Eq | _ -> Neq
-  in
-  { tag = M.T; eq; rule; cell = StackContainer.create () }
+  let adr = let c = !count_rule in count_rule := c+1; c in
+  { rule; cell = StackContainer.create (); adr  }
 
 let eq_rule : type a b. a rule -> b rule -> (a, b) eq =
-  fun r1 r2 -> r1.eq r2
+  fun r1 r2 -> if Obj.repr r1 == Obj.repr r2 then  Obj.magic Eq else Neq (* r1.eq r2*)
 
-let eq_C c1 c2 =
-  match c1, c2 with
+let eq_C c1 c2 = c1 == c2
+(* never worst !
+  let res =
+    match c1, c2 with
     (C {debut; rest; full; stack; acts},
      C {debut=d'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
     begin
@@ -255,6 +252,10 @@ let eq_C c1 c2 =
     end
   | (B acts, B acts') -> eq_closure acts acts'
   | _ -> false
+  in
+  if res then assert (c1 == c2);
+  res
+ *)
 
 let eq_D (D {debut; rest; full; stack; acts})
          (D {debut=debut'; rest=rest'; full=full'; stack=stack'; acts=acts'}) =
@@ -330,7 +331,7 @@ let print_pos2 ch {buf; pos} =
 
 let print_final ch (D {rest; full}) =
   let rec fn : type a.a rule -> unit = fun rule ->
-    if eq rule rest then Printf.fprintf ch "* " ;
+    (match eq_rule rule rest with Eq -> Printf.fprintf ch "* " | Neq -> ());
     match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rs
     | Dep _ -> Printf.fprintf ch "DEP"
@@ -342,7 +343,7 @@ let print_final ch (D {rest; full}) =
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   let rec fn : type a b.a rule -> b rule -> unit = fun rest rule ->
-    if eq rule rest then Printf.fprintf ch "* " ;
+    (match eq_rule rule rest with Eq -> Printf.fprintf ch "* " | Neq -> ());
     match rule.rule with
     | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s " name; fn rest rs
     (*    | Dep _ -> Printf.fprintf ch "DEP "*)
@@ -362,9 +363,7 @@ type 'a sct = 'a StackContainer.table
 
 let elt_ckey : type a b. (a, b) element -> int * int * int * int =
   function C { debut = {buf; pos}; rest; full } ->
-           (buffer_uid buf, pos,
-            StackContainer.address full.cell,
-            StackContainer.address rest.cell)
+           (buffer_uid buf, pos, full.adr, rest.adr)
          | B _ -> (-2, -2, -2, -2)
 
 let hook_assq : type a b. a rule -> b sct -> ((a, b) element -> unit) -> unit =
@@ -406,9 +405,7 @@ type 'a pos_tbl = (int * int * int * int, 'a final) Hashtbl.t
 
 let elt_key : type a. a final -> int * int * int * int =
   function D { debut = {buf;pos}; rest; full } ->
-    (buffer_uid buf, pos,
-     StackContainer.address full.cell, (* FIXME: find a better key *)
-     StackContainer.address rest.cell)
+    (buffer_uid buf, pos, full.adr, rest.adr)
 
 let char_pos {buf;pos} = line_offset buf + pos
 let elt_pos el = char_pos el.debut
@@ -435,7 +432,7 @@ let add : string -> position -> char -> 'a final -> 'a pos_tbl -> bool =
             info print_final e print_final element (elt_pos pos_final e) (elt_pos pos_final element) (eq_pos d d')
            (eq rest r') (eq full fu') print_res acts print_res acts';*)
         match
-           eq_pos d d', rest === r', full === fu' with
+           eq_pos d d', eq_rule rest r', eq_rule full fu' with
          | true, Eq, Eq ->
             if not (eq_res acts acts') && !warn_merge then
               Printf.eprintf "\027[31mmerging %a %a %a\027[0m\n%!"
@@ -461,7 +458,7 @@ let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone -
   let res = ref 1 in
   let rec fn : (Obj.t, Obj.t) element list -> unit = fun els ->
     List.iter (fun el ->
-      if List.exists (eq el) !adone then () else begin
+      if List.exists ((==) el) !adone then () else begin
         res := !res + 1;
         adone := el :: !adone;
         match el with
@@ -703,7 +700,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
         try
           let found = ref false in
           Hashtbl.iter (fun _ -> function D {stack=s1; rest={rule = Empty f}; acts; full=r1} as elt ->
-            if eq r0 r1 then (
+            (match eq_rule r0 r1 with Neq -> () | Eq ->
               if not !found then last_success := ((!buf,!pos,!buf',!pos'), []) :: !last_success;
               found := true;
               assert (!last_success <> []);
@@ -753,8 +750,9 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos';
     let rec fn : type a.a final list -> a = function
       | [] -> raise Not_found
-      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els when eq r0 r1 ->
-         (try
+      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} :: els ->
+         (match eq_rule r0 r1 with Neq -> fn els | Eq ->
+          try
            let x = acts (apply_pos f (buf0, pos0) (!buf, !pos)) in
            let gn : type a b.(unit -> a) -> b -> (b,a) element list -> a =
             fun cont x l ->
