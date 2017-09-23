@@ -107,3 +107,10 @@ end
 
 module Make(T:sig type ('a,'b) elt end) : Param
        with type ('a, 'b) elt = ('a,'b) T.elt
+
+type ('a, 'b) elt = 'a
+
+type 'a iter = { f : 'b.('a, 'b) elt -> unit }
+val iter : 'a iter -> 'a table -> unit
+type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
+val fold : ('a, 'c) fold -> 'a table -> 'c -> 'c
