@@ -98,6 +98,10 @@ module type Param = sig
   val find : 'a table -> 'b container -> ('a, 'b) elt
   val remove : 'a table -> 'b container -> unit
   val clear : 'a table -> unit
+  type 'a iter = { f : 'b.('a, 'b) elt -> unit }
+  val iter : 'a iter -> 'a table -> unit
+  type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
+  val fold : ('a, 'c) fold -> 'a table -> 'c -> 'c
 end
 
 

@@ -32,8 +32,7 @@ module Make(V:sig type ('a,'b) elt end) = struct
   (** unboxed mandatory for weak hashtbl to work, 4.04.0 only
       we use Obj until 4.04.0 is more spreaded *)
   (* type any = C : 'b container -> any [@@unboxed] *)
-  type empty = { f : 'a.'a }
-  type any = empty container
+  type any = Obj.t container
   let cast : 'b container -> any = Obj.magic
 
   (** Weak hash-tables of containers. *)
@@ -106,6 +105,38 @@ module Make(V:sig type ('a,'b) elt end) = struct
     let res = { tag  = M.T ; eq ; htbl = W.create size } in
     Gc.finalise clear res;
     res
+
+  type 'a iter = { f : 'b.('a, 'b) elt -> unit }
+
+  let iter : type a. a iter -> a table -> unit = fun f tab ->
+    let rec fn : Obj.t nu_list -> unit = function
+      | Nil -> ()
+      | Cons(t,v,r) ->
+         begin
+           match tab.eq t with
+           | Y -> f.f v;
+           | N -> ()
+         end;
+         fn r
+    in
+    W.iter (fun c -> fn c.data) tab.htbl
+
+  type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
+
+  let fold : type a c. (a, c) fold -> a table -> c -> c = fun f tab acc ->
+    let rec fn :  Obj.t nu_list -> c -> c = fun l acc ->
+      match l with
+      | Nil -> acc
+      | Cons(t,v,r) ->
+         let acc =
+           match tab.eq t with
+           | Y -> f.f v acc;
+           | N -> acc
+         in
+         fn r acc
+    in
+    W.fold (fun c acc -> fn c.data acc) tab.htbl acc
+
 end
 
 module type Param = sig
@@ -119,9 +150,21 @@ module type Param = sig
   val find : 'a table -> 'b container -> ('a, 'b) elt
   val remove : 'a table -> 'b container -> unit
   val clear : 'a table -> unit
+  type 'a iter = { f : 'b.('a, 'b) elt -> unit }
+  val iter : 'a iter -> 'a table -> unit
+  type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
+  val fold : ('a, 'c) fold -> 'a table -> 'c -> 'c
 end
 
-include Make(struct type ('a, 'b) elt = 'a end)
+type ('a, 'b) el = 'a
+
+include Make(struct type ('a, 'b) elt = ('a, 'b) el end)
 
 (** Exported name for [container]. *)
 type t = unit container
+
+(* This does not work !
+let iter : type a.(a -> unit) -> a table -> unit =
+  fun f tabl ->
+    iter { f = (let f : type b.(a, b) el -> unit = f in f) } tab
+*)
