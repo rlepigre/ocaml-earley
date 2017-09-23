@@ -39,6 +39,28 @@ earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
 uninstall:
 	@ocamlfind remove earley
 
+.PHONY: tests
+tests: earley.cmxa tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
+                   tests/calc_prio_left3_ml.ml tests/calc_prio_left4_ml.ml\
+                   tests/calc_prio_left5_ml.ml
+	$(OCAMLBUILD) tests/test.native
+	$(OCAMLBUILD) -pkgs unix,str tests/blank_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left2_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left3_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left4_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
+	./test.native > /dev/null
+	./blank_ml.native --quick > /dev/null
+	./calc_prio_left_ml.native --quick > /dev/null
+	./calc_prio_left2_ml.native --quick > /dev/null
+	./calc_prio_left3_ml.native --quick > /dev/null
+	./calc_prio_left4_ml.native --quick > /dev/null
+	./calc_prio_left5_ml.native --quick > /dev/null
+
+tests/%_ml.ml: tests/%.ml
+	pa_ocaml --ascii $< > $@
+
 IMPL := $(addprefix _build/,$(IMPLFILES))
 INTF := $(addprefix _build/,$(INTFFILES))
 CMX  := $(IMPL:.ml=.cmx)
