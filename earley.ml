@@ -401,7 +401,7 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
     debug_lvl := !debug_lvl / 10;
-    let (_,buf,pos) = internal_parse_buffer (init_errpos buf pos) grammar blank buf pos in
+    let (_,buf,pos) = internal_parse_buffer ~blank_after:true (init_errpos buf pos) grammar blank buf pos in
     debug_lvl := save_debug;
     if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
     (buf,pos)
