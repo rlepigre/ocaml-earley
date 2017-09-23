@@ -200,7 +200,7 @@ module rec Types : sig
      (* end of the stack *)
      | B : ('a -> 'b) pos -> ('a,'b) element
 
-   and ('a,'b) stack = ('a,'b) stack
+   and ('a,'b) stack = ('a,'b) element list ref
 
    (* head of the stack *)
    and _ final = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
