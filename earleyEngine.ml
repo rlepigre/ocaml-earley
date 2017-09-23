@@ -516,19 +516,6 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
 
-       | Next(_,_,Test(s,f),g,rest) ->
-          (try
-             r.read <- true;
-             let (buf0, pos0 as j) = pos_ab in
-             if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!" (line_num buf0) pos0;
-             let (a,b) = f (fst pos) (snd pos) buf0 pos0 in
-             if b then begin
-                 if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-                 let x = apply_pos g j j a in
-                 let state = D {debut; stack; rest; full; acts = cns x acts; read = false} in
-                 tbl := insert_buf (fst pos) (snd pos) state !tbl
-               end
-           with Error -> ())
        | _ -> ()) elements;
     !tbl
 
@@ -633,6 +620,21 @@ let rec one_prediction_production
           if eq_pos1 debut pos then hook_assq full dlr complete
           else List.iter complete !stack;
          with Error -> ())
+
+       | Next(_,_,Test(s,f),g,rest) ->
+          (try
+             r.read <- true;
+             let (buf0, pos0 as j) = pos_ab in
+             if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!" (line_num buf0) pos0;
+             let (a,b) = f (fst pos) (snd pos) buf0 pos0 in
+             if b then begin
+                 if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
+                 let x = apply_pos g j j a in
+                 let nouveau = D {debut; stack; rest; full; acts = cns x acts; read = false} in
+                 let b = add "T" pos c nouveau elements in
+                 if b then one_prediction_production nouveau elements dlr pos pos_ab c
+               end
+           with Error -> ())
 
      | _ -> ()
 
