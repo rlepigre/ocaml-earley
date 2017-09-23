@@ -315,6 +315,8 @@ end
 module Tbl = struct
   type 'a t = 'a option array Container.table
 
+  let create = Container.create_table
+
   let add tbl buf pos x =
     let buf = Lazy.force buf in
     try

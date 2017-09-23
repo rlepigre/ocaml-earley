@@ -201,6 +201,8 @@ end
 module Tbl : sig
   type 'a t
 
+  val create : int -> 'a t
+
   val add : 'a t -> buffer -> int -> 'a -> unit
 
   val find : 'a t -> buffer -> int -> 'a
