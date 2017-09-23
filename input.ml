@@ -297,3 +297,7 @@ let pop_firsts_buf = function
 
 let iter_buf buf fn =
   List.iter (fun (_,_,l) -> List.iter fn l) buf
+
+let is_empty_buf buf = buf = []
+
+let buffer_before b1 i1 b2 i2 = leq_buf (Lazy.force b1) i1 (Lazy.force b2) i2

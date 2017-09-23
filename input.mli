@@ -12,17 +12,17 @@
   way of building parsers using an extention of OCaml's syntax.
 
   This software is governed by the CeCILL-B license under French law and
-  abiding by the rules of distribution of free software.  You  can  use, 
+  abiding by the rules of distribution of free software.  You  can  use,
   modify and/or redistribute the software under the terms of the CeCILL-
   B license as circulated by CEA, CNRS and INRIA at the following URL.
 
-      http://www.cecill.info 
+      http://www.cecill.info
 
   As a counterpart to the access to the source code and  rights to copy,
   modify and redistribute granted by the  license,  users  are  provided
   only with a limited warranty  and the software's author, the holder of
   the economic rights, and the successive licensors  have  only  limited
-  liability. 
+  liability.
 
   In this respect, the user's attention is drawn to the risks associated
   with loading, using, modifying and/or developing  or  reproducing  the
@@ -33,7 +33,7 @@
   encouraged to load and test  the  software's  suitability  as  regards
   their requirements in conditions enabling the security of  their  sys-
   tems and/or data to be ensured and, more generally, to use and operate
-  it in the same conditions as regards security. 
+  it in the same conditions as regards security.
 
   The fact that you are presently reading this means that you  have  had
   knowledge of the CeCILL-B license and that you accept its terms.
@@ -173,8 +173,10 @@ val buffer_equal : buffer -> buffer -> bool
 (** [buffer_compare b1 b2] compares [b1] and [b2]. *)
 val buffer_compare : buffer -> buffer -> int
 
-
-
+(** [leq_bug b1 i1 b2 i2] returns true if the position [b1, i1] is before
+    [b2, i2]. Gives meaningless result if [b1] and [b2] do not refer to the
+    same file. *)
+val buffer_before : buffer -> int -> buffer -> int -> bool
 
 (** .... *)
 type 'a buf_table
@@ -186,3 +188,5 @@ val insert_buf : buffer -> int -> 'a -> 'a buf_table -> 'a buf_table
 val pop_firsts_buf : 'a buf_table -> buffer * int * 'a list * 'a buf_table
 
 val iter_buf : 'a buf_table -> ('a -> unit) -> unit
+
+val is_empty_buf : 'a buf_table -> bool

@@ -73,12 +73,18 @@ let greedy_solo =
       let l = try Hashtbl.find cache key with Not_found -> [] in
       try
         let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
-        r
+        (match r with None -> raise Error | Some r -> r)
       with Not_found ->
-        let r = s ptr blank b p b' p' in
-        let l = (ptr,blank,r)::l in
-        Hashtbl.replace cache key l;
-        r
+        try
+          let r = s ptr blank b p b' p' in
+          let l = (ptr,blank,Some r)::l in
+          Hashtbl.replace cache key l;
+          r
+        with
+          Error ->
+          let l = (ptr,blank,None)::l in
+          Hashtbl.replace cache key l;
+          raise Error
     in
     (i, [mkrule (Next(i,name,Greedy(i,s),Idt,idtEmpty ()))])
 
