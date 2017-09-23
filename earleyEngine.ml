@@ -191,7 +191,6 @@ module rec Types : sig
       rest  : 'b rule;                      (* remaining to parse, will produce 'b *)
       full  : 'c rule;                      (* full rule. rest is a suffix of full.
                                                only use as a reference *)
-      mutable read  : bool;                 (* to avoid lecture twice *)
      }
 
    (* next element of an earley stack *)
@@ -503,11 +502,10 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
     if !debug_lvl > 2 then Printf.eprintf "read after blank line = %d col = %d (%d)\n%!" (line_num (fst pos_ab)) (snd pos_ab) id;
     let tbl = ref tbl in
     Hashtbl.iter (fun _ l -> match l with
-    | D ({debut; stack;acts; rest; full; read} as r) as element ->
-       if not read then match rest.rule with
+    | D {debut; stack;acts; rest; full} as element ->
+       match rest.rule with
        | Next(_,_,Term (_,f),g,rest) ->
           (try
-             r.read <- true;
              (*Printf.eprintf "lecture at %d %d\n%!" (line_num buf0) pos0;*)
              let buf_ab, pos_ab = pos_ab in
              let a, buf, pos = f buf_ab pos_ab in
@@ -517,14 +515,13 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns a acts; rest; full; read = false})
+               (D {debut; stack; acts = cns a acts; rest; full})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
 
        | Next(_,_,Greedy(_,f),g,rest) ->
           (try
-             r.read <- true;
              let buf_ab, pos_ab = pos_ab in
              if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf_ab) pos_ab;
              let a, buf, pos = f errpos blank (fst pos) (snd pos) buf_ab pos_ab in
@@ -534,7 +531,7 @@ let lecture : type a.errpos -> blank -> int -> position -> position -> a pos_tbl
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let state =
-               (D {debut; stack; acts = cns a acts; rest; full; read = false})
+               (D {debut; stack; acts = cns a acts; rest; full})
              in
              tbl := insert_buf buf pos state !tbl
            with Error -> ())
@@ -559,19 +556,18 @@ let rec one_prediction_production
  = fun element0 elements dlr pos pos_ab c ->
    match element0 with
   (* prediction (pos, i, ... o NonTerm name::rest_rule) dans la table *)
-   | D ({debut; acts; stack; rest; full; read} as r) ->
+   | D {debut; acts; stack; rest; full} ->
 
      if !debug_lvl > 1 then Printf.eprintf "predict/product for %a (%C)\n%!" print_final element0 c;
-     if not read then match rest.rule with
+     match rest.rule with
      | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) when good c info ->
-        r.read <- true;
         let rules = List.filter (fun rule ->
                         good c (rule_info rule)) rules in
         List.iter
             (fun rule ->
               let stack = find_assq rule dlr in
               let debut = { buf=fst pos; pos=snd pos; buf_ab=fst pos_ab; pos_ab=snd pos_ab } in
-              let nouveau = D {debut; acts = idt; stack; rest = rule; full = rule; read = false} in
+              let nouveau = D {debut; acts = idt; stack; rest = rule; full = rule} in
               let b = add "P" pos c nouveau elements in
               if b then  one_prediction_production nouveau elements dlr pos pos_ab c) rules;
         let f = fix_begin f pos_ab in
@@ -583,7 +579,7 @@ let rec one_prediction_production
           if !debug_lvl > 1 then Printf.eprintf "RIGHT RECURSION OPTIM %a\n%!" print_final element0;
           let complete = protect (function
               | C {rest=rest2; acts=acts'; full; debut; stack} ->
-                 let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack; read = false} in
+                 let c = C {rest=rest2; acts=combine2 acts acts' g f; full; debut; stack} in
                  iter_rules (fun r -> ignore (add_assq r c dlr)) rules;
               | B acts' ->
                  let c = B (combine2 acts acts' g f) in
@@ -591,12 +587,11 @@ let rec one_prediction_production
           in
           List.iter complete !stack; (* NOTE: should use hook_assq for debut = None *)
         | _ ->
-           let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack; read = false} in
+           let c = C {rest=rest2; acts=combine1 acts f; full; debut; stack} in
            iter_rules (fun r -> ignore (add_assq r c dlr)) rules
         end;
      | Dep(rule) ->
-        r.read <- true;
-        if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
+       if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
        let a =
          let a = ref None in
          try let _ = acts (fun x -> a := Some x; raise Exit) in assert false
@@ -605,17 +600,16 @@ let rec one_prediction_production
        in
        let cc = C { debut;
                     acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
-                   rest = idtEmpty (); full; read = false } in
+                   rest = idtEmpty (); full } in
        let rule = rule a in
        let stack' = add_assq rule cc dlr in
        let debut = { buf=fst pos; pos=snd pos; buf_ab=fst pos_ab; pos_ab=snd pos_ab } in
-       let nouveau = D {debut; acts = idt; stack = stack'; rest = rule; full = rule; read = false } in
+       let nouveau = D {debut; acts = idt; stack = stack'; rest = rule; full = rule } in
        let b = add "P" pos c nouveau elements in
        if b then one_prediction_production nouveau elements dlr pos pos_ab c
 
      (* production      (pos, i, ... o ) dans la table *)
      | Empty(a) ->
-        r.read <- true;
         (try
            if !debug_lvl > 1 then
              Printf.eprintf "action for completion of %a =>" print_final element0;
@@ -633,7 +627,7 @@ let rec one_prediction_production
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {debut; acts; stack=els'; rest; full; read = false } in
+                 let nouveau = D {debut; acts; stack=els'; rest; full } in
                  let b = add "C" pos c nouveau elements in
                  if b then one_prediction_production nouveau elements dlr pos pos_ab c
                end
@@ -646,14 +640,13 @@ let rec one_prediction_production
 
        | Next(_,_,Test(s,f),g,rest) ->
           (try
-             r.read <- true;
              let (buf0, pos0 as j) = pos_ab in
              if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!" (line_num buf0) pos0;
              let (a,b) = f (fst pos) (snd pos) buf0 pos0 in
              if b then begin
                  if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
                  let x = apply_pos g j j a in
-                 let nouveau = D {debut; stack; rest; full; acts = cns x acts; read = false} in
+                 let nouveau = D {debut; stack; rest; full; acts = cns x acts} in
                  let b = add "T" pos c nouveau elements in
                  if b then one_prediction_production nouveau elements dlr pos pos_ab c
                end
@@ -677,7 +670,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let buf', pos' = blank buf0 pos0 in
     let debut = { buf = buf0; pos = pos0; buf_ab = buf'; pos_ab = pos' } in
     let pos' = ref pos' and buf' = ref buf' in
-    let init = D {debut; acts = idt; stack=s0; rest=r0; full=r0; read = false } in
+    let init = D {debut; acts = idt; stack=s0; rest=r0; full=r0 } in
     let last_success = ref [] in
     let forward = ref empty_buf in
     if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
@@ -693,10 +686,13 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
       let c,_,_ = Input.read !buf' !pos' in
       let c',_,_ = Input.read !buf !pos in
       if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C(%C)\n%!" parse_id (line_num !buf) (line_num !buf') !pos !pos' c c';
-      List.iter (fun s ->
-        if add msg (!buf,!pos) c s elements then
-          one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c) l;
-      if internal then begin
+      let continue = List.fold_left (fun cont s ->
+        if add msg (!buf,!pos) c s elements then (
+          one_prediction_production s elements dlr (!buf,!pos) (!buf',!pos') c;
+          true)
+          else cont) advance l
+      in
+      if continue && internal then begin
         try
           let found = ref false in
           Hashtbl.iter (fun _ -> function D {stack=s1; rest={rule = Empty f}; acts; full=r1} as elt ->
@@ -709,13 +705,13 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
           | _ -> ())
             elements
         with Not_found -> ()
-      end;
+        end;
+      continue
     in
 
-    prediction_production true "I" [init];
+    let continue = ref (prediction_production true "I" [init]) in
 
     (* boucle principale *)
-    let continue = ref true in
     while !continue do
       if !debug_lvl > 0 then Printf.eprintf "parse_id = %d, line = %d(%d), pos = %d(%d), taille =%d (%d,%d)\n%!"
         parse_id (line_num !buf) (line_num !buf') !pos !pos' (taille_tables elements !forward)
@@ -734,7 +730,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
          (advance, l)
        with Not_found -> (false, [])
      in
-     if l = [] then continue := false else prediction_production advance "L" l;
+     continue := prediction_production advance "L" l;
     done;
     StackContainer.clear dlr; (* don't forget final cleaning of assoc cell !! *)
     (* useless but clean *)
