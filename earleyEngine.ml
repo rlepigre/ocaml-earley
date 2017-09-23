@@ -200,7 +200,7 @@ module rec Types : sig
      (* end of the stack *)
      | B : ('a -> 'b) pos -> ('a,'b) element
 
-   and ('a,'b) stack = ('a,'b) element list ref
+   and ('a,'b) stack = ('a,'b) stack
 
    (* head of the stack *)
    and _ final = D : (('b -> 'c), 'b, 'c, 'r) cell -> 'r final
@@ -451,7 +451,7 @@ let add : string -> position -> char -> 'a final -> 'a pos_tbl -> bool =
          Hashtbl.add elements key element;
          true)
 
-let taille : 'a final -> (Obj.t, Obj.t) element list ref -> int = fun el adone ->
+let taille : 'a final -> (Obj.t, Obj.t) stack -> int = fun el adone ->
   let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
   let res = ref 1 in
   let rec fn : (Obj.t, Obj.t) element list -> unit = fun els ->
@@ -677,7 +677,7 @@ let parse_buffer_aux : type a.errpos -> bool -> bool -> a grammar -> blank -> bu
     let final_elt = B (Simple idt) in
     let final_key = (buffer_uid buf0, pos0, r0.adr, tail_key r0) in
     if !debug_lvl > 2 then Printf.eprintf "final_key: %a\n%!" print_key final_key;
-    let s0 : (a, a) element list ref = ref [final_elt] in
+    let s0 : (a, a) stack = ref [final_elt] in
     let pos = ref pos0 and buf = ref buf0 in
     let buf', pos' = blank buf0 pos0 in
     let debut = { buf = buf0; pos = pos0; buf_ab = buf'; pos_ab = pos' } in
