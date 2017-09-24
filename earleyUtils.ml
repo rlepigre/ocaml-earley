@@ -260,39 +260,42 @@ module Fixpoint :
 let eq_closure : type a. a -> a -> bool =
   fun f g ->
     let open Obj in
-    (*repr f == repr g || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures])*)
+    (* repr f == repr g
+       || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures]) *)
     let adone = ref [] in
-    let rec fneq f g =
+    let rec fn f g =
       f == g ||
         match is_int f, is_int g with
-        | true, true -> f = g
+        | true, true -> f == g
         | false, true | true, false -> false
         | false, false ->
-           (*      if !debug_lvl > 10 then Printf.eprintf "*%!";*)
            let ft = tag f and gt = tag g in
            if ft = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq (field f 0) g)
+             fn (field f 0) g)
            else if gt = forward_tag then (
-             (*      if !debug_lvl > 10 then Printf.eprintf "#%!";*)
-             fneq f (field g 0))
-           else if ft = custom_tag || gt = custom_tag then f = g
+             fn f (field g 0))
            else if ft <> gt then false
-           else ((*if !debug_lvl > 10 then Printf.eprintf " %d %!" ft;*)
+           else
            if ft = string_tag || ft = double_tag || ft = double_array_tag
              then f = g
            else if ft = abstract_tag || ft = out_of_heap_tag
-                   || ft = no_scan_tag || ft = infix_tag then f == g
+                   || ft = no_scan_tag || ft = custom_tag
+             then f == g
+           else if ft = infix_tag then
+             let off_f = Int32.of_int (size f) in
+             let off_g = Int32.of_int (size g) in
+             off_f = off_g &&
+               fn (Obj.add_offset f off_f)
+                    (Obj.add_offset g off_g)
            else
-               size f == size g &&
+             size f == size g &&
                let rec gn i =
                  if i < 0 then true
-                 else fneq (field f i) (field g i) && gn (i - 1)
+                 else fn (field f i) (field g i) && gn (i - 1)
                in
                List.exists (fun (f',g') -> f == f' && g == g') !adone ||
                 (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
                  (adone := (f,g)::!adone;
-                  let r = gn (size f - 1) in
-                  r)))
+                  gn (size f - 1)))
 
-    in fneq (repr f) (repr g)
+    in fn (repr f) (repr g)
