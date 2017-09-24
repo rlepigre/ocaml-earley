@@ -118,10 +118,6 @@ val empty : 'a -> 'a grammar
 (** [fail ()] is a grammar that always fail, whatever the input. *)
 val fail : unit -> 'a grammar
 
-(** [error_message msg] always fails, but it adds [msg ()] to  the  list
-    of error messages potentially reported by [Parse_error]. *)
-val error_message : (unit -> string) -> 'a grammar
-
 (** [black_box fn cs accept_empty name] is a grammar that uses the
     function [fn] to parses the input buffer. [fn buf pos] should
     start parsing [buf] at position [pos], and return a couple

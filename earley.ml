@@ -59,7 +59,7 @@ let no_blank str pos = str, pos
 
 let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
    = fun g bl ?(blank_after=true) buf pos ->
-       parse_buffer_aux (init_errpos buf pos) false blank_after g bl buf pos
+       parse_buffer_aux false blank_after g bl buf pos
 
 let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
   let j = Fixpoint.from_val (accept_empty,set) in
@@ -68,21 +68,21 @@ let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
     let cache = Hashtbl.create 101 in
-    let s = fun ptr blank b p b' p' ->
+    let s = fun blank b p b' p' ->
       let key = (buffer_uid b, p, buffer_uid b', p') in
       let l = try Hashtbl.find cache key with Not_found -> [] in
       try
-        let (_,_,r) = List.find (fun (p, bl, _) -> p == ptr && bl == blank) l in
+        let (_,r) = List.find (fun (bl, _) -> bl == blank) l in
         (match r with None -> raise Error | Some r -> r)
       with Not_found ->
         try
-          let r = s ptr blank b p b' p' in
-          let l = (ptr,blank,Some r)::l in
+          let r = s blank b p b' p' in
+          let l = (blank,Some r)::l in
           Hashtbl.replace cache key l;
           r
         with
           Error ->
-          let l = (ptr,blank,None)::l in
+          let l = (blank,None)::l in
           Hashtbl.replace cache key l;
           raise Error
     in
@@ -109,6 +109,17 @@ let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
 let nonterm (i,s) = NonTerm(i,ref s)
 
 let next_aux name s f r = mkrule (Next(compose_info s r, name, s,f,r))
+
+let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
+  match f,g with
+  | Idt, _ -> g
+  | _, Idt -> f
+  | Simple f, Simple g -> Simple(fun x -> f (g x))
+  | Simple f, WithPos g -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
+  | WithPos f, Simple g -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
+  | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p' (g b p b' p' x))
+
+let compose3 f g h = compose f (compose g h)
 
 let next : type a b c. a grammar -> (a -> b) pos -> (b -> c) rule -> c rule =
   fun s f r -> match snd s with
@@ -180,18 +191,6 @@ let fail : unit -> 'a grammar
   = fun () ->
     let fn buf pos = raise Error in
     solo Charset.empty fn
-
-let error_message : (unit -> string) -> 'a grammar
-  = fun msg ->
-    (* compose with a test with a full charset to pass the final charset test in
-       internal_parse_buffer *)
-    let i = (false,Charset.full) in
-    let j = Fixpoint.from_val i in
-    let fn errpos blank _ _ buf pos =
-      add_errmsg errpos buf pos msg;
-      raise Error
-    in
-    (j, [mkrule (Next(j,"error",Greedy (j, fn),Idt,idtEmpty ()))])
 
 let unset : string -> 'a grammar
   = fun msg ->
@@ -405,7 +404,7 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
     debug_lvl := !debug_lvl / 10;
-    let (_,buf,pos) = internal_parse_buffer ~blank_after:true (init_errpos buf pos) grammar blank buf pos in
+    let (_,buf,pos) = internal_parse_buffer ~blank_after:true grammar blank buf pos in
     debug_lvl := save_debug;
     if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
     (buf,pos)
@@ -423,9 +422,9 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                (Simple (fun _ a -> a)) (idtEmpty ()))] in
-    let fn errpos _ buf pos buf' pos' =
+    let fn _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
-      let (a,buf,pos) = internal_parse_buffer errpos l1 blank1
+      let (a,buf,pos) = internal_parse_buffer l1 blank1
         ~blank_after:new_blank_after buf pos in
       (a,buf,pos)
     in
@@ -438,8 +437,8 @@ let greedy : 'a grammar -> 'a grammar
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                                    (Simple (fun _ a -> a)) (idtEmpty ()))] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
-    let fn errpos blank buf pos _ _ =
-      let (a,buf,pos) = internal_parse_buffer errpos l1 blank buf pos in
+    let fn blank buf pos _ _ =
+      let (a,buf,pos) = internal_parse_buffer l1 blank buf pos in
       (a,buf,pos)
     in
     greedy_solo (fst l1) fn
