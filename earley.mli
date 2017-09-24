@@ -62,9 +62,8 @@ type blank = buffer -> int -> buffer * int
 
 (** The exception [Parse_error(buf,pos,msgs)] is raised whenever parsing
     fails. It contains the position [pos] (and the corresponding  buffer
-    [buf]) of the furthest reached position in the input, and a list  of
-    error messages [msgs]. *)
-exception Parse_error of buffer * int * string list
+    [buf]) of the furthest reached position in the input. *)
+exception Parse_error of buffer * int
 
 (** [give_up ()] can be called by the user to force the parser to reject
     a possible parsing rule. *)
