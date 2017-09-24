@@ -279,14 +279,8 @@ let eq_closure : type a. a -> a -> bool =
            if ft = string_tag || ft = double_tag || ft = double_array_tag
              then f = g
            else if ft = abstract_tag || ft = out_of_heap_tag
-                   || ft = no_scan_tag || ft = custom_tag
+                   || ft = no_scan_tag || ft = custom_tag || ft = infix_tag
              then f == g
-           else if ft = infix_tag then
-             let off_f = Int32.of_int (size f) in
-             let off_g = Int32.of_int (size g) in
-             off_f = off_g &&
-               fn (Obj.add_offset f off_f)
-                    (Obj.add_offset g off_g)
            else
              size f == size g &&
                let rec gn i =
