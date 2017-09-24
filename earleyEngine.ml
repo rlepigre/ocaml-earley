@@ -69,21 +69,12 @@ type _ pos =
   | Simple : 'a -> 'a pos
   | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
 
-let apply_pos: type a.a pos -> position -> position -> a =
-  fun f p p' ->
+let apply_pos: type a.a pos -> buffer -> int -> buffer -> int -> a =
+  fun f buf col buf' col' ->
     match f with
     | Idt -> idt
     | Simple f -> f
-    | WithPos f -> f (fst p) (snd p) (fst p') (snd p')
-
-(* For right recursion optimisation, we need to fix the
-   position of the beginning for an action *)
-let fix_begin : type a.a pos -> position -> a pos =
-  fun f p ->
-    match f with
-    | WithPos f -> let f = f (fst p) (snd p) in
-                   WithPos (fun _ _ p1 p2 -> f p1 p2)
-    | x -> x
+    | WithPos f -> f buf col buf' col'
 
 (** Common combinators, easy from their types *)
 let app_pos:type a b.(a -> b) pos -> a pos -> b pos = fun f g ->
@@ -139,13 +130,20 @@ type pos2 = { buf : buffer; col : int; buf_ab  : buffer; col_ab : int }
 let eq_pos {buf;col} {buf=buf';col=col'} =
   buffer_equal buf buf' && col = col'
 
-let eq_pos1 {buf;col} (buf',col') =
-  buffer_equal buf buf' && col = col'
-
 let apply_pos_start =
-  fun f ({ buf_ab; col_ab } as d) pos1 pos_ab1 ->
-  if eq_pos1 d pos1 then apply_pos f pos_ab1 pos_ab1
-  else apply_pos f (buf_ab, col_ab) pos1
+  fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
+    (** parse nothing : pos_ab *)
+    if eq_pos p1 p2 then apply_pos f buf_ab col_ab buf_ab col_ab
+    (** parse something *)
+    else apply_pos f buf_ab col_ab buf col
+
+(* For prediction, we need to fix the position of the beginning for an action *)
+let fix_begin : type a.a pos -> pos2 -> a pos =
+  fun f p ->
+    match f with
+    | WithPos f -> let f = f p.buf_ab p.col_ab in
+                   WithPos (fun _ _ p1 p2 -> f p1 p2)
+    | x -> x
 
 (** Type of the information computed on a rule: the boolean tells if
     the grammar can parse an empty string and the charset, the first accepted
@@ -530,7 +528,7 @@ let good c rule =
 
 (** Adds an element in the current table of elements, return true if it is
     new *)
-let add : string -> position -> char -> 'a final -> 'a cur -> bool =
+let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
   fun msg pos_final c element elements ->
     let test = match element with D { rest } -> good c rest in
     let key = elt_key element in
@@ -545,7 +543,7 @@ let add : string -> position -> char -> 'a final -> 'a cur -> bool =
              | Eq, Eq ->
                 if not (eq_closure acts acts') && !warn_merge then
                   Printf.eprintf "\027[31mmerging %a %a %a\027[0m\n%!"
-                    print_final element print_pos2 s print_pos1 pos_final;
+                    print_final element print_pos2 s print_pos2 pos_final;
 (*                assert(stack == stack' ||
                  (Printf.eprintf
                     "\027[31mshould be the same stack %s %a %a %a\027[0m\n%!"
@@ -617,8 +615,8 @@ let protect f a = try f a with Error -> ()
  *)
 let rec pred_prod_lec
         : type a. a final -> a cur -> a reads -> a sct -> blank
-               -> position -> position -> char -> unit =
-  fun element0 elements forward sct blank pos pos_ab c ->
+               -> pos2 -> char -> unit =
+  fun element0 elements forward sct blank cur_pos c ->
   let rec fn element0 =
     match element0 with
     | D {start; acts; stack; rest; full} ->
@@ -629,16 +627,16 @@ let rec pred_prod_lec
           let rules = List.filter (fun rule -> good c rule) rules in
           (** we need to fix the start for the action f and g for
               right recursive optim *)
-          let f = fix_begin f pos_ab in
+          let f = fix_begin f cur_pos in
           (** Compute the elements to add in the stack of all created rules *)
           let tails =
-            match rest2.rule, eq_pos1 start pos with
+            match rest2.rule, eq_pos start cur_pos with
             | Empty (g), false ->
                (* NOTE: right recursion optim is bad for rule with only one
                   non terminal.
                   - loops for grammar like A = A | ...
                   NOTE: more merge may appends without right recursion *)
-               let g = fix_begin g (start.buf_ab, start.col_ab) in
+               let g = fix_begin g start in
                (** We contract the head of the stack. This is similar
                    to tail call optimisation in compilation *)
                let contract = function
@@ -653,12 +651,13 @@ let rec pred_prod_lec
           in
           (** create one final elements for each rule and adds the
               tails to its stack *)
-          let start = { buf=fst pos; col=snd pos; buf_ab=fst pos_ab; col_ab=snd pos_ab } in
+          let start = cur_pos in
           List.iter
             (fun rule ->
               let stack = find_stack sct rule in
-                let nouveau = D {start; acts = idt; stack; rest = rule; full = rule} in
-                let b = add "P" pos c nouveau elements in
+                let nouveau = D {start; acts = idt; stack; rest = rule; full = rule}
+                in
+                let b = add "P" cur_pos c nouveau elements in
                 List.iter (fun c -> ignore (add_stack sct rule c)) tails;
                 if b then fn nouveau;
             ) rules
@@ -668,7 +667,7 @@ let rec pred_prod_lec
         (try
            if !debug_lvl > 1 then
              Printf.eprintf "action for completion of %a =>" print_final element0;
-           let x = try acts (apply_pos_start a start pos pos_ab)
+           let x = try acts (apply_pos_start a start cur_pos)
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
            if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
           let complete = fun element ->
@@ -680,18 +679,18 @@ let rec pred_prod_lec
                  if !debug_lvl > 1 then
                    Printf.eprintf "action for completion bis of %a =>" print_final element0;
                  let acts =
-                   try apply_pos_start acts start pos pos_ab x
+                   try apply_pos_start acts start cur_pos x
                    with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
                  in
                  if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
                  let nouveau = D {start; acts; stack=els'; rest; full } in
-                 let b = add "C" pos c nouveau elements in
+                 let b = add "C" cur_pos c nouveau elements in
                  if b then fn nouveau
                end
             | B _ -> ()
           in
           let complete = protect complete in
-          if eq_pos1 start pos then add_stack_hook sct full complete
+          if eq_pos start cur_pos then add_stack_hook sct full complete
           else List.iter complete !stack;
          with Error -> ())
 
@@ -708,22 +707,23 @@ let rec pred_prod_lec
                    rest = idtEmpty (); full } in
        let rule = rule a in
        let stack' = add_stack sct rule cc in
-       let start = { buf=fst pos; col=snd pos; buf_ab=fst pos_ab; col_ab=snd pos_ab } in
+       let start = cur_pos in
        let nouveau = D {start; acts = idt; stack = stack'; rest = rule; full = rule } in
-       let b = add "P" pos c nouveau elements in
+       let b = add "P" cur_pos c nouveau elements in
        if b then fn nouveau
 
 
        | Next(_,_,Test(s,f),g,rest) ->
           (try
-             let (buf0, col0 as j) = pos_ab in
-             if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!" (line_num buf0) col0;
-             let (a,b) = f (fst pos) (snd pos) buf0 col0 in
+             let {buf; col; buf_ab; col_ab} as j = cur_pos in
+             (*if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!"
+                                                   (line_num buf0) col0;*)
+             let (a,b) = f buf col buf_ab col_ab in
              if b then begin
                  if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-                 let x = apply_pos g j j a in
+                 let x = apply_pos g buf col buf col a in
                  let nouveau = D {start; stack; rest; full; acts = cns x acts} in
-                 let b = add "T" pos c nouveau elements in
+                 let b = add "T" cur_pos c nouveau elements in
                  if b then fn nouveau
                end
            with Error -> ())
@@ -731,11 +731,11 @@ let rec pred_prod_lec
        | Next(_,_,Term (_,f),g,rest) ->
           (try
              (*Printf.eprintf "lecture at %d %d\n%!" (line_num buf0) pos0;*)
-             let buf_ab, col_ab = pos_ab in
+             let {buf_ab; col_ab} = cur_pos in
              let a, buf, col = f buf_ab col_ab in
              if !debug_lvl > 1 then
                Printf.eprintf "action for terminal of %a =>" print_final element0;
-             let a = try apply_pos g (buf_ab, col_ab) (buf, col) a
+             let a = try apply_pos g buf_ab col_ab buf col a
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let nouveau =
@@ -743,7 +743,7 @@ let rec pred_prod_lec
              in
              if buffer_before buf col buf_ab col_ab then
                begin
-                 let b = add "L" pos c nouveau elements in
+                 let b = add "L" cur_pos c nouveau elements in
                  if b then fn nouveau
                end
              else
@@ -752,12 +752,12 @@ let rec pred_prod_lec
 
        | Next(_,_,Greedy(_,f),g,rest) ->
           (try
-             let buf_ab, col_ab = pos_ab in
+             let {buf; col; buf_ab; col_ab} = cur_pos in
              if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf_ab) col_ab;
-             let a, buf, col = f blank (fst pos) (snd pos) buf_ab col_ab in
+             let a, buf, col = f blank buf col buf_ab col_ab in
              if !debug_lvl > 1 then
                Printf.eprintf "action for greedy of %a =>" print_final element0;
-             let a = try apply_pos g (buf_ab, col_ab) (buf, col) a
+             let a = try apply_pos g buf_ab col_ab buf col a
                with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
              if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
              let nouveau =
@@ -765,7 +765,7 @@ let rec pred_prod_lec
              in
              if buffer_before buf col buf_ab col_ab then
                begin
-                   let b = add "G" pos c nouveau elements in
+                   let b = add "G" cur_pos c nouveau elements in
                    if b then fn nouveau
                end
              else
@@ -806,10 +806,11 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
     let one_step l =
       let c,_,_ = Input.read !buf' !col' in
       let c',_,_ = Input.read !buf !col in
+      let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
       if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C-%C\n%!" parse_id (line_num !buf) (line_num !buf') !col !col' c c';
       List.iter (fun s ->
-        if add "I" (!buf,!col) c s elements then
-          pred_prod_lec s elements forward sct blank (!buf,!col) (!buf',!col') c) l;
+        if add "I" cur_pos c s elements then
+          pred_prod_lec s elements forward sct blank cur_pos c) l;
     in
     let search_success () =
       try
@@ -850,13 +851,13 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
     let rec fn : type a.a final -> a = function
       | D {stack=s1; rest={rule=Empty f}; acts; full=r1} ->
          (match eq_rule r0 r1 with Neq -> raise Error | Eq ->
-           let x = acts (apply_pos f (buf0, col0) (!buf, !col)) in
+           let x = acts (apply_pos f buf0 col0 !buf !col) in
            let gn : type a b. b -> (b,a) element list -> a =
             fun x l ->
               let rec hn =
                 function
                 | B (ls)::l ->
-                   (try apply_pos ls (buf0, col0) (!buf, !col) x
+                   (try apply_pos ls buf0 col0 !buf !col x
                     with Error -> hn l)
                 | C _:: l ->
                    hn l
