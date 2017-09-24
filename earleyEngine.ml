@@ -620,7 +620,7 @@ let rec pred_prod_lec
 
        (** A non terminal : prediction *)
        | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
-          if !debug_lvl > 1 then
+          if !debug_lvl > 0 then
             log "Prediction: %a\n%!" print_final elt0;
           (* select the useful rules *)
           let rules = List.filter (fun rule -> good c rule) rules in
@@ -663,7 +663,7 @@ let rec pred_prod_lec
        (** Nothing left to parse in the current rule: completion/production *)
        | Empty(a) ->
           begin try
-            if !debug_lvl > 1 then
+            if !debug_lvl > 0 then
               log "Completion: %a\n%!" print_final elt0;
             (** run the action *)
             let x = acts (apply_pos_start a start cur_pos) in
@@ -688,7 +688,7 @@ let rec pred_prod_lec
        (** A terminal, we try to read *)
        | Next(_,_,Term (_,f),g,rest) ->
           begin try
-            if !debug_lvl > 1 then log "Read      : %a\n%!" print_final elt0;
+            if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
             let {buf_ab; col_ab} = cur_pos in
             let a, buf, col = f buf_ab col_ab in
             let a = apply_pos g buf_ab col_ab buf col a in
@@ -708,7 +708,7 @@ let rec pred_prod_lec
        (** A greedy terminal, same as above (almost) *)
        | Next(_,_,Greedy(_,f),g,rest) ->
           begin try
-            if !debug_lvl > 1 then log "Greedy    : %a\n%!" print_final elt0;
+            if !debug_lvl > 0 then log "Greedy    : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} = cur_pos in
             let a, buf, col = f blank buf col buf_ab col_ab in
             let a = apply_pos g buf_ab col_ab buf col a in
@@ -725,7 +725,7 @@ let rec pred_prod_lec
        (** A test *)
        | Next(_,_,Test(s,f),g,rest) ->
           begin try
-            if !debug_lvl > 1 then log "Test      : %a\n%!" print_final elt0;
+            if !debug_lvl > 0 then log "Test      : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} as j = cur_pos in
             let (a,b) = f buf col buf_ab col_ab in
             if b then begin
@@ -739,7 +739,7 @@ let rec pred_prod_lec
        (** A dependant rule: compute a rule while parsing ! *)
        | Dep(fn_rule) ->
           begin try
-            if !debug_lvl > 1 then log "dependant rule\n%!";
+            if !debug_lvl > 0 then log "dependant rule\n%!";
             let a =
               let a = ref None in
               try
