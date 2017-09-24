@@ -394,6 +394,9 @@ val no_blank_test : 'a -> 'a grammar
 val grammar_family : ?param_to_string:('a -> string) -> string
   -> ('a -> 'b grammar) * (('a -> 'b grammar) -> unit)
 
+val grammar_prio : ?param_to_string:('a -> string) -> string
+  -> ('a -> 'b grammar) * ((('a -> bool) * 'b grammar) list -> unit)
+
 (**
    {[
    (* Declare the grammar family *)

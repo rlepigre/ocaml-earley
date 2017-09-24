@@ -380,7 +380,7 @@ let handle_exception f a =
       failwith "No parse."
     end
 
-let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
+let family ?(param_to_string=(fun _ -> "<...>")) filter name =
   let tbl = EqHashtbl.create ~equal:closure_eq 31 in
   let is_set = ref None in
   (fun p ->
@@ -395,10 +395,20 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
       g),
   (fun f ->
     (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
+    let f = filter f in
     is_set := Some f;
     EqHashtbl.iter (fun p r ->
       set_grammar r (f p);
     ) tbl)
+
+let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
+  let filter gs p =
+    alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
+  in
+  family ~param_to_string filter name
+
+let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
+  family ~param_to_string idt name
 
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
