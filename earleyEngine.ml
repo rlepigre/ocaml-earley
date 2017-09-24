@@ -182,7 +182,7 @@ module rec Types : sig
      (** Empty rule. *)
      | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
-         no other solution are possible *)
+         no other solution is possible *)
      | Next : info Fixpoint.t * string * 'a symbol * ('a -> 'b) pos *
                 ('b -> 'c) rule -> 'c prerule
      (** Sequence of a symbol and a rule, with a possible name for debugging,
@@ -195,37 +195,34 @@ module rec Types : sig
                  ; ptr : 'a StackContainer.container
                  ; adr : int }
 
-   (** Type of an active element of the earley table.
-       In a description of earley, an element is
-       [(start, end, done * rest)] meaning we parsed
-       the string from [pos1] to [pos2] with the rule [done]
-       and it remains to parse [rest]. The '*' therefore denote
-       the current position. Earley is basically a dynamic algorithm
-       producing all possible elements.
+   (** Type of an active element of the earley table.  In a
+       description of earley, an element is [(start, end, done *
+       rest)] meaning we parsed the string from [pos1] to [pos2] with
+       the rule [done] and it remains to parse [rest]. The '*'
+       therefore denote the current position. Earley is basically a
+       dynamic algorithm producing all possible elements.
 
        We depart from this representation in two ways:
 
        - we do not represent [done], we keep the whole whole rule:
          [full = done rest]
 
-       - we never keep [end]. It is only used when we finish parsing of
-         a rule and we have an element [(start, end, done * Empty)]
-         then, we look for other element of the form
-         [(start', end', done' * rest')] where
-              * end' = start
-              * rest' starts with a non terminal containing done
-         We represent this situation by a stack in the element
-         [(start, end, done * Empty)], that is maintained to lists
-         all the elements satisfying the above property (no more,
-         no less, each element only once)
+       - we never keep [end]. It is only used when we finish parsing
+         of a rule and we have an element [(start, end, done * Empty)]
+         then, we look for other element of the form [(start', end',
+         done' * rest')] where * end' = start * rest' starts with a
+         non terminal containing done We represent this situation by a
+         stack in the element [(start, end, done * Empty)], that is
+         maintained to lists all the elements satisfying the above
+         property (no more, no less, each element only once)
 
          The type ['a final] represent an element of the earley table
          where [end] is the current position in the string being parsed.
     *)
    and _ final = D :
-    { start : pos2           (* position in the buffer, before and after blank *)
-    ; stack : ('c, 'r) stack (* tree of stack of what should be do after
-                                reading the [rest] of the rule *)
+    { start : pos2           (* position in buffer, before and after blank *)
+    ; stack : ('c, 'r) stack (* tree of stack representing what should be done
+                                after reading the [rest] of the rule *)
     ; acts  : 'b -> 'c       (* action to produce the final 'c. *)
     ; rest  : 'b rule        (* remaining to parse, will produce 'b *)
     ; full  : 'c rule        (* full rule. rest is a suffix of full. *)
@@ -237,12 +234,11 @@ module rec Types : sig
        release memory.
 
        The type is similar to the previous: [('a, 'r) element], means
-       that from a value of type 'a, comming from our parent in the stack,
-       we could produce a value of type ['r] using [rest].
+       that from a value of type 'a, comming from our parent in the
+       stack, we could produce a value of type ['r] using [rest].
 
        The action needs to be prametrised by the future position which
-       is unknown.
-    *)
+       is unknown.  *)
    and (_,_) element =
      (* Cons cell of the stack *)
      | C : { start : pos2
@@ -254,42 +250,39 @@ module rec Types : sig
      (* End of the stack *)
      | B : ('a -> 'r) pos -> ('a,'r) element
 
-   (** stack themselves are in acyclic graph of elements (sharing is
+   (** stack themselves are an acyclic graph of elements (sharing is
        important to be preserved). We need a reference for the stack
-       construction.
-    *)
+       construction.  *)
    and ('a,'b) stack = ('a,'b) element list ref
 
-  (** For the construction of the stack, all elements of the
-      same list ref of type ('a,'b) have the same [end'].
-      And all elements that points to this stack have the
-      [start = end']. Moreover, all elements with the
-      same [full] and [start] must point to the same stack.
-      Recall that [end] is not represented in elements.
+  (** For the construction of the stack, all elements of the same list
+      ref of type ('a,'b) stack have the same [end'].  And all
+      elements that points to this stack have the [start =
+      end']. Moreover, all elements with the same [full] and [start]
+      must point to the same stack.  Recall that [end] is not
+      represented in elements.
 
-      We call the position [end'] associated to a stack (as
-      sait the [start] of the element point to this stack, the
-      "stack position". An important point: stack are only
-      constructed when the stack position is the current position.
+      We call the position [end'] associated to a stack (as sait the
+      [start] of the element point to this stack, the "stack
+      position". An important point: stack are only constructed when
+      the stack position is the current position.
 
-      And if we omit the "right recursion optimisation", when
-      we add a point from an element (start, end, rest, full)
-      to a stack (which is therefore at position [start], we
-      have [start = end] and [rest = full]. The rule has not
-      parsed anything! The is the "prediction" phase of earley.
+      And if we omit the "right recursion optimisation", when we add a
+      point from an element (start, end, rest, full) to a stack (which
+      is therefore at position [start], we have [start = end] and
+      [rest = full]. The rule has not parsed anything! The is the
+      "prediction" phase of earley.
 
-      To do this construction, we use the record below with
-      a hook that we run on all elements added to that stack.
-      This record is only used we stack whose position are the
-      current position: all these records will become inaccessible
-      when we advance in parsing.
+      To do this construction, we use the record below with a hook
+      that we run on all elements added to that stack.  This record is
+      only used we stack whose position are the current position: all
+      these records will become inaccessible when we advance in
+      parsing.
 
-      Morevoer, a direct pointer (thanks to the Container module)
-      is kept from the [full] rule of all elements point to
-      these stack and that have the current position as [end].
-      This is the role of the functor call below.
- *)
-
+      Morevoer, a direct pointer (thanks to the Container module) is
+      kept from the [full] rule of all elements that point to these
+      stack and that have the current position as [end].  This is the
+      role of the functor call below.  *)
 
   (** stack in construction ... they have a hook, to run on
       elements added to the stack later ! *)
@@ -310,14 +303,19 @@ include Types
 (** Recal the INVARIANTS:
 
 1° Consider two C elements (or two D elements) of a stack.  If their
-   have the same start, rest and full is means we have parsed the same
-   prefix of the rule from start to produce a value of the same type.
+   have the same start and full is means we can to the same after
+   a complete parsing of the rule.
 
    Then, the two elements MUST HAVE PHYSICALLY EQUAL stack
 
-2° For D nodes only, we keep only one for each (start, rest, full) triple
-   so acts are necessarily physically equal
-*)
+2° For D nodes, we keep only one for each (start, rest, full) triple
+   with a merge warning when a node only differs by its actions
+   (compared looking inside closure).
+
+   So D nodes with the same (start, rest, full) triple always have
+   equal action. This propagates to each stack (C node with the same
+   (start, rest, full) in the same stack have phisically equal actions.
+ *)
 
 (** a function to build rule from pre_rule *)
 let count_rule = ref 0 (** counet outside because of value restriction *)
