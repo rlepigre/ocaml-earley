@@ -778,23 +778,31 @@ let rec tail_key : type a. a rule -> int = fun rule ->
 let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
                             -> int -> a * buffer * int =
   fun internal blank_after main blank buf0 col0 ->
+    (** get a fresh parse_id *)
     let parse_id = incr count; !count in
-    (* construction de la table initiale *)
+    (** contruction of the 3 tables *)
     let elements : a cur = Hashtbl.create 61 in
+    let forward = ref OrdTbl.empty in
+    let sct = StackContainer.create_table 101 in
+    (** contruction of the initial elements and the refs olding the position *)
     let r0 : a rule = grammar_to_rule main in
     let final_elt = B (Simple idt) in
+    (** the key of a final parsing *)
     let final_key = (buffer_uid buf0, col0, r0.adr, tail_key r0) in
     let s0 : (a, a) stack = ref [final_elt] in
     let col = ref col0 and buf = ref buf0 in
     let buf', col' = blank buf0 col0 in
     let start = { buf = buf0; col = col0; buf_ab = buf'; col_ab = col' } in
     let col' = ref col' and buf' = ref buf' in
+    (** the initial elements *)
     let init = D {start; acts = idt; stack=s0; rest=r0; full=r0 } in
+    (** old the last success for partial_parse *)
     let last_success = ref [] in
-    let forward = ref OrdTbl.empty in
+    (** the list of elements to be treated at the next step *)
     let todo = ref [init] in
     if !debug_lvl > 0 then log "STAR=%5d: %a\n%!" parse_id print_pos start;
-    let sct = StackContainer.create_table 101 in
+
+    (** The function calling the main recursice function above *)
     let one_step l =
       let c,_,_ = Input.read !buf' !col' in
       let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
@@ -803,6 +811,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
         if add "I" cur_pos c s elements then
           pred_prod_lec s elements forward sct blank cur_pos c) l;
     in
+    (** searching a succes *)
     let search_success () =
       try
         let success = Hashtbl.find elements final_key in
@@ -810,23 +819,29 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
       with Not_found -> ()
     in
 
-    (* boucle principale *)
+    (* main loop *)
     while !todo <> [] do
+      (** clear the table *)
       StackContainer.clear sct;
       Hashtbl.clear elements;
+      (** treat the next elements *)
       one_step !todo;
+      (** search success for internal (partial) parse *)
       if internal then search_success ();
+      (** advance to the next elements *)
       try
+         (** pop the next elements and position *)
          let (new_buf, new_col, l, forward') = OrdTbl.pop !forward in
          todo := l;
          forward := forward';
+         (** advance positions *)
          col := new_col; buf := new_buf;
          let buf'', col'' = blank new_buf new_col in
          buf' := buf''; col' := col'';
        with Not_found -> todo := []
     done;
+    (** search succes at the end for non internal parse *)
     if not internal then search_success ();
-    (* on regarde si on a parsé complètement la catégorie initiale *)
     let parse_error () =
       if internal then
         raise Error
@@ -835,6 +850,8 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     in
     let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
     if !debug_lvl > 0 then log "ENDS=%5d: %a\n%!" parse_id print_pos cur_pos;
+    (** Test if the final element contains a B note, too long code
+        to accomodate GADT *)
     let rec fn : type a.a final -> a = function
       | D {stack=s1; rest={rule=Empty f}; acts; full=r1} ->
          (match eq_rule r0 r1 with Neq -> raise Error | Eq ->
@@ -855,6 +872,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
            gn x !s1)
       | _ -> assert false
     in
+    (** Apply the above function to all last success, further position first *)
     let a, buf, col as result =
       let rec kn = function
         | [] -> parse_error ()
@@ -866,11 +884,11 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
              Error -> kn rest
       in kn !last_success
     in
-    StackContainer.clear sct; (* don't forget final cleaning of assoc ptrs !! *)
-    (* useless but clean *)
     if !debug_lvl > 0 then log "EXIT=%5d: %a\n%!" parse_id print_pos cur_pos;
     result
 
-let internal_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
+let internal_parse_buffer
+    : type a.a grammar -> blank -> ?blank_after:bool
+           -> buffer -> int -> a * buffer * int
    = fun g bl ?(blank_after=false) buf col ->
        parse_buffer_aux true blank_after g bl buf col
