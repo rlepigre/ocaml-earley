@@ -43,10 +43,14 @@ let run parse =
       for i = 1 to n1 do
 	let n = Random.int n2 in
 	let l = generate_expr n in
-	Printf.eprintf "\r%d/%d%!" i n1;
-	Printf.printf "Parsing: %s\n%!" l;
-	let r = handle_exception (parse_string parse blank) l in
-	Printf.printf "-> %f\n%!" r
+        if !output then
+          Printf.printf "%s\n" l
+        else begin
+	    Printf.eprintf "\r%d/%d%!" i n1;
+	    Printf.printf "Parsing: %s\n%!" l;
+	    let r = handle_exception (parse_string parse blank) l in
+	    Printf.printf "-> %f\n%!" r
+          end
       done;
       Printf.eprintf " OK\n%!";
     end

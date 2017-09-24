@@ -52,6 +52,7 @@ tests: earley.cmxa tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left4_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left6_ml.native
+	$(OCAMLBUILD) -pkgs unix     tests/calcyacc/calc.native
 	./test.native > /dev/null
 	./blank_ml.native --quick > /dev/null
 	./calc_prio_left_ml.native --quick > /dev/null
