@@ -537,7 +537,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
              D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
              match eq_rule rest r', eq_rule full fu' with
              | Eq, Eq ->
-                if not (eq_closure acts acts') && !warn_merge then
+                if !warn_merge && not (eq_closure acts acts') then
                   log "\027[31mmerging %a %a %a\027[0m\n%!"
                     print_final element print_pos s print_pos pos_final;
 (*                assert(stack == stack' ||
@@ -783,17 +783,17 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     let forward = ref OrdTbl.empty in
     let sct = StackContainer.create_table 101 in
     (** contruction of the initial elements and the refs olding the position *)
-    let r0 : a rule = grammar_to_rule main in
-    let final_elt = B (Simple idt) in
+    let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)
-    let final_key = (buffer_uid buf0, col0, r0.adr, tail_key r0) in
-    let s0 : (a, a) stack = ref [final_elt] in
+    let final_key = tail_key main_rule in
+    let main_key = (buffer_uid buf0, col0, main_rule.adr, final_key) in
+    let s0 : (a, a) stack = ref [B (Simple idt)] in
     let col = ref col0 and buf = ref buf0 in
     let buf', col' = blank buf0 col0 in
     let start = { buf = buf0; col = col0; buf_ab = buf'; col_ab = col' } in
     let col' = ref col' and buf' = ref buf' in
     (** the initial elements *)
-    let init = D {start; acts = idt; stack=s0; rest=r0; full=r0 } in
+    let init = D {start; acts=idt; stack=s0; rest=main_rule; full=main_rule } in
     (** old the last success for partial_parse *)
     let last_success = ref [] in
     (** the list of elements to be treated at the next step *)
@@ -803,7 +803,9 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** The function calling the main recursice function above *)
     let one_step l =
       let c,_,_ = Input.read !buf' !col' in
-      let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
+      let cur_pos = { buf = !buf; col = !col
+                      ; buf_ab = !buf'; col_ab = !col' }
+      in
       if !debug_lvl > 0 then log "NEXT=%5d: %a\n%!" parse_id print_pos cur_pos;
       List.iter (fun s ->
         if add "I" cur_pos c s elements then
@@ -812,7 +814,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** searching a succes *)
     let search_success () =
       try
-        let success = Hashtbl.find elements final_key in
+        let success = Hashtbl.find elements main_key in
         last_success := (!buf,!col,!buf',!col',success) :: !last_success
       with Not_found -> ()
     in
@@ -851,8 +853,8 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** Test if the final element contains a B note, too long code
         to accomodate GADT *)
     let rec fn : type a.a final -> a = function
-      | D {stack=s1; rest={rule=Empty f}; acts; full=r1} ->
-         (match eq_rule r0 r1 with Neq -> raise Error | Eq ->
+      | D {stack=s1; rest={rule=Empty f}; acts; full} ->
+         (match eq_rule main_rule full with Neq -> raise Error | Eq ->
            let x = acts (apply_pos f buf0 col0 !buf !col) in
            let gn : type a b. b -> (b,a) element list -> a =
             fun x l ->
