@@ -372,12 +372,11 @@ let position g =
     (filename buf, line_num buf, pos, line_num buf', pos', a)) g
 
 let handle_exception f a =
-  try f a with Parse_error(buf, pos, msgs) ->
+  try f a with Parse_error(buf, pos) ->
     begin
-      Printf.eprintf "File %S, line %d, character %d:\n"
-        (filename buf) (line_num buf) (utf8_col_num buf pos);
-      Printf.eprintf "Parse error:\n%!";
-      List.iter (Printf.eprintf " - %s\n%!") msgs;
+      Printf.eprintf "Parse error: ";
+      Printf.eprintf "file %S, line %d, character %d\n"
+                     (filename buf) (line_num buf) (utf8_col_num buf pos);
       failwith "No parse."
     end
 

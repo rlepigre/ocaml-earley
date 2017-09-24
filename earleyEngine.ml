@@ -48,6 +48,7 @@ let _ = Printexc.record_backtrace true
 (* Flags. *)
 let debug_lvl  = ref 0
 let warn_merge = ref true
+let log = Printf.eprintf
 
 (* Exception raised for parse error. Can be raise in the action of a
    grammar using [give_up] *)
@@ -429,25 +430,22 @@ let rec print_rule : type a b.?rest:b rule -> out_channel -> a rule -> unit =
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
-let print_pos1 ch (buf, col) =
-  Printf.fprintf ch "%d:%d" (line_num buf) col
-
-let print_pos2 ch {buf; col; buf_ab; col_ab} =
-  Printf.fprintf ch "%d:%d-%d:%d" (line_num buf) col (line_num buf_ab) col_ab
+let print_pos ch {buf; col; buf_ab; col_ab} =
+  Printf.fprintf ch "%5d:%3d-%5d:%3d" (line_num buf) col (line_num buf_ab) col_ab
 
 let print_final ch (D {start; rest; full}) =
-  Printf.fprintf ch "%a " print_pos2 start;
+  Printf.fprintf ch "%a == " print_pos start;
   print_rule ~rest ch full;
   let (ae,set) = force (rule_info rest) in
-  if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
+  if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   match el with
   | C {start; rest; full} ->
-     Printf.fprintf ch "%a " print_pos2 start;
+     Printf.fprintf ch "%a == " print_pos start;
      print_rule ~rest ch full;
      let (ae,set) = force (rule_info rest) in
-     if !debug_lvl > 0 then Printf.fprintf ch "(%a %b)" Charset.print set ae
+     if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
   | B _ ->
     Printf.fprintf ch "B"
 
@@ -491,13 +489,13 @@ let add_stack : type a b. b sct -> a rule -> (a, b) element -> (a, b) stack =
       let { stack; hooks } = StackContainer.find sct r.ptr in
       if not (List.exists (eq_C el) !stack) then (
         if !debug_lvl > 3 then
-          Printf.eprintf "add stack %a ==> %a\n%!"
+          log "    Add stack %a ==> %a\n%!"
                          print_rule r print_element el;
         stack := el :: !stack;
         List.iter (fun f -> f el) hooks); stack
     with Not_found ->
       if !debug_lvl > 3 then
-        Printf.eprintf "new stack %a ==> %a\n%!" print_rule r print_element el;
+        log "    New stack %a ==> %a\n%!" print_rule r print_element el;
       let stack = ref [el] in
       StackContainer.add sct r.ptr {stack; hooks=[]};
       stack
@@ -522,8 +520,8 @@ let good c rule =
   let i = rule_info rule in
   let (ae,set) = force i in
   let res = ae || Charset.mem set c in
-  if !debug_lvl > 4 then Printf.eprintf "good %C %b %a => %b\n"
-                                        c ae Charset.print set res;
+  if !debug_lvl > 4 then log "        good %b <= %C in %b %a\n"
+                             res c ae Charset.print set;
   res
 
 (** Adds an element in the current table of elements, return true if it is
@@ -542,18 +540,18 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
              match eq_rule rest r', eq_rule full fu' with
              | Eq, Eq ->
                 if not (eq_closure acts acts') && !warn_merge then
-                  Printf.eprintf "\027[31mmerging %a %a %a\027[0m\n%!"
-                    print_final element print_pos2 s print_pos2 pos_final;
+                  log "\027[31mmerging %a %a %a\027[0m\n%!"
+                    print_final element print_pos s print_pos pos_final;
 (*                assert(stack == stack' ||
-                 (Printf.eprintf
+                 (log
                     "\027[31mshould be the same stack %s %a %a %a\027[0m\n%!"
-                    info print_final element print_pos2 s print_pos1 pos_final;
+                    info print_final element print_pos s print_pos1 pos_final;
                   false));*)
                 false
              | _ -> assert false)
         with Not_found ->
          if !debug_lvl > 1 then
-             Printf.eprintf "add %s %a\n%!" msg print_final element;
+             log "add %-6s: %a\n%!" msg print_final element;
           Hashtbl.add elements key element; true
       end
 
@@ -611,18 +609,21 @@ let protect f a = try f a with Error -> ()
    - the blank (to pass it to Greedy grammars)
    - the position and current charaters for the action and the good test
 
-   It perform prediction/production/lecture in a recursive way.
+   It perform prediction/completion/lecture in a recursive way.
  *)
 let rec pred_prod_lec
         : type a. a final -> a cur -> a reads -> a sct -> blank
                -> pos2 -> char -> unit =
-  fun element0 elements forward sct blank cur_pos c ->
-  let rec fn element0 =
-    match element0 with
+  fun elt0 elements forward sct blank cur_pos c ->
+  let rec fn elt0 =
+    match elt0 with
     | D {start; acts; stack; rest; full} ->
        match rest.rule with
-       (** A non terminal : production *)
+
+       (** A non terminal : prediction *)
        | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
+          if !debug_lvl > 1 then
+            log "Prediction: %a\n%!" print_final elt0;
           (* select the useful rules *)
           let rules = List.filter (fun rule -> good c rule) rules in
           (** we need to fix the start for the action f and g for
@@ -655,135 +656,127 @@ let rec pred_prod_lec
           List.iter
             (fun rule ->
               let stack = find_stack sct rule in
-                let nouveau = D {start; acts = idt; stack; rest = rule; full = rule}
-                in
-                let b = add "P" cur_pos c nouveau elements in
+                let elt = D{start; acts=idt; stack; rest=rule; full=rule} in
+                let b = add "P" cur_pos c elt elements in
                 List.iter (fun c -> ignore (add_stack sct rule c)) tails;
-                if b then fn nouveau;
+                if b then fn elt;
             ) rules
 
-    (* production      (pos, i, ... o ) dans la table *)
-     | Empty(a) ->
-        (try
-           if !debug_lvl > 1 then
-             Printf.eprintf "action for completion of %a =>" print_final element0;
-           let x = try acts (apply_pos_start a start cur_pos)
-                   with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
-           if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-          let complete = fun element ->
-            match element with
-            | C {start; stack=els'; acts; rest; full} ->
-               if !debug_lvl > 1 then
-                 Printf.eprintf "action for completion test %a" print_element element;
-               if good c rest then begin
-                 if !debug_lvl > 1 then
-                   Printf.eprintf "action for completion bis of %a =>" print_final element0;
-                 let acts =
-                   try apply_pos_start acts start cur_pos x
-                   with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e
-                 in
-                 if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-                 let nouveau = D {start; acts; stack=els'; rest; full } in
-                 let b = add "C" cur_pos c nouveau elements in
-                 if b then fn nouveau
-               end
-            | B _ -> ()
-          in
-          let complete = protect complete in
-          if eq_pos start cur_pos then add_stack_hook sct full complete
-          else List.iter complete !stack;
-         with Error -> ())
+       (** Nothing left to parse in the current rule: completion/production *)
+       | Empty(a) ->
+          begin try
+            if !debug_lvl > 1 then
+              log "Completion: %a\n%!" print_final elt0;
+            (** run the action *)
+            let x = acts (apply_pos_start a start cur_pos) in
+            (** create a new element in the table for each element
+                in the stack *)
+            let complete = fun element ->
+              match element with
+              | C {start; stack=els'; acts; rest; full} ->
+                 let acts = apply_pos_start acts start cur_pos x in
+                 let elt = D {start; acts; stack=els'; rest; full } in
+                 let b = add "C" cur_pos c elt elements in
+                 if b then fn elt
+              | B _ -> ()
+            in
+            let complete = protect complete in
+            (** use hook if D starts at current position because element might
+                still be added to the stack *)
+            if eq_pos start cur_pos then add_stack_hook sct full complete
+            else List.iter complete !stack;
+          with Error -> () end
 
-         | Dep(rule) ->
-       if !debug_lvl > 1 then Printf.eprintf "dependant rule\n%!";
-       let a =
-         let a = ref None in
-         try let _ = acts (fun x -> a := Some x; raise Exit) in assert false
-         with Exit ->
-           match !a with None -> assert false | Some a -> a
-       in
-       let cc = C { start;
-                    acts = Simple (fun b f -> f (acts (fun _ -> b))); stack;
-                   rest = idtEmpty (); full } in
-       let rule = rule a in
-       let stack' = add_stack sct rule cc in
-       let start = cur_pos in
-       let nouveau = D {start; acts = idt; stack = stack'; rest = rule; full = rule } in
-       let b = add "P" cur_pos c nouveau elements in
-       if b then fn nouveau
-
-
-       | Next(_,_,Test(s,f),g,rest) ->
-          (try
-             let {buf; col; buf_ab; col_ab} as j = cur_pos in
-             (*if !debug_lvl > 1 then Printf.eprintf "testing at %d %d\n%!"
-                                                   (line_num buf0) col0;*)
-             let (a,b) = f buf col buf_ab col_ab in
-             if b then begin
-                 if !debug_lvl > 1 then Printf.eprintf "test passed\n%!";
-                 let x = apply_pos g buf col buf col a in
-                 let nouveau = D {start; stack; rest; full; acts = cns x acts} in
-                 let b = add "T" cur_pos c nouveau elements in
-                 if b then fn nouveau
-               end
-           with Error -> ())
-
+       (** A terminal, we try to read *)
        | Next(_,_,Term (_,f),g,rest) ->
-          (try
-             (*Printf.eprintf "lecture at %d %d\n%!" (line_num buf0) pos0;*)
-             let {buf_ab; col_ab} = cur_pos in
-             let a, buf, col = f buf_ab col_ab in
-             if !debug_lvl > 1 then
-               Printf.eprintf "action for terminal of %a =>" print_final element0;
-             let a = try apply_pos g buf_ab col_ab buf col a
-               with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
-             if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-             let nouveau =
-               (D {start; stack; acts = cns a acts; rest; full})
-             in
-             if buffer_before buf col buf_ab col_ab then
-               begin
-                 let b = add "L" cur_pos c nouveau elements in
-                 if b then fn nouveau
-               end
-             else
-               forward := OrdTbl.add buf col nouveau !forward
-           with Error -> ())
+          begin try
+            if !debug_lvl > 1 then log "Read      : %a\n%!" print_final elt0;
+            let {buf_ab; col_ab} = cur_pos in
+            let a, buf, col = f buf_ab col_ab in
+            let a = apply_pos g buf_ab col_ab buf col a in
+            let elt =
+              (D {start; stack; acts = cns a acts; rest; full})
+            in
+            (** if we read nothing: add immediately to the table *)
+            if buffer_before buf col buf_ab col_ab then
+              begin
+                let b = add "L" cur_pos c elt elements in
+                if b then fn elt
+              end
+            else (** otherwise write in the forward table for the future *)
+              forward := OrdTbl.add buf col elt !forward
+          with Error -> () end
 
+       (** A greedy terminal, same as above (almost) *)
        | Next(_,_,Greedy(_,f),g,rest) ->
-          (try
-             let {buf; col; buf_ab; col_ab} = cur_pos in
-             if !debug_lvl > 0 then Printf.eprintf "greedy at %d %d\n%!" (line_num buf_ab) col_ab;
-             let a, buf, col = f blank buf col buf_ab col_ab in
-             if !debug_lvl > 1 then
-               Printf.eprintf "action for greedy of %a =>" print_final element0;
-             let a = try apply_pos g buf_ab col_ab buf col a
-               with e -> if !debug_lvl > 1 then Printf.eprintf "fails\n%!"; raise e in
-             if !debug_lvl > 1 then Printf.eprintf "succes\n%!";
-             let nouveau =
-               (D {start; stack; acts = cns a acts; rest; full})
-             in
-             if buffer_before buf col buf_ab col_ab then
-               begin
-                   let b = add "G" cur_pos c nouveau elements in
-                   if b then fn nouveau
-               end
-             else
-               forward := OrdTbl.add buf col nouveau !forward
-           with Error -> ())
-  in fn element0
+          begin try
+            if !debug_lvl > 1 then log "Greedy    : %a\n%!" print_final elt0;
+            let {buf; col; buf_ab; col_ab} = cur_pos in
+            let a, buf, col = f blank buf col buf_ab col_ab in
+            let a = apply_pos g buf_ab col_ab buf col a in
+            let elt = D{start; stack; acts = cns a acts; rest; full} in
+            if buffer_before buf col buf_ab col_ab then
+              begin
+                let b = add "G" cur_pos c elt elements in
+                if b then fn elt
+              end
+            else
+              forward := OrdTbl.add buf col elt !forward
+          with Error -> () end
 
-exception Parse_error of Input.buffer * int * string list
+       (** A test *)
+       | Next(_,_,Test(s,f),g,rest) ->
+          begin try
+            if !debug_lvl > 1 then log "Test      : %a\n%!" print_final elt0;
+            let {buf; col; buf_ab; col_ab} as j = cur_pos in
+            let (a,b) = f buf col buf_ab col_ab in
+            if b then begin
+                let x = apply_pos g buf col buf col a in
+                let elt = D {start; stack; rest; full; acts = cns x acts} in
+                let b = add "T" cur_pos c elt elements in
+                if b then fn elt
+              end
+          with Error -> () end
+
+       (** A dependant rule: compute a rule while parsing ! *)
+       | Dep(fn_rule) ->
+          begin try
+            if !debug_lvl > 1 then log "dependant rule\n%!";
+            let a =
+              let a = ref None in
+              try
+                let _ = acts (fun x -> a := Some x; raise Exit) in
+                assert false
+              with Exit ->
+                match !a with None -> assert false | Some a -> a
+            in
+            let elt = C { start; rest = idtEmpty (); full
+                      ; acts = Simple (fun b f -> f (acts (fun _ -> b))); stack
+                      } in
+            let rule = fn_rule a in
+            let stack = add_stack sct rule elt in
+            let start = cur_pos in
+            let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
+            let b = add "P" cur_pos c elt elements in
+            if b then fn elt
+          with Error -> () end
+
+  in fn elt0
+
+exception Parse_error of Input.buffer * int
 
 let count = ref 0
 
+(** A fonction to fetch the key of the tail of a rule, needed
+    to get the key of an element representing a complete parsing *)
 let rec tail_key : type a. a rule -> int = fun rule ->
   match rule.rule with
   | Next(_,_,_,_,rest) -> tail_key rest
   | Empty _ -> rule.adr
   | Dep _ -> assert false (* FIXME *)
 
-let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> int -> a * buffer * int =
+let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
+                            -> int -> a * buffer * int =
   fun internal blank_after main blank buf0 col0 ->
     let parse_id = incr count; !count in
     (* construction de la table initiale *)
@@ -800,14 +793,12 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
     let last_success = ref [] in
     let forward = ref OrdTbl.empty in
     let todo = ref [init] in
-    if !debug_lvl > 0 then Printf.eprintf "entering parsing %d at line = %d(%d), col = %d(%d)\n%!"
-      parse_id (line_num !buf) (line_num !buf') !col !col';
+    if !debug_lvl > 0 then log "STAR=%5d: %a\n%!" parse_id print_pos start;
     let sct = StackContainer.create_table 101 in
     let one_step l =
       let c,_,_ = Input.read !buf' !col' in
-      let c',_,_ = Input.read !buf !col in
       let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
-      if !debug_lvl > 0 then Printf.eprintf "parsing %d: line = %d(%d), col = %d(%d), char = %C-%C\n%!" parse_id (line_num !buf) (line_num !buf') !col !col' c c';
+      if !debug_lvl > 0 then log "NEXT=%5d: %a\n%!" parse_id print_pos cur_pos;
       List.iter (fun s ->
         if add "I" cur_pos c s elements then
           pred_prod_lec s elements forward sct blank cur_pos c) l;
@@ -825,11 +816,6 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
       Hashtbl.clear elements;
       one_step !todo;
       if internal then search_success ();
-      if !debug_lvl > 0 then
-        Printf.eprintf
-          "parse_id = %d, line = %d(%d), col = %d(%d), taille =%d\n%!"
-          parse_id (line_num !buf) (line_num !buf') !col !col'
-          (taille_tables elements !forward);
       try
          let (new_buf, new_col, l, forward') = OrdTbl.pop !forward in
          todo := l;
@@ -845,9 +831,10 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
       if internal then
         raise Error
       else
-        raise (Parse_error (!buf', !col', []))
+        raise (Parse_error (!buf', !col'))
     in
-    if !debug_lvl > 0 then Printf.eprintf "searching final state of %d at line = %d(%d), col = %d(%d)\n%!" parse_id (line_num !buf) (line_num !buf') !col !col';
+    let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
+    if !debug_lvl > 0 then log "ENDS=%5d: %a\n%!" parse_id print_pos cur_pos;
     let rec fn : type a.a final -> a = function
       | D {stack=s1; rest={rule=Empty f}; acts; full=r1} ->
          (match eq_rule r0 r1 with Neq -> raise Error | Eq ->
@@ -881,8 +868,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer -> in
     in
     StackContainer.clear sct; (* don't forget final cleaning of assoc ptrs !! *)
     (* useless but clean *)
-    if !debug_lvl > 0 then
-      Printf.eprintf "exit parsing %d at line = %d, col = %d\n%!" parse_id (line_num buf) col;
+    if !debug_lvl > 0 then log "EXIT=%5d: %a\n%!" parse_id print_pos cur_pos;
     result
 
 let internal_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
