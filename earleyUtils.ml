@@ -193,7 +193,7 @@ module Fixpoint :
       let rec res =
         { value   = fn l.value
         ; compute = (fun () -> res.value <- fn l.value)
-        ; deps    = Some (W.create 31)
+        ; deps    = Some (W.create 7)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -204,7 +204,7 @@ module Fixpoint :
       let rec res =
         { value   = fn l1.value l2.value
         ; compute = (fun () -> res.value <- fn l1.value l2.value)
-        ; deps    = Some (W.create 31)
+        ; deps    = Some (W.create 7)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -222,7 +222,7 @@ module Fixpoint :
       let rec res =
         { value   = fold l a fn
         ; compute = (fun () -> res.value <- fold l a fn)
-        ; deps    = Some (W.create 31)
+        ; deps    = Some (W.create 7)
         ; is_ref  = None
         ; ident   = new_id () }
       in
@@ -235,7 +235,7 @@ module Fixpoint :
       let rec res =
         { value   = a.value
         ; compute = (fun () -> res.value <- (fn !l).value)
-        ; deps    = Some (W.create 31)
+        ; deps    = Some (W.create 7)
         ; is_ref  = Some (a, fun () -> fn !l)
         ; ident   = new_id () }
       in

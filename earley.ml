@@ -381,7 +381,7 @@ let handle_exception f a =
     end
 
 let family ?(param_to_string=(fun _ -> "<...>")) filter name =
-  let tbl = EqHashtbl.create ~equal:closure_eq 31 in
+  let tbl = EqHashtbl.create ~equal:closure_eq 7 in
   let is_set = ref None in
   (fun p ->
     try EqHashtbl.find tbl p
@@ -456,7 +456,7 @@ let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
 
 let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
   = fun l1 f2 ->
-    let tbl = EqHashtbl.create ~equal:closure_eq 31 in
+    let tbl = EqHashtbl.create ~equal:closure_eq 7 in
           mk_grammar [next l1 Idt (mkrule (Dep (fun a ->
               try EqHashtbl.find tbl a
               with Not_found ->

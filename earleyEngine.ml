@@ -517,19 +517,16 @@ let elt_key : type a. a final -> int * int * int * int =
 let good c rule =
   let i = rule_info rule in
   let (ae,set) = force i in
-  let res = ae || Charset.mem set c in
-  if !debug_lvl > 4 then log "        good %b <= %C in %b %a\n"
-                             res c ae Charset.print set;
-  res
+  ae || Charset.mem set c
 
 (** Adds an element in the current table of elements, return true if it is
     new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
   fun msg pos_final c element elements ->
     let test = match element with D { rest } -> good c rest in
-    let key = elt_key element in
     test &&
       begin
+        let key = elt_key element in
         try
           let e = Hashtbl.find elements key in
           (match e, element with
@@ -779,9 +776,10 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** get a fresh parse_id *)
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
-    let elements : a cur = Hashtbl.create 61 in
+    let hsize = 7 in
+    let elements : a cur = Hashtbl.create hsize in
     let forward = ref OrdTbl.empty in
-    let sct = StackContainer.create_table 101 in
+    let sct = StackContainer.create_table hsize in
     (** contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)

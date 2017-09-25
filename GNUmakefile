@@ -1,5 +1,5 @@
 VERSION    := 1.0.0
-OCAMLBUILD := ocamlbuild -use-ocamlfind -pkg bytes -quiet -cflag -g -lflag -g
+OCAMLBUILD := ocamlbuild -use-ocamlfind
 IMPLFILES  := $(wildcard *.ml)
 INTFFILES  := $(wildcard *.mli)
 
