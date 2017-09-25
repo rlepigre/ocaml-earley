@@ -201,7 +201,7 @@ end
 module Tbl : sig
   type 'a t
 
-  val create : int -> 'a t
+  val create : unit -> 'a t
 
   val add : 'a t -> buffer -> int -> 'a -> unit
 

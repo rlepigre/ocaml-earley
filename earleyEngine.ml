@@ -537,11 +537,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
                 if !warn_merge && not (eq_closure acts acts') then
                   log "\027[31mmerging %a %a %a\027[0m\n%!"
                     print_final element print_pos s print_pos pos_final;
-(*                assert(stack == stack' ||
-                 (log
-                    "\027[31mshould be the same stack %s %a %a %a\027[0m\n%!"
-                    info print_final element print_pos s print_pos1 pos_final;
-                  false));*)
+                assert(stack == stack');
                 false
              | _ -> assert false)
         with Not_found ->
@@ -776,10 +772,9 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** get a fresh parse_id *)
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
-    let hsize = 7 in
-    let elements : a cur = Hashtbl.create hsize in
+    let elements : a cur = Hashtbl.create 16 in
     let forward = ref OrdTbl.empty in
-    let sct = StackContainer.create_table hsize in
+    let sct = StackContainer.create_table () in
     (** contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)

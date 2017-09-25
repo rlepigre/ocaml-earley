@@ -35,20 +35,12 @@ module Make(V:sig type ('a,'b) elt end) = struct
   type any = Obj.t container
   let cast : 'b container -> any = Obj.magic
 
-  (** Weak hash-tables of containers. *)
-  module W =
-    Weak.Make(
-        struct
-          type t = any
-          let hash c = c.uid
-          let equal c1 c2 = c1.uid = c2.uid
-        end)
-
   (** Container table. *)
   type 'a table =
     { tag  : 'a tag                   (** Unique tag for this table.   *)
     ; eq   : 'b. 'b tag -> ('a,'b) eq (** Equality to the table's tag. *)
-    ; htbl : W.t                      (** Contents of the table.       *) }
+    ; mutable elts : any list
+    }
 
   (** Insert a new value associated to the given table and container. If a
     value is already pre sent, it is overwriten. *)
@@ -56,14 +48,17 @@ module Make(V:sig type ('a,'b) elt end) = struct
     fun tab c v ->
     let rec fn = function
       | Nil           ->
-         c.data <- Cons(tab.tag, v, c.data);
-         W.add tab.htbl (cast c)
+         raise Exit
       | Cons(t, w, r) ->
          match tab.eq t with
          | Y -> Cons(t, v, r)
          | N -> Cons(t, w, fn r)
     in
-    c.data <- fn c.data
+    try
+      c.data <- fn c.data
+    with Exit ->
+      c.data <- Cons(tab.tag, v, c.data);
+      tab.elts <- cast c :: tab.elts
 
   (* Find the value associated to the given table and container. *)
   let find : type a b. a table -> b container -> (a, b) elt =
@@ -84,19 +79,14 @@ module Make(V:sig type ('a,'b) elt end) = struct
        | Y -> r
        | N -> Cons(t, v, remove_table tab r)
 
-  (** Remove the given table from the given container. *)
-  let remove : type a b. a table -> b container -> unit = fun tab c ->
-    c.data <- remove_table tab c.data;
-    W.remove tab.htbl (cast c)
-
   let clear : type a. a table -> unit = fun tab ->
-    W.iter (fun c -> c.data <- remove_table tab c.data) tab.htbl;
-    W.clear tab.htbl
+    List.iter (fun c -> c.data <- remove_table tab c.data) tab.elts;
+    tab.elts <- []
 
-  let create_table : type a. int -> a table = fun size ->
+  let create_table : type a. unit -> a table = fun () ->
     let module M = struct type _ tag += T : a tag end in
     let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
-    let res = { tag  = M.T ; eq ; htbl = W.create size } in
+    let res = { tag  = M.T ; eq ; elts = [] } in
     Gc.finalise clear res;
     res
 
@@ -113,7 +103,7 @@ module Make(V:sig type ('a,'b) elt end) = struct
          end;
          fn r
     in
-    W.iter (fun c -> fn c.data) tab.htbl
+    List.iter (fun c -> fn c.data) tab.elts
 
   type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
 
@@ -129,7 +119,7 @@ module Make(V:sig type ('a,'b) elt end) = struct
          in
          fn r acc
     in
-    W.fold (fun c acc -> fn c.data acc) tab.htbl acc
+    List.fold_left (fun acc c -> fn c.data acc) acc tab.elts
 
 end
 
@@ -138,11 +128,10 @@ module type Param = sig
   type 'b container
   type ('a, 'b) elt
   val create : unit -> 'b container
-  val create_table : int -> 'a table
+  val create_table : unit -> 'a table
   val address : 'b container -> int
   val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
   val find : 'a table -> 'b container -> ('a, 'b) elt
-  val remove : 'a table -> 'b container -> unit
   val clear : 'a table -> unit
   type 'a iter = { f : 'b.('a, 'b) elt -> unit }
   val iter : 'a iter -> 'a table -> unit

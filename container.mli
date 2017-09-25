@@ -68,10 +68,6 @@ val create : unit -> t
     associated to this cell. *)
 val add : 'a table -> t -> 'a -> unit
 
-(** [ remove tab cell ] remove the association (tab, cell). Does
-    nothing if there was no such association. *)
-val remove : 'a table -> t -> unit
-
 (** [ find tab cell ] return the value associated to (tab, cell).
     raises Not_found if the are no such value *)
 val find : 'a table -> t -> 'a
@@ -79,10 +75,8 @@ val find : 'a table -> t -> 'a
 (** [ clear tab ] removed all value associated to a table. *)
 val clear : 'a table -> unit
 
-(** [ create_table n ] creates a new table. [ n ] is the initial size
-    of the internal hashtable. It should be the expected number of
-    cell assigned in this table *)
-val create_table : int -> 'a table
+(** [ create_table () ] creates a new table *)
+val create_table : unit -> 'a table
 
 (** [ address n ] return a unique id of each cell *)
 val address   : t -> int
@@ -92,11 +86,10 @@ module type Param = sig
   type 'b container
   type ('a, 'b) elt
   val create : unit -> 'b container
-  val create_table : int -> 'a table
+  val create_table : unit -> 'a table
   val address : 'b container -> int
   val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
   val find : 'a table -> 'b container -> ('a, 'b) elt
-  val remove : 'a table -> 'b container -> unit
   val clear : 'a table -> unit
   type 'a iter = { f : 'b.('a, 'b) elt -> unit }
   val iter : 'a iter -> 'a table -> unit
