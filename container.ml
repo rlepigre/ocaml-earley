@@ -54,22 +54,16 @@ module Make(V:sig type ('a,'b) elt end) = struct
     value is already pre sent, it is overwriten. *)
   let add : type a b. a table -> b container -> (a, b) elt -> unit =
     fun tab c v ->
-    if W.mem tab.htbl (cast c) then
-      begin
-        let rec fn = function
-          | Nil           -> assert false
-          | Cons(t, w, r) ->
-             match tab.eq t with
-             | Y -> Cons(t, v, r)
-             | N -> Cons(t, w, fn r)
-        in
-        c.data <- fn c.data
-      end
-    else
-      begin
-        c.data <- Cons(tab.tag, v, c.data);
-        W.add tab.htbl (cast c)
-      end
+    let rec fn = function
+      | Nil           ->
+         c.data <- Cons(tab.tag, v, c.data);
+         W.add tab.htbl (cast c)
+      | Cons(t, w, r) ->
+         match tab.eq t with
+         | Y -> Cons(t, v, r)
+         | N -> Cons(t, w, fn r)
+    in
+    c.data <- fn c.data
 
   (* Find the value associated to the given table and container. *)
   let find : type a b. a table -> b container -> (a, b) elt =
