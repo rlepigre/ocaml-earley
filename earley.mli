@@ -71,9 +71,9 @@ val give_up : unit -> 'a
 
 (** [handle_exception fn v] applies the function [fn] to [v] and handles
     the [Parse_error] exception. In particular, a parse error message is
-    presented to the user in  case  of  a  failure,  and  the  exception
-    [Failure "No parse."] is raised. *)
-val handle_exception : ('a -> 'b) -> 'a -> 'b
+    presented to the user in  case  of  a  failure, then [error ()]
+    is called. The default [error] is [fun () -> exit 1]. *)
+val handle_exception : ?error:(unit -> 'b) -> ('a -> 'b) -> 'a -> 'b
 
 (** {2 Atomic parsers} *)
 

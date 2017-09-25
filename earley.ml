@@ -371,13 +371,15 @@ let position g =
   apply_position (fun a buf pos buf' pos' ->
     (filename buf, line_num buf, pos, line_num buf', pos', a)) g
 
-let handle_exception f a =
+let fail_no_parse () = exit 1
+
+let handle_exception ?(error=fail_no_parse) f a =
   try f a with Parse_error(buf, pos) ->
     begin
       Printf.eprintf "Parse error: ";
       Printf.eprintf "file %S, line %d, character %d\n"
                      (filename buf) (line_num buf) (utf8_col_num buf pos);
-      failwith "No parse."
+      error ()
     end
 
 let family ?(param_to_string=(fun _ -> "<...>")) filter name =
