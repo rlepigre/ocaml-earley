@@ -116,8 +116,11 @@ let pos_apply3
     the final position *)
 type 'a input = buffer -> int -> 'a * buffer * int
 
+(** a reference to record the last error for Greedy terminal *)
+type errpos = (buffer * int) option ref
+
 (** type for Greedy: get both the position before and after blank *)
-type 'a input2 = buffer -> int -> 'a input
+type 'a input2 = errpos -> blank -> buffer -> int -> 'a input
 
 (** type for tests: get also both position and return a boolean and
     a value *)
@@ -164,7 +167,7 @@ module rec Types : sig
    and _ symbol =
      | Term : Charset.t * 'a input -> 'a symbol
      (** terminal symbol just read the input buffer *)
-     | Greedy : info Fixpoint.t * (blank -> 'a input2) -> 'a symbol
+     | Greedy : info Fixpoint.t * 'a input2 -> 'a symbol
      (** Greedy correspond to a recursive call to the parser. We
          can change the blank function for instance, or parse
          input as much as possible. In fact it is only in the
@@ -593,6 +596,17 @@ let combine1 : type a b c d.(c -> d) -> (a -> b) pos
 (** Protection from give_up: just do nothing *)
 let protect f a = try f a with Error -> ()
 
+(** Exception for parse error, can also be raise by
+    Greedy terminals, but no other terminal handles it *)
+exception Parse_error of Input.buffer * int
+
+let update_errpos errpos buf col =
+  match !errpos with
+  | None -> errpos := Some(buf,col)
+  | Some(buf',col') ->
+     if Input.buffer_before buf' col' buf col
+     then errpos := Some(buf,col)
+
 (* This is now the main function computing all the consequences of the
    element given at first argument.
    It needs
@@ -603,9 +617,9 @@ let protect f a = try f a with Error -> ()
    It perform prediction/completion/lecture in a recursive way.
  *)
 let rec pred_prod_lec
-        : type a. a final -> a cur -> a reads -> a sct -> blank
+        : type a. errpos -> a final -> a cur -> a reads -> a sct -> blank
                -> pos2 -> char -> unit =
-  fun elt0 elements forward sct blank cur_pos c ->
+  fun errpos elt0 elements forward sct blank cur_pos c ->
   let rec fn elt0 =
     match elt0 with
     | D {start; acts; stack; rest; full} ->
@@ -703,7 +717,7 @@ let rec pred_prod_lec
           begin try
             if !debug_lvl > 0 then log "Greedy    : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} = cur_pos in
-            let a, buf, col = f blank buf col buf_ab col_ab in
+            let a, buf, col = f errpos blank buf col buf_ab col_ab in
             let a = apply_pos g buf_ab col_ab buf col a in
             let elt = D{start; stack; acts = cns a acts; rest; full} in
             if buffer_before buf col buf_ab col_ab then
@@ -754,8 +768,6 @@ let rec pred_prod_lec
 
   in fn elt0
 
-exception Parse_error of Input.buffer * int
-
 let count = ref 0
 
 (** A fonction to fetch the key of the tail of a rule, needed
@@ -766,9 +778,13 @@ let rec tail_key : type a. a rule -> int = fun rule ->
   | Empty _ -> rule.adr
   | Dep _ -> assert false (* FIXME *)
 
-let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
-                            -> int -> a * buffer * int =
-  fun internal blank_after main blank buf0 col0 ->
+let parse_buffer_aux : type a.?errpos:errpos -> bool -> blank -> a grammar
+                            -> buffer -> int -> a * buffer * int =
+  fun ?errpos blank_after blank main buf0 col0 ->
+    let internal, errpos = match errpos with
+      | None -> (false, ref None)
+      | Some e -> (true, e)
+    in
     (** get a fresh parse_id *)
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
@@ -802,7 +818,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
       if !debug_lvl > 0 then log "NEXT=%5d: %a\n%!" parse_id print_pos cur_pos;
       List.iter (fun s ->
         if add "I" cur_pos c s elements then
-          pred_prod_lec s elements forward sct blank cur_pos c) l;
+          pred_prod_lec errpos s elements forward sct blank cur_pos c) l;
     in
     (** searching a succes *)
     let search_success () =
@@ -836,10 +852,11 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     (** search succes at the end for non internal parse *)
     if not internal then search_success ();
     let parse_error () =
-      if internal then
-        raise Error
-      else
-        raise (Parse_error (!buf', !col'))
+      update_errpos errpos !buf' !col';
+      if internal then raise Error else
+        match !errpos with
+        | None -> assert false
+        | Some(buf,col) -> raise (Parse_error (buf, col))
     in
     let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
     if !debug_lvl > 0 then log "ENDS=%5d: %a\n%!" parse_id print_pos cur_pos;
@@ -881,7 +898,7 @@ let parse_buffer_aux : type a.bool -> bool -> a grammar -> blank -> buffer
     result
 
 let internal_parse_buffer
-    : type a.a grammar -> blank -> ?blank_after:bool
-           -> buffer -> int -> a * buffer * int
-   = fun g bl ?(blank_after=false) buf col ->
-       parse_buffer_aux true blank_after g bl buf col
+    : type a. ?errpos:errpos -> ?blank_after:bool -> blank
+           -> a grammar -> buffer -> int -> a * buffer * int
+   = fun ?errpos ?(blank_after=false) bl g buf col ->
+       parse_buffer_aux ?errpos blank_after bl g buf col

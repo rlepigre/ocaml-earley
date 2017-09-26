@@ -59,32 +59,34 @@ let no_blank str pos = str, pos
 
 let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
    = fun g bl ?(blank_after=true) buf pos ->
-       parse_buffer_aux false blank_after g bl buf pos
+       parse_buffer_aux blank_after bl g buf pos
 
 let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
   let j = Fixpoint.from_val (accept_empty,set) in
   (j, [mkrule (Next(j,name,Term (set, s),Idt,idtEmpty ()))])
 
+type 'a result = Val of 'a | Exc of exn
+
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
     let cache = Hashtbl.create 101 in
-    let s = fun blank b p b' p' ->
+    let s = fun errpos blank b p b' p' ->
       let key = (buffer_uid b, p, buffer_uid b', p') in
       let l = try Hashtbl.find cache key with Not_found -> [] in
       try
         let (_,r) = List.find (fun (bl, _) -> bl == blank) l in
-        (match r with None -> raise Error | Some r -> r)
+        (match r with Exc e -> raise e | Val r -> r)
       with Not_found ->
         try
-          let r = s blank b p b' p' in
-          let l = (blank,Some r)::l in
+          let r = s errpos blank b p b' p' in
+          let l = (blank,Val r)::l in
           Hashtbl.replace cache key l;
           r
         with
-          Error ->
-          let l = (blank,None)::l in
+          e ->
+          let l = (blank,Exc e)::l in
           Hashtbl.replace cache key l;
-          raise Error
+          raise e
     in
     (i, [mkrule (Next(i,name,Greedy(i,s),Idt,idtEmpty ()))])
 
@@ -415,9 +417,8 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
     debug_lvl := !debug_lvl / 10;
-    let (_,buf,pos) = internal_parse_buffer ~blank_after:true grammar blank buf pos in
+    let (_,buf,pos) = internal_parse_buffer ~blank_after:true blank grammar buf pos in
     debug_lvl := save_debug;
-    if !debug_lvl > 0 then Printf.eprintf "exit blank %d %d\n%!" (line_num buf) pos;
     (buf,pos)
 
 let accept_empty grammar =
@@ -433,10 +434,10 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                (Simple (fun _ a -> a)) (idtEmpty ()))] in
-    let fn _ buf pos buf' pos' =
+    let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
-      let (a,buf,pos) = internal_parse_buffer l1 blank1
-        ~blank_after:new_blank_after buf pos in
+      let (a,buf,pos) = internal_parse_buffer ~errpos
+        ~blank_after:new_blank_after blank1 l1 buf pos in
       (a,buf,pos)
     in
     greedy_solo i fn
@@ -448,8 +449,8 @@ let greedy : 'a grammar -> 'a grammar
     let l1 = mk_grammar [next l1 Idt (next (test Charset.full (fun _ _ -> (), true))
                                                    (Simple (fun _ a -> a)) (idtEmpty ()))] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
-    let fn blank buf pos _ _ =
-      let (a,buf,pos) = internal_parse_buffer l1 blank buf pos in
+    let fn errpos blank buf pos _ _ =
+      let (a,buf,pos) = internal_parse_buffer ~errpos blank l1 buf pos in
       (a,buf,pos)
     in
     greedy_solo (fst l1) fn
