@@ -4,6 +4,7 @@ export MAKE="make"
 
 set -v
 
+SAVE=`opam config var switch`
 GOOD_BOOTSTRAPS=""
 ALL_VERSIONS="4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0"
 
@@ -53,12 +54,14 @@ else
     exit 1
 fi
 
-
 for v in $VERSIONS; do
     build $v $1
     cp -f pa_ocaml pa_ocaml-$v
 done
 
 $MAKE distclean
+
+opam switch $SAVE
+eval `opam config env`
 
 echo GOOD_BOOTSTRAPS: $GOOD_BOOTSTRAPS
