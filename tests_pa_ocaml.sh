@@ -32,9 +32,9 @@ echo $files
 
 rm test_parsers.cm*
 
-#make $MAKEOPTS test_parsers
+make $MAKEOPTS test_parsers
 
-#./test_parsers $files
+./test_parsers $files
 
 for f in $files; do
   echo -n "File: $f"

@@ -959,7 +959,7 @@ module Make(Initial:Extension) =
       end
     include
       struct
-        let (polymorphic_variant_type : core_type grammar) =
+        let polymorphic_variant_type =
           Earley.declare_grammar "polymorphic_variant_type" 
         include struct  end
       end
@@ -1068,7 +1068,8 @@ module Make(Initial:Extension) =
                                                   loc_typ _loc
                                                     (Ptyp_variant
                                                        ((tfs :: tfss), flag,
-                                                         (Some tns))))))))])
+                                                         (Some tns))))))))] : 
+            core_type grammar)
           
         include struct  end
       end

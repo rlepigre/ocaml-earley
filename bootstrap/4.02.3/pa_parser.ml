@@ -1465,91 +1465,527 @@ module Ext(In:Extension) =
         | [] -> ([], [], [])
         | (`Caml b)::l ->
             let (str1,str2,str3) = fn l in (str1, str2, (b @ str3))
-        | (`Parser (name,arg,ty,_loc_r,r))::l ->
+        | (`Parser (name,args,prio,ty,_loc_r,r))::l ->
             let (str1,str2,str3) = fn l in
             let pname =
-              match (ty, arg) with
-              | (None ,_) ->
+              {
+                Parsetree.ppat_desc =
+                  (Parsetree.Ppat_var
+                     { Asttypes.txt = name; Asttypes.loc = _loc });
+                Parsetree.ppat_loc = _loc;
+                Parsetree.ppat_attributes = []
+              } in
+            let coer f =
+              match ty with
+              | None  -> f
+              | Some ty ->
                   {
-                    Parsetree.ppat_desc =
-                      (Parsetree.Ppat_var
-                         { Asttypes.txt = name; Asttypes.loc = _loc });
-                    Parsetree.ppat_loc = _loc;
-                    Parsetree.ppat_attributes = []
-                  }
-              | (Some ty,None ) ->
-                  {
-                    Parsetree.ppat_desc =
-                      (Parsetree.Ppat_constraint
-                         ({
-                            Parsetree.ppat_desc =
-                              (Parsetree.Ppat_var
-                                 { Asttypes.txt = name; Asttypes.loc = _loc });
-                            Parsetree.ppat_loc = _loc;
-                            Parsetree.ppat_attributes = []
-                          }, ty));
-                    Parsetree.ppat_loc = _loc;
-                    Parsetree.ppat_attributes = []
-                  }
-              | (Some ty,Some _) ->
-                  {
-                    Parsetree.ppat_desc =
-                      (Parsetree.Ppat_constraint
-                         ({
-                            Parsetree.ppat_desc =
-                              (Parsetree.Ppat_var
-                                 { Asttypes.txt = name; Asttypes.loc = _loc });
-                            Parsetree.ppat_loc = _loc;
-                            Parsetree.ppat_attributes = []
-                          },
-                           {
-                             Parsetree.ptyp_desc =
-                               (Parsetree.Ptyp_arrow
-                                  ("",
-                                    {
-                                      Parsetree.ptyp_desc =
-                                        (Parsetree.Ptyp_var "type_of_arg");
-                                      Parsetree.ptyp_loc = _loc;
-                                      Parsetree.ptyp_attributes = []
-                                    }, ty));
-                             Parsetree.ptyp_loc = _loc;
-                             Parsetree.ptyp_attributes = []
-                           }));
-                    Parsetree.ppat_loc = _loc;
-                    Parsetree.ppat_attributes = []
+                    Parsetree.pexp_desc = (Parsetree.Pexp_constraint (f, ty));
+                    Parsetree.pexp_loc = _loc;
+                    Parsetree.pexp_attributes = []
                   } in
-            (match arg with
-             | None  ->
-                 let r = build_alternatives _loc_r r in
-                 ([{
+            let args_pat =
+              match args with
+              | [] ->
+                  {
+                    Parsetree.ppat_desc =
+                      (Parsetree.Ppat_construct
+                         ({
+                            Asttypes.txt = (Longident.Lident "()");
+                            Asttypes.loc = _loc
+                          }, None));
+                    Parsetree.ppat_loc = _loc;
+                    Parsetree.ppat_attributes = []
+                  }
+              | x::[] -> x
+              | _ -> Pa_ast.pat_tuple _loc args in
+            let (str1,str2) =
+              match (args, prio) with
+              | ([],None ) ->
+                  let r = coer (build_alternatives _loc_r r) in
+                  ([{
+                      Parsetree.pstr_desc =
+                        (Parsetree.Pstr_value
+                           (Asttypes.Nonrecursive,
+                             [{
+                                Parsetree.pvb_pat = pname;
+                                Parsetree.pvb_expr =
+                                  {
+                                    Parsetree.pexp_desc =
+                                      (Parsetree.Pexp_apply
+                                         ({
+                                            Parsetree.pexp_desc =
+                                              (Parsetree.Pexp_ident
+                                                 {
+                                                   Asttypes.txt =
+                                                     (Longident.Ldot
+                                                        ((Longident.Lident
+                                                            "Earley"),
+                                                          "declare_grammar"));
+                                                   Asttypes.loc = _loc
+                                                 });
+                                            Parsetree.pexp_loc = _loc;
+                                            Parsetree.pexp_attributes = []
+                                          },
+                                           [("",
+                                              (Pa_ast.exp_string _loc name))]));
+                                    Parsetree.pexp_loc = _loc;
+                                    Parsetree.pexp_attributes = []
+                                  };
+                                Parsetree.pvb_attributes = [];
+                                Parsetree.pvb_loc = _loc
+                              }]));
+                      Parsetree.pstr_loc = _loc
+                    };
+                   Pa_ast.loc_str _loc
+                     (Parsetree.Pstr_include
+                        {
+                          Parsetree.pincl_loc = _loc;
+                          Parsetree.pincl_attributes = [];
+                          Parsetree.pincl_mod =
+                            (Pa_ast.mexpr_loc _loc
+                               (Parsetree.Pmod_structure str1))
+                        })],
+                    [{
+                       Parsetree.pstr_desc =
+                         (Parsetree.Pstr_eval
+                            ({
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_apply
+                                    ({
+                                       Parsetree.pexp_desc =
+                                         (Parsetree.Pexp_ident
+                                            {
+                                              Asttypes.txt =
+                                                (Longident.Ldot
+                                                   ((Longident.Lident
+                                                       "Earley"),
+                                                     "set_grammar"));
+                                              Asttypes.loc = _loc
+                                            });
+                                       Parsetree.pexp_loc = _loc;
+                                       Parsetree.pexp_attributes = []
+                                     },
+                                      [("",
+                                         {
+                                           Parsetree.pexp_desc =
+                                             (Parsetree.Pexp_ident
+                                                {
+                                                  Asttypes.txt =
+                                                    (Longident.Lident name);
+                                                  Asttypes.loc = _loc
+                                                });
+                                           Parsetree.pexp_loc = _loc;
+                                           Parsetree.pexp_attributes = []
+                                         });
+                                      ("", r)]));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             }, []));
+                       Parsetree.pstr_loc = _loc
+                     };
+                    Pa_ast.loc_str _loc
+                      (Parsetree.Pstr_include
+                         {
+                           Parsetree.pincl_loc = _loc;
+                           Parsetree.pincl_attributes = [];
+                           Parsetree.pincl_mod =
+                             (Pa_ast.mexpr_loc _loc
+                                (Parsetree.Pmod_structure str2))
+                         })])
+              | (_,None ) ->
+                  let r = coer (build_alternatives _loc_r r) in
+                  let set_name = name ^ "__set__grammar" in
+                  ([{
+                      Parsetree.pstr_desc =
+                        (Parsetree.Pstr_value
+                           (Asttypes.Nonrecursive,
+                             [{
+                                Parsetree.pvb_pat =
+                                  {
+                                    Parsetree.ppat_desc =
+                                      (Parsetree.Ppat_tuple
+                                         [pname;
+                                         {
+                                           Parsetree.ppat_desc =
+                                             (Parsetree.Ppat_var
+                                                {
+                                                  Asttypes.txt = set_name;
+                                                  Asttypes.loc = _loc
+                                                });
+                                           Parsetree.ppat_loc = _loc;
+                                           Parsetree.ppat_attributes = []
+                                         }]);
+                                    Parsetree.ppat_loc = _loc;
+                                    Parsetree.ppat_attributes = []
+                                  };
+                                Parsetree.pvb_expr =
+                                  {
+                                    Parsetree.pexp_desc =
+                                      (Parsetree.Pexp_apply
+                                         ({
+                                            Parsetree.pexp_desc =
+                                              (Parsetree.Pexp_ident
+                                                 {
+                                                   Asttypes.txt =
+                                                     (Longident.Ldot
+                                                        ((Longident.Lident
+                                                            "Earley"),
+                                                          "grammar_family"));
+                                                   Asttypes.loc = _loc
+                                                 });
+                                            Parsetree.pexp_loc = _loc;
+                                            Parsetree.pexp_attributes = []
+                                          },
+                                           [("",
+                                              (Pa_ast.exp_string _loc name))]));
+                                    Parsetree.pexp_loc = _loc;
+                                    Parsetree.pexp_attributes = []
+                                  };
+                                Parsetree.pvb_attributes = [];
+                                Parsetree.pvb_loc = _loc
+                              }]));
+                      Parsetree.pstr_loc = _loc
+                    };
+                   Pa_ast.loc_str _loc
+                     (Parsetree.Pstr_include
+                        {
+                          Parsetree.pincl_loc = _loc;
+                          Parsetree.pincl_attributes = [];
+                          Parsetree.pincl_mod =
+                            (Pa_ast.mexpr_loc _loc
+                               (Parsetree.Pmod_structure str1))
+                        })],
+                    [{
+                       Parsetree.pstr_desc =
+                         (Parsetree.Pstr_eval
+                            ({
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_apply
+                                    ({
+                                       Parsetree.pexp_desc =
+                                         (Parsetree.Pexp_ident
+                                            {
+                                              Asttypes.txt =
+                                                (Longident.Lident set_name);
+                                              Asttypes.loc = _loc
+                                            });
+                                       Parsetree.pexp_loc = _loc;
+                                       Parsetree.pexp_attributes = []
+                                     },
+                                      [("",
+                                         {
+                                           Parsetree.pexp_desc =
+                                             (Parsetree.Pexp_fun
+                                                ("", None, args_pat, r));
+                                           Parsetree.pexp_loc = _loc;
+                                           Parsetree.pexp_attributes = []
+                                         })]));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             }, []));
+                       Parsetree.pstr_loc = _loc
+                     };
+                    Pa_ast.loc_str _loc
+                      (Parsetree.Pstr_include
+                         {
+                           Parsetree.pincl_loc = _loc;
+                           Parsetree.pincl_attributes = [];
+                           Parsetree.pincl_mod =
+                             (Pa_ast.mexpr_loc _loc
+                                (Parsetree.Pmod_structure str2))
+                         })])
+              | ([],Some prio) ->
+                  let r = coer (build_prio_alternatives _loc_r prio r) in
+                  let set_name = name ^ "__set__grammar" in
+                  ([{
+                      Parsetree.pstr_desc =
+                        (Parsetree.Pstr_value
+                           (Asttypes.Nonrecursive,
+                             [{
+                                Parsetree.pvb_pat =
+                                  {
+                                    Parsetree.ppat_desc =
+                                      (Parsetree.Ppat_tuple
+                                         [pname;
+                                         {
+                                           Parsetree.ppat_desc =
+                                             (Parsetree.Ppat_var
+                                                {
+                                                  Asttypes.txt = set_name;
+                                                  Asttypes.loc = _loc
+                                                });
+                                           Parsetree.ppat_loc = _loc;
+                                           Parsetree.ppat_attributes = []
+                                         }]);
+                                    Parsetree.ppat_loc = _loc;
+                                    Parsetree.ppat_attributes = []
+                                  };
+                                Parsetree.pvb_expr =
+                                  {
+                                    Parsetree.pexp_desc =
+                                      (Parsetree.Pexp_apply
+                                         ({
+                                            Parsetree.pexp_desc =
+                                              (Parsetree.Pexp_ident
+                                                 {
+                                                   Asttypes.txt =
+                                                     (Longident.Ldot
+                                                        ((Longident.Lident
+                                                            "Earley"),
+                                                          "grammar_prio"));
+                                                   Asttypes.loc = _loc
+                                                 });
+                                            Parsetree.pexp_loc = _loc;
+                                            Parsetree.pexp_attributes = []
+                                          },
+                                           [("",
+                                              (Pa_ast.exp_string _loc name))]));
+                                    Parsetree.pexp_loc = _loc;
+                                    Parsetree.pexp_attributes = []
+                                  };
+                                Parsetree.pvb_attributes = [];
+                                Parsetree.pvb_loc = _loc
+                              }]));
+                      Parsetree.pstr_loc = _loc
+                    };
+                   Pa_ast.loc_str _loc
+                     (Parsetree.Pstr_include
+                        {
+                          Parsetree.pincl_loc = _loc;
+                          Parsetree.pincl_attributes = [];
+                          Parsetree.pincl_mod =
+                            (Pa_ast.mexpr_loc _loc
+                               (Parsetree.Pmod_structure str1))
+                        })],
+                    [{
+                       Parsetree.pstr_desc =
+                         (Parsetree.Pstr_eval
+                            ({
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_apply
+                                    ({
+                                       Parsetree.pexp_desc =
+                                         (Parsetree.Pexp_ident
+                                            {
+                                              Asttypes.txt =
+                                                (Longident.Lident set_name);
+                                              Asttypes.loc = _loc
+                                            });
+                                       Parsetree.pexp_loc = _loc;
+                                       Parsetree.pexp_attributes = []
+                                     }, [("", r)]));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             }, []));
+                       Parsetree.pstr_loc = _loc
+                     };
+                    Pa_ast.loc_str _loc
+                      (Parsetree.Pstr_include
+                         {
+                           Parsetree.pincl_loc = _loc;
+                           Parsetree.pincl_attributes = [];
+                           Parsetree.pincl_mod =
+                             (Pa_ast.mexpr_loc _loc
+                                (Parsetree.Pmod_structure str2))
+                         })])
+              | (args,Some prio) ->
+                  let r = coer (build_prio_alternatives _loc_r prio r) in
+                  let set_name = name ^ "__set__grammar" in
+                  ([{
+                      Parsetree.pstr_desc =
+                        (Parsetree.Pstr_value
+                           (Asttypes.Nonrecursive,
+                             [{
+                                Parsetree.pvb_pat =
+                                  {
+                                    Parsetree.ppat_desc =
+                                      (Parsetree.Ppat_tuple
+                                         [pname;
+                                         {
+                                           Parsetree.ppat_desc =
+                                             (Parsetree.Ppat_var
+                                                {
+                                                  Asttypes.txt = set_name;
+                                                  Asttypes.loc = _loc
+                                                });
+                                           Parsetree.ppat_loc = _loc;
+                                           Parsetree.ppat_attributes = []
+                                         }]);
+                                    Parsetree.ppat_loc = _loc;
+                                    Parsetree.ppat_attributes = []
+                                  };
+                                Parsetree.pvb_expr =
+                                  {
+                                    Parsetree.pexp_desc =
+                                      (Parsetree.Pexp_apply
+                                         ({
+                                            Parsetree.pexp_desc =
+                                              (Parsetree.Pexp_ident
+                                                 {
+                                                   Asttypes.txt =
+                                                     (Longident.Ldot
+                                                        ((Longident.Lident
+                                                            "Earley"),
+                                                          "grammar_prio_family"));
+                                                   Asttypes.loc = _loc
+                                                 });
+                                            Parsetree.pexp_loc = _loc;
+                                            Parsetree.pexp_attributes = []
+                                          },
+                                           [("",
+                                              (Pa_ast.exp_string _loc name))]));
+                                    Parsetree.pexp_loc = _loc;
+                                    Parsetree.pexp_attributes = []
+                                  };
+                                Parsetree.pvb_attributes = [];
+                                Parsetree.pvb_loc = _loc
+                              }]));
+                      Parsetree.pstr_loc = _loc
+                    };
+                   Pa_ast.loc_str _loc
+                     (Parsetree.Pstr_include
+                        {
+                          Parsetree.pincl_loc = _loc;
+                          Parsetree.pincl_attributes = [];
+                          Parsetree.pincl_mod =
+                            (Pa_ast.mexpr_loc _loc
+                               (Parsetree.Pmod_structure str1))
+                        })],
+                    [{
+                       Parsetree.pstr_desc =
+                         (Parsetree.Pstr_eval
+                            ({
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_apply
+                                    ({
+                                       Parsetree.pexp_desc =
+                                         (Parsetree.Pexp_ident
+                                            {
+                                              Asttypes.txt =
+                                                (Longident.Lident set_name);
+                                              Asttypes.loc = _loc
+                                            });
+                                       Parsetree.pexp_loc = _loc;
+                                       Parsetree.pexp_attributes = []
+                                     },
+                                      [("",
+                                         {
+                                           Parsetree.pexp_desc =
+                                             (Parsetree.Pexp_fun
+                                                ("", None, args_pat, r));
+                                           Parsetree.pexp_loc = _loc;
+                                           Parsetree.pexp_attributes = []
+                                         })]));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             }, []));
+                       Parsetree.pstr_loc = _loc
+                     };
+                    Pa_ast.loc_str _loc
+                      (Parsetree.Pstr_include
+                         {
+                           Parsetree.pincl_loc = _loc;
+                           Parsetree.pincl_attributes = [];
+                           Parsetree.pincl_mod =
+                             (Pa_ast.mexpr_loc _loc
+                                (Parsetree.Pmod_structure str2))
+                         })]) in
+            let str2 =
+              match (args, prio) with
+              | ([],_)|(_::[],None ) -> str2
+              | _ ->
+                  let rec currify acc n =
+                    function
+                    | [] ->
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_fun
+                               ("", None,
+                                 {
+                                   Parsetree.ppat_desc =
+                                     (Parsetree.Ppat_var
+                                        {
+                                          Asttypes.txt = "__curry__prio";
+                                          Asttypes.loc = _loc
+                                        });
+                                   Parsetree.ppat_loc = _loc;
+                                   Parsetree.ppat_attributes = []
+                                 },
+                                 {
+                                   Parsetree.pexp_desc =
+                                     (Parsetree.Pexp_apply
+                                        ({
+                                           Parsetree.pexp_desc =
+                                             (Parsetree.Pexp_ident
+                                                {
+                                                  Asttypes.txt =
+                                                    (Longident.Lident name);
+                                                  Asttypes.loc = _loc
+                                                });
+                                           Parsetree.pexp_loc = _loc;
+                                           Parsetree.pexp_attributes = []
+                                         },
+                                          [("",
+                                             (Pa_ast.exp_tuple _loc
+                                                (List.rev acc)));
+                                          ("",
+                                            {
+                                              Parsetree.pexp_desc =
+                                                (Parsetree.Pexp_ident
+                                                   {
+                                                     Asttypes.txt =
+                                                       (Longident.Lident
+                                                          "__curry__prio");
+                                                     Asttypes.loc = _loc
+                                                   });
+                                              Parsetree.pexp_loc = _loc;
+                                              Parsetree.pexp_attributes = []
+                                            })]));
+                                   Parsetree.pexp_loc = _loc;
+                                   Parsetree.pexp_attributes = []
+                                 }));
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        }
+                    | a::l ->
+                        let v = "__curry__varx" ^ (string_of_int n) in
+                        let acc =
+                          {
+                            Parsetree.pexp_desc =
+                              (Parsetree.Pexp_ident
+                                 {
+                                   Asttypes.txt = (Longident.Lident v);
+                                   Asttypes.loc = _loc
+                                 });
+                            Parsetree.pexp_loc = _loc;
+                            Parsetree.pexp_attributes = []
+                          } :: acc in
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_fun
+                               ("", None,
+                                 {
+                                   Parsetree.ppat_desc =
+                                     (Parsetree.Ppat_var
+                                        {
+                                          Asttypes.txt = v;
+                                          Asttypes.loc = _loc
+                                        });
+                                   Parsetree.ppat_loc = _loc;
+                                   Parsetree.ppat_attributes = []
+                                 }, (currify acc (n + 1) l)));
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        } in
+                  let f = currify [] 0 args in
+                  [{
                      Parsetree.pstr_desc =
                        (Parsetree.Pstr_value
                           (Asttypes.Nonrecursive,
                             [{
                                Parsetree.pvb_pat = pname;
-                               Parsetree.pvb_expr =
-                                 {
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_apply
-                                        ({
-                                           Parsetree.pexp_desc =
-                                             (Parsetree.Pexp_ident
-                                                {
-                                                  Asttypes.txt =
-                                                    (Longident.Ldot
-                                                       ((Longident.Lident
-                                                           "Earley"),
-                                                         "declare_grammar"));
-                                                  Asttypes.loc = _loc
-                                                });
-                                           Parsetree.pexp_loc = _loc;
-                                           Parsetree.pexp_attributes = []
-                                         },
-                                          [("",
-                                             (Pa_ast.exp_string _loc name))]));
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 };
+                               Parsetree.pvb_expr = f;
                                Parsetree.pvb_attributes = [];
                                Parsetree.pvb_loc = _loc
                              }]));
@@ -1562,156 +1998,9 @@ module Ext(In:Extension) =
                          Parsetree.pincl_attributes = [];
                          Parsetree.pincl_mod =
                            (Pa_ast.mexpr_loc _loc
-                              (Parsetree.Pmod_structure str1))
-                       })],
-                   [{
-                      Parsetree.pstr_desc =
-                        (Parsetree.Pstr_eval
-                           ({
-                              Parsetree.pexp_desc =
-                                (Parsetree.Pexp_apply
-                                   ({
-                                      Parsetree.pexp_desc =
-                                        (Parsetree.Pexp_ident
-                                           {
-                                             Asttypes.txt =
-                                               (Longident.Ldot
-                                                  ((Longident.Lident "Earley"),
-                                                    "set_grammar"));
-                                             Asttypes.loc = _loc
-                                           });
-                                      Parsetree.pexp_loc = _loc;
-                                      Parsetree.pexp_attributes = []
-                                    },
-                                     [("",
-                                        {
-                                          Parsetree.pexp_desc =
-                                            (Parsetree.Pexp_ident
-                                               {
-                                                 Asttypes.txt =
-                                                   (Longident.Lident name);
-                                                 Asttypes.loc = _loc
-                                               });
-                                          Parsetree.pexp_loc = _loc;
-                                          Parsetree.pexp_attributes = []
-                                        });
-                                     ("", r)]));
-                              Parsetree.pexp_loc = _loc;
-                              Parsetree.pexp_attributes = []
-                            }, []));
-                      Parsetree.pstr_loc = _loc
-                    };
-                   Pa_ast.loc_str _loc
-                     (Parsetree.Pstr_include
-                        {
-                          Parsetree.pincl_loc = _loc;
-                          Parsetree.pincl_attributes = [];
-                          Parsetree.pincl_mod =
-                            (Pa_ast.mexpr_loc _loc
-                               (Parsetree.Pmod_structure str2))
-                        })], str3)
-             | Some arg ->
-                 let r = build_alternatives _loc_r r in
-                 let set_name = name ^ "__set__grammar" in
-                 ([{
-                     Parsetree.pstr_desc =
-                       (Parsetree.Pstr_value
-                          (Asttypes.Nonrecursive,
-                            [{
-                               Parsetree.pvb_pat =
-                                 {
-                                   Parsetree.ppat_desc =
-                                     (Parsetree.Ppat_tuple
-                                        [pname;
-                                        {
-                                          Parsetree.ppat_desc =
-                                            (Parsetree.Ppat_var
-                                               {
-                                                 Asttypes.txt = set_name;
-                                                 Asttypes.loc = _loc
-                                               });
-                                          Parsetree.ppat_loc = _loc;
-                                          Parsetree.ppat_attributes = []
-                                        }]);
-                                   Parsetree.ppat_loc = _loc;
-                                   Parsetree.ppat_attributes = []
-                                 };
-                               Parsetree.pvb_expr =
-                                 {
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_apply
-                                        ({
-                                           Parsetree.pexp_desc =
-                                             (Parsetree.Pexp_ident
-                                                {
-                                                  Asttypes.txt =
-                                                    (Longident.Ldot
-                                                       ((Longident.Lident
-                                                           "Earley"),
-                                                         "grammar_family"));
-                                                  Asttypes.loc = _loc
-                                                });
-                                           Parsetree.pexp_loc = _loc;
-                                           Parsetree.pexp_attributes = []
-                                         },
-                                          [("",
-                                             (Pa_ast.exp_string _loc name))]));
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 };
-                               Parsetree.pvb_attributes = [];
-                               Parsetree.pvb_loc = _loc
-                             }]));
-                     Parsetree.pstr_loc = _loc
-                   };
-                  Pa_ast.loc_str _loc
-                    (Parsetree.Pstr_include
-                       {
-                         Parsetree.pincl_loc = _loc;
-                         Parsetree.pincl_attributes = [];
-                         Parsetree.pincl_mod =
-                           (Pa_ast.mexpr_loc _loc
-                              (Parsetree.Pmod_structure str1))
-                       })],
-                   [{
-                      Parsetree.pstr_desc =
-                        (Parsetree.Pstr_eval
-                           ({
-                              Parsetree.pexp_desc =
-                                (Parsetree.Pexp_apply
-                                   ({
-                                      Parsetree.pexp_desc =
-                                        (Parsetree.Pexp_ident
-                                           {
-                                             Asttypes.txt =
-                                               (Longident.Lident set_name);
-                                             Asttypes.loc = _loc
-                                           });
-                                      Parsetree.pexp_loc = _loc;
-                                      Parsetree.pexp_attributes = []
-                                    },
-                                     [("",
-                                        {
-                                          Parsetree.pexp_desc =
-                                            (Parsetree.Pexp_fun
-                                               ("", None, arg, r));
-                                          Parsetree.pexp_loc = _loc;
-                                          Parsetree.pexp_attributes = []
-                                        })]));
-                              Parsetree.pexp_loc = _loc;
-                              Parsetree.pexp_attributes = []
-                            }, []));
-                      Parsetree.pstr_loc = _loc
-                    };
-                   Pa_ast.loc_str _loc
-                     (Parsetree.Pstr_include
-                        {
-                          Parsetree.pincl_loc = _loc;
-                          Parsetree.pincl_attributes = [];
-                          Parsetree.pincl_mod =
-                            (Pa_ast.mexpr_loc _loc
-                               (Parsetree.Pmod_structure str2))
-                        })], str3)) in
+                              (Parsetree.Pmod_structure str2))
+                       })] in
+            (str1, str2, str3) in
       let (str1,str2,str3) = fn l in
       if str3 = []
       then
@@ -1740,6 +2029,11 @@ module Ext(In:Extension) =
                 Parsetree.pincl_mod =
                   (Pa_ast.mexpr_loc _loc (Parsetree.Pmod_structure str1))
               });
+        {
+          Parsetree.pstr_desc =
+            (Parsetree.Pstr_value (Asttypes.Recursive, str3));
+          Parsetree.pstr_loc = _loc
+        };
         Pa_ast.loc_str _loc
           (Parsetree.Pstr_include
              {
@@ -1747,12 +2041,7 @@ module Ext(In:Extension) =
                Parsetree.pincl_attributes = [];
                Parsetree.pincl_mod =
                  (Pa_ast.mexpr_loc _loc (Parsetree.Pmod_structure str2))
-             });
-        {
-          Parsetree.pstr_desc =
-            (Parsetree.Pstr_value (Asttypes.Recursive, str3));
-          Parsetree.pstr_loc = _loc
-        }]
+             })]
     include
       struct
         let glr_sequence = Earley.declare_grammar "glr_sequence"
@@ -2889,30 +3178,38 @@ module Ext(In:Extension) =
           Earley.set_grammar glr_binding
             (Earley.fsequence lident
                (Earley.fsequence
-                  (Earley.option None
-                     (Earley.apply (fun x  -> Some x) pattern))
+                  (Earley.apply List.rev
+                     (Earley.fixpoint []
+                        (Earley.apply (fun x  -> fun y  -> x :: y) pattern)))
                   (Earley.fsequence
                      (Earley.option None
                         (Earley.apply (fun x  -> Some x)
-                           (Earley.sequence (Earley.char ':' ':') typexpr
+                           (Earley.sequence (Earley.char '@' '@') pattern
                               (fun _  -> fun _default_0  -> _default_0))))
-                     (Earley.sequence (Earley.char '=' '=')
-                        (Earley.apply_position
-                           (fun x  ->
-                              fun str  ->
-                                fun pos  ->
-                                  fun str'  ->
-                                    fun pos'  ->
-                                      ((locate str pos str' pos'), x))
-                           glr_rules)
-                        (fun _  ->
-                           fun r  ->
-                             let (_loc_r,r) = r in
-                             fun ty  ->
-                               fun arg  ->
-                                 fun name  ->
-                                   `Parser
-                                     (name, arg, ty, _loc_r, (List.rev r)))))))
+                     (Earley.fsequence
+                        (Earley.option None
+                           (Earley.apply (fun x  -> Some x)
+                              (Earley.sequence (Earley.char ':' ':') typexpr
+                                 (fun _  -> fun _default_0  -> _default_0))))
+                        (Earley.sequence (Earley.char '=' '=')
+                           (Earley.apply_position
+                              (fun x  ->
+                                 fun str  ->
+                                   fun pos  ->
+                                     fun str'  ->
+                                       fun pos'  ->
+                                         ((locate str pos str' pos'), x))
+                              glr_rules)
+                           (fun _  ->
+                              fun r  ->
+                                let (_loc_r,r) = r in
+                                fun ty  ->
+                                  fun prio  ->
+                                    fun arg  ->
+                                      fun name  ->
+                                        `Parser
+                                          (name, arg, prio, ty, _loc_r,
+                                            (List.rev r))))))))
         include struct  end
       end
     include
@@ -2926,9 +3223,7 @@ module Ext(In:Extension) =
           Earley.set_grammar glr_bindings
             (Earley.alternatives
                [Earley.fsequence and_kw
-                  (Earley.fsequence
-                     (Earley.option None
-                        (Earley.apply (fun x  -> Some x) parser_kw))
+                  (Earley.fsequence parser_kw
                      (Earley.sequence glr_binding glr_bindings
                         (fun b  ->
                            fun l  ->

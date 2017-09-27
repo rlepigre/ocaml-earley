@@ -417,29 +417,56 @@ module Initial =
           union_re ["[!][!$%&*+./:<=>?@^|~-]*"; "[~?][!$%&*+./:<=>?@^|~-]+"]
       | _ -> assert false 
     let prefix_prios = [Opp; Prefix] 
-    let infix_symbol prio =
-      Earley.alternatives
-        ((if prio <> Cons
-          then
-            [Earley.sequence
-               (EarleyStr.regexp (infix_symb_re prio)
-                  (fun groupe  -> groupe 0)) not_special
-               (fun sym  ->
-                  fun _default_0  ->
-                    if is_reserved_symb sym then give_up (); sym)]
-          else []) @
-           ((if prio = Cons
-             then [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
-             else []) @ []))
-      
-    let prefix_symbol prio =
-      Earley.sequence
-        (EarleyStr.regexp (prefix_symb_re prio) (fun groupe  -> groupe 0))
-        not_special
-        (fun sym  ->
-           fun _default_0  ->
-             if (is_reserved_symb sym) || (sym = "!=") then give_up (); sym)
-      
+    include
+      struct
+        let (infix_symbol,infix_symbol__set__grammar) =
+          Earley.grammar_family "infix_symbol" 
+        include struct  end
+      end
+    include
+      struct
+        let _ =
+          infix_symbol__set__grammar
+            (fun prio  ->
+               Earley.alternatives
+                 ((if prio = Cons
+                   then
+                     [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
+                   else []) @
+                    ((if prio <> Cons
+                      then
+                        [Earley.sequence
+                           (EarleyStr.regexp (infix_symb_re prio)
+                              (fun groupe  -> groupe 0)) not_special
+                           (fun sym  ->
+                              fun _default_0  ->
+                                if is_reserved_symb sym then give_up (); sym)]
+                      else []) @ [])))
+          
+        include struct  end
+      end
+    include
+      struct
+        let (prefix_symbol,prefix_symbol__set__grammar) =
+          Earley.grammar_family "prefix_symbol" 
+        include struct  end
+      end
+    include
+      struct
+        let _ =
+          prefix_symbol__set__grammar
+            (fun prio  ->
+               Earley.sequence
+                 (EarleyStr.regexp (prefix_symb_re prio)
+                    (fun groupe  -> groupe 0)) not_special
+                 (fun sym  ->
+                    fun _default_0  ->
+                      if (is_reserved_symb sym) || (sym = "!=")
+                      then give_up ();
+                      sym))
+          
+        include struct  end
+      end
     include
       struct
         let mutable_flag = Earley.declare_grammar "mutable_flag" 

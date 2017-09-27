@@ -374,8 +374,7 @@ let single_quote = single_char '\''
 let double_quote = double_char '\'' 
 include
   struct
-    let (bool_lit : string Earley.grammar) =
-      Earley.declare_grammar "bool_lit" 
+    let bool_lit = Earley.declare_grammar "bool_lit" 
     include struct  end
   end
 include
@@ -384,7 +383,8 @@ include
       Earley.set_grammar bool_lit
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> "false") false_kw;
-           Earley.apply (fun _default_0  -> "true") true_kw])
+           Earley.apply (fun _default_0  -> "true") true_kw] : string
+                                                                 Earley.grammar)
       
     include struct  end
   end

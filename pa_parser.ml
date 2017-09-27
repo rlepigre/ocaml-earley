@@ -257,42 +257,72 @@ module Ext(In:Extension) = struct
       | `Caml b::l ->
          let (str1, str2, str3) = fn l in
          (str1, str2, b @ str3)
-      | `Parser(name,arg,ty,_loc_r,r)::l ->
+      | `Parser(name,args,prio,ty,_loc_r,r)::l ->
           let (str1, str2, str3) = fn l in
-          let pname =
-            match ty, arg with
-            | None   , _      -> <:pat<$lid:name$>>
-            | Some ty, None   -> <:pat<($lid:name$ : $ty$)>>
-            | Some ty, Some _ -> <:pat<($lid:name$ : 'type_of_arg -> $ty$)>>
+          let pname = <:pat<$lid:name$>> in
+          let coer f =
+            match ty with
+            | None -> f
+            | Some ty -> <:expr<($f$ : $ty$)>>
           in
-          match arg with
-          | None ->
-              let r = build_alternatives _loc_r r in
-              (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$
-                        $struct:str1$>>,
-               <:struct<let _ = Earley.set_grammar $lid:name$ $r$
-                        $struct:str2$>>, str3)
- (*         | Some arg ->
-              let r = build_prio_alternatives _loc_r arg r in
-              let set_name = name ^ "__set__grammar" in
-              ((<:bindings<($pat:pname$,$lid:set_name$) =
-                                Earley.grammar_prio $string:name$>> @ str1),
-               <:struct<let _ = $lid:set_name$ $r$
-                        $struct:str2$>>)*)
-          | Some arg ->
-              let r = build_alternatives _loc_r r in
-              let set_name = name ^ "__set__grammar" in
-              (<:struct<let ($pat:pname$,$lid:set_name$) =
-                                Earley.grammar_family $string:name$
-                        $struct:str1$>>,
-               <:struct<let _ = $lid:set_name$ (fun $pat:arg$ -> $r$)
-                        $struct:str2$>>, str3)
+          let args_pat = match args with
+            | [] -> <:pat< () >>
+            | [x] -> x
+            | _ -> <:pat< $tuple:args$ >>
+          in
+          let (str1,str2) =
+            match args,prio with
+            | [], None ->
+               let r = coer (build_alternatives _loc_r r) in
+               (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$
+                 $struct:str1$>>,
+                <:struct<let _ = Earley.set_grammar $lid:name$ $r$
+                 $struct:str2$>>)
+            | _, None ->
+               let r = coer (build_alternatives _loc_r r) in
+               let set_name = name ^ "__set__grammar" in
+               (<:struct<let ($pat:pname$,$lid:set_name$) =
+                 Earley.grammar_family $string:name$
+                 $struct:str1$>>,
+                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)
+                 $struct:str2$>>)
+            | [], Some prio ->
+               let r = coer (build_prio_alternatives _loc_r prio r) in
+               let set_name = name ^ "__set__grammar" in
+               (<:struct<let ($pat:pname$,$lid:set_name$) =
+                 Earley.grammar_prio $string:name$ $struct:str1$>>,
+                <:struct<let _ = $lid:set_name$ $r$
+                 $struct:str2$>>)
+            | args, Some prio ->
+               let r = coer (build_prio_alternatives _loc_r prio r) in
+               let set_name = name ^ "__set__grammar" in
+               (<:struct<let ($pat:pname$,$lid:set_name$) =
+                 Earley.grammar_prio_family $string:name$ $struct:str1$>>,
+                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)
+                 $struct:str2$>>)
+          in
+          let str2 =
+            match args, prio with
+            | ([], _) | ([_], None) -> str2
+            | _ ->
+              let rec currify acc n = function
+                  [] -> <:expr<fun __curry__prio -> $lid:name$ $tuple:List.rev acc$ __curry__prio >>
+                | a::l ->
+                   let v = "__curry__varx"^string_of_int n in
+                   let acc = <:expr< $lid:v$ >> :: acc in
+                   <:expr<fun $lid:v$ -> $currify acc (n+1) l$>>
+              in
+              let f = currify [] 0 args in
+              <:struct<let $pat:pname$ = $f$ $struct:str2$>>
+          in
+          (str1,str2,str3)
+
     in
     let (str1, str2, str3) = fn l in
     if str3 = [] then
       <:struct<$struct:str1$ $struct:str2$ >>
     else
-      <:struct<$struct:str1$ $struct:str2$ let rec $bindings:str3$ >>
+      <:struct<$struct:str1$ let rec $bindings:str3$ $struct:str2$ >>
 
 
   let parser glr_sequence =
@@ -362,9 +392,9 @@ module Ext(In:Extension) = struct
      -> (true, e)
 
 
-  and glr_opt_expr = {'[' expression ']'}?
+  and parser glr_opt_expr = {'[' expression ']'}?
 
-  and glr_option =
+  and parser glr_option =
     | '*' e:glr_opt_expr g:'$'? -> `Fixpoint(e,g)
     | '+' e:glr_opt_expr g:'$'? -> `Fixpoint1(e,g)
     | '?' e:glr_opt_expr g:'$'? -> `Option(e,g)
@@ -372,7 +402,7 @@ module Ext(In:Extension) = struct
     | EMPTY                     -> `Once
 
 
-  and glr_ident =
+  and parser glr_ident =
     | p:(pattern_lvl (true,ConstrPat)) ':' ->
         begin
           match p.ppat_desc with
@@ -383,24 +413,24 @@ module Ext(In:Extension) = struct
         end
     | EMPTY -> (None, ("_", None))
 
-  and glr_left_member =
+  and parser glr_left_member =
      {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option ->
        `Normal(id, (from_opt cst' (opt <> `Once || cst)),s,opt) }+
 
-  and glr_let =
+  and parser glr_let =
     | let_kw r:rec_flag lbs:let_binding in_kw l:glr_let ->
         (fun x -> loc_expr _loc (Pexp_let(r,lbs,l x)))
     | EMPTY ->
         (fun x -> x)
 
-  and glr_cond = {_:when_kw e:expression}?
+  and parser glr_cond = {_:when_kw e:expression}?
 
-  and glr_action alm =
+  and parser glr_action alm =
     | "->>" r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
     | arrow_re action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
     | EMPTY -> Default
 
-  and glr_rule alm =
+  and parser glr_rule alm =
     | def:glr_let l:glr_left_member condition:glr_cond action:(glr_action alm) ->
         let l = fst (List.fold_right (fun x (res,i) ->
           match x with
@@ -413,16 +443,16 @@ module Ext(In:Extension) = struct
         let occur_loc = occur ("_loc") action in
         (_loc, occur_loc, def, l, condition, action)
 
-  and glr_rules = '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true)
+  and parser glr_rules = '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true)
     -> r::rs
 
   let parser glr_binding =
-    name:lident arg:pattern? ty:{':' typexpr}? '=' r:glr_rules
-      -> `Parser(name,arg,ty,_loc_r,List.rev r)
+    name:lident arg:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules
+      -> `Parser(name,arg,prio,ty,_loc_r,List.rev r)
 
   let parser glr_bindings =
     | EMPTY -> []
-    | and_kw parser_kw? b:glr_binding l:glr_bindings -> b::l
+    | and_kw parser_kw b:glr_binding l:glr_bindings -> b::l
     | and_kw b:let_binding l:glr_bindings -> (`Caml b)::l
 
   let extra_structure =
