@@ -384,8 +384,8 @@ let handle_exception ?(error=fail_no_parse) f a =
       error ()
     end
 
-let family ?(param_to_string=(fun _ -> "<...>")) filter name =
-  let tbl = EqHashtbl.create ~equal:closure_eq 7 in
+let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
+  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
   let is_set = ref None in
   (fun p ->
     try EqHashtbl.find tbl p
@@ -399,20 +399,66 @@ let family ?(param_to_string=(fun _ -> "<...>")) filter name =
       g),
   (fun f ->
     (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
-    let f = filter f in
     is_set := Some f;
     EqHashtbl.iter (fun p r ->
       set_grammar r (f p);
     ) tbl)
 
 let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
-  let filter gs p =
-    alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
-  in
-  family ~param_to_string filter name
+  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
+  let is_set = ref None in
+  (fun p ->
+    try EqHashtbl.find tbl p
+    with Not_found ->
+      let g = declare_grammar (name^"_"^param_to_string p) in
+      EqHashtbl.add tbl p g;
+      (match !is_set with None -> ()
+      | Some f ->
+         set_grammar g (f p);
+      );
+      g),
+  (fun gs ->
+    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
+    let f = fun p ->
+      alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
+    in
+    is_set := Some f;
+    EqHashtbl.iter (fun p r ->
+      set_grammar r (f p);
+    ) tbl)
 
-let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
-  family ~param_to_string idt name
+let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
+  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
+  Printf.eprintf "creatiing tbl2\n%!";
+  let tbl2 = Hashtbl.create (*~equal:eq_closure*) 8 in
+  let is_set = ref None in
+  (fun args p ->
+    try EqHashtbl.find tbl (args,p)
+    with Not_found ->
+      let g = declare_grammar (name^"_"^param_to_string (args,p)) in
+      EqHashtbl.add tbl (args, p) g;
+      (match !is_set with None -> ()
+      | Some f ->
+         set_grammar g (f args p);
+      );
+      g),
+  (fun f ->
+    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
+    let f = fun args ->
+      let gs = f args in (* NOTE: to make sure the tbl2 is filled soon enough *)
+      try
+        Hashtbl.find tbl2 args
+      with Not_found ->
+        let g = fun p ->
+            alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
+        in
+        Hashtbl.add tbl2 args g;
+        g
+    in
+    is_set := Some f;
+    EqHashtbl.iter (fun (args,p) r ->
+      set_grammar r (f args p);
+    ) tbl)
 
 let blank_grammar grammar blank buf pos =
     let save_debug = !debug_lvl in
@@ -459,7 +505,7 @@ let grammar_info : type a. a grammar -> info = fun g -> (force (fst g))
 
 let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
   = fun l1 f2 ->
-    let tbl = EqHashtbl.create ~equal:closure_eq 7 in
+    let tbl = EqHashtbl.create ~equal:eq_closure 8 in
           mk_grammar [next l1 Idt (mkrule (Dep (fun a ->
               try EqHashtbl.find tbl a
               with Not_found ->

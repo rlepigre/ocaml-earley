@@ -21,17 +21,15 @@ let sum_sym = parser
   | '+' -> ( +. )
   | '-' -> ( -. )
 
-let (expr, set_expr) = grammar_prio ~param_to_string:prio_to_string "expr"
+let parser expr @p =
+  | float_num
+  | '(' e:(expr Sum) ')'
+  | '-' e:(expr Pow)                      when p <= Pow -> -. e
+  | '+' e:(expr Pow)                      when p <= Pow -> e
+  | e:(expr Atm) "**" e':(expr Pow)       when p <= Pow -> e ** e'
+  | e:(expr Pro) fn:pro_sym e':(expr Pow) when p <= Pro -> fn e e'
+  | e:(expr Sum) fn:sum_sym e':(expr Pro) when p <= Sum -> fn e e'
 
-let _ = set_expr
-  [ ((fun p -> true    ), parser float_num )
-  ; ((fun p -> true    ), parser '(' e:(expr Sum) ')')
-  ; ((fun p -> p <= Pow), parser '-' e:(expr Pow)                 -> -. e)
-  ; ((fun p -> p <= Pow), parser '+' e:(expr Pow))
-  ; ((fun p -> p <= Pow), parser e:(expr Atm) "**" e':(expr Pow) -> e ** e')
-  ; ((fun p -> p <= Pro), parser e:(expr Pro) fn:pro_sym e':(expr Pow) -> fn e e')
-  ; ((fun p -> p <= Sum), parser e:(expr Sum) fn:sum_sym e':(expr Pro) -> fn e e')
-  ]
 
 (* The main loop *)
 let _ = run (expr Sum)
