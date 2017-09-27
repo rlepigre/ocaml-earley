@@ -222,15 +222,16 @@ module rec Types : sig
          The type ['a final] represent an element of the earley table
          where [end] is the current position in the string being parsed.
     *)
-   and _ final = D :
-    { start : pos2           (* position in buffer, before and after blank *)
-    ; stack : ('c, 'r) stack (* tree of stack representing what should be done
-                                after reading the [rest] of the rule *)
-    ; acts  : 'b -> 'c       (* action to produce the final 'c. *)
-    ; rest  : 'b rule        (* remaining to parse, will produce 'b *)
-    ; full  : 'c rule        (* full rule. rest is a suffix of full. *)
-    } -> 'r final
+   and ('c,'r,'b,'f) cell =
+           { start : pos2           (* position in buffer, before and after blank *)
+           ; stack : ('c, 'r) stack (* tree of stack representing what should be done
+                                       after reading the [rest] of the rule *)
+           ; acts  : 'f             (* action to produce the final 'c. *)
+           ; rest  : 'b rule        (* remaining to parse, will produce 'b *)
+           ; full  : 'c rule        (* full rule. rest is a suffix of full. *)
+           }
 
+   and _ final = D : ('c,'r,'b,'b -> 'c) cell -> 'r final
 
    (** Type of the element that appears in stack. Note: all other
        elements will be collected by the GC, which is what we want to
@@ -244,12 +245,7 @@ module rec Types : sig
        is unknown.  *)
    and (_,_) element =
      (* Cons cell of the stack *)
-     | C : { start : pos2
-           ; stack : ('c, 'r) stack
-           ; acts  : ('a -> 'b -> 'c) pos
-           ; rest  : 'b rule
-           ; full  : 'c rule
-           } -> ('a,'r) element
+     | C : ('c,'r,'b,('a -> 'b -> 'c) pos) cell -> ('a ,'r) element
      (* End of the stack *)
      | B : ('a -> 'r) pos -> ('a,'r) element
 
