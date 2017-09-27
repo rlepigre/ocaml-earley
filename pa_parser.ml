@@ -76,38 +76,23 @@ let find_locate () =
 
 let mkpatt _loc (id, p) = match p, find_locate () with
     None, _ -> pat_ident _loc id
-  | Some p, None -> ppat_alias _loc p id
-  | Some p, Some _ ->
-     ppat_alias _loc (loc_pat _loc (Ppat_tuple[loc_pat _loc Ppat_any; p])) id
+  | Some p, None -> <:pat<$p$ as $lid:id$>>
+  | Some p, Some _ -> <:pat<(_,$p$) as $lid:id$>>
 
 let mkpatt' _loc (id,p) =  match p with
-    None -> pat_ident _loc id
-  | Some p -> ppat_alias _loc p id
+    None -> <:pat<$lid:id$>>
+  | Some p -> <:pat<$p$ as $lid:id$>>
 
 let cache_filter = Hashtbl.create 101
 
 let filter _loc visible r =
   match find_locate (), visible with
   | Some(f2), true ->
-     let f =
-       exp_fun _loc "x" (
-	 exp_fun _loc "str" (
-	   exp_fun _loc "pos" (
-	     exp_fun _loc "str'" (
-	       exp_fun _loc "pos'" (
-		 exp_tuple _loc [
-  		   exp_apply _loc f2
-		     [exp_ident _loc "str";
-		      exp_ident _loc "pos";
-		      exp_ident _loc "str'";
-		      exp_ident _loc "pos'"];
-		   exp_ident _loc "x"])))))
-     in
+     let f = <:expr<fun x str pos str' pos' -> ($f2$ str pos str' pos', x)>> in
      (try
-       let res = Hashtbl.find cache_filter (f,r) in
-       res
+       Hashtbl.find cache_filter (f,r)
      with Not_found ->
-       let res = exp_apply _loc (exp_glr_fun _loc "apply_position") [f; r] in
+       let res = <:expr<Earley.apply_position $f$ $r$>> in
        Hashtbl.add cache_filter (f,r) res;
        res)
   | _ -> r
@@ -116,33 +101,20 @@ let filter _loc visible r =
 let rec build_action _loc occur_loc ids e =
   let e = match find_locate (), occur_loc with
     | Some(locate2), true ->
-       exp_fun _loc "__loc__start__buf" (
-	 exp_fun _loc "__loc__start__pos" (
-	   exp_fun _loc "__loc__end__buf" (
-	     exp_fun _loc "__loc__end__pos" (
-	       loc_expr _loc (Pexp_let(Nonrecursive, [
-	         value_binding _loc (pat_ident _loc "_loc")
-			       (exp_apply _loc locate2 [exp_ident _loc "__loc__start__buf";
-							exp_ident _loc "__loc__start__pos";
-							exp_ident _loc "__loc__end__buf";
-							exp_ident _loc "__loc__end__pos"])], e))))))
+       <:expr<fun __loc__start__buf __loc__start__pos
+                  __loc__end__buf __loc__end__pos ->
+                  let _loc = $locate2$ __loc__start__buf __loc__start__pos
+                                        __loc__end__buf __loc__end__pos in $e$>>
     | _ -> e
   in
   List.fold_left (fun e ((id,x),visible) ->
     match find_locate (), visible with
     | Some(_), true ->
-      loc_expr _loc (
-	pexp_fun(nolabel, None,
-	  mkpatt _loc (id,x),
-	  loc_expr _loc (Pexp_let(Nonrecursive,
-	    [value_binding _loc (loc_pat _loc (Ppat_tuple([
-		loc_pat _loc (Ppat_var (id_loc ("_loc_"^id) _loc));
-		loc_pat _loc (Ppat_var (id_loc id _loc))])))
-	     (loc_expr _loc (Pexp_ident((id_loc (Lident id) _loc))))],
-	    e))))
+       <:expr<fun $pat:mkpatt _loc (id,x)$ ->
+        let ($lid:"_loc_"^id$, $lid:id$) = $lid:id$ in $e$>>
     | _ ->
-      loc_expr _loc (pexp_fun(nolabel, None, mkpatt' _loc (id,x), e))
-  ) e (List.rev ids)
+       <:expr<fun $pat:mkpatt' _loc (id,x)$ -> $e$>>
+    ) e (List.rev ids)
 
 let apply_option _loc opt visible e =
   let fn e f d =
@@ -168,13 +140,16 @@ let apply_option _loc opt visible e =
   )
 
 let default_action _loc l =
-  let l = List.filter (function `Normal((("_",_),false,_,_,_)) -> false | _ -> true) l in
-  let l = List.map (function `Normal((id,_),_,_,_,_) -> exp_ident _loc id | _ -> assert false) l in
+  let l = List.filter (function `Normal((("_",_),false,_,_,_)) -> false
+                              | _ -> true) l
+  in
+  let l = List.map (function `Normal((id,_),_,_,_,_) -> <:expr<$lid:id$>>
+                           | _ -> assert false) l
+  in
   let rec fn = function
-    | [] -> exp_unit _loc
+    | [] -> <:expr<()>>
     | [x] -> x
-    | _::_ as l ->
-       exp_tuple _loc l
+    | _::_ as l -> <:expr<$tuple:l$>>
   in
   fn l
 
@@ -204,7 +179,7 @@ module Ext(In:Extension) = struct
            true, (match cond with
 		 | None -> def a
 		 | Some cond ->
-		    def (loc_expr _loc (Pexp_ifthenelse(cond,a,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc])))))
+		    def (<:expr<if $cond$ then $a$ else Earley.fail ()>>))
       in
 
       let rec fn first ids l = match l with
@@ -217,8 +192,9 @@ module Ext(In:Extension) = struct
 	   in
 	   (match action.pexp_desc with
 		Pexp_ident({ txt = Lident id'}) when fst id = id' && f = "apply" -> e
-	   | _ ->
-	      exp_apply _loc (exp_glr_fun _loc f) [build_action _loc occur_loc ((id,occur_loc_id)::ids) action; e])
+	      | _ ->
+                 let a = build_action _loc occur_loc ((id,occur_loc_id)::ids) action in
+                 <:expr<Earley.$lid:f$ $a$ $e$>>)
 
 	| [`Normal(id,_,e,opt,occur_loc_id); `Normal(id',_,e',opt',occur_loc_id') ] ->
 	   let e = apply_option _loc opt occur_loc_id e in
@@ -227,8 +203,11 @@ module Ext(In:Extension) = struct
 	     | Some _, true -> "sequence_position"
 	     | _ -> "sequence"
 	   in
-	   exp_apply _loc (exp_glr_fun _loc f) [e; e'; build_action _loc occur_loc
-	((id,occur_loc_id)::(id',occur_loc_id')::ids) action]
+           let a = build_action _loc occur_loc
+                                ((id,occur_loc_id)::(id',occur_loc_id')::ids)
+                                action
+           in
+           <:expr<Earley.$lid:f$ $e$ $e'$ $a$>>
 
 	| `Normal(id,_,e,opt,occur_loc_id) :: ls ->
 	   let e = apply_option _loc opt occur_loc_id e in
@@ -236,10 +215,11 @@ module Ext(In:Extension) = struct
 	     | Some _, true -> "fsequence_position"
 	     | _ -> "fsequence"
 	   in
-	   exp_apply _loc (exp_glr_fun _loc f) [e; fn false ((id,occur_loc_id)::ids) ls]
+           let a = fn false ((id,occur_loc_id)::ids) ls in
+           <:expr<Earley.$lid:f$ $e$ $a$>>
       in
       let res = fn true [] l in
-      let res = if iter then exp_apply _loc (exp_glr_fun _loc "iter") [res] else res in
+      let res = if iter then <:expr<Earley.iter $res$>> else res in
       def, condition, res
 
   let apply_def_cond _loc arg =
@@ -247,67 +227,46 @@ module Ext(In:Extension) = struct
     match cond with
       None -> def e
     | Some c ->
-      def (loc_expr _loc (Pexp_ifthenelse(c,e,Some (exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc]))))
+      def <:expr<if $c$ then $e$ else Earley.fail ()>>
 
   let build_alternatives _loc ls =
     match ls with
-    | [] -> exp_apply _loc (exp_glr_fun _loc "fail") [exp_unit _loc]
+    | [] -> <:expr<Earley.fail ()>>
     | [r] -> apply_def_cond _loc r
     | elt1::elt2::_ ->
         let l = List.fold_right (fun r y ->
           let (def,cond,e) = build_rule r in
           match cond with
-          | None -> def (exp_Cons _loc e y)
-          | Some c -> def (loc_expr _loc (Pexp_let(Nonrecursive,[value_binding _loc (pat_ident _loc "y") y],
-                                loc_expr _loc (Pexp_ifthenelse(c,exp_Cons _loc
-                                 e (exp_ident _loc "y"), Some (exp_ident _loc "y"))))))
-          ) ls (exp_Nil _loc)
+          | None -> def (<:expr<$e$ :: $y$>>)
+          | Some c -> def (<:expr<(if $c$ then [$e$] else []) @ $y$>>)
+          ) ls (<:expr<[]>>)
         in
-        exp_apply _loc (exp_glr_fun _loc "alternatives") [l]
+        <:expr<Earley.alternatives $l$>>
 
   let build_str_item _loc l =
     let rec fn = function
       | []                 -> ([], [])
       | (name,arg,ty,r)::l ->
           let (str1, str2) = fn l in
-          let pat_name = loc_pat _loc (Ppat_var (id_loc name _loc)) in
           let pname =
             match ty, arg with
-            | None   , _      -> pat_name
-            | Some ty, None   ->
-                let ptyp_ty = loc_typ _loc (Ptyp_poly ([], ty)) in
-                loc_pat _loc (Ppat_constraint(pat_name, ptyp_ty))
-            | Some ty, Some _ ->
-                let ptyp_ty = loc_typ _loc (Ptyp_poly ([], ty)) in
-                loc_pat _loc (Ppat_constraint(pat_name,
-                  loc_typ _loc (Ptyp_arrow(nolabel,
-                    loc_typ _loc (Ptyp_var "'type_of_arg"),
-                      ptyp_ty))))
+            | None   , _      -> <:pat<$lid:name$>>
+            | Some ty, None   -> <:pat<($lid:name$ : $ty$)>>
+            | Some ty, Some _ -> <:pat<($lid:name$ : 'type_of_arg -> $ty$)>>
           in
           match arg with
           | None ->
-              let ddg = exp_glr_fun _loc "declare_grammar" in
-              let strname = loc_expr _loc (Pexp_constant (const_string name)) in
-              let name = loc_expr _loc (Pexp_ident(id_loc (Lident name) _loc)) in
-              let e = loc_expr _loc (Pexp_apply(ddg, [nolabel, strname])) in
-              let l = value_binding ~attributes:[] _loc pname e in
-              let dsg = exp_glr_fun _loc "set_grammar" in
-              let ev = loc_expr _loc (Pexp_apply(dsg, [(nolabel,name);(nolabel,r)])) in
-              (loc_str _loc (Pstr_value (Nonrecursive, [l])) :: str1),
-              (loc_str _loc (pstr_eval ev) :: str2)
+              (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$
+                        $struct:str1$>>,
+               <:struct<let _ = Earley.set_grammar $lid:name$ $r$
+                        $struct:str2$>>)
           | Some arg ->
-              let dgf = exp_glr_fun _loc "grammar_family" in
               let set_name = name ^ "__set__grammar" in
-              let strname = loc_expr _loc (Pexp_constant (const_string name)) in
-              let sname = loc_expr _loc (Pexp_ident(id_loc (Lident set_name) _loc)) in
-              let psname = loc_pat _loc (Ppat_var (id_loc set_name _loc)) in
-              let ptuple = loc_pat _loc (Ppat_tuple [pname;psname]) in
-              let e = loc_expr _loc (Pexp_apply(dgf, [nolabel, strname])) in
-              let l = value_binding ~attributes:[] _loc ptuple e in
-              let fam = loc_expr _loc (pexp_fun(nolabel,None,arg,r)) in
-              let ev = loc_expr _loc (Pexp_apply(sname, [(nolabel,fam)])) in
-              (loc_str _loc (Pstr_value (Nonrecursive, [l])) :: str1),
-                (loc_str _loc (pstr_eval ev) :: str2)
+              (<:struct<let ($pat:pname$,$lid:set_name$) =
+                                Earley.grammar_family $string:name$
+                        $struct:str1$>>,
+               <:struct<let _ = $lid:set_name$ (fun $pat:arg$ -> $r$)
+                        $struct:str2$>>)
     in
     let (str1, str2) = fn l in
     str1 @ str2
@@ -376,7 +335,7 @@ module Ext(In:Extension) = struct
           | Some e -> (true, <:expr<Earley.apply (fun group -> $e$) $re$>>)
         end
     | id:value_path
-     -> (true, loc_expr _loc (Pexp_ident(id_loc id _loc_id)))
+     -> (true, <:expr<$longident:id$>>)
     | "(" e:expression ")"
      -> (true, e)
 
