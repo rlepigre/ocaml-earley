@@ -40,10 +40,45 @@
   ======================================================================
 *)
 
-(* Comparison function accepting to compare everything. Be careful as it
-   compares everything containing a closure with physical equality  only
-   (even if closure appear deep in the compared structure). *)
-let closure_eq x y = try x = y with Invalid_argument _ -> x == y
+(* Comparison function accepting to compare everything. *)
+let eq_closure : type a. a -> a -> bool =
+  fun f g ->
+    let open Obj in
+    (* repr f == repr g
+       || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures]) *)
+    let adone = ref [] in
+    let rec fn f g =
+      f == g ||
+        match is_int f, is_int g with
+        | true, true -> f == g
+        | false, true | true, false -> false
+        | false, false ->
+           let ft = tag f and gt = tag g in
+           if ft = forward_tag then (
+             fn (field f 0) g)
+           else if gt = forward_tag then (
+             fn f (field g 0))
+           else if ft <> gt then false
+           else
+           if ft = string_tag || ft = double_tag || ft = double_array_tag
+             then f = g
+           else if ft = abstract_tag || ft = out_of_heap_tag
+                   || ft = no_scan_tag || ft = custom_tag || ft = infix_tag
+                 (* FIXME: we could certainly do better with infix_tag
+                           i.e. mutually recursive functions *)
+             then f == g
+           else
+             size f == size g &&
+               let rec gn i =
+                 if i < 0 then true
+                 else fn (field f i) (field g i) && gn (i - 1)
+               in
+               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
+                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
+                 (adone := (f,g)::!adone;
+                  gn (size f - 1)))
+
+    in fn (repr f) (repr g)
 
 (* Equality types *)
 type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
@@ -256,42 +291,3 @@ module Fixpoint :
         if old <> x.value then iter_deps fn x
       in fn b
   end
-
-let eq_closure : type a. a -> a -> bool =
-  fun f g ->
-    let open Obj in
-    (* repr f == repr g
-       || (Marshal.to_string f [Closures] = Marshal.to_string g [Closures]) *)
-    let adone = ref [] in
-    let rec fn f g =
-      f == g ||
-        match is_int f, is_int g with
-        | true, true -> f == g
-        | false, true | true, false -> false
-        | false, false ->
-           let ft = tag f and gt = tag g in
-           if ft = forward_tag then (
-             fn (field f 0) g)
-           else if gt = forward_tag then (
-             fn f (field g 0))
-           else if ft <> gt then false
-           else
-           if ft = string_tag || ft = double_tag || ft = double_array_tag
-             then f = g
-           else if ft = abstract_tag || ft = out_of_heap_tag
-                   || ft = no_scan_tag || ft = custom_tag || ft = infix_tag
-                 (* FIXME: we could certainly do better with infix_tag
-                           i.e. mutually recursive functions *)
-             then f == g
-           else
-             size f == size g &&
-               let rec gn i =
-                 if i < 0 then true
-                 else fn (field f i) (field g i) && gn (i - 1)
-               in
-               List.exists (fun (f',g') -> f == f' && g == g') !adone ||
-                (List.for_all (fun (f',g') -> f != f' && g != g') !adone &&
-                 (adone := (f,g)::!adone;
-                  gn (size f - 1)))
-
-    in fn (repr f) (repr g)
