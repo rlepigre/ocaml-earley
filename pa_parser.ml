@@ -233,7 +233,7 @@ module Ext(In:Extension) = struct
     match ls with
     | [] -> <:expr<Earley.fail ()>>
     | [r] -> apply_def_cond _loc r
-    | elt1::elt2::_ ->
+    | _::_::_ ->
         let l = List.fold_right (fun r y ->
           let (def,cond,e) = build_rule r in
           match cond with
@@ -243,11 +243,22 @@ module Ext(In:Extension) = struct
         in
         <:expr<Earley.alternatives $l$>>
 
+  let build_prio_alternatives _loc arg ls =
+    List.fold_right (fun r y ->
+        let (def,cond,e) = build_rule r in
+        match cond with
+        | None -> def (<:expr<((fun _ -> true), $e$) :: $y$>>)
+        | Some c -> def (<:expr<((fun $pat:arg$ -> $c$), $e$) :: $y$>>)
+      ) ls (<:expr<[]>>)
+
   let build_str_item _loc l =
     let rec fn = function
-      | []                 -> ([], [])
-      | (name,arg,ty,r)::l ->
-          let (str1, str2) = fn l in
+      | []                 -> ([], [], [])
+      | `Caml b::l ->
+         let (str1, str2, str3) = fn l in
+         (str1, str2, b @ str3)
+      | `Parser(name,arg,ty,_loc_r,r)::l ->
+          let (str1, str2, str3) = fn l in
           let pname =
             match ty, arg with
             | None   , _      -> <:pat<$lid:name$>>
@@ -256,26 +267,37 @@ module Ext(In:Extension) = struct
           in
           match arg with
           | None ->
+              let r = build_alternatives _loc_r r in
               (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$
                         $struct:str1$>>,
                <:struct<let _ = Earley.set_grammar $lid:name$ $r$
-                        $struct:str2$>>)
+                        $struct:str2$>>, str3)
+ (*         | Some arg ->
+              let r = build_prio_alternatives _loc_r arg r in
+              let set_name = name ^ "__set__grammar" in
+              ((<:bindings<($pat:pname$,$lid:set_name$) =
+                                Earley.grammar_prio $string:name$>> @ str1),
+               <:struct<let _ = $lid:set_name$ $r$
+                        $struct:str2$>>)*)
           | Some arg ->
+              let r = build_alternatives _loc_r r in
               let set_name = name ^ "__set__grammar" in
               (<:struct<let ($pat:pname$,$lid:set_name$) =
                                 Earley.grammar_family $string:name$
                         $struct:str1$>>,
                <:struct<let _ = $lid:set_name$ (fun $pat:arg$ -> $r$)
-                        $struct:str2$>>)
+                        $struct:str2$>>, str3)
     in
-    let (str1, str2) = fn l in
-    str1 @ str2
-
+    let (str1, str2, str3) = fn l in
+    if str3 = [] then
+      <:struct<$struct:str1$ $struct:str2$ >>
+    else
+      <:struct<$struct:str1$ $struct:str2$ let rec $bindings:str3$ >>
 
 
   let parser glr_sequence =
     | '{' r:glr_rules '}'
-     -> (true, r)
+     -> (true, build_alternatives _loc_r (List.rev r))
     | "EOF" oe:glr_opt_expr
      -> (oe <> None, <:expr<Earley.eof $from_opt oe <:expr<()>>$>>)
     | "EMPTY" oe:glr_opt_expr
@@ -392,19 +414,25 @@ module Ext(In:Extension) = struct
         (_loc, occur_loc, def, l, condition, action)
 
   and glr_rules = '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true)
-    -> build_alternatives _loc (rs@[r])
+    -> r::rs
 
+  let parser glr_binding =
+    name:lident arg:pattern? ty:{':' typexpr}? '=' r:glr_rules
+      -> `Parser(name,arg,ty,_loc_r,List.rev r)
 
-
-  let parser glr_binding = name:lident arg:pattern? ty:{':' typexpr}? '='
-    r:glr_rules l:{_:and_kw glr_binding}?[[]] -> (name,arg,ty,r)::l
+  let parser glr_bindings =
+    | EMPTY -> []
+    | and_kw b:glr_binding l:glr_bindings -> b::l
+    | and_kw b:let_binding l:glr_bindings -> (`Caml b)::l
 
   let extra_structure =
-    let p = parser let_kw parser_kw l:glr_binding -> build_str_item _loc l in
+    let p = parser let_kw parser_kw b:glr_binding l:glr_bindings -> build_str_item _loc (b::l) in
     p :: extra_structure
 
   let extra_prefix_expressions =
-    let p = parser _:parser_kw glr_rules in
+    let p = parser _:parser_kw r:glr_rules
+                      -> build_alternatives _loc_r r
+    in
     p :: extra_prefix_expressions
 
   let _ = add_reserved_id "parser"
