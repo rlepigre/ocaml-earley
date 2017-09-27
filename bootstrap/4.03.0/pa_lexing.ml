@@ -303,36 +303,48 @@ let not_special =
   let cs = ref Charset.empty  in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
   Earley.blank_not_in_charset ~name:"not_special" (!cs) 
-let ident = Earley.declare_grammar "ident" 
-include struct  end
-let _ =
-  Earley.set_grammar ident
-    (Earley.apply
-       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
-       (EarleyStr.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
-          "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
-  
-include struct  end
-let lident = Earley.declare_grammar "lident" 
-include struct  end
-let _ =
-  Earley.set_grammar lident
-    (Earley.apply
-       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
-       (EarleyStr.regexp
-          ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
-          "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
-          (fun groupe  -> groupe 0)))
-  
-include struct  end
-let uident = Earley.declare_grammar "uident" 
-include struct  end
-let _ =
-  Earley.set_grammar uident
-    (EarleyStr.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
-       (fun groupe  -> groupe 0))
-  
-include struct  end
+include
+  struct let ident = Earley.declare_grammar "ident" 
+         include struct  end end
+include
+  struct
+    let _ =
+      Earley.set_grammar ident
+        (Earley.apply
+           (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+           (EarleyStr.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
+              "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
+      
+    include struct  end
+  end
+include
+  struct let lident = Earley.declare_grammar "lident" 
+         include struct  end end
+include
+  struct
+    let _ =
+      Earley.set_grammar lident
+        (Earley.apply
+           (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+           (EarleyStr.regexp
+              ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
+              "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
+              (fun groupe  -> groupe 0)))
+      
+    include struct  end
+  end
+include
+  struct let uident = Earley.declare_grammar "uident" 
+         include struct  end end
+include
+  struct
+    let _ =
+      Earley.set_grammar uident
+        (EarleyStr.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
+           (fun groupe  -> groupe 0))
+      
+    include struct  end
+  end
 let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l) 
 let cs_to_string cs =
   String.concat "" (List.map (fun c  -> String.make 1 c) cs) 
@@ -360,15 +372,22 @@ let semi_col = single_char ';'
 let double_semi_col = double_char ';' 
 let single_quote = single_char '\'' 
 let double_quote = double_char '\'' 
-let (bool_lit : string Earley.grammar) = Earley.declare_grammar "bool_lit" 
-include struct  end
-let _ =
-  Earley.set_grammar bool_lit
-    (Earley.alternatives
-       [Earley.apply (fun _default_0  -> "false") false_kw;
-       Earley.apply (fun _default_0  -> "true") true_kw])
-  
-include struct  end
+include
+  struct
+    let (bool_lit : string Earley.grammar) =
+      Earley.declare_grammar "bool_lit" 
+    include struct  end
+  end
+include
+  struct
+    let _ =
+      Earley.set_grammar bool_lit
+        (Earley.alternatives
+           [Earley.apply (fun _default_0  -> "false") false_kw;
+           Earley.apply (fun _default_0  -> "true") true_kw])
+      
+    include struct  end
+  end
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z')
      in
@@ -385,9 +404,9 @@ let num_suffix =
                        ((c <> 'E') && (not (Charset.mem suffix_cs c)))))))
      in
   Earley.alternatives
-    [Earley.sequence (Earley.no_blank_test ()) (Earley.in_charset suffix_cs)
-       (fun _  -> fun s  -> Some s);
-    Earley.apply (fun _default_0  -> None) no_suffix_cs]
+    [Earley.apply (fun _default_0  -> None) no_suffix_cs;
+    Earley.sequence (Earley.no_blank_test ()) (Earley.in_charset suffix_cs)
+      (fun _  -> fun s  -> Some s)]
   
 let int_litteral : (string* char option) Earley.grammar =
   let int_re =
@@ -416,30 +435,29 @@ let escaped_char : char Earley.grammar =
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]"  in
   let char_esc = "[\\\\\\\"\\'ntbrs ]"  in
   Earley.alternatives
-    [Earley.apply (fun e  -> char_of_int (int_of_string e))
-       (EarleyStr.regexp ~name:"char_dec" char_dec (fun groupe  -> groupe 0));
+    [Earley.apply
+       (fun e  ->
+          match e.[0] with
+          | 'n' -> '\n'
+          | 't' -> '\t'
+          | 'b' -> '\b'
+          | 'r' -> '\r'
+          | 's' -> ' '
+          | c -> c)
+       (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0));
+    Earley.apply (fun e  -> char_of_int (int_of_string e))
+      (EarleyStr.regexp ~name:"char_dec" char_dec (fun groupe  -> groupe 0));
     Earley.apply (fun e  -> char_of_int (int_of_string ("0" ^ e)))
-      (EarleyStr.regexp ~name:"char_hex" char_hex (fun groupe  -> groupe 0));
-    Earley.apply
-      (fun e  ->
-         match e.[0] with
-         | 'n' -> '\n'
-         | 't' -> '\t'
-         | 'b' -> '\b'
-         | 'r' -> '\r'
-         | 's' -> ' '
-         | c -> c)
-      (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))]
+      (EarleyStr.regexp ~name:"char_hex" char_hex (fun groupe  -> groupe 0))]
   
 let char_litteral : char Earley.grammar =
   let char_reg = "[^\\\\\\']"  in
   let single_char =
     Earley.alternatives
-      [Earley.apply (fun c  -> c.[0])
-         (EarleyStr.regexp ~name:"char_reg" char_reg
-            (fun groupe  -> groupe 0));
-      Earley.sequence (Earley.char '\\' '\\') escaped_char
-        (fun _  -> fun e  -> e)]
+      [Earley.sequence (Earley.char '\\' '\\') escaped_char
+         (fun _  -> fun e  -> e);
+      Earley.apply (fun c  -> c.[0])
+        (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0))]
      in
   Earley.change_layout
     (Earley.fsequence single_quote
@@ -475,13 +493,12 @@ let normal_string : string Earley.grammar =
   let char_reg = "[^\\\"\\\\]"  in
   let single_char =
     Earley.alternatives
-      [Earley.apply (fun c  -> c.[0])
-         (EarleyStr.regexp ~name:"char_reg" char_reg
-            (fun groupe  -> groupe 0));
+      [Earley.char '\n' '\n';
+      Earley.apply (fun c  -> c.[0])
+        (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0));
       Earley.fsequence (Earley.char '\\' '\\')
         (Earley.sequence (Earley.no_blank_test ()) escaped_char
-           (fun _  -> fun e  -> fun _  -> e));
-      Earley.char '\n' '\n']
+           (fun _  -> fun e  -> fun _  -> e))]
      in
   Earley.fsequence (Earley.char '"' '"')
     (Earley.fsequence
@@ -510,7 +527,7 @@ let normal_string : string Earley.grammar =
 let string_litteral : (string* string option) Earley.grammar =
   Earley.change_layout
     (Earley.alternatives
-       [Earley.apply (fun s  -> (s, None)) normal_string; quoted_string])
+       [quoted_string; Earley.apply (fun s  -> (s, None)) normal_string])
     Earley.no_blank
   
 let regexp_litteral : string Earley.grammar =
@@ -518,23 +535,24 @@ let regexp_litteral : string Earley.grammar =
   let char_esc = "[ntbrs\\\\()|]"  in
   let single_char =
     Earley.alternatives
-      [EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
-      Earley.apply (fun _  -> "'") single_quote;
-      Earley.sequence (Earley.char '\\' '\\')
-        (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
-        (fun _  ->
-           fun e  ->
-             match e.[0] with
-             | 'n' -> "\n"
-             | 't' -> "\t"
-             | 'b' -> "\b"
-             | 'r' -> "\r"
-             | 's' -> " "
-             | '\\' -> "\\"
-             | '(' -> "\\("
-             | ')' -> "\\)"
-             | '|' -> "\\|"
-             | _ -> assert false)]
+      [Earley.sequence (Earley.char '\\' '\\')
+         (EarleyStr.regexp ~name:"char_esc" char_esc
+            (fun groupe  -> groupe 0))
+         (fun _  ->
+            fun e  ->
+              match e.[0] with
+              | 'n' -> "\n"
+              | 't' -> "\t"
+              | 'b' -> "\b"
+              | 'r' -> "\r"
+              | 's' -> " "
+              | '\\' -> "\\"
+              | '(' -> "\\("
+              | ')' -> "\\)"
+              | '|' -> "\\|"
+              | _ -> assert false);
+      EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
+      Earley.apply (fun _  -> "'") single_quote]
      in
   let internal =
     Earley.sequence
@@ -553,23 +571,24 @@ let new_regexp_litteral : string Earley.grammar =
   let char_esc = "[ntbrs\\\\()|]"  in
   let single_char =
     Earley.alternatives
-      [EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
-      Earley.apply (fun _  -> "'") single_quote;
-      Earley.sequence (Earley.char '\\' '\\')
-        (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe  -> groupe 0))
-        (fun _  ->
-           fun e  ->
-             match e.[0] with
-             | 'n' -> "\n"
-             | 't' -> "\t"
-             | 'b' -> "\b"
-             | 'r' -> "\r"
-             | 's' -> " "
-             | '\\' -> "\\"
-             | '(' -> "\\("
-             | ')' -> "\\)"
-             | '|' -> "\\|"
-             | _ -> assert false)]
+      [Earley.sequence (Earley.char '\\' '\\')
+         (EarleyStr.regexp ~name:"char_esc" char_esc
+            (fun groupe  -> groupe 0))
+         (fun _  ->
+            fun e  ->
+              match e.[0] with
+              | 'n' -> "\n"
+              | 't' -> "\t"
+              | 'b' -> "\b"
+              | 'r' -> "\r"
+              | 's' -> " "
+              | '\\' -> "\\"
+              | '(' -> "\\("
+              | ')' -> "\\)"
+              | '|' -> "\\|"
+              | _ -> assert false);
+      EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
+      Earley.apply (fun _  -> "'") single_quote]
      in
   let internal =
     Earley.fsequence (Earley.string "{#" "{#")
