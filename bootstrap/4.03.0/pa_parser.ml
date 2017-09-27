@@ -3033,8 +3033,13 @@ module Ext(In:Extension) =
           Earley.set_grammar glr_bindings
             (Earley.alternatives
                [Earley.fsequence and_kw
-                  (Earley.sequence glr_binding glr_bindings
-                     (fun b  -> fun l  -> fun _default_0  -> b :: l));
+                  (Earley.fsequence
+                     (Earley.option None
+                        (Earley.apply (fun x  -> Some x) parser_kw))
+                     (Earley.sequence glr_binding glr_bindings
+                        (fun b  ->
+                           fun l  ->
+                             fun _default_0  -> fun _default_1  -> b :: l)));
                Earley.apply (fun _  -> []) (Earley.empty ());
                Earley.fsequence and_kw
                  (Earley.sequence let_binding glr_bindings

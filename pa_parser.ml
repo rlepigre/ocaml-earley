@@ -422,7 +422,7 @@ module Ext(In:Extension) = struct
 
   let parser glr_bindings =
     | EMPTY -> []
-    | and_kw b:glr_binding l:glr_bindings -> b::l
+    | and_kw parser_kw? b:glr_binding l:glr_bindings -> b::l
     | and_kw b:let_binding l:glr_bindings -> (`Caml b)::l
 
   let extra_structure =
