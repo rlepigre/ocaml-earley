@@ -12,6 +12,11 @@ let entry = (ref FromExt : entry ref)
 let fast = (ref false : bool ref) 
 let file = (ref None : string option ref) 
 let ascii = (ref false : bool ref) 
+let print_location ch { Location.loc_start = s; Location.loc_end = e } =
+  let open Lexing in
+    Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
+      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
+  
 let string_location { Location.loc_start = s; Location.loc_end = e } =
   let open Lexing in
     Printf.sprintf "Position %d:%d to %d:%d%!" s.pos_lnum
@@ -175,11 +180,15 @@ module Initial =
       = grammar_family "parameter" 
     let structure = structure_item 
     let signature = Earley.declare_grammar "signature" 
-    ;;Earley.set_grammar signature
+    include struct  end
+    let _ =
+      Earley.set_grammar signature
         (Earley.apply (fun l  -> List.flatten l)
            (Earley.apply List.rev
               (Earley.fixpoint []
                  (Earley.apply (fun x  -> fun y  -> x :: y) signature_item))))
+      
+    include struct  end
     type type_prio =
       | TopType 
       | As 
@@ -357,9 +366,13 @@ module Initial =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l  in
       String.concat "\\|" l 
     let arrow_re = Earley.declare_grammar "arrow_re" 
-    ;;Earley.set_grammar arrow_re
+    include struct  end
+    let _ =
+      Earley.set_grammar arrow_re
         (EarleyStr.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
+      
+    include struct  end
     let infix_symb_re prio =
       match prio with
       | Prod  ->
@@ -398,28 +411,30 @@ module Initial =
     let prefix_prios = [Opp; Prefix] 
     let (infix_symbol,infix_symbol__set__grammar) =
       Earley.grammar_family "infix_symbol" 
-    ;;infix_symbol__set__grammar
+    include struct  end
+    let _ =
+      infix_symbol__set__grammar
         (fun prio  ->
            Earley.alternatives
-             (let y =
-                let y = []  in
-                if prio <> Cons
-                then
-                  (Earley.sequence
-                     (EarleyStr.regexp (infix_symb_re prio)
-                        (fun groupe  -> groupe 0)) not_special
-                     (fun sym  ->
-                        fun _default_0  ->
-                          if is_reserved_symb sym then give_up (); sym))
-                  :: y
-                else y  in
-              if prio = Cons
-              then (Earley.apply (fun _  -> "::") (Earley.string "::" "::"))
-                :: y
-              else y))
+             ((if prio = Cons
+               then [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
+               else []) @
+                ((if prio <> Cons
+                  then
+                    [Earley.sequence
+                       (EarleyStr.regexp (infix_symb_re prio)
+                          (fun groupe  -> groupe 0)) not_special
+                       (fun sym  ->
+                          fun _default_0  ->
+                            if is_reserved_symb sym then give_up (); sym)]
+                  else []) @ [])))
+      
+    include struct  end
     let (prefix_symbol,prefix_symbol__set__grammar) =
       Earley.grammar_family "prefix_symbol" 
-    ;;prefix_symbol__set__grammar
+    include struct  end
+    let _ =
+      prefix_symbol__set__grammar
         (fun prio  ->
            Earley.sequence
              (EarleyStr.regexp (prefix_symb_re prio)
@@ -428,31 +443,53 @@ module Initial =
                 fun _default_0  ->
                   if (is_reserved_symb sym) || (sym = "!=") then give_up ();
                   sym))
+      
+    include struct  end
     let mutable_flag = Earley.declare_grammar "mutable_flag" 
-    ;;Earley.set_grammar mutable_flag
+    include struct  end
+    let _ =
+      Earley.set_grammar mutable_flag
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Mutable) mutable_kw;
            Earley.apply (fun _  -> Immutable) (Earley.empty ())])
+      
+    include struct  end
     let private_flag = Earley.declare_grammar "private_flag" 
-    ;;Earley.set_grammar private_flag
+    include struct  end
+    let _ =
+      Earley.set_grammar private_flag
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Private) private_kw;
            Earley.apply (fun _  -> Public) (Earley.empty ())])
+      
+    include struct  end
     let virtual_flag = Earley.declare_grammar "virtual_flag" 
-    ;;Earley.set_grammar virtual_flag
+    include struct  end
+    let _ =
+      Earley.set_grammar virtual_flag
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Virtual) virtual_kw;
            Earley.apply (fun _  -> Concrete) (Earley.empty ())])
+      
+    include struct  end
     let rec_flag = Earley.declare_grammar "rec_flag" 
-    ;;Earley.set_grammar rec_flag
+    include struct  end
+    let _ =
+      Earley.set_grammar rec_flag
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Recursive) rec_kw;
            Earley.apply (fun _  -> Nonrecursive) (Earley.empty ())])
+      
+    include struct  end
     let downto_flag = Earley.declare_grammar "downto_flag" 
-    ;;Earley.set_grammar downto_flag
+    include struct  end
+    let _ =
+      Earley.set_grammar downto_flag
         (Earley.alternatives
            [Earley.apply (fun _default_0  -> Upto) to_kw;
            Earley.apply (fun _default_0  -> Downto) downto_kw])
+      
+    include struct  end
     let entry_points =
       ([(".mli", (Interface (signature, ocaml_blank)));
        (".ml", (Implementation (structure, ocaml_blank)))] : (string *

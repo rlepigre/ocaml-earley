@@ -297,23 +297,35 @@ let not_special =
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
   Earley.blank_not_in_charset ~name:"not_special" (!cs) 
 let ident = Earley.declare_grammar "ident" 
-;;Earley.set_grammar ident
+include struct  end
+let _ =
+  Earley.set_grammar ident
     (Earley.apply
        (fun id  -> if is_reserved_id id then Earley.give_up (); id)
        (EarleyStr.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
           "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
+  
+include struct  end
 let lident = Earley.declare_grammar "lident" 
-;;Earley.set_grammar lident
+include struct  end
+let _ =
+  Earley.set_grammar lident
     (Earley.apply
        (fun id  -> if is_reserved_id id then Earley.give_up (); id)
        (EarleyStr.regexp
           ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
           "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
           (fun groupe  -> groupe 0)))
+  
+include struct  end
 let uident = Earley.declare_grammar "uident" 
-;;Earley.set_grammar uident
+include struct  end
+let _ =
+  Earley.set_grammar uident
     (EarleyStr.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
        (fun groupe  -> groupe 0))
+  
+include struct  end
 let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l) 
 let cs_to_string cs =
   String.concat "" (List.map (fun c  -> String.make 1 c) cs) 
@@ -341,11 +353,15 @@ let semi_col = single_char ';'
 let double_semi_col = double_char ';' 
 let single_quote = single_char '\'' 
 let double_quote = double_char '\'' 
-let bool_lit : string Earley.grammar = Earley.declare_grammar "bool_lit" 
-;;Earley.set_grammar bool_lit
+let (bool_lit : string Earley.grammar) = Earley.declare_grammar "bool_lit" 
+include struct  end
+let _ =
+  Earley.set_grammar bool_lit
     (Earley.alternatives
        [Earley.apply (fun _default_0  -> "false") false_kw;
        Earley.apply (fun _default_0  -> "true") true_kw])
+  
+include struct  end
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z')
      in
