@@ -4,6 +4,7 @@ export MAKE="make"
 
 set -v
 
+SAVE=`opam config var switch`
 GOOD=""
 VERSIONS="4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.2 4.02.1 4.02.0"
 
@@ -19,3 +20,6 @@ for v in $VERSIONS; do
 done
 
 $MAKE distclean
+
+opam switch $SAVE
+eval `opam config env`
