@@ -230,6 +230,8 @@ module Ext(In:Extension) = struct
       def <:expr<if $c$ then $e$ else Earley.fail ()>>
 
   let build_alternatives _loc ls =
+    (** FIXME: warning if useless @| ? *)
+    let ls = List.map snd ls in
     match ls with
     | [] -> <:expr<Earley.fail ()>>
     | [r] -> apply_def_cond _loc r
@@ -244,12 +246,20 @@ module Ext(In:Extension) = struct
         <:expr<Earley.alternatives $l$>>
 
   let build_prio_alternatives _loc arg ls =
-    List.fold_right (fun r y ->
+    let l0, l1 = List.partition fst ls in
+    let l0 = List.map snd l0 and l1 = List.map snd l1 in
+    let l1 = List.fold_right (fun r y ->
         let (def,cond,e) = build_rule r in
         match cond with
         | None -> def (<:expr<((fun _ -> true), $e$) :: $y$>>)
         | Some c -> def (<:expr<((fun $pat:arg$ -> $c$), $e$) :: $y$>>)
-      ) ls (<:expr<[]>>)
+               ) l1 (<:expr<[]>>)
+    in
+    let l0 = List.fold_right
+               (fun r y -> <:expr< $apply_def_cond _loc r$ :: $y$>>)
+               l0 (<:expr<[]>>)
+    in
+    <:expr<($l1$, (fun $pat:arg$ -> $l0$))>>
 
   let build_str_item _loc l =
     let rec fn = function
@@ -325,7 +335,7 @@ module Ext(In:Extension) = struct
 
   let parser glr_sequence =
     | '{' r:glr_rules '}'
-     -> (true, build_alternatives _loc_r (List.rev r))
+     -> (true, build_alternatives _loc_r r)
     | "EOF" oe:glr_opt_expr
      -> (oe <> None, <:expr<Earley.eof $from_opt oe <:expr<()>>$>>)
     | "EMPTY" oe:glr_opt_expr
@@ -441,12 +451,19 @@ module Ext(In:Extension) = struct
         let occur_loc = occur ("_loc") action in
         (_loc, occur_loc, def, l, condition, action)
 
-  and parser glr_rules = '|'? rs:{ r:(glr_rule false) '|' -> r}* r:(glr_rule true)
-    -> r::rs
+  and parser bar = a:'@'? '|' -> a <> None
+
+  and parser glr_rules = r0:{(glr_rule false)}?
+                            rs:{ b:bar r:(glr_rule false) -> (b,r)}*
+                                 b:bar r:(glr_rule true)
+     -> (match r0 with
+         | None ->    rs@[(b,r)]
+         | Some r0 -> (false,r0)::rs@[(b,r)])
+    | r:(glr_rule true) -> [(false,r)]
 
   let parser glr_binding =
     name:lident arg:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules
-      -> `Parser(name,arg,prio,ty,_loc_r,List.rev r)
+      -> `Parser(name,arg,prio,ty,_loc_r,r)
 
   let parser glr_bindings =
     | EMPTY -> []
