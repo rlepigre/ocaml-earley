@@ -293,45 +293,27 @@ let not_special =
   let cs = ref Charset.empty in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
   Earley.blank_not_in_charset ~name:"not_special" (!cs)
-include
-  struct let ident = Earley.declare_grammar "ident"
-         include struct  end end
-include
-  struct
-    let _ =
-      Earley.set_grammar ident
-        (Earley.apply
-           (fun id  -> if is_reserved_id id then Earley.give_up (); id)
-           (EarleyStr.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
-              "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
-    include struct  end
-  end
-include
-  struct let lident = Earley.declare_grammar "lident"
-         include struct  end end
-include
-  struct
-    let _ =
-      Earley.set_grammar lident
-        (Earley.apply
-           (fun id  -> if is_reserved_id id then Earley.give_up (); id)
-           (EarleyStr.regexp
-              ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
-              "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
-              (fun groupe  -> groupe 0)))
-    include struct  end
-  end
-include
-  struct let uident = Earley.declare_grammar "uident"
-         include struct  end end
-include
-  struct
-    let _ =
-      Earley.set_grammar uident
-        (EarleyStr.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
-           (fun groupe  -> groupe 0))
-    include struct  end
-  end
+let ident = Earley.declare_grammar "ident"
+let _ =
+  Earley.set_grammar ident
+    (Earley.apply
+       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+       (EarleyStr.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
+          "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0)))
+let lident = Earley.declare_grammar "lident"
+let _ =
+  Earley.set_grammar lident
+    (Earley.apply
+       (fun id  -> if is_reserved_id id then Earley.give_up (); id)
+       (EarleyStr.regexp
+          ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
+          "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
+          (fun groupe  -> groupe 0)))
+let uident = Earley.declare_grammar "uident"
+let _ =
+  Earley.set_grammar uident
+    (EarleyStr.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
+       (fun groupe  -> groupe 0))
 let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
 let cs_to_string cs =
   String.concat "" (List.map (fun c  -> String.make 1 c) cs)
@@ -359,21 +341,13 @@ let semi_col = single_char ';'
 let double_semi_col = double_char ';'
 let single_quote = single_char '\''
 let double_quote = double_char '\''
-include
-  struct
-    let bool_lit = Earley.declare_grammar "bool_lit"
-    include struct  end
-  end
-include
-  struct
-    let _ =
-      Earley.set_grammar bool_lit
-        (Earley.alternatives
-           [Earley.apply (fun _default_0  -> "false") false_kw;
-           Earley.apply (fun _default_0  -> "true") true_kw] : string
-                                                                 Earley.grammar)
-    include struct  end
-  end
+let bool_lit = Earley.declare_grammar "bool_lit"
+let _ =
+  Earley.set_grammar bool_lit
+    (Earley.alternatives
+       [Earley.apply (fun _default_0  -> "false") false_kw;
+       Earley.apply (fun _default_0  -> "true") true_kw] : string
+                                                             Earley.grammar)
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
   let no_suffix_cs =
