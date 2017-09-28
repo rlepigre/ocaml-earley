@@ -274,32 +274,30 @@ module Ext(In:Extension) = struct
             match args,prio with
             | [], None ->
                let r = coer (build_alternatives _loc_r r) in
-               (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$
-                 $struct:str1$>>,
-                <:struct<let _ = Earley.set_grammar $lid:name$ $r$
-                 $struct:str2$>>)
+               (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$>>
+                 @ str1,
+                <:struct<let _ = Earley.set_grammar $lid:name$ $r$>> @ str2)
             | _, None ->
                let r = coer (build_alternatives _loc_r r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_family $string:name$
-                 $struct:str1$>>,
-                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)
-                 $struct:str2$>>)
+                 Earley.grammar_family $string:name$>> @str1,
+                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)>>
+                @ str2)
+
             | [], Some prio ->
                let r = coer (build_prio_alternatives _loc_r prio r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_prio $string:name$ $struct:str1$>>,
-                <:struct<let _ = $lid:set_name$ $r$
-                 $struct:str2$>>)
+                 Earley.grammar_prio $string:name$>> @ str1,
+                <:struct<let _ = $lid:set_name$ $r$>> @ str2)
             | args, Some prio ->
                let r = coer (build_prio_alternatives _loc_r prio r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_prio_family $string:name$ $struct:str1$>>,
-                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)
-                 $struct:str2$>>)
+                 Earley.grammar_prio_family $string:name$>> @ str1,
+                <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)>>
+                 @ str2)
           in
           let str2 =
             match args, prio with
@@ -313,16 +311,16 @@ module Ext(In:Extension) = struct
                    <:expr<fun $lid:v$ -> $currify acc (n+1) l$>>
               in
               let f = currify [] 0 args in
-              <:struct<let $pat:pname$ = $f$ $struct:str2$>>
+              <:struct<let $pat:pname$ = $f$>> @ str2
           in
           (str1,str2,str3)
 
     in
     let (str1, str2, str3) = fn l in
     if str3 = [] then
-      <:struct<$struct:str1$ $struct:str2$ >>
+      str1 @ str2
     else
-      <:struct<$struct:str1$ let rec $bindings:str3$ $struct:str2$ >>
+      str1 @ <:struct<let rec $bindings:str3$>> @ str2
 
 
   let parser glr_sequence =
@@ -403,7 +401,7 @@ module Ext(In:Extension) = struct
 
 
   and parser glr_ident =
-    | p:(pattern_lvl (true,ConstrPat)) ':' ->
+    | p:(pattern_lvl true ConstrPat) ':' ->
         begin
           match p.ppat_desc with
           | Ppat_alias(p, { txt = id }) -> (Some true, (id, Some p))
@@ -460,8 +458,11 @@ module Ext(In:Extension) = struct
     p :: extra_structure
 
   let extra_prefix_expressions =
-    let p = parser _:parser_kw r:glr_rules
-                      -> build_alternatives _loc_r r
+    let p = parser _:parser_kw prio:{_:'@' pattern}? r:glr_rules
+      ->
+      match prio with
+      | None -> build_alternatives _loc_r r
+      | Some prio -> build_prio_alternatives _loc_r prio r
     in
     p :: extra_prefix_expressions
 
