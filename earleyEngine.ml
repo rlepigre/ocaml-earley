@@ -370,7 +370,7 @@ let new_name =
     c := x + 1;
     "G__" ^ string_of_int x)
 
-let grammar_to_rule : type a.?name:string -> a grammar -> a rule
+let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
   = fun ?name (info,rules) ->
     match rules with
     | [r] when name = None -> r
@@ -414,7 +414,7 @@ let grammar_info:type a.a rule list -> info = fun g ->
   Fixpoint.from_funl g (false, Charset.empty) or_info
 
 (* Printing *)
-let rec print_rule : type a b.?rest:b rule -> out_channel -> a rule -> unit =
+let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
   fun ?rest ch rule ->
     begin
       match rest with
@@ -774,7 +774,7 @@ let rec tail_key : type a. a rule -> int = fun rule ->
   | Empty _ -> rule.adr
   | Dep _ -> assert false (* FIXME *)
 
-let parse_buffer_aux : type a.?errpos:errpos -> bool -> blank -> a grammar
+let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
                             -> buffer -> int -> a * buffer * int =
   fun ?errpos blank_after blank main buf0 col0 ->
     let internal, errpos = match errpos with
