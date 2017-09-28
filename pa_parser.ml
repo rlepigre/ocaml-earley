@@ -451,14 +451,14 @@ module Ext(In:Extension) = struct
         let occur_loc = occur ("_loc") action in
         (_loc, occur_loc, def, l, condition, action)
 
-  and parser glr_at_rule alm = a:'@'? r:(glr_rule alm) -> ((a <> None), r)
+  and parser glr_at_rule alm = a:{'@' | '[' '@' "unshared" ']' }? r:(glr_rule alm) -> ((a <> None), r)
 
   and parser glr_rules = '|'? rs:{ r:(glr_at_rule false) _:'|'}* r:(glr_at_rule true)
       -> r::rs
 
   let parser glr_binding =
-    name:lident arg:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules
-      -> `Parser(name,arg,prio,ty,_loc_r,r)
+    name:lident args:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules
+      -> `Parser(name,args,prio,ty,_loc_r,r)
 
   let parser glr_bindings =
     | EMPTY -> []
@@ -470,11 +470,17 @@ module Ext(In:Extension) = struct
     p :: extra_structure
 
   let extra_prefix_expressions =
-    let p = parser _:parser_kw prio:{_:'@' pattern}? r:glr_rules
+    let p = parser (args,prio):{_:parser_kw -> ([], None)
+                               | _:fun_kw args:pattern* '@'
+                                          prio:pattern _:arrow_re _:parser_kw
+                                      -> (args,Some prio)}   r:glr_rules
       ->
-      match prio with
-      | None -> build_alternatives _loc_r r
-      | Some prio -> build_prio_alternatives _loc_r prio r
+      let r = match prio with
+        | None -> build_alternatives _loc_r r
+        | Some prio -> build_prio_alternatives _loc_r prio r
+      in
+      List.fold_right (fun arg r ->
+          <:expr< fun $arg$ -> $r$>>) args r
     in
     p :: extra_prefix_expressions
 

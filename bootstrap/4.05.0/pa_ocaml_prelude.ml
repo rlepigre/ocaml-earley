@@ -235,7 +235,7 @@ module Initial =
       | ConstrPat  -> AtomPat
       | AtomPat  -> assert false 
     let ((pattern_lvl : (bool * pattern_prio) -> pattern grammar),set_pattern_lvl)
-      = grammar_family "pattern_lvl" 
+      = grammar_prio "pattern_lvl" 
     let pattern = pattern_lvl (true, topPat) 
     let let_binding =
       (declare_grammar "let_binding" : value_binding list grammar) 

@@ -3037,7 +3037,15 @@ module Ext(In:Extension) =
         (fun alm  ->
            Earley.sequence
              (Earley.option None
-                (Earley.apply (fun x  -> Some x) (Earley.char '@' '@')))
+                (Earley.apply (fun x  -> Some x)
+                   (Earley.alternatives
+                      [Earley.fsequence (Earley.char '[' '[')
+                         (Earley.fsequence (Earley.char '@' '@')
+                            (Earley.sequence
+                               (Earley.string "unshared" "unshared")
+                               (Earley.char ']' ']')
+                               (fun _  -> fun _  -> fun _  -> fun _  -> ())));
+                      Earley.apply (fun _  -> ()) (Earley.char '@' '@')])))
              (glr_rule alm) (fun a  -> fun r  -> ((a <> None), r)))
       
     let _ =
@@ -3086,9 +3094,9 @@ module Ext(In:Extension) =
                             let (_loc_r,r) = r  in
                             fun ty  ->
                               fun prio  ->
-                                fun arg  ->
+                                fun args  ->
                                   fun name  ->
-                                    `Parser (name, arg, prio, ty, _loc_r, r)))))))
+                                    `Parser (name, args, prio, ty, _loc_r, r)))))))
       
     let glr_bindings = Earley.declare_grammar "glr_bindings" 
     let _ =
@@ -3126,26 +3134,55 @@ module Ext(In:Extension) =
       p :: extra_structure 
     let extra_prefix_expressions =
       let p =
-        Earley.fsequence parser_kw
-          (Earley.sequence
-             (Earley.option None
-                (Earley.apply (fun x  -> Some x)
-                   (Earley.sequence (Earley.char '@' '@') pattern
-                      (fun _  -> fun _default_0  -> _default_0))))
-             (Earley.apply_position
-                (fun x  ->
-                   fun str  ->
-                     fun pos  ->
-                       fun str'  ->
-                         fun pos'  -> ((locate str pos str' pos'), x))
-                glr_rules)
-             (fun prio  ->
-                fun r  ->
-                  let (_loc_r,r) = r  in
-                  fun _  ->
-                    match prio with
-                    | None  -> build_alternatives _loc_r r
-                    | Some prio -> build_prio_alternatives _loc_r prio r))
+        Earley.sequence_position
+          (Earley.alternatives
+             [Earley.fsequence fun_kw
+                (Earley.fsequence
+                   (Earley.apply List.rev
+                      (Earley.fixpoint []
+                         (Earley.apply (fun x  -> fun y  -> x :: y) pattern)))
+                   (Earley.fsequence (Earley.char '@' '@')
+                      (Earley.fsequence pattern
+                         (Earley.sequence arrow_re parser_kw
+                            (fun _  ->
+                               fun _  ->
+                                 fun prio  ->
+                                   fun _  ->
+                                     fun args  ->
+                                       fun _  -> (args, (Some prio)))))));
+             Earley.apply (fun _  -> ([], None)) parser_kw])
+          (Earley.apply_position
+             (fun x  ->
+                fun str  ->
+                  fun pos  ->
+                    fun str'  -> fun pos'  -> ((locate str pos str' pos'), x))
+             glr_rules)
+          (fun ((args,prio) as _default_0)  ->
+             fun r  ->
+               let (_loc_r,r) = r  in
+               fun __loc__start__buf  ->
+                 fun __loc__start__pos  ->
+                   fun __loc__end__buf  ->
+                     fun __loc__end__pos  ->
+                       let _loc =
+                         locate __loc__start__buf __loc__start__pos
+                           __loc__end__buf __loc__end__pos
+                          in
+                       let r =
+                         match prio with
+                         | None  -> build_alternatives _loc_r r
+                         | Some prio -> build_prio_alternatives _loc_r prio r
+                          in
+                       List.fold_right
+                         (fun arg  ->
+                            fun r  ->
+                              {
+                                Parsetree.pexp_desc =
+                                  (Parsetree.Pexp_fun
+                                     (Asttypes.Nolabel, None, arg, r));
+                                Parsetree.pexp_loc = _loc;
+                                Parsetree.pexp_attributes = []
+                              }) args r)
          in
       p :: extra_prefix_expressions 
     let _ = add_reserved_id "parser" 
