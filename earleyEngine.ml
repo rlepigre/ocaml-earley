@@ -401,9 +401,10 @@ let compose_info i1 i2 =
     Empty _ -> i1
   | _ ->
      let i2 = rule_info i2 in
-     Fixpoint.from_fun2 i1 i2 (fun (accept_empty1, c1 as i1) (accept_empty2, c2) ->
-       if not accept_empty1 then i1 else
-         (accept_empty1 && accept_empty2, Charset.union c1 c2))
+     Fixpoint.from_fun2 i1 i2 (
+       fun (accept_empty1, c1 as i1) (accept_empty2, c2) ->
+         if not accept_empty1 then i1 else
+           (accept_empty1 && accept_empty2, Charset.union c1 c2))
 
 let grammar_info:type a.a rule list -> info = fun g ->
   let or_info (accept_empty1, c1) (accept_empty2, c2) =
@@ -427,7 +428,8 @@ let rec print_rule : type a b.?rest:b rule -> out_channel -> a rule -> unit =
     | Empty _ -> ()
 
 let print_pos ch {buf; col; buf_ab; col_ab} =
-  Printf.fprintf ch "%5d:%3d-%5d:%3d" (line_num buf) col (line_num buf_ab) col_ab
+  Printf.fprintf ch "%5d:%3d-%5d:%3d"
+                 (line_num buf) col (line_num buf_ab) col_ab
 
 let print_final ch (D {start; rest; full}) =
   Printf.fprintf ch "%a == " print_pos start;
@@ -468,7 +470,8 @@ type 'a sct = 'a StackContainer.table
     [rule]. [fn] will be called each time an element is added to the stack
     of pointed by that [rule]. The hook is run on the existing elements
     if the stack. The stack is created if it did not exists yet *)
-let add_stack_hook : type a b. b sct -> a rule -> ((a, b) element -> unit) -> unit =
+let add_stack_hook
+    : type a b. b sct -> a rule -> ((a, b) element -> unit) -> unit =
   fun sct r f ->
     try
       let {stack; hooks } as p = StackContainer.find sct r.ptr in
@@ -546,7 +549,10 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
 
 (** Computes the size of an element stack, taking in account sharing *)
 let taille : 'a final -> (Obj.t, Obj.t) stack -> int = fun el adone ->
-  let cast_elements : type a b.(a,b) element list -> (Obj.t, Obj.t) element list = Obj.magic in
+  let cast_elements
+      : type a b.(a,b) element list -> (Obj.t, Obj.t) element list
+    = Obj.magic
+  in
   let res = ref 1 in
   let rec fn : (Obj.t, Obj.t) element list -> unit = fun els ->
     List.iter (fun el ->

@@ -348,7 +348,8 @@ val position : 'a grammar -> (string * int * int * int * int * 'a) grammar
 (** [test c f] perform a test [f] on the input buffer. Do not parse
     anything (position are unchanged). The charset [c] should contains
     all character accepted as at the position given to f *)
-val test : ?name:string -> Charset.t -> (buffer -> int -> ('a * bool)) -> 'a grammar
+val test : ?name:string -> Charset.t ->
+           (buffer -> int -> ('a * bool)) -> 'a grammar
 
 (** [blank_test c f] same as above except that [f] is applied to [buf'
     pos' buf pos] where [(buf', pos')] is the position before then
@@ -356,7 +357,7 @@ val test : ?name:string -> Charset.t -> (buffer -> int -> ('a * bool)) -> 'a gra
     the position (buf,pos). This allow to test the presence of blank
     or even to read the blank and return some information *)
 val blank_test : ?name:string -> Charset.t ->
-  (buffer -> int -> buffer -> int -> ('a * bool)) -> 'a grammar
+                 (buffer -> int -> buffer -> int -> ('a * bool)) -> 'a grammar
 
 (** always succefull test, used internally *)
 val success_test : 'a -> 'a grammar
@@ -377,8 +378,10 @@ val grammar_family : ?param_to_string:('a -> string) -> string
 val grammar_prio : ?param_to_string:('b -> string) -> string
   -> ('b -> 'c grammar) * ((('b -> bool) * 'c grammar) list -> unit)
 
-val grammar_prio_family : ?param_to_string:('a * 'b -> string) -> string
-  -> ('a -> 'b -> 'c grammar) * (('a -> (('b -> bool) * 'c grammar) list) -> unit)
+val grammar_prio_family
+    : ?param_to_string:('a * 'b -> string) -> string
+      -> ('a -> 'b -> 'c grammar) *
+           (('a -> (('b -> bool) * 'c grammar) list) -> unit)
 
 (**
    {[
