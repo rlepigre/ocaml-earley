@@ -23,7 +23,7 @@ let parser expr_suit p =
   | fn:sum_sym (p',e'):expr when p >= Sum ->
 	 if p' <= Sum then give_up (); (fun e -> Sum, fn e e')
 
-and expr =
+and parser expr =
   | f:float_num -> (Atom,f)
   | '(' (_,e):expr ')' -> Atom,e
   | '-' (p,e):expr -> if p < Pow then give_up (); Pow, -. e

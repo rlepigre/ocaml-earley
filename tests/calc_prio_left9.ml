@@ -26,7 +26,7 @@ let extra_expression p =
   Earley.alternatives (List.map (fun g  -> g p) (!extra))
 
 let parser expr @p =
-  @| (extra_expression p)
+  |@ (extra_expression p)
   | float_num
   | '(' e:(expr Sum) ')'
   | '-' e:(expr Pow)                      when p <= Pow -> -. e

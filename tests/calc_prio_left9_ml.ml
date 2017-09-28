@@ -14,13 +14,13 @@ let float_num =
   
 let pro_sym =
   Earley.alternatives
-    [Earley.apply (fun _  -> ( *. )) (Earley.char '*' '*');
-    Earley.apply (fun _  -> (/.)) (Earley.char '/' '/')]
+    [Earley.apply (fun _  -> (/.)) (Earley.char '/' '/');
+    Earley.apply (fun _  -> ( *. )) (Earley.char '*' '*')]
   
 let sum_sym =
   Earley.alternatives
-    [Earley.apply (fun _  -> (+.)) (Earley.char '+' '+');
-    Earley.apply (fun _  -> (-.)) (Earley.char '-' '-')]
+    [Earley.apply (fun _  -> (-.)) (Earley.char '-' '-');
+    Earley.apply (fun _  -> (+.)) (Earley.char '+' '+')]
   
 let extra = ref [] 
 let extra_expression p =
@@ -28,7 +28,11 @@ let extra_expression p =
 let (expr,expr__set__grammar) = Earley.grammar_prio "expr" 
 let _ =
   expr__set__grammar
-    ([(((fun _  -> true)), float_num);
+    ([(((fun p  -> p <= Sum)),
+        (Earley.fsequence (expr Sum)
+           (Earley.sequence sum_sym (expr Pro)
+              (fun fn  -> fun e'  -> fun e  -> fn e e'))));
+     (((fun _  -> true)), float_num);
      (((fun _  -> true)),
        (Earley.fsequence (Earley.char '(' '(')
           (Earley.sequence (expr Sum) (Earley.char ')' ')')
@@ -46,10 +50,6 @@ let _ =
      (((fun p  -> p <= Pro)),
        (Earley.fsequence (expr Pro)
           (Earley.sequence pro_sym (expr Pow)
-             (fun fn  -> fun e'  -> fun e  -> fn e e'))));
-     (((fun p  -> p <= Sum)),
-       (Earley.fsequence (expr Sum)
-          (Earley.sequence sum_sym (expr Pro)
              (fun fn  -> fun e'  -> fun e  -> fn e e'))))],
       (fun p  -> [extra_expression p]))
   

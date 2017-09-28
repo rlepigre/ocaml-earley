@@ -22,39 +22,37 @@ let sum_sym =
   
 let (expr_suit,expr_suit__set__grammar) = Earley.grammar_family "expr_suit" 
 let expr = Earley.declare_grammar "expr" 
-;;expr_suit__set__grammar
+let _ =
+  expr_suit__set__grammar
     (fun p  ->
        Earley.alternatives
-         (let y =
-            let y =
-              let y = []  in
-              if p >= Sum
+         ((if p > Pow
+           then
+             [Earley.sequence (Earley.string "**" "**") expr
+                (fun _  ->
+                   fun ((p',e') as _default_0)  ->
+                     if p' < Pow then give_up ();
+                     (fun e  -> (Pow, (e ** e'))))]
+           else []) @
+            ((if p >= Prod
               then
-                (Earley.sequence sum_sym expr
+                [Earley.sequence prod_sym expr
                    (fun fn  ->
                       fun ((p',e') as _default_0)  ->
-                        if p' <= Sum then give_up ();
-                        (fun e  -> (Sum, (fn e e')))))
-                :: y
-              else y  in
-            if p >= Prod
-            then
-              (Earley.sequence prod_sym expr
-                 (fun fn  ->
-                    fun ((p',e') as _default_0)  ->
-                      if p' <= Prod then give_up ();
-                      (fun e  -> (Prod, (fn e e')))))
-              :: y
-            else y  in
-          if p > Pow
-          then
-            (Earley.sequence (Earley.string "**" "**") expr
-               (fun _  ->
-                  fun ((p',e') as _default_0)  ->
-                    if p' < Pow then give_up (); (fun e  -> (Pow, (e ** e')))))
-            :: y
-          else y))
-;;Earley.set_grammar expr
+                        if p' <= Prod then give_up ();
+                        (fun e  -> (Prod, (fn e e'))))]
+              else []) @
+               ((if p >= Sum
+                 then
+                   [Earley.sequence sum_sym expr
+                      (fun fn  ->
+                         fun ((p',e') as _default_0)  ->
+                           if p' <= Sum then give_up ();
+                           (fun e  -> (Sum, (fn e e'))))]
+                 else []) @ []))))
+  
+let _ =
+  Earley.set_grammar expr
     (Earley.alternatives
        [Earley.apply (fun f  -> (Atom, f)) float_num;
        Earley.fsequence (Earley.char '(' '(')
@@ -72,4 +70,5 @@ let expr = Earley.declare_grammar "expr"
          (Earley.apply
             (fun ((p,e) as _default_0)  ->
                Earley.apply (fun g  -> g e) (expr_suit p)) expr)])
+  
 let _ = run (apply snd expr) 
