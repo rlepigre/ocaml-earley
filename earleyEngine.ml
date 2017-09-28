@@ -152,7 +152,7 @@ let fix_begin : type a.a pos -> pos2 -> a pos =
 (** Type of the information computed on a rule: the boolean tells if
     the grammar can parse an empty string and the charset, the first accepted
     characteres when the rule is used to parse something. *)
-type info = bool * Charset.t
+type info = (bool * Charset.t) Fixpoint.t
 
 (** THE MAIN TYPES *)
 
@@ -162,12 +162,12 @@ type info = bool * Charset.t
 
 module rec Types : sig
   (** The type of a grammar, with its information *)
-  type 'a grammar = info Fixpoint.t * 'a rule list
+  type 'a grammar = info * 'a rule list
    (** The symbol, a more general concept that terminals *)
    and _ symbol =
      | Term : Charset.t * 'a input -> 'a symbol
      (** terminal symbol just read the input buffer *)
-     | Greedy : info Fixpoint.t * 'a input2 -> 'a symbol
+     | Greedy : info * 'a input2 -> 'a symbol
      (** Greedy correspond to a recursive call to the parser. We
          can change the blank function for instance, or parse
          input as much as possible. In fact it is only in the
@@ -176,7 +176,7 @@ module rec Types : sig
      | Test : Charset.t * 'a test -> 'a symbol
      (** Test on the input, can for instance read blanks, usefull for
          things like ocamldoc (but not yet used by earley-ocaml). *)
-     | NonTerm : info Fixpoint.t * 'a rule list ref -> 'a symbol
+     | NonTerm : info * 'a rule list ref -> 'a symbol
      (** Non terminals trough a reference to define recursive rule lists *)
 
    (** BNF rule. *)
@@ -186,8 +186,7 @@ module rec Types : sig
      | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
          no other solution is possible *)
-     | Next : info Fixpoint.t * string * 'a symbol * ('a -> 'b) pos *
-                ('b -> 'c) rule -> 'c prerule
+     | Next : info * string * 'a symbol * ('a -> 'c) rule -> 'c prerule
      (** Sequence of a symbol and a rule, with a possible name for debugging,
          the information on the rule, the symbol to read, an action and
          the rest of the rule *)
@@ -377,21 +376,21 @@ let grammar_to_rule : type a.?name:string -> a grammar -> a rule
     | [r] when name = None -> r
     | _ ->
        let name = match name with None -> new_name () | Some n -> n in
-       mkrule (Next(info,name,NonTerm(info,ref rules),Idt,idtEmpty ()))
+       mkrule (Next(info,name,NonTerm(info,ref rules),idtEmpty ()))
 
 (** Basic constants/functions for rule information *)
 let force = Fixpoint.force
-let empty = Fixpoint.from_val (true, Charset.empty)
+let iempty = Fixpoint.from_val (true, Charset.empty)
 let any   = Fixpoint.from_val (true, Charset.full)
 
 (** managment of info = accept empty + charset accepted as first char *)
-let rec rule_info:type a.a rule -> info Fixpoint.t = fun r ->
+let rec rule_info:type a.a rule -> info = fun r ->
   match r.rule with
-  | Next(i,_,_,_,_) -> i
-  | Empty _ -> empty
+  | Next(i,_,_,_) -> i
+  | Empty _ -> iempty
   | Dep(_) -> any
 
-let symbol_info:type a.a symbol -> info Fixpoint.t  = function
+let symbol_info:type a.a symbol -> info  = function
   | Term(i,_) -> Fixpoint.from_val (false,i)
   | NonTerm(i,_) | Greedy(i,_) -> i
   | Test(set,_) -> Fixpoint.from_val (true, set)
@@ -406,7 +405,7 @@ let compose_info i1 i2 =
        if not accept_empty1 then i1 else
          (accept_empty1 && accept_empty2, Charset.union c1 c2))
 
-let grammar_info:type a.a rule list -> info Fixpoint.t = fun g ->
+let grammar_info:type a.a rule list -> info = fun g ->
   let or_info (accept_empty1, c1) (accept_empty2, c2) =
     (accept_empty1 || accept_empty2, Charset.union c1 c2)
   in
@@ -423,7 +422,7 @@ let rec print_rule : type a b.?rest:b rule -> out_channel -> a rule -> unit =
          match eq_rule rule rest with Eq -> Printf.fprintf ch "* " | Neq -> ()
     end;
     match rule.rule with
-    | Next(_,name,_,_,rs) -> Printf.fprintf ch "%s %a" name (print_rule ?rest) rs
+    | Next(_,name,_,rs) -> Printf.fprintf ch "%s %a" name (print_rule ?rest) rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
@@ -579,15 +578,14 @@ let taille_tables els forward =
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
 (** This one for prediction with right recursion optimisation *)
-let combine2 : type a0 a1 a2 b bb c.(a2 -> b) -> (b -> c) pos -> (a1 -> a2) pos
-                    -> (a0 -> a1) pos -> (a0 -> c) pos =
-  fun acts acts' g f ->
-    pos_apply3 (fun acts' g f x -> acts' (acts (g (f x)))) acts' g f
+let combine2 : type a0 a1 b bb c.(a1 -> b) -> (b -> c) pos -> (a0 -> a1) pos ->
+                    (a0 -> c) pos =
+  fun acts acts' g ->
+       pos_apply2 (fun acts' g x -> acts' (acts (g x))) acts' g
 
 (** This one for normal prediction *)
-let combine1 : type a b c d.(c -> d) -> (a -> b) pos
-                    -> (a -> (b -> c) -> d) pos =
-  fun acts g -> pos_apply (fun g a -> let b = g a in fun f -> acts (f b)) g
+let combine1 : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
+  fun acts -> Simple (fun a f -> acts (f a))
 
 (** Protection from give_up: just do nothing *)
 let protect f a = try f a with Error -> ()
@@ -622,14 +620,11 @@ let rec pred_prod_lec
        match rest.rule with
 
        (** A non terminal : prediction *)
-       | Next(info,_,(NonTerm(_,{contents = rules})),f,rest2) ->
+       | Next(info,_,(NonTerm(_,{contents = rules})),rest2) ->
           if !debug_lvl > 0 then
             log "Prediction: %a\n%!" print_final elt0;
           (* select the useful rules *)
           let rules = List.filter (fun rule -> good c rule) rules in
-          (** we need to fix the start for the action f and g for
-              right recursive optim *)
-          let f = fix_begin f cur_pos in
           (** Compute the elements to add in the stack of all created rules *)
           let tails =
             match rest2.rule, eq_pos start cur_pos with
@@ -638,18 +633,20 @@ let rec pred_prod_lec
                   non terminal.
                   - loops for grammar like A = A | ...
                   NOTE: more merge may appends without right recursion *)
+               (** we need to fix the start for the action g for
+                   right recursive optim *)
                let g = fix_begin g start in
                (** We contract the head of the stack. This is similar
                    to tail call optimisation in compilation *)
                let contract = function
                  | C {rest; acts=acts'; full; start; stack} ->
-                    C {rest; acts=combine2 acts acts' g f; full; start; stack}
+                    C {rest; acts=combine2 acts acts' g; full; start; stack}
                  | B acts' ->
-                    B (combine2 acts acts' g f)
+                    B (combine2 acts acts' g)
                in
                List.map contract !stack
             | _ ->
-               [C {rest=rest2; acts=combine1 acts f; full; start; stack}]
+               [C {rest=rest2; acts=combine1 acts; full; start; stack}]
           in
           (** create one final elements for each rule and adds the
               tails to its stack *)
@@ -689,12 +686,11 @@ let rec pred_prod_lec
           with Error -> () end
 
        (** A terminal, we try to read *)
-       | Next(_,_,Term (_,f),g,rest) ->
+       | Next(_,_,Term (_,f),rest) ->
           begin try
             if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
             let {buf_ab; col_ab} = cur_pos in
             let a, buf, col = f buf_ab col_ab in
-            let a = apply_pos g buf_ab col_ab buf col a in
             let elt =
               (D {start; stack; acts = cns a acts; rest; full})
             in
@@ -709,12 +705,11 @@ let rec pred_prod_lec
           with Error -> () end
 
        (** A greedy terminal, same as above (almost) *)
-       | Next(_,_,Greedy(_,f),g,rest) ->
+       | Next(_,_,Greedy(_,f),rest) ->
           begin try
             if !debug_lvl > 0 then log "Greedy    : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} = cur_pos in
             let a, buf, col = f errpos blank buf col buf_ab col_ab in
-            let a = apply_pos g buf_ab col_ab buf col a in
             let elt = D{start; stack; acts = cns a acts; rest; full} in
             if buffer_before buf col buf_ab col_ab then
               begin
@@ -726,14 +721,13 @@ let rec pred_prod_lec
           with Error -> () end
 
        (** A test *)
-       | Next(_,_,Test(s,f),g,rest) ->
+       | Next(_,_,Test(s,f),rest) ->
           begin try
             if !debug_lvl > 0 then log "Test      : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} as j = cur_pos in
             let (a,b) = f buf col buf_ab col_ab in
             if b then begin
-                let x = apply_pos g buf col buf col a in
-                let elt = D {start; stack; rest; full; acts = cns x acts} in
+                let elt = D {start; stack; rest; full; acts = cns a acts} in
                 let b = add "T" cur_pos c elt elements in
                 if b then fn elt
               end
@@ -770,7 +764,7 @@ let count = ref 0
     to get the key of an element representing a complete parsing *)
 let rec tail_key : type a. a rule -> int = fun rule ->
   match rule.rule with
-  | Next(_,_,_,_,rest) -> tail_key rest
+  | Next(_,_,_,rest) -> tail_key rest
   | Empty _ -> rule.adr
   | Dep _ -> assert false (* FIXME *)
 

@@ -300,26 +300,6 @@ val sequence3 : 'a grammar -> 'b grammar -> 'c grammar
   -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
 
 
-(** [conditional_sequence g1 cond g2 f] is a grammar that first parses using [g1],
-    which returns a value [x], and if [cond x] does not raise Give_up, then it
-    continues to parse with [g2] which returns [y] and return [f (cond x) y]. *)
-val conditional_sequence : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> 'd) -> 'd grammar
-
-(** similar to the previous one, with position passed to f *)
-val conditional_sequence_position : 'a grammar -> ('a -> 'b) -> 'c grammar -> ('b -> 'c -> buffer -> int -> buffer -> int -> 'd) -> 'd grammar
-
-(** [conditional_fsequence g1 cond g2] is a grammar that first parses using [g1],
-    which returns a value [x], and if [cond x] does not raise Give_up, then it
-    continues to parse with [g2] and returns the result of [g2] applied to [cond x].
-
-    Remark: [conditional_fsequence g1 cond g2] is equivalent to
-    [conditional_sequence g1 cond g2 (fun x f -> f x)]. *)
-val conditional_fsequence : 'a grammar -> ('a -> 'b) -> ('b -> 'c) grammar -> 'c grammar
-
-(** similar to the previous one, with position passed to the result of g2 *)
-val conditional_fsequence_position : 'a grammar -> ('a -> 'b) -> ('b -> buffer -> int -> buffer -> int -> 'c) grammar -> 'c grammar
-
-
 (** [dependent_sequence g1 g2] is a grammar that first parses using [g1],
     which returns a value [x], and then continues to parse with [g2 x] and
     return its result. *)
