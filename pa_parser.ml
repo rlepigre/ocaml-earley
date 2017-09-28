@@ -451,15 +451,10 @@ module Ext(In:Extension) = struct
         let occur_loc = occur ("_loc") action in
         (_loc, occur_loc, def, l, condition, action)
 
-  and parser bar = a:'@'? '|' -> a <> None
+  and parser glr_at_rule alm = a:'@'? r:(glr_rule alm) -> ((a <> None), r)
 
-  and parser glr_rules = r0:{(glr_rule false)}?
-                            rs:{ b:bar r:(glr_rule false) -> (b,r)}*
-                                 b:bar r:(glr_rule true)
-     -> (match r0 with
-         | None ->    rs@[(b,r)]
-         | Some r0 -> (false,r0)::rs@[(b,r)])
-    | r:(glr_rule true) -> [(false,r)]
+  and parser glr_rules = '|'? rs:{ r:(glr_at_rule false) _:'|'}* r:(glr_at_rule true)
+      -> r::rs
 
   let parser glr_binding =
     name:lident arg:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules

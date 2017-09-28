@@ -345,9 +345,9 @@ let bool_lit = Earley.declare_grammar "bool_lit"
 let _ =
   Earley.set_grammar bool_lit
     (Earley.alternatives
-       [Earley.apply (fun _default_0  -> "false") false_kw;
-       Earley.apply (fun _default_0  -> "true") true_kw] : string
-                                                             Earley.grammar)
+       [Earley.apply (fun _default_0  -> "true") true_kw;
+       Earley.apply (fun _default_0  -> "false") false_kw] : string
+                                                               Earley.grammar)
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
   let no_suffix_cs =

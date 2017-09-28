@@ -411,17 +411,18 @@ module Initial =
       infix_symbol__set__grammar
         (fun prio  ->
            Earley.alternatives
-             ((if prio = Cons
-               then [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
+             ((if prio <> Cons
+               then
+                 [Earley.sequence
+                    (EarleyStr.regexp (infix_symb_re prio)
+                       (fun groupe  -> groupe 0)) not_special
+                    (fun sym  ->
+                       fun _default_0  ->
+                         if is_reserved_symb sym then give_up (); sym)]
                else []) @
-                ((if prio <> Cons
+                ((if prio = Cons
                   then
-                    [Earley.sequence
-                       (EarleyStr.regexp (infix_symb_re prio)
-                          (fun groupe  -> groupe 0)) not_special
-                       (fun sym  ->
-                          fun _default_0  ->
-                            if is_reserved_symb sym then give_up (); sym)]
+                    [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
                   else []) @ [])))
       
     let (prefix_symbol,prefix_symbol__set__grammar) =
@@ -441,36 +442,36 @@ module Initial =
     let _ =
       Earley.set_grammar mutable_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Mutable) mutable_kw;
-           Earley.apply (fun _  -> Immutable) (Earley.empty ())])
+           [Earley.apply (fun _  -> Immutable) (Earley.empty ());
+           Earley.apply (fun _default_0  -> Mutable) mutable_kw])
       
     let private_flag = Earley.declare_grammar "private_flag" 
     let _ =
       Earley.set_grammar private_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Private) private_kw;
-           Earley.apply (fun _  -> Public) (Earley.empty ())])
+           [Earley.apply (fun _  -> Public) (Earley.empty ());
+           Earley.apply (fun _default_0  -> Private) private_kw])
       
     let virtual_flag = Earley.declare_grammar "virtual_flag" 
     let _ =
       Earley.set_grammar virtual_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Virtual) virtual_kw;
-           Earley.apply (fun _  -> Concrete) (Earley.empty ())])
+           [Earley.apply (fun _  -> Concrete) (Earley.empty ());
+           Earley.apply (fun _default_0  -> Virtual) virtual_kw])
       
     let rec_flag = Earley.declare_grammar "rec_flag" 
     let _ =
       Earley.set_grammar rec_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Recursive) rec_kw;
-           Earley.apply (fun _  -> Nonrecursive) (Earley.empty ())])
+           [Earley.apply (fun _  -> Nonrecursive) (Earley.empty ());
+           Earley.apply (fun _default_0  -> Recursive) rec_kw])
       
     let downto_flag = Earley.declare_grammar "downto_flag" 
     let _ =
       Earley.set_grammar downto_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Upto) to_kw;
-           Earley.apply (fun _default_0  -> Downto) downto_kw])
+           [Earley.apply (fun _default_0  -> Downto) downto_kw;
+           Earley.apply (fun _default_0  -> Upto) to_kw])
       
     let entry_points =
       ([(".mli", (Interface (signature, ocaml_blank)));
