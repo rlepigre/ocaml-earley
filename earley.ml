@@ -402,10 +402,10 @@ let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
          set_grammar g (f p);
       );
       g),
-  (fun gs ->
+  (fun (gs,gp) ->
     (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     let f = fun p ->
-      alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
+      alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ (gp p))
     in
     is_set := Some f;
     EqHashtbl.iter (fun p r ->
@@ -430,12 +430,12 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
   (fun f ->
     (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     let f = fun args ->
-      let gs = f args in (* NOTE: to make sure the tbl2 is filled soon enough *)
+      let (gs, gp) = f args in (* NOTE: to make sure the tbl2 is filled soon enough *)
       try
         Hashtbl.find tbl2 args
       with Not_found ->
         let g = fun p ->
-            alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs))
+            alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ gp p)
         in
         Hashtbl.add tbl2 args g;
         g

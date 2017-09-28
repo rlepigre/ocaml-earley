@@ -375,13 +375,17 @@ val no_blank_test : 'a -> 'a grammar
 val grammar_family : ?param_to_string:('a -> string) -> string
   -> ('a -> 'b grammar) * (('a -> 'b grammar) -> unit)
 
-val grammar_prio : ?param_to_string:('b -> string) -> string
-  -> ('b -> 'c grammar) * ((('b -> bool) * 'c grammar) list -> unit)
+val grammar_prio : ?param_to_string
+    :('b -> string) -> string
+     -> ('b -> 'c grammar) *
+          ((('b -> bool) * 'c grammar) list * ('b -> 'c grammar list) -> unit)
 
 val grammar_prio_family
-    : ?param_to_string:('a * 'b -> string) -> string
-      -> ('a -> 'b -> 'c grammar) *
-           (('a -> (('b -> bool) * 'c grammar) list) -> unit)
+    : ?param_to_string
+    :('a * 'b -> string) -> string
+     -> ('a -> 'b -> 'c grammar) *
+          (('a -> (('b -> bool) * 'c grammar) list
+                  * ('b -> 'c grammar list)) -> unit)
 
 (**
    {[
