@@ -401,7 +401,7 @@ module Ext(In:Extension) = struct
 
 
   and parser glr_ident =
-    | p:(pattern_lvl true ConstrPat) ':' ->
+    | p:(pattern_lvl (true, ConstrPat)) ':' ->
         begin
           match p.ppat_desc with
           | Ppat_alias(p, { txt = id }) -> (Some true, (id, Some p))
