@@ -42,7 +42,7 @@ uninstall:
 .PHONY: tests
 tests: earley.cmxa earleyStr.cmxa\
        tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
-       tests/calc_prio_left3_ml.ml \
+       tests/calc_prio_left3_ml.ml tests/calc_prio_left8_ml.ml\
        tests/calc_prio_left5_ml.ml tests/calc_prio_left6_ml.ml\
        tests/calc_prio_left7_ml.ml tests/blank_ml.ml
 	$(OCAMLBUILD) tests/test.native
@@ -53,6 +53,7 @@ tests: earley.cmxa earleyStr.cmxa\
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left6_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left7_ml.native
+	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left8_ml.native
 	$(OCAMLBUILD) -pkgs unix     tests/calcyacc/calc.native
 	./test.native > /dev/null
 	./blank_ml.native --quick > /dev/null
@@ -62,6 +63,7 @@ tests: earley.cmxa earleyStr.cmxa\
 	./calc_prio_left5_ml.native --quick > /dev/null
 	./calc_prio_left6_ml.native --quick > /dev/null
 	./calc_prio_left7_ml.native --quick > /dev/null
+	./calc_prio_left8_ml.native --quick > /dev/null
 
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
