@@ -938,20 +938,7 @@ let default_action _loc l =
              Parsetree.pexp_attributes = []
            }
        | _ -> assert false) l in
-  let rec fn =
-    function
-    | [] ->
-        {
-          Parsetree.pexp_desc =
-            (Parsetree.Pexp_construct
-               ({ Asttypes.txt = (Longident.Lident "()"); Asttypes.loc = _loc
-                }, None));
-          Parsetree.pexp_loc = _loc;
-          Parsetree.pexp_attributes = []
-        }
-    | x::[] -> x
-    | _::_ as l -> Pa_ast.exp_tuple _loc l in
-  fn l
+  Pa_ast.exp_tuple _loc l
 let from_opt ov d = match ov with | None  -> d | Some v -> v
 let dash =
   let fn str pos =
@@ -1535,21 +1522,7 @@ module Ext(In:Extension) =
                     Parsetree.pexp_loc = _loc;
                     Parsetree.pexp_attributes = []
                   } in
-            let args_pat =
-              match args with
-              | [] ->
-                  {
-                    Parsetree.ppat_desc =
-                      (Parsetree.Ppat_construct
-                         ({
-                            Asttypes.txt = (Longident.Lident "()");
-                            Asttypes.loc = _loc
-                          }, None));
-                    Parsetree.ppat_loc = _loc;
-                    Parsetree.ppat_attributes = []
-                  }
-              | x::[] -> x
-              | _ -> Pa_ast.pat_tuple _loc args in
+            let args_pat = Pa_ast.pat_tuple _loc args in
             let (str1,str2) =
               match (args, prio) with
               | ([],None ) ->

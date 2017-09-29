@@ -146,12 +146,7 @@ let default_action _loc l =
   let l = List.map (function `Normal((id,_),_,_,_,_) -> <:expr<$lid:id$>>
                            | _ -> assert false) l
   in
-  let rec fn = function
-    | [] -> <:expr<()>>
-    | [x] -> x
-    | _::_ as l -> <:expr<$tuple:l$>>
-  in
-  fn l
+  <:expr<$tuple:l$>>
 
 let from_opt ov d = match ov with None -> d | Some v -> v
 
@@ -275,11 +270,7 @@ module Ext(In:Extension) = struct
             | None -> f
             | Some ty -> <:expr<($f$ : $ty$)>>
           in
-          let args_pat = match args with
-            | [] -> <:pat< () >>
-            | [x] -> x
-            | _ -> <:pat< $tuple:args$ >>
-          in
+          let args_pat =<:pat< $tuple:args$ >> in
           let (str1,str2) =
             match args,prio with
             | [], None ->
