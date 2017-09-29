@@ -431,11 +431,14 @@ let print_pos ch {buf; col; buf_ab; col_ab} =
   Printf.fprintf ch "%5d:%3d-%5d:%3d"
                  (line_num buf) col (line_num buf_ab) col_ab
 
-let print_final ch (D {start; rest; full}) =
-  Printf.fprintf ch "%a == " print_pos start;
+let print_final pos ch (D {start; rest; full}) =
+  if pos then Printf.fprintf ch "%a == " print_pos start;
   print_rule ~rest ch full;
   let (ae,set) = force (rule_info rest) in
   if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
+
+let print_final_no_pos ch f = print_final false ch f
+let print_final ch f = print_final true ch f
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   match el with
@@ -536,8 +539,15 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
              match eq_rule rest r', eq_rule full fu' with
              | Eq, Eq ->
                 if !warn_merge && not (eq_closure acts acts') then
-                  log "\027[31mmerging %a %a %a\027[0m\n%!"
-                    print_final element print_pos s print_pos pos_final;
+                  begin
+                    let fname = filename s.buf_ab in
+                    let ls = line_num s.buf_ab in
+                    let lc = utf8_col_num s.buf_ab s.col_ab in
+                    let es = line_num pos_final.buf_ab in
+                    let ec = utf8_col_num pos_final.buf_ab s.col_ab in
+                    log "\027[31mmerging %a at %s %d:%d-%d:%d\027[0m\n%!"
+                        print_final_no_pos element fname ls lc es ec
+                  end;
                 assert(stack == stack');
                 false
              | _ -> assert false)
