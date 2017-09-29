@@ -261,7 +261,7 @@ module Ext(In:Extension) = struct
       | []                 -> ([], [], [])
       | `Caml b::l ->
          let (str1, str2, str3) = fn l in
-         (str1, str2, b @ str3)
+         (str1, str2, b :: str3)
       | `Parser(name,args,prio,ty,_loc_r,r)::l ->
           let (str1, str2, str3) = fn l in
           let pname = <:pat<$lid:name$>> in
@@ -457,9 +457,9 @@ module Ext(In:Extension) = struct
       -> `Parser(name,args,prio,ty,_loc_r,r)
 
   let parser glr_bindings =
-    | EMPTY -> []
-    | and_kw parser_kw b:glr_binding l:glr_bindings -> b::l
-    | and_kw b:let_binding l:glr_bindings -> (`Caml b)::l
+    | cs:{_:and_kw let_binding}?[[]] -> List.map (fun b -> `Caml b) cs
+    | and_kw cs:{let_binding _:and_kw}?[[]] parser_kw b:glr_binding l:glr_bindings
+          -> (List.map (fun b -> `Caml b) cs) @ b::l
 
   let extra_structure =
     let p = parser let_kw parser_kw b:glr_binding l:glr_bindings -> build_str_item _loc (b::l) in

@@ -1502,7 +1502,7 @@ module Ext(In:Extension) =
         function
         | [] -> ([], [], [])
         | (`Caml b)::l ->
-            let (str1,str2,str3) = fn l in (str1, str2, (b @ str3))
+            let (str1,str2,str3) = fn l in (str1, str2, (b :: str3))
         | (`Parser (name,args,prio,ty,_loc_r,r))::l ->
             let (str1,str2,str3) = fn l in
             let pname =
@@ -2955,14 +2955,23 @@ module Ext(In:Extension) =
       Earley.set_grammar glr_bindings
         (Earley.alternatives
            [Earley.fsequence and_kw
-              (Earley.sequence let_binding glr_bindings
-                 (fun b  -> fun l  -> fun _default_0  -> (`Caml b) :: l));
-           Earley.apply (fun _  -> []) (Earley.empty ());
-           Earley.fsequence and_kw
-             (Earley.fsequence parser_kw
-                (Earley.sequence glr_binding glr_bindings
-                   (fun b  ->
-                      fun l  -> fun _default_0  -> fun _default_1  -> b :: l)))])
+              (Earley.fsequence
+                 (Earley.option []
+                    (Earley.sequence let_binding and_kw
+                       (fun _default_0  -> fun _  -> _default_0)))
+                 (Earley.fsequence parser_kw
+                    (Earley.sequence glr_binding glr_bindings
+                       (fun b  ->
+                          fun l  ->
+                            fun _default_0  ->
+                              fun cs  ->
+                                fun _default_1  ->
+                                  (List.map (fun b  -> `Caml b) cs) @ (b ::
+                                    l)))));
+           Earley.apply (fun cs  -> List.map (fun b  -> `Caml b) cs)
+             (Earley.option []
+                (Earley.sequence and_kw let_binding
+                   (fun _  -> fun _default_0  -> _default_0)))])
     let extra_structure =
       let p =
         Earley.fsequence_position let_kw
