@@ -216,7 +216,7 @@ module Initial =
       | AppType  -> AtomType
       | AtomType  -> AtomType 
     let ((typexpr_lvl_raw : (bool * type_prio) -> core_type grammar),set_typexpr_lvl)
-      = grammar_family ~param_to_string:type_prio_to_string "typexpr_lvl" 
+      = grammar_prio ~param_to_string:type_prio_to_string "typexpr_lvl" 
     let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl) 
     let typexpr_nopar = typexpr_lvl_raw (false, TopType) 
     let typexpr = typexpr_lvl TopType 

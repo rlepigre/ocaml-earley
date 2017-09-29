@@ -84,7 +84,11 @@ let exp_option _loc =
 let exp_unit _loc =
   let cunit = id_loc (Lident "()") _loc in
   loc_expr _loc (pexp_construct (cunit, None))
-let exp_tuple _loc l = loc_expr _loc (Pexp_tuple l)
+let exp_tuple _loc l =
+  match l with
+  | [] -> exp_unit _loc
+  | e::[] -> e
+  | _ -> loc_expr _loc (Pexp_tuple l)
 let exp_array _loc l = loc_expr _loc (Pexp_array l)
 let exp_Nil _loc =
   let cnil = id_loc (Lident "[]") _loc in
@@ -104,9 +108,14 @@ let exp_list _loc l = List.fold_right (exp_Cons _loc) l (exp_Nil _loc)
 let exp_ident _loc id = loc_expr _loc (Pexp_ident (id_loc (Lident id) _loc))
 let exp_lident _loc id = loc_expr _loc (Pexp_ident (id_loc id _loc))
 let pat_ident _loc id = loc_pat _loc (Ppat_var (id_loc id _loc))
-let pat_tuple _loc l = loc_pat _loc (Ppat_tuple l)
 let pat_array _loc l = loc_pat _loc (Ppat_array l)
-let typ_tuple _loc l = loc_typ _loc (Ptyp_tuple l)
+let typ_unit _loc =
+  loc_typ _loc (Ptyp_constr ((id_loc (Lident "unit") _loc), []))
+let typ_tuple _loc l =
+  match l with
+  | [] -> typ_unit _loc
+  | t::[] -> t
+  | _ -> loc_typ _loc (Ptyp_tuple l)
 let nolabel = ""
 let labelled s = s
 let optional s = "?" ^ s
@@ -241,6 +250,14 @@ let pexp_assertfalse _loc =
 let make_case pat expr guard =
   { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
 let pexp_function cases = Pexp_function cases
+let pat_unit _loc =
+  let unt = id_loc (Lident "()") _loc in
+  loc_pat _loc (ppat_construct (unt, None))
+let pat_tuple _loc l =
+  match l with
+  | [] -> pat_unit _loc
+  | p::[] -> p
+  | _ -> loc_pat _loc (Ppat_tuple l)
 let pat_list _loc _loc_c l =
   let nil = id_loc (Lident "[]") (ghost _loc_c) in
   let cons x xs =
