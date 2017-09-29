@@ -1356,12 +1356,12 @@ let parser type_coercion =
   | STR(":>") t':typexpr -> (None, Some t')
 
 let parser expression_list =
-  | l:{ e:(expression_lvl (LetRight, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) semi_col?
+  | l:{ e:(expression_lvl (NoMatch, next_exp Seq)) _:semi_col -> (e, _loc_e)}* e:(expression_lvl (Match, next_exp Seq)) semi_col?
       -> l @ [e,_loc_e]
   | EMPTY -> []
 
 let parser record_item =
-  | f:field CHR('=') e:(expression_lvl (LetRight, next_exp Seq)) -> (id_loc f _loc_f,e)
+  | f:field CHR('=') e:(expression_lvl (NoMatch, next_exp Seq)) -> (id_loc f _loc_f,e)
   | f:lident -> (let id = id_loc (Lident f) _loc_f in id, loc_expr _loc_f (Pexp_ident(id)))
 
 let parser last_record_item =
@@ -1570,7 +1570,7 @@ let parser extra_expressions_grammar lvl =
 
 let structure_item_simple = declare_grammar "structure_item_simple"
 
-let parser prefix_expression c =
+let prefix_expression = parser
   | function_kw l:match_cases -> <:expr< function $cases:l$>>
 
   | match_kw e:expression with_kw l:match_cases -> <:expr< match $e$ with $cases:l$>>
@@ -1579,7 +1579,7 @@ let parser prefix_expression c =
 
   | e:(alternatives extra_prefix_expressions) -> e
 
-let parser if_expression (alm,lvl) =
+let if_expression (alm,lvl) = parser
   | if_kw c:expression then_kw e:(expression_lvl(Match, next_exp Seq)) else_kw e':(expression_lvl (alm, next_exp Seq)) ->
      <:expr< if $c$ then $e$ else $e'$>>
 
@@ -1592,7 +1592,7 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
 
   | e:((expression_lvl (left_alm alm, next_exp lvl))) when lvl < Atom && lvl != Seq -> e
 
-  | ls:{(expression_lvl (LetRight, next_exp Seq)) _:semi_col }*
+  | ls:{(expression_lvl (NoMatch, next_exp Seq)) _:semi_col }*
       e':(expression_lvl (right_alm alm, next_exp Seq)) {semi_col | no_semi} when lvl = Seq ->
         (* NOTE: why OCaml does that for the final ';' and the pos of e'
            this will disappear if the reported bug is fixed in ocaml *)
@@ -1617,11 +1617,12 @@ let _ = set_expression_lvl (fun ((alm,lvl) as c) -> parser
   | mp:module_path '.' '{' e:{expression _:with_kw}? l:record_list '}' when lvl = Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (Pexp_record(l,e))))
-  | e:(prefix_expression c) when allow_match alm && lvl < App && lvl != Seq -> e
 
-  | e:(if_expression c) when (allow_let alm && lvl < App && lvl != Seq) || (lvl = If && alm <> MatchRight) -> e
+  | e:prefix_expression when allow_match alm && lvl < App && lvl != Seq -> e
 
-  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(right_alm alm,Seq)) no_semi when allow_let alm && lvl < App && lvl != Seq ->
+  | e:(if_expression c) when (allow_let alm && lvl < App && lvl != Seq) || lvl = If -> e
+
+  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re e:(expression_lvl(alm,Seq)) no_semi when allow_let alm && lvl < App && lvl != Seq ->
      loc_expr _loc (apply_params l e).pexp_desc
 
   | let_kw r:{r:rec_flag l:let_binding in_kw e:(expression_lvl (right_alm alm,Seq)) no_semi

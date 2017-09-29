@@ -149,7 +149,7 @@ let next_exp = function
   | Atom -> Atom
 
 type alm =
-    NoMatch | Match | MatchRight | Let | LetRight (* true : if then without else allowed *)
+    NoMatch | Match | MatchRight | Let | LetRight
 
 let right_alm = function
   | Match | MatchRight -> Match
