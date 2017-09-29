@@ -1850,56 +1850,82 @@ module Ext(In:Extension) =
                   let rec currify acc n =
                     function
                     | [] ->
-                        {
-                          Parsetree.pexp_desc =
-                            (Parsetree.Pexp_fun
-                               ("", None,
-                                 {
-                                   Parsetree.ppat_desc =
-                                     (Parsetree.Ppat_var
-                                        {
-                                          Asttypes.txt = "__curry__prio";
-                                          Asttypes.loc = _loc
-                                        });
-                                   Parsetree.ppat_loc = _loc;
-                                   Parsetree.ppat_attributes = []
-                                 },
-                                 {
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_apply
-                                        ({
-                                           Parsetree.pexp_desc =
-                                             (Parsetree.Pexp_ident
-                                                {
-                                                  Asttypes.txt =
-                                                    (Longident.Lident name);
-                                                  Asttypes.loc = _loc
-                                                });
-                                           Parsetree.pexp_loc = _loc;
-                                           Parsetree.pexp_attributes = []
-                                         },
-                                          [("",
-                                             (Pa_ast.exp_tuple _loc
-                                                (List.rev acc)));
-                                          ("",
+                        (match prio with
+                         | None  ->
+                             {
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_apply
+                                    ({
+                                       Parsetree.pexp_desc =
+                                         (Parsetree.Pexp_ident
                                             {
-                                              Parsetree.pexp_desc =
-                                                (Parsetree.Pexp_ident
-                                                   {
-                                                     Asttypes.txt =
-                                                       (Longident.Lident
-                                                          "__curry__prio");
-                                                     Asttypes.loc = _loc
-                                                   });
-                                              Parsetree.pexp_loc = _loc;
-                                              Parsetree.pexp_attributes = []
-                                            })]));
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 }));
-                          Parsetree.pexp_loc = _loc;
-                          Parsetree.pexp_attributes = []
-                        }
+                                              Asttypes.txt =
+                                                (Longident.Lident name);
+                                              Asttypes.loc = _loc
+                                            });
+                                       Parsetree.pexp_loc = _loc;
+                                       Parsetree.pexp_attributes = []
+                                     },
+                                      [("",
+                                         (Pa_ast.exp_tuple _loc
+                                            (List.rev acc)))]));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             }
+                         | Some _ ->
+                             {
+                               Parsetree.pexp_desc =
+                                 (Parsetree.Pexp_fun
+                                    ("", None,
+                                      {
+                                        Parsetree.ppat_desc =
+                                          (Parsetree.Ppat_var
+                                             {
+                                               Asttypes.txt = "__curry__prio";
+                                               Asttypes.loc = _loc
+                                             });
+                                        Parsetree.ppat_loc = _loc;
+                                        Parsetree.ppat_attributes = []
+                                      },
+                                      {
+                                        Parsetree.pexp_desc =
+                                          (Parsetree.Pexp_apply
+                                             ({
+                                                Parsetree.pexp_desc =
+                                                  (Parsetree.Pexp_ident
+                                                     {
+                                                       Asttypes.txt =
+                                                         (Longident.Lident
+                                                            name);
+                                                       Asttypes.loc = _loc
+                                                     });
+                                                Parsetree.pexp_loc = _loc;
+                                                Parsetree.pexp_attributes =
+                                                  []
+                                              },
+                                               [("",
+                                                  (Pa_ast.exp_tuple _loc
+                                                     (List.rev acc)));
+                                               ("",
+                                                 {
+                                                   Parsetree.pexp_desc =
+                                                     (Parsetree.Pexp_ident
+                                                        {
+                                                          Asttypes.txt =
+                                                            (Longident.Lident
+                                                               "__curry__prio");
+                                                          Asttypes.loc = _loc
+                                                        });
+                                                   Parsetree.pexp_loc = _loc;
+                                                   Parsetree.pexp_attributes
+                                                     = []
+                                                 })]));
+                                        Parsetree.pexp_loc = _loc;
+                                        Parsetree.pexp_attributes = []
+                                      }));
+                               Parsetree.pexp_loc = _loc;
+                               Parsetree.pexp_attributes = []
+                             })
                     | a::l ->
                         let v = "__curry__varx" ^ (string_of_int n) in
                         let acc =

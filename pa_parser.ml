@@ -305,7 +305,12 @@ module Ext(In:Extension) = struct
             | ([], _) | ([_], None) -> str2
             | _ ->
               let rec currify acc n = function
-                  [] -> <:expr<fun __curry__prio -> $lid:name$ $tuple:List.rev acc$ __curry__prio >>
+                  [] ->
+                  begin
+                    match prio with
+                    | None -> <:expr<$lid:name$ $tuple:List.rev acc$ >>
+                    | Some _ -> <:expr<fun __curry__prio -> $lid:name$ $tuple:List.rev acc$ __curry__prio >>
+                  end
                 | a::l ->
                    let v = "__curry__varx"^string_of_int n in
                    let acc = <:expr< $lid:v$ >> :: acc in
