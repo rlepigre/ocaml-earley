@@ -803,10 +803,9 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     let final_key = tail_key main_rule in
     let main_key = (buffer_uid buf0, col0, main_rule.adr, final_key) in
     let s0 : (a, a) stack = ref [B (Simple idt)] in
+    let start = { buf = buf0; col = col0; buf_ab = buf0; col_ab = col0 } in
     let col = ref col0 and buf = ref buf0 in
-    let buf', col' = blank buf0 col0 in
-    let start = { buf = buf0; col = col0; buf_ab = buf'; col_ab = col' } in
-    let col' = ref col' and buf' = ref buf' in
+    let col' = ref col0 and buf' = ref buf0 in
     (** the initial elements *)
     let init = D {start; acts=idt; stack=s0; rest=main_rule; full=main_rule } in
     (** old the last success for partial_parse *)
@@ -830,7 +829,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     let search_success () =
       try
         let success = Hashtbl.find elements main_key in
-        last_success := (!buf,!col,!buf',!col',success) :: !last_success
+        last_success := (!buf,!col,success) :: !last_success
       with Not_found -> ()
     in
 
@@ -839,6 +838,9 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       (** clear the table *)
       StackContainer.clear sct;
       Hashtbl.clear elements;
+      (** read blanks *)
+      let buf'', col'' = blank !buf !col in
+      buf' := buf''; col' := col'';
       (** treat the next elements *)
       one_step !todo;
       (** search success for internal (partial) parse *)
@@ -851,8 +853,6 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
          forward := forward';
          (** advance positions *)
          col := new_col; buf := new_buf;
-         let buf'', col'' = blank new_buf new_col in
-         buf' := buf''; col' := col'';
        with Not_found -> todo := []
     done;
     (** search succes at the end for non internal parse *)
@@ -892,10 +892,12 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     let a, buf, col as result =
       let rec kn = function
         | [] -> parse_error ()
-        | (b,p,b',p', elt) :: rest ->
+        | (b,p, elt) :: rest ->
            try
              let a = fn elt in
-             if blank_after then (a, b', p') else (a, b, p)
+             if blank_after then
+               let (b, p) = blank b p in (a, b, p)
+             else (a, b, p)
            with
              Error -> kn rest
       in kn !last_success
