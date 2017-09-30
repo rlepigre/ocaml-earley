@@ -270,18 +270,12 @@ let parse_string' g e' =
  * Gestion of attachment of ocamldoc comments                               *
  ****************************************************************************)
 
-(* no attributes before 4.02 *)
-#ifversion >=4.02
 let mk_attrib loc s contents =
    (id_loc s Location.none, PStr(
      [loc_str loc (Pstr_eval(exp_string loc contents,[]))
    ]))
-#endif
 
 let attach_attrib =
-#ifversion < 4.02
-  fun ?(local=false) loc acc -> acc
-#else
   let tbl_s = Hashtbl.create 31 in
   let tbl_e = Hashtbl.create 31 in
   fun ?(local=false) loc acc ->
@@ -336,9 +330,7 @@ let attach_attrib =
         res
     in
     l1 @ acc @ l2
-#endif
 
-#ifversion >= 4.02
 let attach_gen build =
   let tbl = Hashtbl.create 31 in
   fun loc ->
@@ -367,10 +359,6 @@ let attach_gen build =
 
 let attach_sig = attach_gen (fun loc a  -> loc_sig loc (Psig_attribute a))
 let attach_str = attach_gen (fun loc a  -> loc_str loc (Pstr_attribute a))
-#else
-let attach_sig = (fun loc -> [])
-let attach_str = (fun loc -> [])
-#endif
 
 
 

@@ -433,12 +433,13 @@ let char_litteral =
          (EarleyStr.regexp ~name:"char_reg" char_reg
             (fun groupe  -> groupe 0))]
       in
-   Earley.change_layout
+   Earley.no_blank_layout
      (Earley.fsequence single_quote
         (Earley.fsequence single_char
            (Earley.sequence (Earley.no_blank_test ()) (Earley.char '\'' '\'')
-              (fun _  -> fun _  -> fun c  -> fun _  -> c)))) Earley.no_blank : 
-  char Earley.grammar) 
+              (fun _  -> fun _  -> fun c  -> fun _  -> c)))) : char
+                                                                 Earley.grammar)
+  
 let quoted_string =
   (let f buf pos =
      let rec fn st str buf pos =
@@ -501,11 +502,10 @@ let normal_string =
                 fun cs  -> fun _  -> cs_to_string (List.flatten (cs :: css))))) : 
   string Earley.grammar) 
 let string_litteral =
-  (Earley.change_layout
+  (Earley.no_blank_layout
      (Earley.alternatives
-        [quoted_string; Earley.apply (fun s  -> (s, None)) normal_string])
-     Earley.no_blank : (string * string option) Earley.grammar)
-  
+        [quoted_string; Earley.apply (fun s  -> (s, None)) normal_string]) : 
+  (string * string option) Earley.grammar) 
 let regexp_litteral =
   (let char_reg = "[^'\\\\]"  in
    let char_esc = "[ntbrs\\\\()|]"  in
@@ -539,7 +539,7 @@ let regexp_litteral =
       in
    Earley.fsequence double_quote
      (Earley.sequence (Earley.no_blank_test ())
-        (Earley.change_layout internal Earley.no_blank)
+        (Earley.no_blank_layout internal)
         (fun _  -> fun _default_0  -> fun _  -> _default_0)) : string
                                                                  Earley.grammar)
   
@@ -576,5 +576,5 @@ let new_regexp_litteral =
           (Earley.string "#}" "#}")
           (fun cs  -> fun _  -> fun _  -> String.concat "" cs))
       in
-   Earley.change_layout internal Earley.no_blank : string Earley.grammar)
+   Earley.no_blank_layout internal : string Earley.grammar)
   

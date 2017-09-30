@@ -336,10 +336,6 @@ let parser opt_variance =
 let parser override_flag =
     o:STR("!")? -> (if o <> None then Override else Fresh)
 
-(****************************************************************************
- * Attributes (parsed but ignored for ocaml < 4.02                     *
- ****************************************************************************)
-
 let parser attr_id =
   | id:ident l:{ '.' id:ident}* ->
       id_loc (String.concat "." (id::l)) _loc
@@ -389,11 +385,7 @@ let parser poly_typexpr =
 #endif
       loc_typ _loc (Ptyp_poly (ids, te))
   | te:typexpr ->
-#ifversion >= 4.02
        te
-#else
-       loc_typ _loc (Ptyp_poly ([], te))
-#endif
 
 let parser poly_syntax_typexpr =
 #ifversion >= 4.05
@@ -448,19 +440,11 @@ let parser polymorphic_variant_type : core_type grammar =
                 | None    -> tss
                 | Some ts -> ts :: tss
       in
-#ifversion >= 4.02
       let flag = Open in
-#else
-      let flag = false in
-#endif
       loc_typ _loc (Ptyp_variant (tss, flag, None))
   | STR("[<") STR("|")? tfs:tag_spec_full tfss:{STR("|") tsf:tag_spec_full}*
     tns:{STR(">") tns:tag_name+}?[[]] STR("]") ->
-#ifversion >= 4.02
       let flag = Closed in
-#else
-      let flag = true in
-#endif
       loc_typ _loc (Ptyp_variant (tfs :: tfss, flag, Some tns))
 
 let parser package_constraint =
@@ -496,11 +480,7 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   | '(' module_kw pt:package_type ')' when lvl <= AtomType ->
       loc_typ _loc pt
   | '(' te:typexpr at:attribute* ')' when lvl <= AtomType && allow_par ->
-#if version >= 4.02
      { te with ptyp_attributes = at }
-#else
-     te
-#endif
   | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl <= Arr ->
 #if version >= 4.03
     loc_typ _loc (Ptyp_arrow (ln, te, te'))
@@ -525,23 +505,12 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
       loc_typ _loc (Ptyp_constr (constr, [t]))
   | pvt:polymorphic_variant_type when lvl <= AtomType -> pvt
   | '<' rv:".."? '>' when lvl <= AtomType ->
-#ifversion >= 4.02
       let ml = if rv = None then Closed else Open in
       loc_typ _loc (Ptyp_object([], ml))
-#else
-      let ml = if rv = None then [] else [{ pfield_desc = Pfield_var; pfield_loc = _loc_rv}] in
-      loc_typ _loc (Ptyp_object ml)
-#endif
   | STR("<") mt:method_type mts:{_:semi_col mt:method_type}*
     rv:{_:semi_col rv:".."?}? '>' when lvl <= AtomType ->
-#ifversion >= 4.02
       let ml = if rv = None || rv = Some None then Closed else Open in
       loc_typ _loc (Ptyp_object ((mt :: mts), ml))
-#else
-      let ml = if rv = None || rv = Some None then [] else [{ pfield_desc = Pfield_var; pfield_loc = _loc_rv}] in
-      loc_typ _loc (Ptyp_object (mt :: mts @ ml))
-#endif
-#ifversion >= 4.02
   | STR("#") cp:class_path when lvl <= AtomType ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, []))
@@ -549,15 +518,6 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
     STR("#") cp:class_path when lvl <= AtomType ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, te::tes))
-#else
-  | STR("#") cp:class_path o:opt_present when lvl <= AtomType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, [], o))
-  | STR("(") te:typexpr tes:{STR(",") te:typexpr}* STR(")")
-    STR("#") cp:class_path  o:opt_present when lvl <= AtomType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, te::tes, o))
-#endif
 
   | te:(typexpr_lvl (next_type_prio ProdType))
     tes:{_:{'*' | "×"} te:(typexpr_lvl (next_type_prio ProdType)) -> te}+  when lvl <= ProdType->
@@ -566,16 +526,10 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   | te:(typexpr_lvl As) as_kw STR("'") id:ident when lvl <= As ->
      loc_typ _loc (Ptyp_alias (te, id))
 
-#ifversion >= 4.02
   | te:(typexpr_lvl DashType) STR("#") cp:class_path when lvl <= DashType ->
       let cp = id_loc cp _loc_cp in
       loc_typ _loc (Ptyp_class (cp, [te]))
-#else
-  | te:(typexpr_lvl DashType)
-    STR("#") cp:class_path o:opt_present when lvl <= DashType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, [te], o))
-#endif
+
   | '$' - aq:{''[a-z]+'' - ':'}?["type"] e:expression - '$' when lvl <= AtomType ->
      begin
        let open Quote in
@@ -979,9 +933,7 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
 	 quote_record e_loc _loc [
 	   (parsetree "ppat_desc", e) ;
 	   (parsetree "ppat_loc", quote_location_t e_loc _loc _loc) ;
-#ifversion >= 4.02
            (parsetree "ppat_attributes", quote_attributes e_loc _loc [])
-#endif
 	 ]
        in
        let generic_antiquote e = function
@@ -1318,11 +1270,7 @@ let parser class_field =
 #else
                id:{_:as_kw lident}? ->
 #endif
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_inherit (o, ce, id))
-#else
-      loc_pcf _loc (Pcf_inher (o, ce, id))
-#endif
   | val_kw o:override_flag m:mutable_flag ivn:inst_var_name te:{CHR(':') t:typexpr}?
     CHR('=') e:expression ->
       let ivn = id_loc ivn _loc_ivn in
@@ -1331,45 +1279,25 @@ let parser class_field =
         | None   -> e
         | Some t -> loc_expr (ghost _loc_te) (pexp_constraint (e, t))
       in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_val (ivn, m, Cfk_concrete(o,ex)))
-#else
-      loc_pcf _loc (Pcf_val (ivn, m, o, ex))
-#endif
   | val_kw m:mutable_flag virtual_kw ivn:inst_var_name
     STR(":") te:typexpr ->
       let ivn = id_loc ivn _loc_ivn in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_val (ivn, m, Cfk_virtual te))
-#else
-      loc_pcf _loc (Pcf_valvirt (ivn, m, te))
-#endif
   | val_kw virtual_kw mutable_kw ivn:inst_var_name STR(":") te:typexpr ->
       let ivn = id_loc ivn _loc_ivn in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_val (ivn, Mutable, Cfk_virtual te))
-#else
-      loc_pcf _loc (Pcf_valvirt (ivn, Mutable, te))
-#endif
   | method_kw o:override_flag p:private_flag mn:method_name
     STR(":") te:poly_typexpr CHR('=') e:expression ->
       let mn = id_loc mn _loc_mn in
       let e = loc_expr _loc (Pexp_poly (e, Some te)) in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_method (mn, p, Cfk_concrete(o,e)))
-#else
-      loc_pcf _loc (Pcf_meth (mn, p, o, e))
-#endif
   | method_kw o:override_flag p:private_flag mn:method_name
     STR(":") (ids,te):poly_syntax_typexpr CHR('=') e:expression ->
       let mn = id_loc mn _loc_mn in
       let e, poly =  wrap_type_annotation _loc ids te e in
       let e = loc_expr _loc (Pexp_poly (e, Some poly)) in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_method (mn, p, Cfk_concrete(o,e)))
-#else
-      loc_pcf _loc (Pcf_meth (mn, p, o, e))
-#endif
   | method_kw o:override_flag p:private_flag mn:method_name ps:{p:(parameter true) -> p,_loc_p}*
       te:{STR(":") te:typexpr}? CHR('=') e:expression ->
       if ps = [] && te <> None then give_up ();
@@ -1382,47 +1310,23 @@ let parser class_field =
       in
       let e : expression = apply_params ps e in
       let e = loc_expr _loc (Pexp_poly (e, None)) in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_method (mn, p, Cfk_concrete(o,e)))
-#else
-      loc_pcf _loc (Pcf_meth (mn, p, o, e))
-#endif
   | method_kw p:private_flag virtual_kw mn:method_name STR(":") pte:poly_typexpr ->
       let mn = id_loc mn _loc_mn in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_method (mn, p, Cfk_virtual(pte)))
-#else
-      loc_pcf _loc (Pcf_virt (mn, p, pte))
-#endif
   | method_kw virtual_kw private_kw mn:method_name STR(":") pte:poly_typexpr ->
       let mn = id_loc mn _loc_mn in
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_method (mn, Private, Cfk_virtual(pte)))
-#else
-      loc_pcf _loc (Pcf_virt (mn, Private, pte))
-#endif
   | constraint_kw te:typexpr CHR('=') te':typexpr ->
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_constraint (te, te'))
-#else
-      loc_pcf _loc (Pcf_constr (te, te'))
-#endif
   | initializer_kw e:expression ->
-#ifversion >= 4.02
       loc_pcf _loc (Pcf_initializer e)
-#else
-      loc_pcf _loc (Pcf_init e)
-#endif
 
 let _ = set_grammar class_body (
   parser
   | p:pattern? f:class_field* ->
       let p = match p with None -> loc_pat _loc_p Ppat_any | Some p -> p in
-#ifversion >= 4.02
       { pcstr_self = p; pcstr_fields = f }
-#else
-      { pcstr_pat = p; pcstr_fields = f }
-#endif
   )
 
 (* Class definition *)
@@ -1478,13 +1382,8 @@ let parser left_expr @(alm,lvl) =
   | _:let_kw f:{
     | r:rec_flag l:let_binding
          -> (fun e _loc -> loc_expr _loc (Pexp_let (r, l, e)))
-#ifversion >= 4.02
     | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' module_type}? ')'
                                      -> (mn, mt, _loc)}*
-#else
-    | module_kw mn:module_name l:{ '(' mn:module_name ':' mt:module_type ')'
-                                     -> (mn, mt, _loc)}*
-#endif
                 mt:{STR":" mt:module_type }?
                 STR"=" me:module_expr
          -> (fun e _loc ->
@@ -1663,13 +1562,8 @@ let parser right_expression @lvl =
   | while_kw e:expression do_kw e':expression done_kw when lvl <= Atom ->
       loc_expr _loc (Pexp_while(e, e'))
 
-#ifversion >= 4.02
   | for_kw id:pattern CHR('=') e:expression d:downto_flag e':expression do_kw e'':expression done_kw when lvl <= Atom ->
       loc_expr _loc (Pexp_for(id, e, e', d, e''))
-#else
-  | for_kw id:lident CHR('=') e:expression d:downto_flag e':expression do_kw e'':expression done_kw when lvl <= Atom ->
-      loc_expr _loc (Pexp_for(id_loc id _loc_id, e, e', d, e''))
-#endif
 
   | new_kw p:class_path when lvl <= Atom -> loc_expr _loc (Pexp_new(id_loc p _loc_p))
 
@@ -1724,41 +1618,15 @@ let parser right_expression @lvl =
 	 | "sig"       '<' e:signature_item        ">>" -> let e_loc = exp_ident _loc "_loc" in Quote.quote_signature  e_loc _loc_e e
 	 | "constructors"
 	     '<' e:constr_decl_list ">>" ->
-#ifversion < 4.02
-	   let quote_constructor_declaration e_loc _loc (s,t,t',l) =
-	     Quote.(quote_tuple e_loc _loc [
-	       ((quote_loc quote_string) e_loc _loc s) ;
-	       ((quote_list quote_core_type) e_loc _loc t) ;
-	       ((quote_option quote_core_type) e_loc _loc t') ;
-	       (quote_location_t e_loc _loc l) ; ])
-           in
-#endif
 	   let e_loc = exp_ident _loc "_loc" in
            Quote.(quote_list quote_constructor_declaration e_loc _loc_e e)
 	 | "fields"    '<' e:field_decl_list ">>" ->
-#ifversion < 4.02
-	   let quote_label_declaration e_loc _loc (x1,x2,x3,x4) =
-	     Quote.(quote_tuple e_loc _loc [quote_loc quote_string e_loc _loc x1;
-					    quote_mutable_flag e_loc _loc x2;
-			       quote_core_type e_loc _loc x3;quote_location_t e_loc _loc x4;])
-	   in
-#endif
 	   let e_loc = exp_ident _loc "_loc" in
 	   Quote.(quote_list quote_label_declaration e_loc _loc_e e)
 	 | "bindings"  '<' e:let_binding     ">>" ->
-#ifversion < 4.02
-	   let quote_value_binding e_loc _loc (x1,x2) =
-	     Quote.(quote_tuple e_loc _loc [quote_pattern e_loc _loc x1;quote_expression e_loc _loc x2;])
-	   in
-#endif
 	   let e_loc = exp_ident _loc "_loc" in
 	   Quote.(quote_list quote_value_binding e_loc _loc_e e)
 	 | "cases"     '<' e:match_cases ">>" ->
-#ifversion < 4.02
-	   let quote_case e_loc _loc (x1,x2) =
-	     Quote.(quote_tuple e_loc _loc [quote_pattern e_loc _loc x1;quote_expression e_loc _loc x2;])
-	   in
-#endif
 	   let e_loc = exp_ident _loc "_loc" in
 	   Quote.(quote_list quote_case e_loc _loc_e e)
 	 | "module"    '<' e:module_expr ">>" ->
@@ -1785,9 +1653,7 @@ let parser right_expression @lvl =
 	quote_record e_loc _loc
               [ (parsetree "pexp_desc", e)
               ; (parsetree "pexp_loc", quote_location_t e_loc _loc _loc)
-#ifversion >= 4.02
               ; (parsetree "pexp_attributes", quote_attributes e_loc _loc [])
-#endif
 	      ]
       in
       let generic_antiquote e =
@@ -1861,11 +1727,7 @@ let parser module_expr_base =
       mexpr_loc _loc (Pmod_ident mid)
   | struct_kw ms:structure end_kw ->
       mexpr_loc _loc (Pmod_structure(ms))
-#ifversion >= 4.02
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
-#else
-  | functor_kw '(' mn:module_name ':' mt:module_type ')'
-#endif
     arrow_re me:module_expr -> mexpr_loc _loc (Pmod_functor(mn, mt, me))
   | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
       (match mt with
@@ -1892,11 +1754,7 @@ let parser module_type_base =
       mtyp_loc _loc (Pmty_ident mid)
   | sig_kw ms:signature end_kw ->
      mtyp_loc _loc (Pmty_signature(ms))
-#ifversion >= 4.02
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
-#else
-  | functor_kw '(' mn:module_name ':' mt:module_type ')'
-#endif
      arrow_re me:module_type no_with -> mtyp_loc _loc (Pmty_functor(mn, mt, me))
   | STR("(") mt:module_type STR(")") -> mt
   | module_kw type_kw of_kw me:module_expr -> mtyp_loc _loc (Pmty_typeof me)
@@ -1904,32 +1762,16 @@ let parser module_type_base =
 
 let parser mod_constraint =
   | t:type_kw tf:typedef_in_constraint -> let (tn,ty) = tf (Some _loc_t) in
-#ifversion >= 4.02
      Pwith_type(tn,ty)
-#else
-     (tn, Pwith_type(ty))
-#endif
   | module_kw m1:module_path CHR('=') m2:extended_module_path ->
      let name = id_loc m1 _loc_m1 in
-#ifversion >= 4.02
      Pwith_module(name, id_loc m2 _loc_m2 )
-#else
-     (name, Pwith_module(id_loc m2 _loc_m2 ))
-#endif
   | type_kw tps:type_params?[[]] tcn:typeconstr_name STR(":=") te:typexpr ->
       let td = type_declaration _loc (id_loc tcn _loc_tcn)
 	   tps [] Ptype_abstract Public (Some te) in
-#ifversion >= 4.02
       Pwith_typesubst td
-#else
-      (id_loc (Lident tcn) _loc_tcn, Pwith_typesubst td)
-#endif
   | module_kw mn:module_name STR(":=") emp:extended_module_path ->
-#ifversion >= 4.02
      Pwith_modsubst(mn, id_loc emp _loc_emp)
-#else
-     ({ txt = Lident mn.txt; loc = mn.loc}, Pwith_modsubst(id_loc emp _loc_emp))
-#endif
 
 let _ = set_grammar module_type (
   parser
@@ -1943,77 +1785,40 @@ let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
      loc_str _loc (match l with
 #ifversion < 4.03
-#ifversion >= 4.02
        | [{pvb_pat = {ppat_desc = Ppat_any}; pvb_expr = e}] -> pstr_eval e
-#else
-       | [({ppat_desc = Ppat_any; ppat_loc = _}, e)] -> pstr_eval e
-#endif
 #endif
        | _                                           -> Pstr_value (r, l))
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral*  a:post_item_attributes ->
       let l = List.length ls in
       if l < 1 || l > 3 then give_up ();
-#ifversion >= 4.02
      loc_str _loc (Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
 		      pval_attributes = attach_attrib _loc a }))
-#else
-      loc_str _loc (Pstr_primitive(id_loc n _loc_n, { pval_type = ty; pval_prim = ls;
-					pval_loc = _loc
-				      }))
-#endif
 #ifversion >= 4.03
   | td:type_definition -> loc_str _loc (Pstr_type (Recursive, td)) (* FIXME ? *)
 #else
   | td:type_definition -> loc_str _loc (Pstr_type td)
 #endif
   | ex:exception_definition -> loc_str _loc ex
-#ifversion >= 4.02
   | module_kw r:{rec_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
     me:module_expr ms:{and_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
-#else
-  | module_kw r:{rec_kw mn:module_name STR(":") mt:module_type CHR('=')
-    me:module_expr ms:{and_kw mn:module_name STR(":") mt:module_type CHR('=')
-#endif
     me:module_expr -> (module_binding _loc mn mt me)}* ->
       let m = (module_binding _loc mn mt me) in
       Pstr_recmodule (m::ms)
-#ifversion >= 4.02
   |            mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type }? STR")" -> (mn, mt, _loc)}*
-#else
-  |            mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (mn, mt, _loc)}*
-#endif
      mt:{STR":" mt:module_type }? STR"=" me:module_expr ->
     let me = match mt with None -> me | Some mt -> mexpr_loc (merge2 _loc_mt _loc_me) (Pmod_constraint(me,mt)) in
      let me = List.fold_left (fun acc (mn,mt,_loc) ->
        mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
-#ifversion >= 4.02
      Pstr_module(module_binding _loc mn None me)
-#else
-     let (name, _, me) = module_binding _loc mn None me in
-     Pstr_module(name,me)
-#endif
-#ifversion >= 4.02
   |            type_kw mn:modtype_name mt:{STR"=" mt:module_type}? a:post_item_attributes ->
       Pstr_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
  		   pmtd_attributes = attach_attrib _loc a; pmtd_loc = _loc }
-#else
-  |            type_kw mn:modtype_name STR"=" mt:module_type ->
-      Pstr_modtype(id_loc mn _loc_mn, mt)
-#endif
                } -> loc_str _loc r
   | open_kw o:override_flag m:module_path a:post_item_attributes ->
-#ifversion >= 4.02
       loc_str _loc (Pstr_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
  		 popen_attributes = attach_attrib _loc a})
-#else
-    loc_str _loc (Pstr_open(o, id_loc m _loc_m))
-#endif
   | include_kw me:module_expr a:post_item_attributes ->
-#ifversion >= 4.02
     loc_str _loc (Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
-#else
-    loc_str _loc (Pstr_include me)
-#endif
   | class_kw r:{ ctd:classtype_definition -> Pstr_class_type ctd
                | cds:class_definition -> Pstr_class cds } -> loc_str _loc r
   | "$struct:" e:expression - '$' ->
@@ -2021,7 +1826,6 @@ let parser structure_item_base =
      pstr_antiquotation _loc (function
      | Quote_pstr ->
 	let e_loc = exp_ident _loc "_loc" in
-#ifversion >= 4.02
 	(quote_apply e_loc _loc (pa_ast "loc_str")
 	   [quote_location_t e_loc _loc _loc;
 	    quote_const e_loc _loc (parsetree "Pstr_include")
@@ -2033,15 +1837,6 @@ let parser structure_item_base =
 		     [quote_location_t e_loc _loc _loc;
 		      quote_const e_loc _loc (parsetree "Pmod_structure")
 			[e]])]]])
-#else
-	(quote_apply e_loc _loc (pa_ast "loc_str")
-	   [quote_location_t e_loc _loc _loc;
-	    quote_const e_loc _loc (parsetree "Pstr_include")
-	      [quote_apply e_loc _loc (pa_ast "mexpr_loc")
-		  [quote_location_t e_loc _loc _loc;
-		   quote_const e_loc _loc (parsetree "Pmod_structure")
-		     [e]]]])
-#endif
      | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))
 
 (* FIXME ext_attributes *)
@@ -2072,57 +1867,28 @@ let parser signature_item_base =
        loc_sig _loc (Psig_type td)
 #endif
   | (name,ed,_loc'):exception_declaration a:post_item_attributes ->
-#ifversion >= 4.02
        loc_sig _loc (Psig_exception (Te.decl ~attrs:(attach_attrib _loc' a) ~loc:_loc' ~args:ed name))
-#else
-       loc_sig _loc (Psig_exception (name, ed))
-#endif
   | {module_kw -> attach_sig _loc} rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
       ms:{and_kw mn:module_name STR(":") mt:module_type a:post_item_attributes ->
 	    (module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)}* ->
       let loc_first = merge2 _loc_mn _loc_a in
       let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
       loc_sig _loc (Psig_recmodule (m::ms))
-#ifversion >= 4.02
   | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
-#else
-  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name STR":" mt:module_type STR ")" -> (mn, mt, _loc)}*
-#endif
                                     STR":" mt:module_type a:post_item_attributes ->
      let mt = List.fold_left (fun acc (mn,mt,_loc) ->
                                   mtyp_loc (merge2 _loc _loc_mt) (Pmty_functor(mn, mt, acc))) mt (List.rev l) in
-#ifversion >= 4.02
      Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)
-#else
-     let a, b = module_declaration _loc mn mt in
-     Psig_module(a,b)
-#endif
   |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }?  a:post_item_attributes ->
-#ifversion >= 4.02
-  Psig_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
-	       pmtd_attributes = attach_attrib _loc a;
-	       pmtd_loc = _loc}
-#else
-     let mt = match mt with
-              | None    -> Pmodtype_abstract
-              | Some mt -> Pmodtype_manifest mt
-     in
-     Psig_modtype(id_loc mn _loc_mn, mt)
-#endif
+     Psig_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
+	          pmtd_attributes = attach_attrib _loc a;
+	          pmtd_loc = _loc}
 		} -> loc_sig _loc r
   | open_kw o:override_flag m:module_path a:post_item_attributes ->
-#ifversion >= 4.02
       loc_sig _loc (Psig_open{ popen_lid = id_loc m _loc_m; popen_override = o; popen_loc = _loc;
   		 popen_attributes = attach_attrib _loc a})
-#else
-    loc_sig _loc (Psig_open(o, id_loc m _loc_m))
-#endif
   | include_kw me:module_type a:post_item_attributes ->
-#ifversion >= 4.02
     loc_sig _loc (Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
-#else
-    loc_sig _loc (Psig_include me)
-#endif
   | class_kw r:{ ctd:classtype_definition -> Psig_class_type ctd
 		   | cs:class_specification -> Psig_class cs } -> loc_sig _loc r
 

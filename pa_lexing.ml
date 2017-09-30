@@ -421,8 +421,7 @@ let char_litteral : char Earley.grammar =
       | c:RE(char_reg)        -> c.[0]
       | '\\' e:escaped_char -> e
   in
-  Earley.change_layout (parser _:single_quote c:single_char - '\'')
-    Earley.no_blank
+  Earley.no_blank_layout (parser _:single_quote c:single_char - '\'')
 
 (* String litteral. *)
 
@@ -465,10 +464,9 @@ let normal_string : string Earley.grammar =
       cs_to_string (List.flatten (cs :: css))
 
 let string_litteral : (string * string option) Earley.grammar =
-  Earley.change_layout (parser
+  Earley.no_blank_layout (parser
                            | s:normal_string -> (s, None)
                            | quoted_string)
-    Earley.no_blank
 
 (* Regexp litteral. *)
 let regexp_litteral : string Earley.grammar =
@@ -495,7 +493,7 @@ let regexp_litteral : string Earley.grammar =
   let internal = parser
     cs:single_char* "''" -> String.concat "" cs
   in
-  parser _:double_quote - (Earley.change_layout internal Earley.no_blank)
+  parser _:double_quote - (Earley.no_blank_layout internal)
 
 let new_regexp_litteral : string Earley.grammar =
   let char_reg = "[^'\\\\]" in
@@ -519,4 +517,4 @@ let new_regexp_litteral : string Earley.grammar =
         end
   in
   let internal = parser "{#" cs:single_char* "#}" -> String.concat "" cs in
-  Earley.change_layout internal Earley.no_blank
+  Earley.no_blank_layout internal
