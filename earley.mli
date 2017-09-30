@@ -166,6 +166,10 @@ val blank_grammar : unit grammar -> blank -> blank
 val change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
                       -> 'a grammar -> blank -> 'a grammar
 
+(** [change_layout ~oba gr bl] same as abobe but with no blank.  It
+    keeps the first char prediction and is therefore more efficient *)
+val no_blank_layout : ?old_blank_before:bool -> 'a grammar -> 'a grammar
+
 (** {2 Support for recursive grammars} *)
 
 (** [declare_grammar name] returns a new grammar that can be used in the

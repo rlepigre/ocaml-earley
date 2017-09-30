@@ -472,6 +472,21 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
     in
     greedy_solo i fn
 
+let no_blank_layout : ?old_blank_before:bool -> 'a grammar -> 'a grammar
+  = fun ?(old_blank_before=true) l1 ->
+    let i = fst l1 in
+    (* compose with a test with a full charset to pass the final charset test in
+       internal_parse_buffer *)
+    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
+                               (ems (fun _ a -> a)))] in
+    let fn errpos _ buf pos buf' pos' =
+      let buf,pos = if old_blank_before then buf', pos' else buf, pos in
+      let (a,buf,pos) = internal_parse_buffer ~errpos
+        ~blank_after:false no_blank l1 buf pos in
+      (a,buf,pos)
+    in
+    greedy_solo i fn
+
 let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
     (* compose with a test with a full charset to pass the final charset test in
