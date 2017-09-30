@@ -89,7 +89,9 @@ clean:
 	$(OCAMLBUILD) -clean
 
 distclean: clean
-	- rm -f *~ \#*\# .\#* tests/*~ tests/\#*\# tests/.\#*
+	- find -name "*~" -type f -exec rm {} \;
+	- find -name "#*" -type f -exec rm {} \;
+	- find -name ".#*" -type f -exec rm {} \;
 
 .PHONY: release
 release: distclean
