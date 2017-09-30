@@ -460,6 +460,10 @@ let accept_empty grammar =
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a grammar -> blank -> 'a grammar
   = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
     let i = Fixpoint.from_val (false, Charset.full) in
+    (* compose with a test with a full charset to pass the final charset test in
+       internal_parse_buffer *)
+    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
+                               (ems (fun _ a -> a)))] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
       let (a,buf,pos) = internal_parse_buffer ~errpos
@@ -470,6 +474,10 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
 
 let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
+    (* compose with a test with a full charset to pass the final charset test in
+       internal_parse_buffer *)
+    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
+                                                (ems (fun _ a -> a)))] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
     let fn errpos blank buf pos _ _ =
       let (a,buf,pos) = internal_parse_buffer ~errpos blank l1 buf pos in
