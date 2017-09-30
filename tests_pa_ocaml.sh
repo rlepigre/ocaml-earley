@@ -1,5 +1,38 @@
 #!/bin/bash
 
+TIME=0
+COMPARE=0
+EXTENSION=0
+
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        -t|--time)
+            TIME=1
+            shift
+            ;;
+        -c|--compare)
+            COMPARE=1
+            shift
+            ;;
+        -e|--extension)
+            EXTENSION=1
+            shift
+            ;;
+        --all)
+            TIME=1
+            COMPARE=1
+            EXTENSION=1
+            shift
+            ;;
+    esac
+done
+
+if [ ${TIME} -eq 0 -a ${COMPARE} -eq 0 -a ${EXTENSION} -eq 0 ]; then
+    COMPARE=1
+fi
+
 ocaml=`ocamlc -where`
 local=./tests_pa_ocaml
 examples=./doc
@@ -18,66 +51,63 @@ files="$local/bibi.ml $local/UTF16.ml $local/test_offset.ml $local/image*.ml $lo
        $ocaml/dynlink.mli $ocaml/filename.ml $ocaml/filename.mli $ocaml/format.ml $ocaml/gc.ml \
        $ocaml/gc.mli $ocaml/genlex.ml $ocaml/genlex.mli $ocaml/hashtbl.ml $ocaml/hashtbl.mli \
        $ocaml/lexing.ml $ocaml/lexing.mli $ocaml/listLabels.ml $ocaml/listLabels.mli $ocaml/moreLabels.ml \
-       $ocaml/moreLabels.mli
+       $ocaml/moreLabels.mli $local/test4.ml
 "
 
-#files only working on ocaml 4
-files4="$local/test4.ml"
+# echo $files
 
-#if [ `ocamlc -version` != 3.12.1 ] ; then
-#    files="$files $files4"
-#fi
+if [ ${TIME} -eq 1 ]; then
+    rm test_parsers.cm*
+    make $MAKEOPTS test_parsers
+    ./test_parsers $files
+fi
 
-echo $files
+if [ ${COMPARE} -eq 1 ]; then
+    for f in $files; do
+        echo -n "File: $f"
+        /usr/bin/time --format=": %U,%S,%E" ./pa_ocaml $f > /dev/null
+        #  /usr/bin/time --format="%C: %U,%S,%E" camlp4o.opt $f > /dev/null
 
-rm test_parsers.cm*
+        ocamlc -rectypes -c -dparsetree -o /tmp/foo.cmo -pp ./pa_ocaml  $f 2> $diff/$(basename $f).pa_ocaml.full
+        ocamlc -rectypes -c -dparsetree -o /tmp/bar.cmo                 $f 2> $diff/$(basename $f).ocamlc.full
+        #  ocamlc.opt -c -dparsetree -o /tmp/bar.cmo -pp camlp4o.opt $f 2> /tmp/bar.tree
+        #  diff /tmp/foo.cmo /tmp/bar.cmo
 
-make $MAKEOPTS test_parsers
+        cat $diff/$(basename $f).pa_ocaml.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).pa_ocaml
+        cat $diff/$(basename $f).ocamlc.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).ocamlc
+        diff $diff/$(basename $f).pa_ocaml  $diff/$(basename $f).ocamlc > $diff/$(basename $f).diff
+        diff $diff/$(basename $f).pa_ocaml.full $diff/$(basename $f).ocamlc.full > $diff/$(basename $f).fulldiff
+        if [ -s $diff/$(basename $f).diff ]; then
+            echo -e "\e[31m"diff size: $(wc $diff/$(basename $f).diff) "\e[0m"
+        fi
+        if [ -s $diff/$(basename $f).fulldiff ]; then
+            echo -e "\e[93m"diff size with pos: $(wc $diff/$(basename $f).fulldiff) "\e[0m"
+        fi
+    done
 
-./test_parsers $files
+    echo "********************************************"
+    echo TOTAL diff size:
+    wc $diff/*.diff | grep total
+    echo TOTAL diff size with pos:
+    wc $diff/*.fulldiff | grep total
+    echo "********************************************"
+fi
 
-for f in $files; do
-  echo -n "File: $f"
-  /usr/bin/time --format=": %U,%S,%E" ./pa_ocaml $f > /dev/null
-#  /usr/bin/time --format="%C: %U,%S,%E" camlp4o.opt $f > /dev/null
+if [ ${EXTENSION} -eq 1 ]; then
+    echo "test of the extensions to the syntax"
+    /usr/bin/time --format="%C: %e" ocamlc -c -pp ./pa_ocaml $local/test_ext.ml
+    /usr/bin/time --format="%C: %e" ocamlc -i -c -pp ./pa_ocaml -I +compiler-libs -I bootstrap/$ocamlversion $local/test_quotation.ml
+    make $examples/pa_do_try
+    /usr/bin/time --format="%C: %e" ocamlc -i -c -pp $examples/pa_do_try $local/test_extension.ml
+    echo
 
-  ocamlc -rectypes -c -dparsetree -o /tmp/foo.cmo -pp ./pa_ocaml  $f 2> $diff/$(basename $f).pa_ocaml.full
-  ocamlc -rectypes -c -dparsetree -o /tmp/bar.cmo                 $f 2> $diff/$(basename $f).ocamlc.full
-#  ocamlc.opt -c -dparsetree -o /tmp/bar.cmo -pp camlp4o.opt $f 2> /tmp/bar.tree
-#  diff /tmp/foo.cmo /tmp/bar.cmo
-
-  cat $diff/$(basename $f).pa_ocaml.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).pa_ocaml
-  cat $diff/$(basename $f).ocamlc.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).ocamlc
-  diff $diff/$(basename $f).pa_ocaml  $diff/$(basename $f).ocamlc > $diff/$(basename $f).diff
-  diff $diff/$(basename $f).pa_ocaml.full $diff/$(basename $f).ocamlc.full > $diff/$(basename $f).fulldiff
-  if [ -s $diff/$(basename $f).diff ]; then
-      echo -e "\e[31m"diff size: $(wc $diff/$(basename $f).diff) "\e[0m"
-  fi
-  if [ -s $diff/$(basename $f).fulldiff ]; then
-      echo -e "\e[93m"diff size with pos: $(wc $diff/$(basename $f).fulldiff) "\e[0m"
-  fi
-done
-
-echo "test of the extensions to the syntax"
-/usr/bin/time --format="%C: %e" ocamlc -c -pp ./pa_ocaml $local/test_ext.ml
-/usr/bin/time --format="%C: %e" ocamlc -i -c -pp ./pa_ocaml -I +compiler-libs -I bootstrap/$ocamlversion $local/test_quotation.ml
-make $examples/pa_do_try
-/usr/bin/time --format="%C: %e" ocamlc -i -c -pp $examples/pa_do_try $local/test_extension.ml
-echo
-
-# echo "test of parser extension"
-# /usr/bin/time --format="%C: %e" ocamlc -c -I .. -pp ./pa_ocaml ./examples/calc.ml
-# /usr/bin/time --format="%C: %e" ocamlc -c -I .. -pp ./pa_ocaml ./examples/calc_all.ml
-# cp ./pa_ocaml_prelude.ml $local/
-# /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_ocaml_prelude.ml
-# cp ./pa_parser.ml $local/
-# /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_parser.ml
-# cp ./pa_ocaml.ml $local/
-# /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_ocaml.ml
-
-echo "********************************************"
-echo TOTAL diff size:
-wc $diff/*.diff | grep total
-echo TOTAL diff size with pos:
-wc $diff/*.fulldiff | grep total
-echo "********************************************"
+    # echo "test of parser extension"
+    # /usr/bin/time --format="%C: %e" ocamlc -c -I .. -pp ./pa_ocaml ./examples/calc.ml
+    # /usr/bin/time --format="%C: %e" ocamlc -c -I .. -pp ./pa_ocaml ./examples/calc_all.ml
+    # cp ./pa_ocaml_prelude.ml $local/
+    # /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_ocaml_prelude.ml
+    # cp ./pa_parser.ml $local/
+    # /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_parser.ml
+    # cp ./pa_ocaml.ml $local/
+    # /usr/bin/time --format="%C: %e" ocamlc -I +compiler-libs -c -I bootstrap/$ocamlversion -pp ./pa_ocaml $local/pa_ocaml.ml
+fi
