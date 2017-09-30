@@ -1,3 +1,5 @@
+TESTS = --quick
+
 VERSION    := 1.0.0
 OCAMLBUILD := ocamlbuild -use-ocamlfind
 IMPLFILES  := $(wildcard *.ml)
@@ -57,16 +59,16 @@ tests: earley.cmxa earleyStr.cmxa\
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left8_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left9_ml.native
 	$(OCAMLBUILD) -pkgs unix     tests/calcyacc/calc.native
-	./test.native > /dev/null
-	./blank_ml.native --quick > /dev/null
-	./calc_prio_left_ml.native --quick > /dev/null
-	./calc_prio_left2_ml.native --quick > /dev/null
-	./calc_prio_left3_ml.native --quick > /dev/null
-	./calc_prio_left5_ml.native --quick > /dev/null
-	./calc_prio_left6_ml.native --quick > /dev/null
-	./calc_prio_left7_ml.native --quick > /dev/null
-	./calc_prio_left8_ml.native --quick > /dev/null
-	./calc_prio_left9_ml.native --quick > /dev/null
+	./test.native $(TESTS) > /dev/null
+	./blank_ml.native $(TESTS) > /dev/null
+	./calc_prio_left_ml.native $(TESTS) > /dev/null
+	./calc_prio_left2_ml.native --quick > /dev/null #too slow!
+	./calc_prio_left3_ml.native $(TESTS) > /dev/null
+	./calc_prio_left5_ml.native $(TESTS) > /dev/null
+	./calc_prio_left6_ml.native $(TESTS) > /dev/null
+	./calc_prio_left7_ml.native $(TESTS) > /dev/null
+	./calc_prio_left8_ml.native $(TESTS) > /dev/null
+	./calc_prio_left9_ml.native $(TESTS) > /dev/null
 
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
