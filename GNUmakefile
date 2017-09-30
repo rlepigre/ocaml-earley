@@ -89,7 +89,7 @@ clean:
 	$(OCAMLBUILD) -clean
 
 distclean: clean
-	- rm -f *~ \#*\# .\#*
+	- rm -f *~ \#*\# .\#* tests/*~ tests/\#*\# tests/.\#*
 
 .PHONY: release
 release: distclean
