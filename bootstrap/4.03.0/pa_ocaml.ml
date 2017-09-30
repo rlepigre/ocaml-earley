@@ -5216,7 +5216,8 @@ module Make(Initial:Extension) =
                                 | Pexp_construct
                                     ({ txt = Lident "false" },None ) ->
                                     pexp_assertfalse _loc
-                                | _ -> e))) assert_kw));
+                                | _ -> loc_expr _loc (Pexp_assert e))))
+              assert_kw));
          (((fun (alm,lvl)  -> lvl <= App)),
            (Earley.apply_position
               (fun _default_0  ->

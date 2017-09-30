@@ -1543,7 +1543,7 @@ let parser left_expr @(alm,lvl) =
   | assert_kw when lvl <= App ->
        (next_exp App, false, (fun e _loc -> match e.pexp_desc with
           | Pexp_construct({txt=Lident "false"},None) -> pexp_assertfalse _loc
-          | _ -> e))
+          | _ -> loc_expr _loc (Pexp_assert(e))))
 
   | lazy_kw when lvl <= App ->
      (next_exp App, false, (fun e _loc -> loc_expr _loc (Pexp_lazy e)))
