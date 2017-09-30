@@ -58,7 +58,7 @@ let give_up () = raise Error
 let no_blank str pos = str, pos
 
 let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
-   = fun g bl ?(blank_after=true) buf pos ->
+   = fun g bl ?(blank_after=false) buf pos ->
        parse_buffer_aux blank_after bl g buf pos
 
 let next_aux name s r = mkrule (Next(compose_info s r, name, s,r))
@@ -472,15 +472,14 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a gramma
     in
     greedy_solo i fn
 
-let no_blank_layout : ?old_blank_before:bool -> 'a grammar -> 'a grammar
-  = fun ?(old_blank_before=true) l1 ->
+let no_blank_layout : 'a grammar -> 'a grammar
+  = fun l1 ->
     let i = fst l1 in
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
                                (ems (fun _ a -> a)))] in
-    let fn errpos _ buf pos buf' pos' =
-      let buf,pos = if old_blank_before then buf', pos' else buf, pos in
+    let fn errpos _ _ _ buf pos =
       let (a,buf,pos) = internal_parse_buffer ~errpos
         ~blank_after:false no_blank l1 buf pos in
       (a,buf,pos)
