@@ -414,6 +414,7 @@ let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
 
 let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
   let tbl = EqHashtbl.create ~equal:eq_closure 8 in
+  Printf.eprintf "creatiing tbl2\n%!";
   let tbl2 = Hashtbl.create (*~equal:eq_closure*) 8 in
   let is_set = ref None in
   (fun args p ->

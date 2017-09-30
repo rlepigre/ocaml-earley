@@ -543,8 +543,8 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
                     let fname = filename s.buf_ab in
                     let ls = line_num s.buf_ab in
                     let lc = utf8_col_num s.buf_ab s.col_ab in
-                    let es = line_num pos_final.buf in
-                    let ec = utf8_col_num pos_final.buf pos_final.col in
+                    let es = line_num pos_final.buf_ab in
+                    let ec = utf8_col_num pos_final.buf_ab s.col_ab in
                     log "\027[31mmerging %a at %s %d:%d-%d:%d\027[0m\n%!"
                         print_final_no_pos element fname ls lc es ec
                   end;
