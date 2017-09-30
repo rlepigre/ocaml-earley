@@ -79,7 +79,7 @@ let parser ident   =
 
 (* FIXME ... !Main.a = !(Main.a) !main.a = (!main).a ... *)
 #ifversion >= 4.03
-let mk_unary_opp name _loc_name arg _loc =
+let mk_unary_opp _loc name _loc_name arg =
   let res =
     match name, arg.pexp_desc with
     | "-", Pexp_constant(Pconst_integer(n,o)) ->
@@ -97,7 +97,7 @@ let mk_unary_opp name _loc_name arg _loc =
   in
   loc_expr _loc res
 #else
-let mk_unary_opp name _loc_name arg _loc =
+let mk_unary_opp _loc name _loc_name arg =
   let res =
     match name, arg.pexp_desc with
     | "-", Pexp_constant(Const_int n) ->
@@ -1400,19 +1400,14 @@ let parser left_expr @(alm,lvl) =
 
   | if_kw c:expression then_kw e:(expression_lvl (Match, next_exp Seq)) else_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, false, (fun e' _ -> <:expr< if $c$ then $e$ else $e'$>>))
+    -> (next_exp Seq, false, (fun e' _loc -> <:expr< if $c$ then $e$ else $e'$>>))
 
   | if_kw c:expression then_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, true, (fun e _ ->  <:expr< if $c$ then $e$>>))
+    -> (next_exp Seq, true, (fun e _loc ->  <:expr< if $c$ then $e$>>))
 
   | ls:{(expression_lvl (NoMatch, next_exp Seq)) _:semi_col }+ when lvl <= Seq ->
-       (next_exp Seq, false, (fun e' _ ->
-        (* NOTE: why OCaml does that for the final ';' and the pos of e'
-           this will disappear if the reported bug is fixed in ocaml *)
-        let e' = if Quote.is_antiquotation e'.pexp_loc then e' else
-                   loc_expr (merge2 e'.pexp_loc _loc) e'.pexp_desc
-        in
+       (next_exp Seq, false, (fun e' _loc ->
 	mk_seq (ls@[e'])))
 
   | v:inst_var_name STR("<-") when lvl <= Aff
@@ -1440,9 +1435,7 @@ let parser left_expr @(alm,lvl) =
        (next_exp Tupl, false, (fun e' _loc -> loc_expr _loc (Pexp_tuple (l@[e']))))
 
   | assert_kw when lvl <= App ->
-       (next_exp App, false, (fun e _loc -> match e.pexp_desc with
-          | Pexp_construct({txt=Lident "false"},None) -> pexp_assertfalse _loc
-          | _ -> loc_expr _loc (Pexp_assert(e))))
+       (next_exp App, false, (fun e _loc -> loc_expr _loc (Pexp_assert(e))))
 
   | lazy_kw when lvl <= App ->
      (next_exp App, false, (fun e _loc -> loc_expr _loc (Pexp_lazy e)))
@@ -1461,27 +1454,28 @@ let parser left_expr @(alm,lvl) =
   | (infix_expr Pow) when lvl <= Pow
 
 and parser prefix_expr lvl =
-  p:(prefix_symbol lvl) -> (lvl, false, (fun e _loc_e -> mk_unary_opp p _loc_p e _loc_e))
+  p:(prefix_symbol lvl) -> (lvl, false, (fun e _loc -> mk_unary_opp _loc p _loc_p e))
 
 and infix_expr lvl =
   if assoc lvl = Left then
     parser
       e':(expression_lvl (NoMatch, lvl)) op:(infix_symbol lvl) ->
          (next_exp lvl, false,
-          fun e _loc_e -> mk_binary_op _loc e' op _loc_op e)
+          fun e _loc -> mk_binary_op _loc e' op _loc_op e)
          else if assoc lvl = NoAssoc then
     parser
       e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl) ->
          (next_exp lvl, false,
-          fun e _loc_e -> mk_binary_op _loc e' op _loc_op e)
+          fun e _loc -> mk_binary_op _loc e' op _loc_op e)
   else
     parser
       ls:{e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl)
              -> (_loc,e',op,_loc_op) }+ ->
          (next_exp lvl, false,
-          fun e _loc_e ->
-          List.fold_right (fun (_loc,e',op,_loc_op) acc
-                           -> mk_binary_op _loc e' op _loc_op acc) ls e)
+          fun e _loc ->
+          List.fold_right
+            (fun (_loc_e,e',op,_loc_op) acc
+             -> mk_binary_op (merge2 _loc_e _loc) e' op _loc_op acc) ls e)
 
 let parser prefix_expression =
   | function_kw l:match_cases
@@ -1705,10 +1699,10 @@ let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
 
   | e:(extra_expressions_grammar c) (semicol (alm,lvl)) -> e
 
-  | (lvl0,no_else,f):(left_expr (alm,lvl)) ->>
+  | (lvl0,no_else,f as s):(left_expr (alm,lvl)) ->>
                 e:(expression_lvl (alm,lvl0))
                 (semicol (alm,lvl)) (noelse no_else)
-       -> f e _loc
+       -> f e (merge2 _loc_s _loc)
 
   | r:(right_expression lvl) (semicol (alm,lvl)) -> r
 
