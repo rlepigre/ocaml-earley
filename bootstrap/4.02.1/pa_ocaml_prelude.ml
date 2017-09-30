@@ -116,28 +116,11 @@ module Initial =
     type alm =
       | NoMatch
       | Match
-      | MatchRight
       | Let
-      | LetRight
-    let right_alm =
-      function
-      | Match |MatchRight  -> Match
-      | Let |LetRight  -> Let
-      | NoMatch  -> NoMatch
-    let left_alm =
-      function
-      | Match |MatchRight  -> MatchRight
-      | Let |LetRight  -> LetRight
-      | NoMatch  -> NoMatch
     let allow_match = function | Match  -> true | _ -> false
     let allow_let = function | Match |Let  -> true | _ -> false
     let string_exp (b,lvl) =
-      (match b with
-       | NoMatch  -> ""
-       | Match  -> "m_"
-       | MatchRight  -> "mr_"
-       | Let  -> "l_"
-       | LetRight  -> "lr_") ^
+      (match b with | NoMatch  -> "" | Match  -> "m_" | Let  -> "l_") ^
         (match lvl with
          | Seq  -> "Seq"
          | If  -> "If"

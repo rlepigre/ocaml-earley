@@ -149,17 +149,7 @@ let next_exp = function
   | Atom -> Atom
 
 type alm =
-    NoMatch | Match | MatchRight | Let | LetRight
-
-let right_alm = function
-  | Match | MatchRight -> Match
-  | Let | LetRight -> Let
-  | NoMatch -> NoMatch
-
-let left_alm = function
-  | Match | MatchRight -> MatchRight
-  | Let | LetRight -> LetRight
-  | NoMatch -> NoMatch
+    NoMatch | Match | Let
 
 let allow_match = function
   | Match -> true
@@ -170,9 +160,9 @@ let allow_let = function
   | _ -> false
 
 let string_exp (b,lvl) =
-  (match b with NoMatch -> "" | Match -> "m_" | MatchRight -> "mr_"
-                              | Let -> "l_" | LetRight -> "lr_"
-  ) ^ match lvl with
+  (match b with NoMatch -> "" | Match -> "m_" | Let -> "l_"
+  ) ^
+  (match lvl with
   | Seq -> "Seq"
   | If -> "If"
   | Aff -> "Aff"
@@ -190,13 +180,17 @@ let string_exp (b,lvl) =
   | Dash -> "Dash"
   | Dot -> "Dot"
   | Prefix -> "Prefix"
-  | Atom -> "Atom"
+  | Atom -> "Atom")
 
 
-  let (expression_lvl : (alm * expression_prio) -> expression grammar), set_expression_lvl = grammar_family ~param_to_string:string_exp "expression_lvl"
-  let expression = expression_lvl (Match,Seq)
-  let structure_item : structure_item list grammar = declare_grammar "structure_item"
-  let signature_item : signature_item list grammar = declare_grammar "signature_item"
+  let ((expression_lvl : alm * expression_prio -> expression grammar)
+      , set_expression_lvl)
+    = grammar_family ~param_to_string:string_exp "expression_lvl"
+  let expression = expression_lvl (Match, Seq)
+  let structure_item : structure_item list grammar
+    = declare_grammar "structure_item"
+  let signature_item : signature_item list grammar
+    = declare_grammar "signature_item"
 #if version < 4.03
   type arg_label = string
 #endif
@@ -248,7 +242,7 @@ let string_exp (b,lvl) =
   let class_body : class_structure grammar = declare_grammar "class_body"
   let class_expr : class_expr grammar = declare_grammar "class_expr"
   let value_path : Longident.t grammar = declare_grammar "value_path"
-  let extra_expressions = ([] : ((alm * expression_prio) -> expression grammar) list)
+  let extra_expressions = ([] : (alm * expression_prio -> expression grammar) list)
   let extra_prefix_expressions = ([] : (expression grammar) list)
   let extra_types = ([] : (type_prio -> core_type grammar) list)
   let extra_patterns = ([] : (bool * pattern_prio -> pattern grammar) list)

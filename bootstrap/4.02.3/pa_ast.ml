@@ -244,9 +244,10 @@ let ppat_construct (a,b) = Ppat_construct (a, b)
 let pexp_constraint (a,b) = Pexp_constraint (a, b)
 let pexp_coerce (a,b,c) = Pexp_coerce (a, b, c)
 let pexp_assertfalse _loc =
-  Pexp_assert
-    (loc_expr _loc
-       (pexp_construct ({ txt = (Lident "false"); loc = _loc }, None)))
+  loc_expr _loc
+    (Pexp_assert
+       (loc_expr _loc
+          (pexp_construct ({ txt = (Lident "false"); loc = _loc }, None))))
 let make_case pat expr guard =
   { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
 let pexp_function cases = Pexp_function cases

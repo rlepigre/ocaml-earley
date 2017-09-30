@@ -431,7 +431,7 @@ module Ext(In:Extension) = struct
 
   and parser glr_action alm =
     | "->>" r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
-    | arrow_re action:(if alm then expression else expression_lvl(Let,Seq)) no_semi -> Normal action
+    | arrow_re action:(if alm then expression else expression_lvl (Let, Seq)) no_semi -> Normal action
     | EMPTY -> Default
 
   and parser glr_rule alm =

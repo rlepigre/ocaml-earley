@@ -331,7 +331,7 @@ let ppat_alias _loc p id =
   let ppat_construct(a,b) = Ppat_construct(a,b)
   let pexp_constraint(a,b) = Pexp_constraint(a,b)
   let pexp_coerce(a,b,c) = Pexp_coerce(a,b,c)
-  let pexp_assertfalse _loc = Pexp_assert(loc_expr _loc (pexp_construct({ txt = Lident "false"; loc = _loc}, None)))
+  let pexp_assertfalse _loc = loc_expr _loc (Pexp_assert(loc_expr _loc (pexp_construct({ txt = Lident "false"; loc = _loc}, None))))
   let make_case = fun pat expr guard -> { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
   let pexp_function cases =
     Pexp_function (cases)
@@ -378,7 +378,7 @@ let ppat_alias _loc p id =
   let ppat_construct(a,b) = Ppat_construct(a,b,false)
   let pexp_constraint(a,b) = Pexp_constraint(a,Some b,None)
   let pexp_coerce(a,b,c) = Pexp_constraint(a,b,Some c)
-  let pexp_assertfalse _loc = Pexp_assertfalse
+  let pexp_assertfalse _loc = loc_expr _loc Pexp_assertfalse
   let make_case = fun pat expr guard ->
     match guard with None -> (pat, expr)
     | Some e -> (pat, loc_expr (merge2 e.pexp_loc expr.pexp_loc) (Pexp_when(e,expr)))
