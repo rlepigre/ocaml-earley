@@ -1159,12 +1159,20 @@ let parser eright_member =
 	None -> e
       | Some ty -> loc_expr (ghost _loc) (pexp_constraint(e, ty))
       in
-      e
+      (_loc_ty,ty, e)
 
 let _ = set_grammar let_binding (
   parser
-  | pat:pattern e:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
-     ( let loc = merge2 _loc_pat _loc_e in
+  | pat:pattern ((_loc_ty,_ty,e) as erm):eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  (    let loc = merge2 _loc_pat _loc_erm in
+#ifversion >= 4.06.0
+       let pat = match _ty with
+           None -> pat
+         | Some ty ->
+            let ty = loc_typ _loc_ty (Ptyp_poly ([], ty)) in
+            loc_pat (ghost (merge2 _loc_pat _loc_ty)) (Ppat_constraint(pat,ty))
+       in
+#endif
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
   | vn:value_name e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
      ( let loc = merge2 _loc_vn _loc_e in
