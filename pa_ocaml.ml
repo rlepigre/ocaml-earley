@@ -176,7 +176,13 @@ let varify_constructors var_names t =
           Ptyp_package(longident,List.map (fun (n,typ) -> (n,loop typ) ) lst)
     in
     {t with ptyp_desc = desc}
+#ifversion >= 4.06.0
+  and loop_core_field = function
+    | Otag(str, attr, ty) -> Otag(str, attr, loop ty)
+    | Oinherit(ty) -> Oinherit(loop ty)
+#else
   and loop_core_field (str, attr, ty) = (str, attr, loop ty)
+#endif
   and loop_row_field  =
     function
       | Rtag(label,attr,flag,lst) ->
@@ -397,10 +403,16 @@ let parser poly_syntax_typexpr =
 
 let parser method_type =
   | mn:method_name STR(":") pte:poly_typexpr ->
+#ifversion >= 4.06
+       Otag(id_loc mn _loc_mn, [], pte)
+  | ty:(typexpr_lvl (next_type_prio DashType)) ->
+       Oinherit(ty)
+#else
 #ifversion >= 4.05
       id_loc mn _loc_mn, [], pte
 #else
       mn, [], pte
+#endif
 #endif
 let parser tag_spec =
   | tn:tag_name te:{_:of_kw '&'? typexpr}? ->
@@ -408,7 +420,11 @@ let parser tag_spec =
               | None   -> true, []
               | Some (amp,l) -> amp<>None, [l]
       in
+#ifversion >= 4.06.0
+      let tn = id_loc tn _loc_tn in
+#endif
       Rtag (tn, [], amp, t)
+
   | te:typexpr ->
       Rinherit te
 
@@ -418,6 +434,9 @@ let parser tag_spec_first =
               | None   -> true,[]
               | Some (amp,l) -> amp<>None, [l]
       in
+#ifversion >= 4.06.0
+      let tn = id_loc tn _loc_tn in
+#endif
       [Rtag (tn, [], amp, t)]
   | te:typexpr? STR("|") ts:tag_spec ->
       match te with
@@ -427,6 +446,9 @@ let parser tag_spec_first =
 let parser tag_spec_full =
   | tn:tag_name (amp,tes):{of_kw amp:'&'? te:typexpr
     tes:{STR("&") te:typexpr}* -> (amp<>None,(te::tes))}?[true,[]] ->
+#ifversion >= 4.06.0
+      let tn = id_loc tn _loc_tn in
+#endif
       Rtag (tn, [], amp, tes)
   | te:typexpr ->
       Rinherit te
@@ -1760,12 +1782,22 @@ let parser mod_constraint =
   | module_kw m1:module_path CHR('=') m2:extended_module_path ->
      let name = id_loc m1 _loc_m1 in
      Pwith_module(name, id_loc m2 _loc_m2 )
-  | type_kw tps:type_params?[[]] tcn:typeconstr_name STR(":=") te:typexpr ->
-      let td = type_declaration _loc (id_loc tcn _loc_tcn)
-	   tps [] Ptype_abstract Public (Some te) in
+  | type_kw tps:type_params?[[]] tcn:typeconstr STR(":=") te:typexpr ->
+      let tcn0 = id_loc (Longident.last tcn) _loc_tcn in
+      let _tcn = id_loc tcn _loc_tcn in
+      let td = type_declaration _loc tcn0 tps [] Ptype_abstract Public (Some te) in
+#ifversion >= 4.06.0
+      Pwith_typesubst (_tcn,td)
+#else
       Pwith_typesubst td
+#endif
+#ifversion >= 4.06.0
+  | module_kw mn:module_path STR(":=") emp:extended_module_path ->
+      let mn = id_loc mn _loc_mn in
+#else
   | module_kw mn:module_name STR(":=") emp:extended_module_path ->
-     Pwith_modsubst(mn, id_loc emp _loc_emp)
+#endif
+      Pwith_modsubst(mn, id_loc emp _loc_emp)
 
 let _ = set_grammar module_type (
   parser
