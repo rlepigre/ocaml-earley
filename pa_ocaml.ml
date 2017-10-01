@@ -652,11 +652,13 @@ let _ = set_grammar constr_decl_list (
 (* NOTE: OCaml includes the semi column in the position *)
 let parser field_decl_semi =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
-      label_declaration _loc (id_loc fn _loc_fn) m pte
+     label_declaration ~attributes:(attach_attrib ~local:true _loc [])
+                       _loc (id_loc fn _loc_fn) m pte
 
 let parser field_decl =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
-      label_declaration _loc (id_loc fn _loc_fn) m pte
+     label_declaration ~attributes:(attach_attrib ~local:true _loc [])
+                       _loc (id_loc fn _loc_fn) m pte
 
 let parser field_decl_aux =
   | EMPTY -> []
