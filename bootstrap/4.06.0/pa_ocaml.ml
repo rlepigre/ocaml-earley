@@ -6265,34 +6265,25 @@ module Make(Initial:Extension) =
                 [Earley.sequence (extra_expressions_grammar c)
                    (semicol (alm, lvl)) (fun e -> fun _default_0 -> e);
                 Earley.iter
-                  (Earley.apply_position
+                  (Earley.apply
                      (fun ((_, (lvl0, no_else, f)) as s) ->
                         let (_loc_s, s) = s in
-                        fun __loc__start__buf ->
-                          fun __loc__start__pos ->
-                            fun __loc__end__buf ->
-                              fun __loc__end__pos ->
-                                let _loc =
-                                  locate __loc__start__buf __loc__start__pos
-                                    __loc__end__buf __loc__end__pos in
-                                Earley.fsequence_position
-                                  (expression_lvl (alm, lvl0))
-                                  (Earley.sequence (semicol (alm, lvl))
-                                     (noelse no_else)
-                                     (fun _default_1 ->
-                                        fun _default_0 ->
-                                          fun e ->
-                                            fun __loc__start__buf ->
-                                              fun __loc__start__pos ->
-                                                fun __loc__end__buf ->
-                                                  fun __loc__end__pos ->
-                                                    let _loc =
-                                                      locate
-                                                        __loc__start__buf
-                                                        __loc__start__pos
-                                                        __loc__end__buf
-                                                        __loc__end__pos in
-                                                    f e (merge2 _loc_s _loc))))
+                        Earley.fsequence
+                          (Earley.apply_position
+                             (fun x ->
+                                fun str ->
+                                  fun pos ->
+                                    fun str' ->
+                                      fun pos' ->
+                                        ((locate str pos str' pos'), x))
+                             (expression_lvl (alm, lvl0)))
+                          (Earley.sequence (semicol (alm, lvl))
+                             (noelse no_else)
+                             (fun _default_1 ->
+                                fun _default_0 ->
+                                  fun e ->
+                                    let (_loc_e, e) = e in
+                                    f e (merge2 _loc_s _loc_e))))
                      (Earley.apply_position
                         (fun x ->
                            fun str ->
