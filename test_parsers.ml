@@ -51,7 +51,7 @@
 let _ = Location.input_name := ""
 
 (* necessite la librairie UNIX *)
-let min_time = 0.2
+let min_time = 0.02
 
 let with_time f x =
   Gc.compact ();
