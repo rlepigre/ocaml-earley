@@ -1724,7 +1724,7 @@ let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
   | (lvl0,no_else,f as s):(left_expr (alm,lvl)) ->>
                 e:(expression_lvl (alm,lvl0))
                 (semicol (alm,lvl)) (noelse no_else)
-       -> f e (merge2 _loc_s _loc)
+       -> f e (merge2 _loc_s _loc_e)
 
   | r:(right_expression lvl) (semicol (alm,lvl)) -> r
 
