@@ -229,13 +229,17 @@ let string_exp (b,lvl) =
   let typexpr = typexpr_lvl TopType
   type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
   let topPat = AltPat
+  let pat_prio_to_string (_, lvl) = match lvl with
+    | AltPat -> "AltPat" | TupPat -> "TupPat" | ConsPat -> "ConsPat"
+    | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
   let next_pat_prio = function
     | AltPat -> TupPat
     | TupPat -> ConsPat
     | ConsPat -> ConstrPat
     | ConstrPat -> AtomPat
     | AtomPat -> assert false
-  let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl = grammar_prio "pattern_lvl"
+  let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl =
+    grammar_prio ~param_to_string:pat_prio_to_string "pattern_lvl"
   let pattern = pattern_lvl (true,topPat)
 
   let let_binding : value_binding list grammar = declare_grammar "let_binding"
