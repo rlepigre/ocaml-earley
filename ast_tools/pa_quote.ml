@@ -96,9 +96,12 @@ let modname =
   | 2 -> let s = Filename.chop_extension (Filename.basename Sys.argv.(1)) in
 	 assert (String.length s > 0);
 	 let f = s.[0] in
-	 if f >= 'a' && f <= 'z' then (
-	   let f' = Char.chr (Char.code f - Char.code 'a' + Char.code 'A') in
-	   Bytes.set s 0 f');
+	 let s =
+           if f >= 'a' && f <= 'z' then (
+	     let f' = Char.chr (Char.code f - Char.code 'a' + Char.code 'A') in
+	     String.make 1 f' ^ String.sub s 1 (String.length s - 1))
+           else s
+         in
 	 fun id -> Printf.sprintf "(Ldot(Lident \"%s\", \"%s\"))" s id
   | _ -> failwith "Wrong number of arguments..."
 
