@@ -86,7 +86,7 @@ module Make(Initial:Extension) =
                                      Quote.string_antiquotation _loc e)));
            oident])
       
-    let mk_unary_opp name _loc_name arg _loc =
+    let mk_unary_opp _loc name _loc_name arg =
       let res =
         match (name, (arg.pexp_desc)) with
         | ("-",Pexp_constant (Pconst_integer (n,o))) ->
@@ -4774,7 +4774,7 @@ module Make(Initial:Extension) =
                           in
                        ((next_exp lvl), false,
                          (fun e  ->
-                            fun _loc_e  -> mk_binary_op _loc e' op _loc_op e)))
+                            fun _loc  -> mk_binary_op _loc e' op _loc_op e)))
       else
         if (assoc lvl) = NoAssoc
         then
@@ -4799,8 +4799,7 @@ module Make(Initial:Extension) =
                             in
                          ((next_exp lvl), false,
                            (fun e  ->
-                              fun _loc_e  ->
-                                mk_binary_op _loc e' op _loc_op e)))
+                              fun _loc  -> mk_binary_op _loc e' op _loc_op e)))
         else
           Earley.apply_position
             (fun ls  ->
@@ -4814,12 +4813,12 @@ module Make(Initial:Extension) =
                           in
                        ((next_exp lvl), false,
                          (fun e  ->
-                            fun _loc_e  ->
+                            fun _loc  ->
                               List.fold_right
-                                (fun (_loc,e',op,_loc_op)  ->
+                                (fun (_loc_e,e',op,_loc_op)  ->
                                    fun acc  ->
-                                     mk_binary_op _loc e' op _loc_op acc) ls
-                                e)))
+                                     mk_binary_op (merge2 _loc_e _loc) e' op
+                                       _loc_op acc) ls e)))
             (Earley.apply List.rev
                (Earley.fixpoint1 []
                   (Earley.apply (fun x  -> fun y  -> x :: y)
@@ -5069,7 +5068,7 @@ module Make(Initial:Extension) =
                                              in
                                           ((next_exp Seq), false,
                                             (fun e'  ->
-                                               fun _  ->
+                                               fun _loc  ->
                                                  {
                                                    Parsetree.pexp_desc =
                                                      (Parsetree.Pexp_ifthenelse
@@ -5094,7 +5093,7 @@ module Make(Initial:Extension) =
                                    in
                                 ((next_exp Seq), true,
                                   (fun e  ->
-                                     fun _  ->
+                                     fun _loc  ->
                                        {
                                          Parsetree.pexp_desc =
                                            (Parsetree.Pexp_ifthenelse
@@ -5103,27 +5102,10 @@ module Make(Initial:Extension) =
                                          Parsetree.pexp_attributes = []
                                        }))))));
          (((fun (alm,lvl)  -> lvl <= Seq)),
-           (Earley.apply_position
+           (Earley.apply
               (fun ls  ->
-                 fun __loc__start__buf  ->
-                   fun __loc__start__pos  ->
-                     fun __loc__end__buf  ->
-                       fun __loc__end__pos  ->
-                         let _loc =
-                           locate __loc__start__buf __loc__start__pos
-                             __loc__end__buf __loc__end__pos
-                            in
-                         ((next_exp Seq), false,
-                           (fun e'  ->
-                              fun _  ->
-                                let e' =
-                                  if Quote.is_antiquotation e'.pexp_loc
-                                  then e'
-                                  else
-                                    loc_expr (merge2 e'.pexp_loc _loc)
-                                      e'.pexp_desc
-                                   in
-                                mk_seq (ls @ [e']))))
+                 ((next_exp Seq), false,
+                   (fun e'  -> fun _loc  -> mk_seq (ls @ [e']))))
               (Earley.apply List.rev
                  (Earley.fixpoint1 []
                     (Earley.apply (fun x  -> fun y  -> x :: y)
@@ -5295,12 +5277,7 @@ module Make(Initial:Extension) =
                             in
                          ((next_exp App), false,
                            (fun e  ->
-                              fun _loc  ->
-                                match e.pexp_desc with
-                                | Pexp_construct
-                                    ({ txt = Lident "false" },None ) ->
-                                    pexp_assertfalse _loc
-                                | _ -> loc_expr _loc (Pexp_assert e))))
+                              fun _loc  -> loc_expr _loc (Pexp_assert e))))
               assert_kw));
          (((fun (alm,lvl)  -> lvl <= App)),
            (Earley.apply_position
@@ -5332,11 +5309,20 @@ module Make(Initial:Extension) =
     let _ =
       prefix_expr__set__grammar
         (fun lvl  ->
-           Earley.apply
+           Earley.apply_position
              (fun p  ->
                 let (_loc_p,p) = p  in
-                (lvl, false,
-                  (fun e  -> fun _loc_e  -> mk_unary_opp p _loc_p e _loc_e)))
+                fun __loc__start__buf  ->
+                  fun __loc__start__pos  ->
+                    fun __loc__end__buf  ->
+                      fun __loc__end__pos  ->
+                        let _loc =
+                          locate __loc__start__buf __loc__start__pos
+                            __loc__end__buf __loc__end__pos
+                           in
+                        (lvl, false,
+                          (fun e  ->
+                             fun _loc  -> mk_unary_opp _loc p _loc_p e)))
              (Earley.apply_position
                 (fun x  ->
                    fun str  ->
@@ -6638,7 +6624,8 @@ module Make(Initial:Extension) =
                    (semicol (alm, lvl)) (fun e  -> fun _default_0  -> e);
                 Earley.iter
                   (Earley.apply_position
-                     (fun ((lvl0,no_else,f) as _default_0)  ->
+                     (fun ((_,(lvl0,no_else,f)) as s)  ->
+                        let (_loc_s,s) = s  in
                         fun __loc__start__buf  ->
                           fun __loc__start__pos  ->
                             fun __loc__end__buf  ->
@@ -6665,8 +6652,14 @@ module Make(Initial:Extension) =
                                                         __loc__end__buf
                                                         __loc__end__pos
                                                        in
-                                                    f e _loc)))
-                     (left_expr (alm, lvl)));
+                                                    f e (merge2 _loc_s _loc))))
+                     (Earley.apply_position
+                        (fun x  ->
+                           fun str  ->
+                             fun pos  ->
+                               fun str'  ->
+                                 fun pos'  -> ((locate str pos str' pos'), x))
+                        (left_expr (alm, lvl))));
                 Earley.sequence (right_expression lvl) (semicol (alm, lvl))
                   (fun r  -> fun _default_0  -> r)]))
       
@@ -6986,7 +6979,7 @@ module Make(Initial:Extension) =
                            fun pos  ->
                              fun str'  ->
                                fun pos'  -> ((locate str pos str' pos'), x))
-                      typeconstr_name)
+                      typeconstr)
                    (Earley.sequence (Earley.string ":=" ":=") typexpr
                       (fun _  ->
                          fun te  ->
@@ -7003,9 +6996,13 @@ module Make(Initial:Extension) =
                                              __loc__start__pos
                                              __loc__end__buf __loc__end__pos
                                             in
+                                         let tcn0 =
+                                           id_loc (Longident.last tcn)
+                                             _loc_tcn
+                                            in
+                                         let _tcn = id_loc tcn _loc_tcn  in
                                          let td =
-                                           type_declaration _loc
-                                             (id_loc tcn _loc_tcn) tps []
+                                           type_declaration _loc tcn0 tps []
                                              Ptype_abstract Public (Some te)
                                             in
                                          Pwith_typesubst td))))])

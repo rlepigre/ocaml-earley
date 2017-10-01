@@ -11,36 +11,35 @@ module type Final  =
     val top_phrase : Parsetree.toplevel_phrase Earley.grammar
   end
 let define_directive =
-  Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*" 
-let if_directive = Str.regexp "[ \t]*if" 
-let ifdef_directive = Str.regexp "[ \t]*if[ \t]*def[ \t]*\\([^ \t]*\\)[ \t]*" 
+  Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*"
+let if_directive = Str.regexp "[ \t]*if"
+let ifdef_directive = Str.regexp "[ \t]*if[ \t]*def[ \t]*\\([^ \t]*\\)[ \t]*"
 let ifundef_directive =
-  Str.regexp "[ \t]*if[ \t]*ndef[ \t]*\\([^ \t]*\\)[ \t]*" 
+  Str.regexp "[ \t]*if[ \t]*ndef[ \t]*\\([^ \t]*\\)[ \t]*"
 let ifversion_directive =
   Str.regexp
     "[ \t]*if[ \t]*version[ \t]*\\([<>=]*\\)[ \t]*\\([0-9]+\\)[.]\\([0-9]+\\)[ \t]*"
-  
-let else_directive = Str.regexp "[ \t]*else[ \t]*" 
-let elif_directive = Str.regexp "[ \t]*elif[ \t]*" 
-let endif_directive = Str.regexp "[ \t]*endif[ \t]*" 
+let else_directive = Str.regexp "[ \t]*else[ \t]*"
+let elif_directive = Str.regexp "[ \t]*elif[ \t]*"
+let endif_directive = Str.regexp "[ \t]*endif[ \t]*"
 let line_num_directive =
-  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$" 
+  Str.regexp "[ \t]*\\([0-9]+\\)[ \t]*\\([\"]\\([^\"]*\\)[\"]\\)?[ \t]*$"
 let test_directive fname num line =
   if Str.string_match ifdef_directive line 1
   then
-    let macro_name = Str.matched_group 1 line  in
-    try ignore (Sys.getenv macro_name); true with | Not_found  -> false
+    let macro_name = Str.matched_group 1 line in
+    try ignore (Sys.getenv macro_name); true with | Not_found -> false
   else
     if Str.string_match ifundef_directive line 1
     then
-      (let macro_name = Str.matched_group 1 line  in
-       try ignore (Sys.getenv macro_name); false with | Not_found  -> true)
+      (let macro_name = Str.matched_group 1 line in
+       try ignore (Sys.getenv macro_name); false with | Not_found -> true)
     else
       if Str.string_match ifversion_directive line 1
       then
-        (let predicat = Str.matched_group 1 line  in
-         let major' = Str.matched_group 2 line  in
-         let minor' = Str.matched_group 3 line  in
+        (let predicat = Str.matched_group 1 line in
+         let major' = Str.matched_group 2 line in
+         let minor' = Str.matched_group 3 line in
          try
            let predicat =
              match predicat with
@@ -50,16 +49,16 @@ let test_directive fname num line =
              | ">" -> (>)
              | "<=" -> (<=)
              | ">=" -> (>=)
-             | _ -> raise Exit  in
+             | _ -> raise Exit in
            let version =
              try Sys.getenv "OCAMLVERSION"
-             with | Not_found  -> Sys.ocaml_version  in
-           let (major,minor) =
+             with | Not_found -> Sys.ocaml_version in
+           let (major, minor) =
              match Str.split (Str.regexp_string ".") version with
              | major::minor::_ ->
-                 let major = int_of_string major  in
-                 let minor = int_of_string minor  in (major, minor)
-             | _ -> assert false  in
+                 let major = int_of_string major in
+                 let minor = int_of_string minor in (major, minor)
+             | _ -> assert false in
            predicat (major, minor)
              ((int_of_string major'), (int_of_string minor'))
          with
@@ -71,19 +70,18 @@ let test_directive fname num line =
         (Printf.eprintf "file: %s, line %d: unknown #if directive\n%!" fname
            num;
          exit 1)
-  
 module OCamlPP : Preprocessor =
   struct
     type state = bool list
-    let initial_state = [] 
-    let active = (fun st  -> not (List.mem false st) : state -> bool) 
+    let initial_state = []
+    let active = (fun st -> not (List.mem false st) : state -> bool)
     let update st name lnum line =
       if (line <> "") && ((line.[0]) = '#')
       then
         (if (Str.string_match define_directive line 1) && (active st)
          then
-           let macro_name = Str.matched_group 1 line  in
-           let value = Str.matched_group 2 line  in
+           let macro_name = Str.matched_group 1 line in
+           let value = Str.matched_group 2 line in
            (Unix.putenv macro_name value; (st, name, lnum, false))
          else
            if Str.string_match if_directive line 1
@@ -111,51 +109,48 @@ module OCamlPP : Preprocessor =
                  else
                    if Str.string_match line_num_directive line 1
                    then
-                     (let lnum = int_of_string (Str.matched_group 1 line)  in
+                     (let lnum = int_of_string (Str.matched_group 1 line) in
                       let name =
-                        try Str.matched_group 3 line
-                        with | Not_found  -> name  in
+                        try Str.matched_group 3 line with | Not_found -> name in
                       (st, name, lnum, false))
                    else (st, name, lnum, (active st)))
-      else (st, name, lnum, (active st)) 
+      else (st, name, lnum, (active st))
     let check_final st name =
-      match st with | [] -> () | _ -> pp_error name "unclosed conditionals" 
+      match st with | [] -> () | _ -> pp_error name "unclosed conditionals"
   end 
 module PP = (Earley.WithPP)(OCamlPP)
 module Start(Main:Final) =
   struct
-    let anon_fun s = file := (Some s) 
+    let anon_fun s = file := (Some s)
     let _ =
       Arg.parse Main.spec anon_fun
         (Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)))
-      
-    let _ = Main.before_parse_hook () 
+    let _ = Main.before_parse_hook ()
     let entry =
       match ((!entry), (!file)) with
-      | (FromExt ,Some s) ->
+      | (FromExt, Some s) ->
           let rec fn =
             function
-            | (ext,res)::l ->
+            | (ext, res)::l ->
                 if Filename.check_suffix s ext then res else fn l
             | [] ->
-                (eprintf "Don't know what to do with file %s\n%!" s; exit 1)
-             in
+                (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
           fn Main.entry_points
-      | (FromExt ,None ) -> Implementation (Main.structure, ocaml_blank)
-      | (Intf ,_) -> Interface (Main.signature, ocaml_blank)
-      | (Impl ,_) -> Implementation (Main.structure, ocaml_blank) 
+      | (FromExt, None) -> Implementation (Main.structure, ocaml_blank)
+      | (Intf, _) -> Interface (Main.signature, ocaml_blank)
+      | (Impl, _) -> Implementation (Main.structure, ocaml_blank)
     let ast =
-      let (filename,ch) =
+      let (filename, ch) =
         match !file with
-        | None  -> ("stdin", stdin)
-        | Some name -> (name, (open_in name))  in
+        | None -> ("stdin", stdin)
+        | Some name -> (name, (open_in name)) in
       let run () =
         match entry with
-        | Implementation (g,blank) ->
+        | Implementation (g, blank) ->
             `Struct (PP.parse_channel ~filename g blank ch)
-        | Interface (g,blank) -> `Sig (PP.parse_channel ~filename g blank ch)
-         in
-      Earley.handle_exception run () 
+        | Interface (g, blank) ->
+            `Sig (PP.parse_channel ~filename g blank ch) in
+      Earley.handle_exception run ()
     let _ =
       if !ascii
       then
@@ -167,13 +162,12 @@ module Start(Main:Final) =
         (let magic =
            match ast with
            | `Struct _ -> Config.ast_impl_magic_number
-           | `Sig _ -> Config.ast_intf_magic_number  in
+           | `Sig _ -> Config.ast_intf_magic_number in
          output_string stdout magic;
          output_value stdout
-           (match !file with | None  -> "" | Some name -> name);
+           (match !file with | None -> "" | Some name -> name);
          (match ast with
           | `Struct ast -> output_value stdout ast
           | `Sig ast -> output_value stdout ast);
          close_out stdout)
-      
   end
