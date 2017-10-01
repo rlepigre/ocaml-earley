@@ -1138,8 +1138,8 @@ module Ext(In:Extension) =
           }
         else res  in
       (def, condition, res) 
-    let apply_def_cond _loc arg =
-      let (def,cond,e) = build_rule arg  in
+    let apply_def_cond _loc r =
+      let (def,cond,e) = build_rule r  in
       match cond with
       | None  -> def e
       | Some c ->
@@ -1184,6 +1184,196 @@ module Ext(In:Extension) =
               Parsetree.pexp_attributes = []
             }
       
+    let apply_def_cond_list _loc r acc =
+      let (def,cond,e) = build_rule r  in
+      match cond with
+      | None  ->
+          def
+            {
+              Parsetree.pexp_desc =
+                (Parsetree.Pexp_construct
+                   ({
+                      Asttypes.txt = (Longident.Lident "::");
+                      Asttypes.loc = _loc
+                    },
+                     (Some
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_tuple [e; acc]);
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        })));
+              Parsetree.pexp_loc = _loc;
+              Parsetree.pexp_attributes = []
+            }
+      | Some c ->
+          def
+            {
+              Parsetree.pexp_desc =
+                (Parsetree.Pexp_apply
+                   ({
+                      Parsetree.pexp_desc =
+                        (Parsetree.Pexp_ident
+                           {
+                             Asttypes.txt = (Longident.Lident "@");
+                             Asttypes.loc = _loc
+                           });
+                      Parsetree.pexp_loc = _loc;
+                      Parsetree.pexp_attributes = []
+                    },
+                     [(Asttypes.Nolabel,
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_ifthenelse
+                               (c,
+                                 {
+                                   Parsetree.pexp_desc =
+                                     (Parsetree.Pexp_construct
+                                        ({
+                                           Asttypes.txt =
+                                             (Longident.Lident "::");
+                                           Asttypes.loc = _loc
+                                         },
+                                          (Some
+                                             {
+                                               Parsetree.pexp_desc =
+                                                 (Parsetree.Pexp_tuple
+                                                    [e;
+                                                    {
+                                                      Parsetree.pexp_desc =
+                                                        (Parsetree.Pexp_construct
+                                                           ({
+                                                              Asttypes.txt =
+                                                                (Longident.Lident
+                                                                   "[]");
+                                                              Asttypes.loc =
+                                                                _loc
+                                                            }, None));
+                                                      Parsetree.pexp_loc =
+                                                        _loc;
+                                                      Parsetree.pexp_attributes
+                                                        = []
+                                                    }]);
+                                               Parsetree.pexp_loc = _loc;
+                                               Parsetree.pexp_attributes = []
+                                             })));
+                                   Parsetree.pexp_loc = _loc;
+                                   Parsetree.pexp_attributes = []
+                                 },
+                                 (Some
+                                    {
+                                      Parsetree.pexp_desc =
+                                        (Parsetree.Pexp_construct
+                                           ({
+                                              Asttypes.txt =
+                                                (Longident.Lident "[]");
+                                              Asttypes.loc = _loc
+                                            }, None));
+                                      Parsetree.pexp_loc = _loc;
+                                      Parsetree.pexp_attributes = []
+                                    })));
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        });
+                     (Asttypes.Nolabel, acc)]));
+              Parsetree.pexp_loc = _loc;
+              Parsetree.pexp_attributes = []
+            }
+      
+    let apply_def_cond_prio _loc arg r acc =
+      let (def,cond,e) = build_rule r  in
+      match cond with
+      | None  ->
+          def
+            {
+              Parsetree.pexp_desc =
+                (Parsetree.Pexp_construct
+                   ({
+                      Asttypes.txt = (Longident.Lident "::");
+                      Asttypes.loc = _loc
+                    },
+                     (Some
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_tuple
+                               [{
+                                  Parsetree.pexp_desc =
+                                    (Parsetree.Pexp_tuple
+                                       [{
+                                          Parsetree.pexp_desc =
+                                            (Parsetree.Pexp_fun
+                                               (Asttypes.Nolabel, None,
+                                                 {
+                                                   Parsetree.ppat_desc =
+                                                     Parsetree.Ppat_any;
+                                                   Parsetree.ppat_loc = _loc;
+                                                   Parsetree.ppat_attributes
+                                                     = []
+                                                 },
+                                                 {
+                                                   Parsetree.pexp_desc =
+                                                     (Parsetree.Pexp_construct
+                                                        ({
+                                                           Asttypes.txt =
+                                                             (Longident.Lident
+                                                                "true");
+                                                           Asttypes.loc =
+                                                             _loc
+                                                         }, None));
+                                                   Parsetree.pexp_loc = _loc;
+                                                   Parsetree.pexp_attributes
+                                                     = []
+                                                 }));
+                                          Parsetree.pexp_loc = _loc;
+                                          Parsetree.pexp_attributes = []
+                                        };
+                                       e]);
+                                  Parsetree.pexp_loc = _loc;
+                                  Parsetree.pexp_attributes = []
+                                };
+                               acc]);
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        })));
+              Parsetree.pexp_loc = _loc;
+              Parsetree.pexp_attributes = []
+            }
+      | Some c ->
+          def
+            {
+              Parsetree.pexp_desc =
+                (Parsetree.Pexp_construct
+                   ({
+                      Asttypes.txt = (Longident.Lident "::");
+                      Asttypes.loc = _loc
+                    },
+                     (Some
+                        {
+                          Parsetree.pexp_desc =
+                            (Parsetree.Pexp_tuple
+                               [{
+                                  Parsetree.pexp_desc =
+                                    (Parsetree.Pexp_tuple
+                                       [{
+                                          Parsetree.pexp_desc =
+                                            (Parsetree.Pexp_fun
+                                               (Asttypes.Nolabel, None, arg,
+                                                 c));
+                                          Parsetree.pexp_loc = _loc;
+                                          Parsetree.pexp_attributes = []
+                                        };
+                                       e]);
+                                  Parsetree.pexp_loc = _loc;
+                                  Parsetree.pexp_attributes = []
+                                };
+                               acc]);
+                          Parsetree.pexp_loc = _loc;
+                          Parsetree.pexp_attributes = []
+                        })));
+              Parsetree.pexp_loc = _loc;
+              Parsetree.pexp_attributes = []
+            }
+      
     let build_alternatives _loc ls =
       let ls = List.map snd ls  in
       match ls with
@@ -1220,114 +1410,7 @@ module Ext(In:Extension) =
       | r::[] -> apply_def_cond _loc r
       | _::_::_ ->
           let l =
-            List.fold_right
-              (fun r  ->
-                 fun y  ->
-                   let (def,cond,e) = build_rule r  in
-                   match cond with
-                   | None  ->
-                       def
-                         {
-                           Parsetree.pexp_desc =
-                             (Parsetree.Pexp_construct
-                                ({
-                                   Asttypes.txt = (Longident.Lident "::");
-                                   Asttypes.loc = _loc
-                                 },
-                                  (Some
-                                     {
-                                       Parsetree.pexp_desc =
-                                         (Parsetree.Pexp_tuple [e; y]);
-                                       Parsetree.pexp_loc = _loc;
-                                       Parsetree.pexp_attributes = []
-                                     })));
-                           Parsetree.pexp_loc = _loc;
-                           Parsetree.pexp_attributes = []
-                         }
-                   | Some c ->
-                       def
-                         {
-                           Parsetree.pexp_desc =
-                             (Parsetree.Pexp_apply
-                                ({
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_ident
-                                        {
-                                          Asttypes.txt =
-                                            (Longident.Lident "@");
-                                          Asttypes.loc = _loc
-                                        });
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 },
-                                  [(Asttypes.Nolabel,
-                                     {
-                                       Parsetree.pexp_desc =
-                                         (Parsetree.Pexp_ifthenelse
-                                            (c,
-                                              {
-                                                Parsetree.pexp_desc =
-                                                  (Parsetree.Pexp_construct
-                                                     ({
-                                                        Asttypes.txt =
-                                                          (Longident.Lident
-                                                             "::");
-                                                        Asttypes.loc = _loc
-                                                      },
-                                                       (Some
-                                                          {
-                                                            Parsetree.pexp_desc
-                                                              =
-                                                              (Parsetree.Pexp_tuple
-                                                                 [e;
-                                                                 {
-                                                                   Parsetree.pexp_desc
-                                                                    =
-                                                                    (Parsetree.Pexp_construct
-                                                                    ({
-                                                                    Asttypes.txt
-                                                                    =
-                                                                    (Longident.Lident
-                                                                    "[]");
-                                                                    Asttypes.loc
-                                                                    = _loc
-                                                                    }, None));
-                                                                   Parsetree.pexp_loc
-                                                                    = _loc;
-                                                                   Parsetree.pexp_attributes
-                                                                    = []
-                                                                 }]);
-                                                            Parsetree.pexp_loc
-                                                              = _loc;
-                                                            Parsetree.pexp_attributes
-                                                              = []
-                                                          })));
-                                                Parsetree.pexp_loc = _loc;
-                                                Parsetree.pexp_attributes =
-                                                  []
-                                              },
-                                              (Some
-                                                 {
-                                                   Parsetree.pexp_desc =
-                                                     (Parsetree.Pexp_construct
-                                                        ({
-                                                           Asttypes.txt =
-                                                             (Longident.Lident
-                                                                "[]");
-                                                           Asttypes.loc =
-                                                             _loc
-                                                         }, None));
-                                                   Parsetree.pexp_loc = _loc;
-                                                   Parsetree.pexp_attributes
-                                                     = []
-                                                 })));
-                                       Parsetree.pexp_loc = _loc;
-                                       Parsetree.pexp_attributes = []
-                                     });
-                                  (Asttypes.Nolabel, y)]));
-                           Parsetree.pexp_loc = _loc;
-                           Parsetree.pexp_attributes = []
-                         }) ls
+            List.fold_right (apply_def_cond_list _loc) ls
               {
                 Parsetree.pexp_desc =
                   (Parsetree.Pexp_construct
@@ -1366,109 +1449,7 @@ module Ext(In:Extension) =
       and l1 = List.map snd l1
        in
       let l1 =
-        List.fold_right
-          (fun r  ->
-             fun y  ->
-               let (def,cond,e) = build_rule r  in
-               match cond with
-               | None  ->
-                   def
-                     {
-                       Parsetree.pexp_desc =
-                         (Parsetree.Pexp_construct
-                            ({
-                               Asttypes.txt = (Longident.Lident "::");
-                               Asttypes.loc = _loc
-                             },
-                              (Some
-                                 {
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_tuple
-                                        [{
-                                           Parsetree.pexp_desc =
-                                             (Parsetree.Pexp_tuple
-                                                [{
-                                                   Parsetree.pexp_desc =
-                                                     (Parsetree.Pexp_fun
-                                                        (Asttypes.Nolabel,
-                                                          None,
-                                                          {
-                                                            Parsetree.ppat_desc
-                                                              =
-                                                              Parsetree.Ppat_any;
-                                                            Parsetree.ppat_loc
-                                                              = _loc;
-                                                            Parsetree.ppat_attributes
-                                                              = []
-                                                          },
-                                                          {
-                                                            Parsetree.pexp_desc
-                                                              =
-                                                              (Parsetree.Pexp_construct
-                                                                 ({
-                                                                    Asttypes.txt
-                                                                    =
-                                                                    (Longident.Lident
-                                                                    "true");
-                                                                    Asttypes.loc
-                                                                    = _loc
-                                                                  }, None));
-                                                            Parsetree.pexp_loc
-                                                              = _loc;
-                                                            Parsetree.pexp_attributes
-                                                              = []
-                                                          }));
-                                                   Parsetree.pexp_loc = _loc;
-                                                   Parsetree.pexp_attributes
-                                                     = []
-                                                 };
-                                                e]);
-                                           Parsetree.pexp_loc = _loc;
-                                           Parsetree.pexp_attributes = []
-                                         };
-                                        y]);
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 })));
-                       Parsetree.pexp_loc = _loc;
-                       Parsetree.pexp_attributes = []
-                     }
-               | Some c ->
-                   def
-                     {
-                       Parsetree.pexp_desc =
-                         (Parsetree.Pexp_construct
-                            ({
-                               Asttypes.txt = (Longident.Lident "::");
-                               Asttypes.loc = _loc
-                             },
-                              (Some
-                                 {
-                                   Parsetree.pexp_desc =
-                                     (Parsetree.Pexp_tuple
-                                        [{
-                                           Parsetree.pexp_desc =
-                                             (Parsetree.Pexp_tuple
-                                                [{
-                                                   Parsetree.pexp_desc =
-                                                     (Parsetree.Pexp_fun
-                                                        (Asttypes.Nolabel,
-                                                          None, arg, c));
-                                                   Parsetree.pexp_loc = _loc;
-                                                   Parsetree.pexp_attributes
-                                                     = []
-                                                 };
-                                                e]);
-                                           Parsetree.pexp_loc = _loc;
-                                           Parsetree.pexp_attributes = []
-                                         };
-                                        y]);
-                                   Parsetree.pexp_loc = _loc;
-                                   Parsetree.pexp_attributes = []
-                                 })));
-                       Parsetree.pexp_loc = _loc;
-                       Parsetree.pexp_attributes = []
-                     }) l1
+        List.fold_right (apply_def_cond_prio _loc arg) l1
           {
             Parsetree.pexp_desc =
               (Parsetree.Pexp_construct
@@ -1481,27 +1462,7 @@ module Ext(In:Extension) =
           }
          in
       let l0 =
-        List.fold_right
-          (fun r  ->
-             fun y  ->
-               {
-                 Parsetree.pexp_desc =
-                   (Parsetree.Pexp_construct
-                      ({
-                         Asttypes.txt = (Longident.Lident "::");
-                         Asttypes.loc = _loc
-                       },
-                        (Some
-                           {
-                             Parsetree.pexp_desc =
-                               (Parsetree.Pexp_tuple
-                                  [apply_def_cond _loc r; y]);
-                             Parsetree.pexp_loc = _loc;
-                             Parsetree.pexp_attributes = []
-                           })));
-                 Parsetree.pexp_loc = _loc;
-                 Parsetree.pexp_attributes = []
-               }) l0
+        List.fold_right (apply_def_cond_list _loc) l0
           {
             Parsetree.pexp_desc =
               (Parsetree.Pexp_construct
@@ -3144,11 +3105,8 @@ module Ext(In:Extension) =
       let p =
         Earley.sequence_position
           (Earley.alternatives
-             [Earley.fsequence fun_kw
-                (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint []
-                         (Earley.apply (fun x  -> fun y  -> x :: y) pattern)))
+             [Earley.fsequence function_kw
+                (Earley.fsequence pattern
                    (Earley.fsequence (Earley.char '@' '@')
                       (Earley.fsequence pattern
                          (Earley.sequence arrow_re parser_kw
@@ -3156,9 +3114,24 @@ module Ext(In:Extension) =
                                fun _  ->
                                  fun prio  ->
                                    fun _  ->
-                                     fun args  ->
-                                       fun _  -> (args, (Some prio)))))));
-             Earley.apply (fun _  -> ([], None)) parser_kw])
+                                     fun arg  ->
+                                       fun _  -> ([arg], (Some prio)))))));
+             Earley.apply (fun _  -> ([], None)) parser_kw;
+             Earley.fsequence fun_kw
+               (Earley.fsequence
+                  (Earley.apply List.rev
+                     (Earley.fixpoint []
+                        (Earley.apply (fun x  -> fun y  -> x :: y)
+                           (pattern_lvl (false, AtomPat)))))
+                  (Earley.fsequence (Earley.char '@' '@')
+                     (Earley.fsequence pattern
+                        (Earley.sequence arrow_re parser_kw
+                           (fun _  ->
+                              fun _  ->
+                                fun prio  ->
+                                  fun _  ->
+                                    fun args  ->
+                                      fun _  -> (args, (Some prio)))))))])
           (Earley.apply_position
              (fun x  ->
                 fun str  ->

@@ -360,188 +360,176 @@ let num_suffix =
     [Earley.apply (fun _default_0 -> None) no_suffix_cs;
     Earley.sequence (Earley.no_blank_test ()) (Earley.in_charset suffix_cs)
       (fun _ -> fun s -> Some s)]
-let int_litteral =
-  (let int_re =
-     union_re
-       ["[0][xX][0-9a-fA-F][0-9a-fA-F_]*";
-       "[0][oO][0-7][0-7_]*";
-       "[0][bB][01][01_]*";
-       "[0-9][0-9_]*"] in
-   Earley.sequence
-     (EarleyStr.regexp ~name:"int" int_re (fun groupe -> groupe 0))
-     num_suffix (fun i -> fun _default_0 -> (i, _default_0)) : (string * char
-                                                                 option)
-                                                                 Earley.grammar)
-let float_litteral =
-  (let float_re =
-     union_re
-       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
-       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
-   Earley.sequence
-     (EarleyStr.regexp ~name:"float" float_re (fun groupe -> groupe 0))
-     num_suffix (fun f -> fun _default_0 -> (f, _default_0)) : (string * char
-                                                                 option)
-                                                                 Earley.grammar)
-let escaped_char =
-  (let char_dec = "[0-9][0-9][0-9]" in
-   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
-   let char_esc = "[\\\\\\\"\\'ntbrs ]" in
-   Earley.alternatives
-     [Earley.apply
-        (fun e ->
-           match e.[0] with
-           | 'n' -> '\n'
-           | 't' -> '\t'
-           | 'b' -> '\b'
-           | 'r' -> '\r'
-           | 's' -> ' '
-           | c -> c)
-        (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe -> groupe 0));
-     Earley.apply (fun e -> char_of_int (int_of_string e))
-       (EarleyStr.regexp ~name:"char_dec" char_dec (fun groupe -> groupe 0));
-     Earley.apply (fun e -> char_of_int (int_of_string ("0" ^ e)))
-       (EarleyStr.regexp ~name:"char_hex" char_hex (fun groupe -> groupe 0))] : 
-  char Earley.grammar)
-let char_litteral =
-  (let char_reg = "[^\\\\\\']" in
-   let single_char =
-     Earley.alternatives
-       [Earley.sequence (Earley.char '\\' '\\') escaped_char
-          (fun _ -> fun e -> e);
-       Earley.apply (fun c -> c.[0])
-         (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0))] in
-   Earley.no_blank_layout
-     (Earley.fsequence single_quote
-        (Earley.fsequence single_char
-           (Earley.sequence (Earley.no_blank_test ()) (Earley.char '\'' '\'')
-              (fun _ -> fun _ -> fun c -> fun _ -> c)))) : char
-                                                             Earley.grammar)
-let quoted_string =
-  (let f buf pos =
-     let rec fn st str buf pos =
-       let (c, buf', pos') = Input.read buf pos in
-       match (st, c) with
-       | (`Ini, '{') -> fn (`Opn []) str buf' pos'
-       | (`Opn l, 'a'..'z')|(`Opn l, '_') -> fn (`Opn (c :: l)) str buf' pos'
-       | (`Opn l, '|') -> fn (`Cnt (List.rev l)) str buf' pos'
-       | (`Cnt l, '|') -> fn (`Cls (l, [], l)) str buf' pos'
-       | (`Cnt l, '\255') -> Earley.give_up ()
-       | (`Cnt _, _) -> fn st (c :: str) buf' pos'
-       | (`Cls ([], _, l), '}') -> (str, l, buf', pos')
-       | (`Cls ([], _, _), '\255') -> Earley.give_up ()
-       | (`Cls ([], b, l), _) -> fn (`Cnt l) (b @ str) buf' pos'
-       | (`Cls (_::_, _, _), '\255') -> Earley.give_up ()
-       | (`Cls (x::y, b, l), _) ->
-           if x = c
-           then fn (`Cls (y, (x :: b), l)) str buf' pos'
-           else fn (`Cnt l) (List.append b str) buf' pos'
-       | (_, _) -> Earley.give_up () in
-     let (cs, id, buf, pos) = fn `Ini [] buf pos in
-     let r = ((cs_to_string cs), (Some (cs_to_string id))) in (r, buf, pos) in
-   Earley.black_box f (Charset.singleton '{') false "quoted_string" : 
-  (string * string option) Earley.grammar)
-let normal_string =
-  (let char_reg = "[^\\\"\\\\]" in
-   let single_char =
-     Earley.alternatives
-       [Earley.char '\n' '\n';
-       Earley.apply (fun c -> c.[0])
-         (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0));
-       Earley.fsequence (Earley.char '\\' '\\')
-         (Earley.sequence (Earley.no_blank_test ()) escaped_char
-            (fun _ -> fun e -> fun _ -> e))] in
-   Earley.fsequence (Earley.char '"' '"')
-     (Earley.fsequence
-        (Earley.apply List.rev
-           (Earley.fixpoint []
-              (Earley.apply (fun x -> fun y -> x :: y) single_char)))
-        (Earley.sequence
-           (Earley.apply List.rev
-              (Earley.fixpoint []
-                 (Earley.apply (fun x -> fun y -> x :: y)
-                    (Earley.fsequence (Earley.string "\\\n" "\\\n")
-                       (Earley.sequence
-                          (Earley.greedy
-                             (EarleyStr.regexp "[ \t]*"
-                                (fun groupe -> groupe 0)))
-                          (Earley.apply List.rev
-                             (Earley.fixpoint []
-                                (Earley.apply (fun x -> fun y -> x :: y)
-                                   single_char)))
-                          (fun _ -> fun _default_0 -> fun _ -> _default_0))))))
-           (Earley.char '"' '"')
-           (fun css ->
-              fun _ ->
-                fun cs -> fun _ -> cs_to_string (List.flatten (cs :: css))))) : 
-  string Earley.grammar)
-let string_litteral =
-  (Earley.no_blank_layout
-     (Earley.alternatives
-        [quoted_string; Earley.apply (fun s -> (s, None)) normal_string]) : 
-  (string * string option) Earley.grammar)
-let regexp_litteral =
-  (let char_reg = "[^'\\\\]" in
-   let char_esc = "[ntbrs\\\\()|]" in
-   let single_char =
-     Earley.alternatives
-       [Earley.sequence (Earley.char '\\' '\\')
-          (EarleyStr.regexp ~name:"char_esc" char_esc
-             (fun groupe -> groupe 0))
-          (fun _ ->
-             fun e ->
-               match e.[0] with
-               | 'n' -> "\n"
-               | 't' -> "\t"
-               | 'b' -> "\b"
-               | 'r' -> "\r"
-               | 's' -> " "
-               | '\\' -> "\\"
-               | '(' -> "\\("
-               | ')' -> "\\)"
-               | '|' -> "\\|"
-               | _ -> assert false);
-       EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0);
-       Earley.apply (fun _ -> "'") single_quote] in
-   let internal =
-     Earley.sequence
+let int_litteral : (string * char option) Earley.grammar =
+  let int_re =
+    union_re
+      ["[0][xX][0-9a-fA-F][0-9a-fA-F_]*";
+      "[0][oO][0-7][0-7_]*";
+      "[0][bB][01][01_]*";
+      "[0-9][0-9_]*"] in
+  Earley.sequence
+    (EarleyStr.regexp ~name:"int" int_re (fun groupe -> groupe 0)) num_suffix
+    (fun i -> fun _default_0 -> (i, _default_0))
+let float_litteral : (string * char option) Earley.grammar =
+  let float_re =
+    union_re
+      ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
+      "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
+  Earley.sequence
+    (EarleyStr.regexp ~name:"float" float_re (fun groupe -> groupe 0))
+    num_suffix (fun f -> fun _default_0 -> (f, _default_0))
+let escaped_char : char Earley.grammar =
+  let char_dec = "[0-9][0-9][0-9]" in
+  let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
+  let char_esc = "[\\\\\\\"\\'ntbrs ]" in
+  Earley.alternatives
+    [Earley.apply
+       (fun e ->
+          match e.[0] with
+          | 'n' -> '\n'
+          | 't' -> '\t'
+          | 'b' -> '\b'
+          | 'r' -> '\r'
+          | 's' -> ' '
+          | c -> c)
+       (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe -> groupe 0));
+    Earley.apply (fun e -> char_of_int (int_of_string e))
+      (EarleyStr.regexp ~name:"char_dec" char_dec (fun groupe -> groupe 0));
+    Earley.apply (fun e -> char_of_int (int_of_string ("0" ^ e)))
+      (EarleyStr.regexp ~name:"char_hex" char_hex (fun groupe -> groupe 0))]
+let char_litteral : char Earley.grammar =
+  let char_reg = "[^\\\\\\']" in
+  let single_char =
+    Earley.alternatives
+      [Earley.sequence (Earley.char '\\' '\\') escaped_char
+         (fun _ -> fun e -> e);
+      Earley.apply (fun c -> c.[0])
+        (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0))] in
+  Earley.no_blank_layout
+    (Earley.fsequence single_quote
+       (Earley.fsequence single_char
+          (Earley.sequence (Earley.no_blank_test ()) (Earley.char '\'' '\'')
+             (fun _ -> fun _ -> fun c -> fun _ -> c))))
+let quoted_string : (string * string option) Earley.grammar =
+  let f buf pos =
+    let rec fn st str buf pos =
+      let (c, buf', pos') = Input.read buf pos in
+      match (st, c) with
+      | (`Ini, '{') -> fn (`Opn []) str buf' pos'
+      | (`Opn l, 'a'..'z')|(`Opn l, '_') -> fn (`Opn (c :: l)) str buf' pos'
+      | (`Opn l, '|') -> fn (`Cnt (List.rev l)) str buf' pos'
+      | (`Cnt l, '|') -> fn (`Cls (l, [], l)) str buf' pos'
+      | (`Cnt l, '\255') -> Earley.give_up ()
+      | (`Cnt _, _) -> fn st (c :: str) buf' pos'
+      | (`Cls ([], _, l), '}') -> (str, l, buf', pos')
+      | (`Cls ([], _, _), '\255') -> Earley.give_up ()
+      | (`Cls ([], b, l), _) -> fn (`Cnt l) (b @ str) buf' pos'
+      | (`Cls (_::_, _, _), '\255') -> Earley.give_up ()
+      | (`Cls (x::y, b, l), _) ->
+          if x = c
+          then fn (`Cls (y, (x :: b), l)) str buf' pos'
+          else fn (`Cnt l) (List.append b str) buf' pos'
+      | (_, _) -> Earley.give_up () in
+    let (cs, id, buf, pos) = fn `Ini [] buf pos in
+    let r = ((cs_to_string cs), (Some (cs_to_string id))) in (r, buf, pos) in
+  Earley.black_box f (Charset.singleton '{') false "quoted_string"
+let normal_string : string Earley.grammar =
+  let char_reg = "[^\\\"\\\\]" in
+  let single_char =
+    Earley.alternatives
+      [Earley.char '\n' '\n';
+      Earley.apply (fun c -> c.[0])
+        (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0));
+      Earley.fsequence (Earley.char '\\' '\\')
+        (Earley.sequence (Earley.no_blank_test ()) escaped_char
+           (fun _ -> fun e -> fun _ -> e))] in
+  Earley.fsequence (Earley.char '"' '"')
+    (Earley.fsequence
        (Earley.apply List.rev
           (Earley.fixpoint []
              (Earley.apply (fun x -> fun y -> x :: y) single_char)))
-       (Earley.string "''" "''") (fun cs -> fun _ -> String.concat "" cs) in
-   Earley.fsequence double_quote
-     (Earley.sequence (Earley.no_blank_test ())
-        (Earley.no_blank_layout internal)
-        (fun _ -> fun _default_0 -> fun _ -> _default_0)) : string
-                                                              Earley.grammar)
-let new_regexp_litteral =
-  (let char_reg = "[^'\\\\]" in
-   let char_esc = "[ntbrs\\\\()|]" in
-   let single_char =
-     Earley.alternatives
-       [Earley.sequence (Earley.char '\\' '\\')
-          (EarleyStr.regexp ~name:"char_esc" char_esc
-             (fun groupe -> groupe 0))
-          (fun _ ->
-             fun e ->
-               match e.[0] with
-               | 'n' -> "\n"
-               | 't' -> "\t"
-               | 'b' -> "\b"
-               | 'r' -> "\r"
-               | 's' -> " "
-               | '\\' -> "\\"
-               | '(' -> "\\("
-               | ')' -> "\\)"
-               | '|' -> "\\|"
-               | _ -> assert false);
-       EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0);
-       Earley.apply (fun _ -> "'") single_quote] in
-   let internal =
-     Earley.fsequence (Earley.string "{#" "{#")
        (Earley.sequence
           (Earley.apply List.rev
              (Earley.fixpoint []
-                (Earley.apply (fun x -> fun y -> x :: y) single_char)))
-          (Earley.string "#}" "#}")
-          (fun cs -> fun _ -> fun _ -> String.concat "" cs)) in
-   Earley.no_blank_layout internal : string Earley.grammar)
+                (Earley.apply (fun x -> fun y -> x :: y)
+                   (Earley.fsequence (Earley.string "\\\n" "\\\n")
+                      (Earley.sequence
+                         (Earley.greedy
+                            (EarleyStr.regexp "[ \t]*"
+                               (fun groupe -> groupe 0)))
+                         (Earley.apply List.rev
+                            (Earley.fixpoint []
+                               (Earley.apply (fun x -> fun y -> x :: y)
+                                  single_char)))
+                         (fun _ -> fun _default_0 -> fun _ -> _default_0))))))
+          (Earley.char '"' '"')
+          (fun css ->
+             fun _ ->
+               fun cs -> fun _ -> cs_to_string (List.flatten (cs :: css)))))
+let string_litteral : (string * string option) Earley.grammar =
+  Earley.no_blank_layout
+    (Earley.alternatives
+       [quoted_string; Earley.apply (fun s -> (s, None)) normal_string])
+let regexp_litteral : string Earley.grammar =
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
+  let single_char =
+    Earley.alternatives
+      [Earley.sequence (Earley.char '\\' '\\')
+         (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe -> groupe 0))
+         (fun _ ->
+            fun e ->
+              match e.[0] with
+              | 'n' -> "\n"
+              | 't' -> "\t"
+              | 'b' -> "\b"
+              | 'r' -> "\r"
+              | 's' -> " "
+              | '\\' -> "\\"
+              | '(' -> "\\("
+              | ')' -> "\\)"
+              | '|' -> "\\|"
+              | _ -> assert false);
+      EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0);
+      Earley.apply (fun _ -> "'") single_quote] in
+  let internal =
+    Earley.sequence
+      (Earley.apply List.rev
+         (Earley.fixpoint []
+            (Earley.apply (fun x -> fun y -> x :: y) single_char)))
+      (Earley.string "''" "''") (fun cs -> fun _ -> String.concat "" cs) in
+  Earley.fsequence double_quote
+    (Earley.sequence (Earley.no_blank_test ())
+       (Earley.no_blank_layout internal)
+       (fun _ -> fun _default_0 -> fun _ -> _default_0))
+let new_regexp_litteral : string Earley.grammar =
+  let char_reg = "[^'\\\\]" in
+  let char_esc = "[ntbrs\\\\()|]" in
+  let single_char =
+    Earley.alternatives
+      [Earley.sequence (Earley.char '\\' '\\')
+         (EarleyStr.regexp ~name:"char_esc" char_esc (fun groupe -> groupe 0))
+         (fun _ ->
+            fun e ->
+              match e.[0] with
+              | 'n' -> "\n"
+              | 't' -> "\t"
+              | 'b' -> "\b"
+              | 'r' -> "\r"
+              | 's' -> " "
+              | '\\' -> "\\"
+              | '(' -> "\\("
+              | ')' -> "\\)"
+              | '|' -> "\\|"
+              | _ -> assert false);
+      EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0);
+      Earley.apply (fun _ -> "'") single_quote] in
+  let internal =
+    Earley.fsequence (Earley.string "{#" "{#")
+      (Earley.sequence
+         (Earley.apply List.rev
+            (Earley.fixpoint []
+               (Earley.apply (fun x -> fun y -> x :: y) single_char)))
+         (Earley.string "#}" "#}")
+         (fun cs -> fun _ -> fun _ -> String.concat "" cs)) in
+  Earley.no_blank_layout internal

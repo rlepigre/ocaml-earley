@@ -840,8 +840,8 @@ let parser constant =
 
 (* we do like parser.mly from ocaml: neg_constant for pattern only *)
 let parser neg_constant =
-    {CHR('-') | STR("-.")} f:float_litteral -> const_float ("-"^f)
-  | CHR('-') i:integer_litteral ->
+    {'-' | "-."} f:float_litteral -> const_float ("-"^f)
+  | '-' i:integer_litteral ->
      match i with
 #ifversion < 4.03
      | Const_int i   -> const_int (-i)
