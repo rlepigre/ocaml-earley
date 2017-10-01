@@ -217,12 +217,24 @@ module Ext(In:Extension) = struct
       let res = if iter then <:expr<Earley.iter $res$>> else res in
       def, condition, res
 
-  let apply_def_cond _loc arg =
-    let (def,cond,e) = build_rule arg in
+  let apply_def_cond _loc r =
+    let (def,cond,e) = build_rule r in
     match cond with
       None -> def e
     | Some c ->
       def <:expr<if $c$ then $e$ else Earley.fail ()>>
+
+  let apply_def_cond_list _loc r acc =
+    let (def,cond,e) = build_rule r in
+    match cond with
+    | None -> def (<:expr<$e$ :: $acc$>>)
+    | Some c -> def (<:expr<(if $c$ then [$e$] else []) @ $acc$>>)
+
+  let apply_def_cond_prio _loc arg r acc =
+    let (def,cond,e) = build_rule r in
+    match cond with
+    | None -> def (<:expr<((fun _ -> true), $e$) :: $acc$>>)
+    | Some c -> def (<:expr<((fun $pat:arg$ -> $c$), $e$) :: $acc$>>)
 
   let build_alternatives _loc ls =
     (** FIXME: warning if useless @| ? *)
@@ -231,29 +243,14 @@ module Ext(In:Extension) = struct
     | [] -> <:expr<Earley.fail ()>>
     | [r] -> apply_def_cond _loc r
     | _::_::_ ->
-        let l = List.fold_right (fun r y ->
-          let (def,cond,e) = build_rule r in
-          match cond with
-          | None -> def (<:expr<$e$ :: $y$>>)
-          | Some c -> def (<:expr<(if $c$ then [$e$] else []) @ $y$>>)
-          ) ls (<:expr<[]>>)
-        in
+        let l = List.fold_right (apply_def_cond_list _loc) ls (<:expr<[]>>) in
         <:expr<Earley.alternatives $l$>>
 
   let build_prio_alternatives _loc arg ls =
     let l0, l1 = List.partition fst ls in
     let l0 = List.map snd l0 and l1 = List.map snd l1 in
-    let l1 = List.fold_right (fun r y ->
-        let (def,cond,e) = build_rule r in
-        match cond with
-        | None -> def (<:expr<((fun _ -> true), $e$) :: $y$>>)
-        | Some c -> def (<:expr<((fun $pat:arg$ -> $c$), $e$) :: $y$>>)
-               ) l1 (<:expr<[]>>)
-    in
-    let l0 = List.fold_right
-               (fun r y -> <:expr< $apply_def_cond _loc r$ :: $y$>>)
-               l0 (<:expr<[]>>)
-    in
+    let l1 = List.fold_right (apply_def_cond_prio _loc arg) l1 (<:expr<[]>>) in
+    let l0 = List.fold_right (apply_def_cond_list _loc) l0 (<:expr<[]>>) in
     <:expr<($l1$, (fun $pat:arg$ -> $l0$))>>
 
   let build_str_item _loc l =
@@ -467,9 +464,13 @@ module Ext(In:Extension) = struct
 
   let extra_prefix_expressions =
     let p = parser (args,prio):{_:parser_kw -> ([], None)
-                               | _:fun_kw args:pattern* '@'
+                               | _:fun_kw args:(pattern_lvl(false,AtomPat))* '@'
                                           prio:pattern _:arrow_re _:parser_kw
-                                      -> (args,Some prio)}   r:glr_rules
+                                             -> (args,Some prio)
+                               | _:function_kw arg:pattern '@'
+                                       prio:pattern _:arrow_re _:parser_kw
+                                             -> ([arg],Some prio)
+                               }   r:glr_rules
       ->
       let r = match prio with
         | None -> build_alternatives _loc_r r
