@@ -136,7 +136,7 @@ module type MinimalInput =
                      -> 'a -> buffer
   end
 
-external unsafe_input : in_channel -> string -> int -> int -> int =
+external unsafe_input : in_channel -> bytes -> int -> int -> int =
   "caml_ml_input"
 
 external input_scan_line : in_channel -> int =
@@ -145,8 +145,8 @@ external input_scan_line : in_channel -> int =
 let input_line ch =
   let rec build_result buf pos = function
     | []       -> buf
-    | hd :: tl -> let len = String.length hd in
-                  String.blit hd 0 buf (pos - len) len;
+    | hd :: tl -> let len = Bytes.length hd in
+                  Bytes.blit hd 0 buf (pos - len) len;
                   build_result buf (pos - len) tl
   in
   let rec scan accu len =
@@ -166,7 +166,7 @@ let input_line ch =
       let beg = Bytes.create (-n) in
       ignore(unsafe_input ch beg 0 (-n));
       scan (beg :: accu) (len - n)
-  in scan [] 0
+  in Bytes.to_string (scan [] 0)
 
 module GenericInput(M : MinimalInput) =
   struct
