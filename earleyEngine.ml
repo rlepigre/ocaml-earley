@@ -526,9 +526,8 @@ let good c rule =
 (** Adds an element in the current table of elements, return true if it is
     new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
-  fun msg pos_final c element elements ->
-    let test = match element with D { rest } -> good c rest in
-    test &&
+  fun msg pos_final c (D { rest } as element) elements ->
+    good c rest &&
       begin
         let key = elt_key element in
         try
@@ -552,9 +551,14 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
                 false
              | _ -> assert false)
         with Not_found ->
-         if !debug_lvl > 1 then
-             log "add %-6s: %a\n%!" msg print_final element;
-          Hashtbl.add elements key element; true
+             if !debug_lvl > 1 then
+               begin
+                 let (ae,cs) = Fixpoint.force (rule_info rest) in
+                 log "add %-6s: %a (%b,%a)\n%!" msg print_final element
+                     ae Charset.print cs;
+               end;
+          Hashtbl.add elements key element;
+          true
       end
 
 (** Computes the size of an element stack, taking in account sharing *)
