@@ -1,7 +1,7 @@
-open Decap
+open Earley
 open Generate_calc
 
-let _ = active_debug := false
+(*let _ = active_debug := false*)
 
 type calc_prio = Sum | Prod | Pow | Atom
 
