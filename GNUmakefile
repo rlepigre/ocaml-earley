@@ -180,7 +180,7 @@ distclean: clean
 	- rm -f pa_ocaml pa_ocaml-* pa_ocaml.byt *~ \#*\#
 	$(MAKE) -e -j 1 -C ast_tools distclean
 	$(MAKE) -e -j 1 -C doc/examples distclean
-	- rm doc/doc.pdf
+	- rm -f doc/doc.pdf
 
 .PHONY: release
 release: distclean
