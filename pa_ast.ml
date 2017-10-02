@@ -271,8 +271,8 @@ let ppat_alias _loc p id =
 
   let constructor_declaration ?(attributes=[]) _loc name args res =
     { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
-  let label_declaration _loc name mut ty =
-    { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = []; pld_loc = _loc }
+  let label_declaration ?(attributes=[]) _loc name mut ty =
+    { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = attributes; pld_loc = _loc }
   let params_map _loc params =
     let fn (name, var) =
       match name with

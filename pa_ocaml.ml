@@ -363,13 +363,13 @@ let parser ext_attributes =
 let parser post_item_attributes =
   | l:{STR("[@@") id:attr_id p:payload CHR(']')}*
 
-let parser ext_attributes =
-  | l:{STR("[@@@") id:attr_id p:payload CHR(']')}*
+let parser floating_attribute =
+  | l:{STR("[@@@") id:attr_id p:payload CHR(']')}
 
 let parser extension =
   | STR("[%") id:attr_id p:payload CHR(']')
 
-let parser item_extension =
+let parser floating_extension =
   | STR("[%%") id:attr_id p:payload CHR(']')
 
 (****************************************************************************
@@ -634,9 +634,9 @@ let parser constr_decl with_bar =
                    te:(typexpr_lvl (next_type_prio Arr)) ->
                 (Pcstr_record fds, Some te)
 #endif
-             }
+             } a:post_item_attributes
     -> let c = id_loc cn _loc_cn in
-       constructor_declaration ~attributes:(attach_attrib ~local:true _loc [])
+       constructor_declaration ~attributes:(attach_attrib _loc a)
                                _loc c tes te
 
 let parser all_constr_decl with_bar =
@@ -652,12 +652,12 @@ let _ = set_grammar constr_decl_list (
 (* NOTE: OCaml includes the semi column in the position *)
 let parser field_decl_semi =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
-     label_declaration ~attributes:(attach_attrib ~local:true _loc [])
+     label_declaration ~attributes:(attach_attrib _loc [])
                        _loc (id_loc fn _loc_fn) m pte
 
 let parser field_decl =
   | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
-     label_declaration ~attributes:(attach_attrib ~local:true _loc [])
+     label_declaration ~attributes:(attach_attrib _loc [])
                        _loc (id_loc fn _loc_fn) m pte
 
 let parser field_decl_aux =
@@ -685,9 +685,10 @@ let parser type_information =
       in
       (pri, te, tkind, cstrs)
 
-let typedef_gen = (fun attach constr filter ->
+let typedef_gen = (fun att constr filter ->
   parser
-  | tps:type_params?[[]] tcn:constr ti:type_information -> (fun prev_loc ->
+  | tps:type_params?[[]] tcn:constr ti:type_information a:{post_item_attributes when att}?[[]]
+    -> (fun prev_loc ->
       let _loc = match
  	  (prev_loc:Location.t option) with None -> _loc
 	| Some l -> merge2 l _loc
@@ -701,13 +702,12 @@ let typedef_gen = (fun attach constr filter ->
 	| Some(_, te) -> pri, Some te
       in
       id_loc tcn _loc_tcn,
-      type_declaration ~attributes:(if attach then attach_attrib _loc [] else [])
+      type_declaration ~attributes:(if att then attach_attrib _loc a else [])
 	_loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
    )
 
 let typedef = typedef_gen true typeconstr_name (fun x -> x)
 let typedef_in_constraint = typedef_gen false typeconstr Longident.last
-
 
 let parser type_definition =
   | l:type_kw td:typedef tds:{l:and_kw td:typedef -> snd (td (Some _loc_l))}* ->
@@ -755,7 +755,9 @@ let _ = set_grammar class_field_spec (
 #endif
         pctf_loc _loc (Pctf_method (mn, pri, v, te))
   | constraint_kw te:typexpr CHR('=') te':typexpr ->
-      pctf_loc _loc (Pctf_constraint (te, te'))
+                                          pctf_loc _loc (Pctf_constraint (te, te'))
+  | (s,l):floating_attribute -> pctf_loc _loc (Pctf_attribute(s,l))
+  | (s,l):floating_extension -> pctf_loc _loc (Pctf_extension(s,l))
   )
 
 let _ = set_grammar class_body_type (
@@ -1353,6 +1355,8 @@ let parser class_field =
       loc_pcf _loc (Pcf_constraint (te, te'))
   | initializer_kw e:expression ->
       loc_pcf _loc (Pcf_initializer e)
+  | (s,l):floating_attribute -> loc_pcf _loc (Pcf_attribute(s,l))
+  | (s,l):floating_extension -> loc_pcf _loc (Pcf_extension(s,l))
 
 let _ = set_grammar class_body (
   parser
@@ -1751,7 +1755,9 @@ let parser module_expr_base =
   | mp:module_path ->
       let mid = id_loc mp _loc in
       mexpr_loc _loc (Pmod_ident mid)
-  | struct_kw ms:structure end_kw ->
+  | {struct_kw -> push_comments ()}
+    ms:{ms:structure -> ms @ attach_str _loc}
+    {end_kw ->  pop_comments ()} ->
       mexpr_loc _loc (Pmod_structure(ms))
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
     arrow_re me:module_expr -> mexpr_loc _loc (Pmod_functor(mn, mt, me))
@@ -1778,8 +1784,10 @@ let parser module_type_base =
   | mp:modtype_path ->
       let mid = id_loc mp _loc in
       mtyp_loc _loc (Pmty_ident mid)
-  | sig_kw ms:signature end_kw ->
-     mtyp_loc _loc (Pmty_signature(ms))
+  | {sig_kw -> push_comments ()}
+    ms:{ms:signature -> ms @ attach_sig _loc}
+    {end_kw -> pop_comments () }->
+       mtyp_loc _loc (Pmty_signature(ms))
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
      arrow_re me:module_type no_with -> mtyp_loc _loc (Pmty_functor(mn, mt, me))
   | STR("(") mt:module_type STR(")") -> mt
@@ -1857,6 +1865,9 @@ let parser structure_item_base =
     loc_str _loc (Pstr_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
   | class_kw r:{ ctd:classtype_definition -> Pstr_class_type ctd
                | cds:class_definition -> Pstr_class cds } -> loc_str _loc r
+  | (s,l):floating_attribute -> loc_str _loc (Pstr_attribute(s,l))
+  | (s,l):floating_extension -> loc_str _loc (Pstr_extension((s,l),[] (*FIXME*)))
+
   | "$struct:" e:expression - '$' ->
      let open Quote in
      pstr_antiquotation _loc (function
@@ -1904,18 +1915,18 @@ let parser signature_item_base =
 #endif
   | (name,ed,_loc'):exception_declaration a:post_item_attributes ->
        loc_sig _loc (Psig_exception (Te.decl ~attrs:(attach_attrib _loc' a) ~loc:_loc' ~args:ed name))
-  | {module_kw -> attach_sig _loc} rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
+  | module_kw rec_kw mn:module_name STR(":") mt:module_type a:post_item_attributes
       ms:{and_kw mn:module_name STR(":") mt:module_type a:post_item_attributes ->
 	    (module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)}* ->
       let loc_first = merge2 _loc_mn _loc_a in
       let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
       loc_sig _loc (Psig_recmodule (m::ms))
-  | {module_kw -> attach_sig _loc} r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
+  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
                                     STR":" mt:module_type a:post_item_attributes ->
      let mt = List.fold_left (fun acc (mn,mt,_loc) ->
                                   mtyp_loc (merge2 _loc _loc_mt) (Pmty_functor(mn, mt, acc))) mt (List.rev l) in
      Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)
-  |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }?  a:post_item_attributes ->
+                |           type_kw mn:modtype_name mt:{ STR"=" mt:module_type }?  a:post_item_attributes ->
      Psig_modtype{pmtd_name = id_loc mn _loc_mn; pmtd_type = mt;
 	          pmtd_attributes = attach_attrib _loc a;
 	          pmtd_loc = _loc}
@@ -1927,7 +1938,8 @@ let parser signature_item_base =
     loc_sig _loc (Psig_include {pincl_mod = me; pincl_loc = _loc; pincl_attributes = attach_attrib _loc a })
   | class_kw r:{ ctd:classtype_definition -> Psig_class_type ctd
 		   | cs:class_specification -> Psig_class cs } -> loc_sig _loc r
-
+  | (s,l):floating_attribute -> loc_sig _loc (Psig_attribute(s,l))
+  | (s,l):floating_extension -> loc_sig _loc (Psig_extension((s,l),[] (*FIXME*)))
   | dol:CHR('$') - e:expression - CHR('$') ->
      let open Quote in
      psig_antiquotation _loc (function
@@ -1937,7 +1949,7 @@ let parser signature_item_base =
 let _ = set_grammar signature_item (
   parser
   | e:(alternatives extra_signature) -> attach_sig _loc @ e
-  | s:signature_item_base _:double_semi_col? -> attach_sig _loc_s @ [s]
+  | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [s]
   )
 
 exception Top_Exit

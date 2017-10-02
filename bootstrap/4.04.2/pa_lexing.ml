@@ -11,17 +11,32 @@ let unclosed_comment_string : 'a . (Input.buffer * int) -> 'a = fun (type a)
                                                                    a)
   
 let ocamldoc_comments = ref [] 
+let ocamldoc_stack = ref [] 
+let push_comments () =
+  ocamldoc_stack := ((!ocamldoc_comments) :: (!ocamldoc_stack));
+  ocamldoc_comments := [] 
+let pop_comments () =
+  match !ocamldoc_stack with
+  | [] -> assert false
+  | cs::ls ->
+      (ocamldoc_comments := ((!ocamldoc_comments) @ cs); ocamldoc_stack := ls)
+  
 let ocaml_blank buf pos =
   let ocamldoc = ref false  in
   let ocamldoc_buf = Buffer.create 1024  in
+  let new_line = ref false  in
+  let previous_newline = ref (Input.line_num buf)  in
   let rec fn state stack prev curr =
     let (buf,pos) = curr  in
     let (c,buf',pos') = Input.read buf pos  in
     if !ocamldoc then Buffer.add_char ocamldoc_buf c;
     (let next = (buf', pos')  in
+     let count_newline () =
+       if !new_line then previous_newline := (Input.line_num buf');
+       new_line := true  in
      match (state, stack, c) with
      | (`Ini,[],' ')|(`Ini,[],'\t')|(`Ini,[],'\r')|(`Ini,[],'\n') ->
-         fn `Ini stack curr next
+         (count_newline (); fn `Ini stack curr next)
      | (`Ini,_,'(') -> fn (`Opn curr) stack curr next
      | (`Ini,[],_) -> curr
      | (`Opn p,_,'*') ->
@@ -29,8 +44,8 @@ let ocaml_blank buf pos =
          then
            let (c,buf',pos') = Input.read buf' pos'  in
            let (c',_,_) = Input.read buf' pos'  in
-           (if (c = '*') && ((c' <> '*') && (c' <> ')'))
-            then (ocamldoc := true; fn `Ini (p :: stack) curr (buf', pos'))
+           (if (c = '*') && (c' <> '*')
+            then (ocamldoc := true; fn `Cls (p :: stack) curr (buf', pos'))
             else fn `Ini (p :: stack) curr next)
          else fn `Ini (p :: stack) curr next
      | (`Opn _,_::_,'"') -> fn (`Str curr) stack curr next
@@ -73,12 +88,14 @@ let ocaml_blank buf pos =
          (if (!ocamldoc) && (s = [])
           then
             (let comment =
-               Buffer.sub ocamldoc_buf 0 ((Buffer.length ocamldoc_buf) - 2)
-                in
+               try
+                 Buffer.sub ocamldoc_buf 0 ((Buffer.length ocamldoc_buf) - 2)
+               with | Invalid_argument _ -> ""  in
              Buffer.clear ocamldoc_buf;
-             ocamldoc_comments := ((p, next, comment) ::
+             ocamldoc_comments := ((p, next, comment, (!previous_newline)) ::
                (!ocamldoc_comments));
              ocamldoc := false);
+          new_line := false;
           fn `Ini s curr next)
      | (`Cls,_::_,_) -> fn `Ini stack curr next
      | (`Cls,[],_) -> assert false

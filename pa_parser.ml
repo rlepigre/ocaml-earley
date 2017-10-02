@@ -237,7 +237,7 @@ module Ext(In:Extension) = struct
     | Some c -> def (<:expr<((fun $pat:arg$ -> $c$), $e$) :: $acc$>>)
 
   let build_alternatives _loc ls =
-    (** FIXME: warning if useless @| ? *)
+    (* FIXME: warning if useless @| ? *)
     let ls = List.map snd ls in
     match ls with
     | [] -> <:expr<Earley.fail ()>>

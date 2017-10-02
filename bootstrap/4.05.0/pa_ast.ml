@@ -192,12 +192,12 @@ let constructor_declaration ?(attributes= [])  _loc name args res =
     pcd_attributes = attributes;
     pcd_loc = _loc
   } 
-let label_declaration _loc name mut ty =
+let label_declaration ?(attributes= [])  _loc name mut ty =
   {
     pld_name = name;
     pld_mutable = mut;
     pld_type = ty;
-    pld_attributes = [];
+    pld_attributes = attributes;
     pld_loc = _loc
   } 
 let params_map _loc params =

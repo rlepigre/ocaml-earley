@@ -1416,7 +1416,6 @@ module Ext(In:Extension) =
             Parsetree.pexp_loc = _loc;
             Parsetree.pexp_attributes = []
           }
-    [@@@ocaml.text " FIXME: warning if useless @| ? "]
     let build_prio_alternatives _loc arg ls =
       let (l0,l1) = List.partition fst ls in
       let l0 = List.map snd l0
