@@ -2,12 +2,13 @@ open Earley
 open Common
 
 let compare s l =
-  let s' = String.create (List.length l) in
+  let s' = Bytes.create (List.length l) in
   let rec fn i = function
       [] -> ()
-    | c::l' -> s'.[i] <- c; fn (i+1) l'
+    | c::l' -> Bytes.set s' i c; fn (i+1) l'
   in
   fn 0 (List.rev l);
+  let s' = Bytes.to_string s' in
   Printf.printf "-> %S\n%!" s';
   assert (s' = s)
 

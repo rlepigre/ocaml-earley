@@ -37,7 +37,7 @@ let _ = parse_string r blank_sline " a b a b b ab\n   ab bba "
 
 let _ =
   try
-    parse_string r blank_sline " a b a b b ab\n \n  ab bba ";
+    let _ = parse_string r blank_sline " a b a b b ab\n \n  ab bba " in
     assert false
   with
     Parse_error _ -> ()
@@ -48,7 +48,7 @@ let _ = parse_string r blank1 "a  aab aa  a a a a\na b(*to*to*) a ba b "
 
 let _ =
   try
-    parse_string r blank1 " a b a b b ab\n (*to*to*)\n \n ab bba ";
+    let _ = parse_string r blank1 " a b a b b ab\n (*to*to*)\n \n ab bba " in
     assert false
   with
     Parse_error _ -> ()
