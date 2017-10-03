@@ -57,7 +57,11 @@ type 'a grammar
     is used to discard meaningless parts of the input (e.g. comments  or
     spaces). A [blank] function takes as input a [buffer] and a position
     (represented as an [int]) and returns a couple of a [buffer]  and  a
-    position corresponding to the next meaningful character. *)
+    position corresponding to the next meaningful character.
+
+    WARNING: a blank function must return a normalized pair (b,p),
+    which means 0 <= p < Input.line_num b. You can use Input.normalize
+    to ensure this. *)
 type blank = buffer -> int -> buffer * int
 
 (** The exception [Parse_error(buf,pos,msgs)] is raised whenever parsing
@@ -126,7 +130,11 @@ val fail : unit -> 'a grammar
     less. The boolean [accept_empty] must be true if the function
     accept the empty string. The [name] argument is used for reference
     in error messages. Note that the functon [fn] should use [give_up
-    ()] in case of a parse error. *)
+    ()] in case of a parse error.
+
+    WARNING: fn must return a triple (x,b,p) when (b,p) is normalized,
+    which means 0 <= p < Input.line_num b. You can use Input.normalize to
+    ensure this. *)
 val  black_box : (buffer -> int -> 'a * buffer * int) -> charset -> bool
                    -> string -> 'a grammar
 
