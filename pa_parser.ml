@@ -49,8 +49,8 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ocaml_prelude
-open Pa_ast
 open Pa_lexing
+open Helper
 
 #define LOCATE locate
 
@@ -71,13 +71,14 @@ let occur id e =
     Exit -> true
 
 let find_locate () =
-  try Some(exp_ident Location.none (Sys.getenv "LOCATE"))
+  try Some(Exp.ident {txt = Lident(Sys.getenv "LOCATE"); loc = !default_loc})
   with Not_found -> None
 
-let mkpatt _loc (id, p) = match p, find_locate () with
-    None, _ -> pat_ident _loc id
-  | Some p, None -> <:pat<$p$ as $lid:id$>>
-  | Some p, Some _ -> <:pat<(_,$p$) as $lid:id$>>
+let mkpatt _loc (id, p) =
+  match p, find_locate () with
+  | (None  , _     ) -> Pat.var ~loc:_loc {txt = id; loc = _loc}
+  | (Some p, None  ) -> <:pat<$p$ as $lid:id$>>
+  | (Some p, Some _) -> <:pat<(_,$p$) as $lid:id$>>
 
 let mkpatt' _loc (id,p) =  match p with
     None -> <:pat<$lid:id$>>
@@ -420,7 +421,7 @@ module Ext(In:Extension) = struct
 
   and parser glr_let =
     | let_kw r:rec_flag lbs:let_binding in_kw l:glr_let ->
-        (fun x -> loc_expr _loc (Pexp_let(r,lbs,l x)))
+        (fun x -> Exp.let_ ~loc:_loc r lbs (l x))
     | EMPTY ->
         (fun x -> x)
 
