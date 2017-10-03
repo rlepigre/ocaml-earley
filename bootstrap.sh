@@ -6,7 +6,8 @@ set -v
 
 SAVE=`opam config var switch`
 GOOD_BOOTSTRAPS=""
-ALL_VERSIONS="4.07.0+trunk 4.06.0+trunk 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.3 4.02.2 4.02.1 4.02.0"
+ALL_VERSIONS="4.07.0+trunk 4.06.0+trunk 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0"
+   # 4.02.3 4.02.2 4.02.1 4.02.0
 
 function build {
     opam switch $1
@@ -24,7 +25,7 @@ function build {
 	    exit 1; \
 	fi \
     fi &&\
-    $MAKE boot asttools &&\
+    $MAKE boot asttools asthelper &&\
     if [ -x ./pa_ocaml ]; then rm pa_ocaml; fi &&\
     $MAKE distclean &&\
     $MAKE && $MAKE &&\

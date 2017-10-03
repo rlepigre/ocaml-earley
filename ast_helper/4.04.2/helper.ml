@@ -1,11 +1,7 @@
 open Asttypes
 open Docstrings
 open Parsetree
-
-type lid = Ast_helper.lid
-type str = Ast_helper.str
-type loc = Ast_helper.loc
-type attrs = Ast_helper.attrs
+open Astextra
 
 let default_loc = Ast_helper.default_loc
 let with_default_loc = Ast_helper.with_default_loc
@@ -50,7 +46,15 @@ module Typ  =
         poly ~loc:(build_loc loc) ~attrs:(build_attrs attrs) ss
   end
 
-module Pat  = Ast_helper.Pat
+module Pat   =
+  struct
+    include Ast_helper.Pat
+
+    let open_ : ?loc:loc -> ?attrs:attrs  -> lid -> pattern -> pattern =
+      fun ?loc ?attrs _ _ ->
+        (* TODO probably difficult to backport. *)
+        assert false
+  end
 
 module Exp  =
   struct
@@ -78,7 +82,17 @@ module Mb   = Ast_helper.Mb
 module Opn  = Ast_helper.Opn
 module Incl = Ast_helper.Incl
 module Vb   = Ast_helper.Vb
-module Cty  = Ast_helper.Cty
+
+module Cty  =
+  struct
+    include Ast_helper.Cty
+
+    let open_ : ?loc:loc -> ?attrs:attrs  -> override_flag ->
+                lid -> class_type -> class_type =
+      fun ?loc ?attrs _ _ ->
+        (* TODO probably difficult to backport. *)
+        assert false
+  end
 
 module Ctf  =
   struct
@@ -106,7 +120,17 @@ module Cf   =
         inherit_ ~loc:(build_loc loc) ~attrs:(build_attrs attrs) flag ce so
   end
 
-module Cl   = Ast_helper.Cl
+module Cl   =
+  struct
+    include Ast_helper.Cl
+
+    let open_ : ?loc:loc -> ?attrs:attrs -> override_flag -> lid -> class_expr
+                -> class_expr =
+      fun ?loc ?attrs _ _ ->
+        (* TODO probably difficult to backport. *)
+        assert false
+  end
+
 module Ci   = Ast_helper.Ci
 module Csig = Ast_helper.Csig
 module Cstr = Ast_helper.Cstr

@@ -5,12 +5,12 @@ OCAMLOPT  = $(OCAMLFIND) ocamlopt -package bytes,earley,earley.str -intf-suffix 
 BINDIR    = $(dir $(shell which ocamlc))
 
 INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
-						pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx \
-						pa_parser.cmi pa_parser.cmx pa_parser.cmo \
-						pa_main.cmi pa_main.cmx pa_main.cmo \
-						earley_ocaml.cmxa earley_ocaml.cma earley_ocaml.a \
-						pa_ast.cmx pa_ast.cmo pa_ast.cmi \
-						pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
+	    pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx helper.cmi helper.cmo\
+	    pa_parser.cmi pa_parser.cmx pa_parser.cmo helper.cmx\
+	    pa_main.cmi pa_main.cmx pa_main.cmo astextra.cmi \
+	    earley_ocaml.cmxa earley_ocaml.cma earley_ocaml.a \
+	    pa_ast.cmx pa_ast.cmo pa_ast.cmi \
+	    pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
 
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
 OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
@@ -41,7 +41,7 @@ COMPILER_LIBO := $(COMPILER_LIBO:.cmo=.cmx)
 COMPILER_PARSERO := $(COMPILER_PARSERS:.cma=.cmxa)
 COMPILER_PARSERO := $(COMPILER_PARSERO:.cmo=.cmx)
 
-ASTTOOLSI=$(BOOTDIR)/compare.cmi $(BOOTDIR)/iter.cmi $(BOOTDIR)/quote.cmi
+ASTTOOLSI=$(BOOTDIR)/compare.cmi $(BOOTDIR)/iter.cmi $(BOOTDIR)/quote.cmi $(BOOTDIR)/helper.cmi
 ASTTOOLSO=$(ASTTOOLSI:.cmi=.cmo)
 ASTTOOLSX=$(ASTTOOLSI:.cmi=.cmx)
 ASTTOOLSIO=$(ASTTOOLSI) $(ASTTOOLSO)
@@ -65,6 +65,18 @@ $(B)/earley_ocaml.cmxa: $(B)/pa_lexing.cmx $(B)/pa_ast.cmx $(ASTTOOLSX) $(B)/pa_
 	$(OCAMLOPT) $(OCAMLFLAGS) -a -o $@ $^
 
 decap_ocaml.a: decap_ocaml.cmxa;
+
+$(BOOTDIR)/helper.cmi: $(BOOTDIR)/helper.mli $(BOOTDIR)/astextra.cmi
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
+
+$(BOOTDIR)/astextra.cmi: $(BOOTDIR)/astextra.mli
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
+
+$(BOOTDIR)/helper.cmo: $(BOOTDIR)/helper.ml $(BOOTDIR)/astextra.cmi
+	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
+
+$(BOOTDIR)/helper.cmx: $(BOOTDIR)/helper.ml $(BOOTDIR)/astextra.cmi
+	$(OCAMLOPT) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
 
 $(BOOTDIR)/compare.cmo $(BOOTDIR)/compare.cmi: $(BOOTDIR)/compare.ml
 	$(OCAMLC) $(OCAMLFLAGS) $(COMPILER_INC) -c $(IB) $<
@@ -139,6 +151,10 @@ asttools:
 	- rm pa_lexing.cm*
 	OCAMLVERSION=$(OCAMLVERSION) make ASCII=--ascii pa_lexing.cmx
 	make -C ast_tools
+
+asthelper:
+	cp ast_helper/helper.mli ast_helper/$(OCAMLVERSION)/helper.ml $(BOOTDIR)/
+	cp ast_helper/$(OCAMLVERSION)/astextra.mli $(BOOTDIR)/
 
 #BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
 boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
