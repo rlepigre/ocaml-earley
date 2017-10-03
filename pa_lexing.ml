@@ -320,9 +320,9 @@ let reserved_ids =
   ; "when" ; "while" ; "with" ]
 
 let reserved_symbs =
-  [ "#" ; "'" ; "(" ; ")" ; "," ; "->" ; "->>"; "." ; ".." ; ":" ; ":>" ; ";" ; ";;"
-  ; "<-" ; ">]" ; ">}" ; "?" ; "[" ; "[<" ; "[>" ; "[|" ; "]" ; "_" ; "`"
-  ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~"; "$" ; ">>"; "<<"; "<:"]
+  [ "#" ; "'" ; "(" ; ")" ; "," ; "->" ; "->>"; "." ; ".." ; ":" ; ":>" ; ";"
+  ; ";;" ; "<-" ; ">]" ; ">}" ; "?" ; "[" ; "[<" ; "[>" ; "[|" ; "]" ; "_"
+  ; "`" ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~"; "$" ; ">>"; "<<"; "<:" ]
 
 let (is_reserved_id  , add_reserved_id  ) = make_reserved reserved_ids
 let (is_reserved_symb, add_reserved_symb) = make_reserved reserved_symbs
@@ -494,52 +494,21 @@ let string_litteral : (string * string option) Earley.grammar =
                            | quoted_string)
 
 (* Regexp litteral. *)
+let regexp =
+  let regexp_char = parser
+    | c:RE("[^'\\\\]")            -> c
+    | _:single_quote              -> "'"
+    | '\\' e:RE("[ntbrs\\\\()|]") ->
+        match e.[0] with
+        | 'n'  -> "\n"  | 't'  -> "\t"  | 'b'  -> "\b"
+        | 'r'  -> "\r"  | 's'  -> " "   | '\\' -> "\\"
+        | '('  -> "\\(" | ')'  -> "\\)" | '|'  -> "\\|"
+        | _    -> assert false
+  in
+  parser cs:regexp_char* -> String.concat "" cs
+ 
 let regexp_litteral : string Earley.grammar =
-  let char_reg = "[^'\\\\]" in
-  let char_esc = "[ntbrs\\\\()|]" in
-  let single_char = parser
-    | c:RE(char_reg)      -> c
-    | _:single_quote      -> "'"
-    | '\\' e:RE(char_esc) ->
-        begin
-          match e.[0] with
-          | 'n' -> "\n"
-          | 't' -> "\t"
-          | 'b' -> "\b"
-          | 'r' -> "\r"
-          | 's' -> " "
-          | '\\' -> "\\"
-          | '(' -> "\\("
-          | ')' -> "\\)"
-          | '|' -> "\\|"
-	  | _ -> assert false
-        end
-  in
-  let internal = parser
-    cs:single_char* "''" -> String.concat "" cs
-  in
-  parser _:double_quote - (Earley.no_blank_layout internal)
+  parser _:double_quote - (Earley.no_blank_layout (parser regexp "''"))
 
 let new_regexp_litteral : string Earley.grammar =
-  let char_reg = "[^'\\\\]" in
-  let char_esc = "[ntbrs\\\\()|]" in
-  let single_char = parser
-    | c:RE(char_reg)      -> c
-    | _:single_quote      -> "'"
-    | '\\' e:RE(char_esc) ->
-        begin
-          match e.[0] with
-          | 'n' -> "\n"
-          | 't' -> "\t"
-          | 'b' -> "\b"
-          | 'r' -> "\r"
-          | 's' -> " "
-          | '\\' -> "\\"
-          | '(' -> "\\("
-          | ')' -> "\\)"
-          | '|' -> "\\|"
-	  | _ -> assert false
-        end
-  in
-  let internal = parser "{#" cs:single_char* "#}" -> String.concat "" cs in
-  Earley.no_blank_layout internal
+  Earley.no_blank_layout (parser "{#" regexp "#}")
