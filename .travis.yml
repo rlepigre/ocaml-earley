@@ -1,9 +1,10 @@
 language: c
 sudo: required
-install: wget https://raw.githubusercontent.com/ocaml/ocaml-ci-scripts/master/.travis-opam.sh
+install: wget https://raw.githubusercontent.com/craff/ocaml-ci-scripts/master/.travis-opam.sh
 script:
   - bash -ex .travis-opam.sh
 env:
+  - FORK_USER=craff
   - OCAML_VERSION=4.02 TESTS=true
   - OCAML_VERSION=4.03 TESTS=true
   - OCAML_VERSION=4.04 TESTS=true
