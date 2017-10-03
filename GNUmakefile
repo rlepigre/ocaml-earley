@@ -4,14 +4,6 @@ OCAMLC    = $(OCAMLFIND) ocamlc -package bytes,earley,earley.str
 OCAMLOPT  = $(OCAMLFIND) ocamlopt -package bytes,earley,earley.str -intf-suffix .cmi
 BINDIR    = $(dir $(shell which ocamlc))
 
-INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
-	    pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx helper.cmi helper.cmo\
-	    pa_parser.cmi pa_parser.cmx pa_parser.cmo helper.cmx\
-	    pa_main.cmi pa_main.cmx pa_main.cmo astextra.cmi \
-	    earley_ocaml.cmxa earley_ocaml.cma earley_ocaml.a \
-	    pa_ast.cmx pa_ast.cmo pa_ast.cmi \
-	    pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo
-
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
 OCAMLVERSION=$(shell ocamlc -version | sed s/+.*//)
 BOOTDIR=./bootstrap/$(OCAMLVERSION)
@@ -41,11 +33,20 @@ COMPILER_LIBO := $(COMPILER_LIBO:.cmo=.cmx)
 COMPILER_PARSERO := $(COMPILER_PARSERS:.cma=.cmxa)
 COMPILER_PARSERO := $(COMPILER_PARSERO:.cmo=.cmx)
 
-ASTTOOLSI=$(BOOTDIR)/compare.cmi $(BOOTDIR)/iter.cmi $(BOOTDIR)/quote.cmi $(BOOTDIR)/helper.cmi
+ASTTOOLSI=$(BOOTDIR)/compare.cmi $(BOOTDIR)/iter.cmi $(BOOTDIR)/quote.cmi \
+          $(BOOTDIR)/helper.cmi
 ASTTOOLSO=$(ASTTOOLSI:.cmi=.cmo)
 ASTTOOLSX=$(ASTTOOLSI:.cmi=.cmx)
 ASTTOOLSIO=$(ASTTOOLSI) $(ASTTOOLSO)
 ASTTOOLSIX=$(ASTTOOLSI) $(ASTTOOLSX)
+INSTALLED = pa_ocaml_prelude.cmi pa_ocaml_prelude.cmo pa_ocaml_prelude.cmx \
+	    pa_ocaml.cmi pa_ocaml.cmo pa_ocaml.cmx \
+	    pa_parser.cmi pa_parser.cmx pa_parser.cmo \
+	    pa_main.cmi pa_main.cmx pa_main.cmo \
+	    earley_ocaml.cmxa earley_ocaml.cma earley_ocaml.a \
+	    pa_ast.cmx pa_ast.cmo pa_ast.cmi \
+	    pa_lexing.cmi pa_lexing.cmx pa_lexing.cmo \
+	    $(ASTTOOLSI) $(ASTTOOLSO) $(ASTTOOLSX) $(BOOTDIR)/astextra.cmi
 
 %.cmi: %.mli
 	$(OCAMLC) $(OCAMLFLAGS) -c $<
