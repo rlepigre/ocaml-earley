@@ -282,20 +282,12 @@ let parser floating_extension =
  * Type expressions                                                         *
  ****************************************************************************)
 let parser only_poly_typexpr =
-#ifversion >= 4.05
   | ids:{STR("'") id:ident -> id_loc id _loc}+ STR(".") te:typexpr ->
-#else
-  | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
-#endif
-      loc_typ _loc (Ptyp_poly (ids, te))
+      Typ.poly ~loc:_loc ids te
 
 let parser poly_typexpr =
-#ifversion >= 4.05
   | ids:{STR("'") id:ident -> id_loc id _loc}+ STR(".") te:typexpr ->
-#else
-  | ids:{STR("'") id:ident}+ STR(".") te:typexpr ->
-#endif
-      loc_typ _loc (Ptyp_poly (ids, te))
+      Typ.poly ~loc:_loc ids te
   | te:typexpr ->
        te
 
@@ -1066,24 +1058,24 @@ let parser right_member =
 
 let parser eright_member =
   | ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
-      let e = match ty with
-	None -> e
-      | Some ty -> loc_expr (ghost _loc) (pexp_constraint(e, ty))
-      in
-      (_loc_ty,ty, e)
+      (ty, e)
 
 let _ = set_grammar let_binding (
   parser
-  | pat:pattern ((_loc_ty,_ty,e) as erm):eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  | pat:pattern ((_ty,e) as erm):eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
   (    let loc = merge2 _loc_pat _loc_erm in
-#ifversion >= 4.06.0
-       let pat = match _ty with
-           None -> pat
+       let pat, e = match _ty with
+           None -> (pat, e)
          | Some ty ->
-            let ty = loc_typ _loc_ty (Ptyp_poly ([], ty)) in
-            loc_pat (ghost (merge2 _loc_pat _loc_ty)) (Ppat_constraint(pat,ty))
-       in
+            (* FIXME IN OCAML: crisper position are possible!*)
+            let loc = ghost _loc in
+            let poly_ty = Typ.poly ~loc:(ghost _loc(*_ty*)) [] ty in
+#ifversion >= 4.06.0
+            (Pat.constraint_ ~loc pat poly_ty, Exp.constraint_ ~loc e ty)
+#else
+            (ty, Exp.constraint_ ~loc e ty)
 #endif
+       in
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
   | vn:value_name e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
      ( let loc = merge2 _loc_vn _loc_e in
@@ -1304,12 +1296,11 @@ let apply_lbl _loc (lbl, e) =
     | Some e -> e
   in (lbl, e)
 
-let rec mk_seq = function
-      | [] -> assert false
-      | [e] -> e
+let rec mk_seq loc_c final = function
+      | [] -> final
       | x::l ->
-	 let res = mk_seq l in
-	 loc_expr (merge2 x.pexp_loc res.pexp_loc) (Pexp_sequence(x,res))
+	 let res = mk_seq loc_c final l in
+	 loc_expr (merge2 x.pexp_loc loc_c) (Pexp_sequence(x,res))
 
 (* Expressions *)
 let parser extra_expressions_grammar c =
@@ -1320,22 +1311,22 @@ let structure_item_simple = declare_grammar "structure_item_simple"
 let parser left_expr @(alm,lvl) =
   | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re
        when allow_let alm && lvl < App
-    -> (Seq, false, (fun e _ -> loc_expr _loc (apply_params l e).pexp_desc))
+    -> (Seq, false, (fun e (_loc,_) -> loc_expr _loc (apply_params l e).pexp_desc))
 
   | _:let_kw f:{
     | r:rec_flag l:let_binding
-         -> (fun e _loc -> loc_expr _loc (Pexp_let (r, l, e)))
+         -> (fun e (_loc,_) -> loc_expr _loc (Pexp_let (r, l, e)))
     | module_kw mn:module_name l:{ '(' mn:module_name mt:{':' module_type}? ')'
                                      -> (mn, mt, _loc)}*
                 mt:{STR":" mt:module_type }?
                 STR"=" me:module_expr
-         -> (fun e _loc ->
+         -> (fun e (_loc,_) ->
                (let me = match mt with None -> me | Some mt -> mexpr_loc (merge2 _loc_mt _loc_me) (Pmod_constraint(me, mt)) in
                let me = List.fold_left (fun acc (mn,mt,_loc) ->
                mexpr_loc (merge2 _loc _loc_me) (Pmod_functor(mn, mt, acc))) me (List.rev l) in
                loc_expr _loc (Pexp_letmodule(mn, me, e))))
     | open_kw o:override_flag mp:module_path
-	 -> (fun e _loc ->
+	 -> (fun e (_loc,_) ->
 	      (let mp = id_loc mp _loc_mp in
 	       loc_expr _loc (Pexp_open (o, mp, e))))
     } _:in_kw when allow_let alm && lvl < App
@@ -1343,31 +1334,31 @@ let parser left_expr @(alm,lvl) =
 
   | if_kw c:expression then_kw e:(expression_lvl (Match, next_exp Seq)) else_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, false, (fun e' _loc -> <:expr< if $c$ then $e$ else $e'$>>))
+    -> (next_exp Seq, false, (fun e' (_loc,_) -> <:expr< if $c$ then $e$ else $e'$>>))
 
   | if_kw c:expression then_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, true, (fun e _loc ->  <:expr< if $c$ then $e$>>))
+    -> (next_exp Seq, true, (fun e (_loc,_) ->  <:expr< if $c$ then $e$>>))
 
   | ls:{(expression_lvl (NoMatch, next_exp Seq)) _:semi_col }+ when lvl <= Seq ->
-       (next_exp Seq, false, (fun e' _loc ->
-	mk_seq (ls@[e'])))
+       (next_exp Seq, false, (fun e' (_,_loc) ->
+	mk_seq _loc e' ls))
 
   | v:inst_var_name STR("<-") when lvl <= Aff
-    -> (next_exp Aff, false, (fun e _ -> loc_expr _loc (Pexp_setinstvar(id_loc v _loc_v, e))))
+    -> (next_exp Aff, false, (fun e (_loc,_) -> loc_expr _loc (Pexp_setinstvar(id_loc v _loc_v, e))))
 
   | e':(expression_lvl (NoMatch, Dot)) '.'
       f:{ STR("(") f:expression STR(")") ->
-	   fun e' e _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "Array" "set") [e';f;e]
+	   fun e' e (_loc,_) -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "Array" "set") [e';f;e]
 
 	| STR("[") f:expression STR("]") ->
-	   fun e' e _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "String" "set") [e';f;e]
+	   fun e' e (_loc,_) -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "String" "set") [e';f;e]
 
 	| STR("{") f:expression STR("}") ->
-	   fun e' e _loc -> bigarray_set (ghost (merge2 e'.pexp_loc _loc)) e' f e
+	   fun e' e (_loc,_) -> bigarray_set (ghost (merge2 e'.pexp_loc _loc)) e' f e
 
 	| f:field ->
-	   fun e' e _loc -> let f = id_loc f _loc_f in loc_expr _loc (Pexp_setfield(e',f,e))
+	   fun e' e (_loc,_) -> let f = id_loc f _loc_f in loc_expr _loc (Pexp_setfield(e',f,e))
 
 	} "<-"
       when lvl <= Aff
@@ -1375,13 +1366,13 @@ let parser left_expr @(alm,lvl) =
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+
       when lvl <= Tupl ->
-       (next_exp Tupl, false, (fun e' _loc -> loc_expr _loc (Pexp_tuple (l@[e']))))
+       (next_exp Tupl, false, (fun e' (_loc,_) -> loc_expr _loc (Pexp_tuple (l@[e']))))
 
   | assert_kw when lvl <= App ->
-       (next_exp App, false, (fun e _loc -> loc_expr _loc (Pexp_assert(e))))
+       (next_exp App, false, (fun e (_loc,_) -> loc_expr _loc (Pexp_assert(e))))
 
   | lazy_kw when lvl <= App ->
-     (next_exp App, false, (fun e _loc -> loc_expr _loc (Pexp_lazy e)))
+     (next_exp App, false, (fun e (_loc,_) -> loc_expr _loc (Pexp_lazy e)))
 
   | (prefix_expr Opp) when lvl <= Opp
   | (prefix_expr Prefix) when lvl <= Prefix
@@ -1397,25 +1388,25 @@ let parser left_expr @(alm,lvl) =
   | (infix_expr Pow) when lvl <= Pow
 
 and parser prefix_expr lvl =
-  p:(prefix_symbol lvl) -> (lvl, false, (fun e _loc -> mk_unary_op _loc p _loc_p e))
+  p:(prefix_symbol lvl) -> (lvl, false, (fun e (_loc,_) -> mk_unary_op _loc p _loc_p e))
 
 and infix_expr lvl =
   if assoc lvl = Left then
     parser
       e':(expression_lvl (NoMatch, lvl)) op:(infix_symbol lvl) ->
          (next_exp lvl, false,
-          fun e _loc -> mk_binary_op _loc e' op _loc_op e)
+          fun e (_loc,_) -> mk_binary_op _loc e' op _loc_op e)
          else if assoc lvl = NoAssoc then
     parser
       e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl) ->
          (next_exp lvl, false,
-          fun e _loc -> mk_binary_op _loc e' op _loc_op e)
+          fun e (_loc,_) -> mk_binary_op _loc e' op _loc_op e)
   else
     parser
       ls:{e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl)
              -> (_loc,e',op,_loc_op) }+ ->
          (next_exp lvl, false,
-          fun e _loc ->
+          fun e (_loc,_) ->
           List.fold_right
             (fun (_loc_e,e',op,_loc_op) acc
              -> mk_binary_op (merge2 _loc_e _loc) e' op _loc_op acc) ls e)
@@ -1440,9 +1431,11 @@ let parser right_expression @lvl =
   | mp:module_path STR(".") STR("(") e:expression STR(")") when lvl <= Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, e))
+
   | mp:module_path '.' '[' l:expression_list cl: ']' when lvl <= Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (pexp_list _loc ~loc_cl:_loc_cl l).pexp_desc))
+
   | mp:module_path '.' '{' e:{expression _:with_kw}? l:record_list '}' when lvl <= Atom ->
       let mp = id_loc mp _loc_mp in
       loc_expr _loc (Pexp_open (Fresh, mp, loc_expr _loc (Pexp_record(l,e))))
@@ -1629,9 +1622,9 @@ let parser right_expression @lvl =
     Quote.pexp_antiquotation _loc f
 
 let parser semicol @(alm, lvl) =
-  | semi_col when lvl = Seq
-  | no_semi when lvl = Seq
-  | EMPTY when lvl > Seq
+  | semi_col when lvl = Seq -> true
+  | no_semi  when lvl = Seq -> false
+  | EMPTY    when lvl > Seq -> false
 
 let parser noelse @b =
   | no_else when b
@@ -1643,8 +1636,11 @@ let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
 
   | (lvl0,no_else,f as s):(left_expr (alm,lvl)) ->>
                 e:(expression_lvl (alm,lvl0))
-                (semicol (alm,lvl)) (noelse no_else)
-       -> f e (merge2 _loc_s _loc_e)
+                c:(semicol (alm,lvl)) (noelse no_else)
+    -> (let _loc = merge2 _loc_s _loc_e in
+        (* position of the last semi column for sequence only *)
+        let _loc_c = if c then _loc_c else _loc_e in
+        f e (_loc, _loc_c))
 
   | r:(right_expression lvl) (semicol (alm,lvl)) -> r
 
