@@ -1069,11 +1069,11 @@ let _ = set_grammar let_binding (
          | Some ty ->
             (* FIXME IN OCAML: crisper position are possible!*)
             let loc = ghost _loc in
-            let poly_ty = Typ.poly ~loc:(ghost _loc(*_ty*)) [] ty in
 #ifversion >= 4.06.0
+            let poly_ty = Typ.poly ~loc:(ghost _loc(*_ty*)) [] ty in
             (Pat.constraint_ ~loc pat poly_ty, Exp.constraint_ ~loc e ty)
 #else
-            (ty, Exp.constraint_ ~loc e ty)
+            (pat, Exp.constraint_ ~loc e ty)
 #endif
        in
        value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
