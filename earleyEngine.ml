@@ -136,8 +136,8 @@ let eq_pos {buf;col} {buf=buf';col=col'} =
 
 let apply_pos_start =
   fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
-    (** parse nothing : pos_ab *)
-    if eq_pos p1 p2 then apply_pos f buf_ab col_ab buf_ab col_ab
+    (** parse nothing : pos *)
+    if eq_pos p1 p2 then apply_pos f buf col buf col
     (** parse something *)
     else apply_pos f buf_ab col_ab buf col
 
