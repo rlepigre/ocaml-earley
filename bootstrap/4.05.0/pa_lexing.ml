@@ -523,75 +523,45 @@ let string_litteral =
      (Earley.alternatives
         [quoted_string; Earley.apply (fun s  -> (s, None)) normal_string]) : 
   (string * string option) Earley.grammar) 
+let regexp =
+  let regexp_char =
+    Earley.alternatives
+      [Earley.sequence (Earley.char '\\' '\\')
+         (EarleyStr.regexp "[ntbrs\\\\()|]" (fun groupe  -> groupe 0))
+         (fun _  ->
+            fun e  ->
+              match e.[0] with
+              | 'n' -> "\n"
+              | 't' -> "\t"
+              | 'b' -> "\b"
+              | 'r' -> "\r"
+              | 's' -> " "
+              | '\\' -> "\\"
+              | '(' -> "\\("
+              | ')' -> "\\)"
+              | '|' -> "\\|"
+              | _ -> assert false);
+      EarleyStr.regexp "[^'\\\\]" (fun groupe  -> groupe 0);
+      Earley.apply (fun _  -> "'") single_quote]
+     in
+  Earley.apply (fun cs  -> String.concat "" cs)
+    (Earley.apply List.rev
+       (Earley.fixpoint []
+          (Earley.apply (fun x  -> fun y  -> x :: y) regexp_char)))
+  
 let regexp_litteral =
-  (let char_reg = "[^'\\\\]"  in
-   let char_esc = "[ntbrs\\\\()|]"  in
-   let single_char =
-     Earley.alternatives
-       [Earley.sequence (Earley.char '\\' '\\')
-          (EarleyStr.regexp ~name:"char_esc" char_esc
-             (fun groupe  -> groupe 0))
-          (fun _  ->
-             fun e  ->
-               match e.[0] with
-               | 'n' -> "\n"
-               | 't' -> "\t"
-               | 'b' -> "\b"
-               | 'r' -> "\r"
-               | 's' -> " "
-               | '\\' -> "\\"
-               | '(' -> "\\("
-               | ')' -> "\\)"
-               | '|' -> "\\|"
-               | _ -> assert false);
-       EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
-       Earley.apply (fun _  -> "'") single_quote]
-      in
-   let internal =
-     Earley.sequence
-       (Earley.apply List.rev
-          (Earley.fixpoint []
-             (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
-       (Earley.string "''" "''") (fun cs  -> fun _  -> String.concat "" cs)
-      in
-   Earley.fsequence double_quote
+  (Earley.fsequence double_quote
      (Earley.sequence (Earley.no_blank_test ())
-        (Earley.no_blank_layout internal)
+        (Earley.no_blank_layout
+           (Earley.sequence regexp (Earley.string "''" "''")
+              (fun _default_0  -> fun _  -> _default_0)))
         (fun _  -> fun _default_0  -> fun _  -> _default_0)) : string
                                                                  Earley.grammar)
   
 let new_regexp_litteral =
-  (let char_reg = "[^'\\\\]"  in
-   let char_esc = "[ntbrs\\\\()|]"  in
-   let single_char =
-     Earley.alternatives
-       [Earley.sequence (Earley.char '\\' '\\')
-          (EarleyStr.regexp ~name:"char_esc" char_esc
-             (fun groupe  -> groupe 0))
-          (fun _  ->
-             fun e  ->
-               match e.[0] with
-               | 'n' -> "\n"
-               | 't' -> "\t"
-               | 'b' -> "\b"
-               | 'r' -> "\r"
-               | 's' -> " "
-               | '\\' -> "\\"
-               | '(' -> "\\("
-               | ')' -> "\\)"
-               | '|' -> "\\|"
-               | _ -> assert false);
-       EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0);
-       Earley.apply (fun _  -> "'") single_quote]
-      in
-   let internal =
-     Earley.fsequence (Earley.string "{#" "{#")
-       (Earley.sequence
-          (Earley.apply List.rev
-             (Earley.fixpoint []
-                (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
-          (Earley.string "#}" "#}")
-          (fun cs  -> fun _  -> fun _  -> String.concat "" cs))
-      in
-   Earley.no_blank_layout internal : string Earley.grammar)
+  (Earley.no_blank_layout
+     (Earley.fsequence (Earley.string "{#" "{#")
+        (Earley.sequence regexp (Earley.string "#}" "#}")
+           (fun _default_0  -> fun _  -> fun _  -> _default_0))) : string
+                                                                    Earley.grammar)
   
