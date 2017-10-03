@@ -9,7 +9,7 @@ homepage: "https://rlepigre.github.io/ocaml-earley/"
 license: "LGPL-3.0"
 dev-repo: "https://github.com/rlepigre/ocaml-earley.git"
 build: [make]
-build-test: [make "tests" "TESTS=--full"]
+build-test: [make "nopatests" "TESTS=--full"]
 install: [make "install"]
 remove: [make "uninstall"]
 depends:

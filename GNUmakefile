@@ -58,6 +58,7 @@ tests: earley.cmxa earleyStr.cmxa\
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left7_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left8_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left9_ml.native
+	#$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_error_ml.native
 	$(OCAMLBUILD) -pkgs unix     tests/calcyacc/calc.native
 	./test.native $(TESTS) > /dev/null
 	./blank_ml.native $(TESTS) > /dev/null
@@ -69,6 +70,11 @@ tests: earley.cmxa earleyStr.cmxa\
 	./calc_prio_left7_ml.native $(TESTS) > /dev/null
 	./calc_prio_left8_ml.native $(TESTS) > /dev/null
 	./calc_prio_left9_ml.native $(TESTS) > /dev/null
+	#./calc_prio_left_error_ml.native $(TESTS) > /dev/null
+
+nopatests:
+	touch tests/*_ml.ml # avoid rebuild on machine
+	make tests          # without pa_ocaml
 
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
