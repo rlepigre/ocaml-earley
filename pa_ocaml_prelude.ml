@@ -49,8 +49,8 @@ open Input
 open Earley
 open Asttypes
 open Parsetree
-open Pa_ast
 open Pa_lexing
+open Helper
 
 (* Some references for the handling of command-line arguments. *)
 type entry = FromExt | Impl | Intf
@@ -282,10 +282,10 @@ let parse_string' g e' =
  * Gestion of attachment of ocamldoc comments                               *
  ****************************************************************************)
 
-let mk_attrib loc s contents =
-   (id_loc s Location.none, PStr(
-     [loc_str loc (Pstr_eval(exp_string loc contents,[]))
-   ]))
+let mk_attrib loc txt contents =
+  let str = Const.string contents in
+  ({txt; loc = Location.none}, PStr [Str.eval ~loc (Exp.constant ~loc str)])
+  
 
 let attach_attrib =
   let tbl_s = Hashtbl.create 31 in
@@ -376,11 +376,11 @@ let attach_gen build =
       Hashtbl.add tbl loc.loc_start res;
       res
 
-let attach_sig=
-  attach_gen (fun loc a  -> loc_sig loc (Psig_attribute a))
+let attach_sig =
+  attach_gen (fun loc a  -> Sig.attribute ~loc a)
 
 let attach_str =
-  attach_gen (fun loc a  -> loc_str loc (Pstr_attribute a))
+  attach_gen (fun loc a  -> Str.attribute ~loc a)
 
 
 
