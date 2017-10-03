@@ -54,6 +54,7 @@ open Parsetree
 open Longident
 open Pa_ast
 open Pa_lexing
+open Helper
 include Pa_ocaml_prelude
 
 #define LOCATE locate
@@ -77,133 +78,38 @@ let parser ident   =
   | oident
   | "$ident:" e:expression - '$' -> Quote.string_antiquotation _loc e
 
-(* FIXME ... !Main.a = !(Main.a) !main.a = (!main).a ... *)
-#ifversion >= 4.03
-let mk_unary_opp _loc name _loc_name arg =
-  let res =
-    match name, arg.pexp_desc with
-    | "-", Pexp_constant(Pconst_integer(n,o)) ->
-       Pexp_constant(Pconst_integer("-"^n,o))
-    | ("-" | "-."), Pexp_constant(Pconst_float(f,o)) ->
-       Pexp_constant(Pconst_float("-" ^ f,o))
-    | "+", Pexp_constant(Pconst_integer _)
-    | ("+" | "+."), Pexp_constant(Pconst_float _) -> arg.pexp_desc
-    | ("-" | "-." | "+" | "+."), _ ->
-       let p = loc_expr _loc_name (Pexp_ident (id_loc (Lident ("~" ^ name)) _loc_name)) in
-       Pexp_apply(p, [nolabel, arg])
-    | _ ->
-       let p = loc_expr _loc_name (Pexp_ident (id_loc (Lident (name)) _loc_name)) in
-       Pexp_apply(p, [nolabel, arg])
-  in
-  loc_expr _loc res
-#else
-let mk_unary_opp _loc name _loc_name arg =
-  let res =
-    match name, arg.pexp_desc with
-    | "-", Pexp_constant(Const_int n) ->
-       Pexp_constant(Const_int(-n))
-    | "-", Pexp_constant(Const_int32 n) ->
-       Pexp_constant(Const_int32(Int32.neg n))
-    | "-", Pexp_constant(Const_int64 n) ->
-       Pexp_constant(Const_int64(Int64.neg n))
-    | "-", Pexp_constant(Const_nativeint n) ->
-       Pexp_constant(Const_nativeint(Nativeint.neg n))
-    | ("-" | "-."), Pexp_constant(Const_float f) ->
-       Pexp_constant(Const_float("-" ^ f))
-    | "+", Pexp_constant(Const_int _)
-    | "+", Pexp_constant(Const_int32 _)
-    | "+", Pexp_constant(Const_int64 _)
-    | "+", Pexp_constant(Const_nativeint _)
-    | ("+" | "+."), Pexp_constant(Const_float _) -> arg.pexp_desc
-    | ("-" | "-." | "+" | "+."), _ ->
-       let p = loc_expr _loc_name (Pexp_ident (id_loc (Lident ("~" ^ name)) _loc_name)) in
-       Pexp_apply(p, ["", arg])
-    | _ ->
-       let p = loc_expr _loc_name (Pexp_ident (id_loc (Lident (name)) _loc_name)) in
-       Pexp_apply(p, ["", arg])
-  in
-  loc_expr _loc res
-#endif
+let mk_unary_op loc name loc_name arg =
+  match name, arg.pexp_desc with
+  | "-", Pexp_constant(Pconst_integer(n,o)) ->
+     Exp.constant ~loc (Const.integer ?suffix:o ("-"^n))
+  | ("-" | "-."), Pexp_constant(Pconst_float(f,o)) ->
+     Exp.constant ~loc (Const.float ?suffix:o ("-" ^ f))
+  | "+", Pexp_constant(Pconst_integer _)
+  | ("+" | "+."), Pexp_constant(Pconst_float _) ->
+     Exp.mk ~loc arg.pexp_desc
+  | ("-" | "-." | "+" | "+."), _ ->
+     let lid = id_loc (Lident ("~" ^ name)) loc_name in
+     let fn = Exp.ident ~loc:loc_name lid in
+     Exp.apply ~loc fn [nolabel, arg]
+  | _ ->
+     let lid = id_loc (Lident name) loc_name in
+     let fn = Exp.ident ~loc:loc_name lid in
+     Exp.apply ~loc fn [nolabel, arg]
 
-let mk_binary_op _loc e' op _loc_op e =
-  loc_expr _loc
-    (if op = "::" then
-       pexp_construct(id_loc (Lident "::") _loc_op,
-                      Some (loc_expr (ghost _loc) (Pexp_tuple [e';e])))
-     else
-       Pexp_apply(loc_expr _loc_op (Pexp_ident(id_loc (Lident op) _loc_op)),
-                           [(nolabel, e') ; (nolabel, e)]))
+let mk_binary_op loc e' op loc_op e =
+  if op = "::" then
+    let lid = id_loc (Lident "::") loc_op in
+    Exp.construct ~loc lid (Some (Exp.tuple ~loc:(ghost loc) [e';e]))
+  else
+    let id = Exp.ident ~loc:loc_op (id_loc (Lident op) loc_op) in
+    Exp.apply ~loc id [(nolabel, e') ; (nolabel, e)]
 
-let check_variable vl loc v =
-  if List.mem v vl then
-    raise Syntaxerr.(Error(Variable_in_scope(loc,v)))
-
-let varify_constructors var_names t =
-  let rec loop t =
-    let desc =
-      match t.ptyp_desc with
-      | Ptyp_any -> Ptyp_any
-      | Ptyp_var x ->
-          check_variable var_names t.ptyp_loc x;
-          Ptyp_var x
-      | Ptyp_arrow (label,core_type,core_type') ->
-          Ptyp_arrow(label, loop core_type, loop core_type')
-      | Ptyp_tuple lst -> Ptyp_tuple (List.map loop lst)
-      | Ptyp_constr( { txt = Lident s }, []) when List.mem s var_names ->
-          Ptyp_var s
-      | Ptyp_constr(longident, lst) ->
-          Ptyp_constr(longident, List.map loop lst)
-      | Ptyp_object (lst, cl) ->
-          Ptyp_object (List.map loop_core_field lst, cl)
-      | Ptyp_class (longident, lst) ->
-          Ptyp_class (longident, List.map loop lst)
-      | Ptyp_extension(_) as ty -> ty
-      | Ptyp_alias(core_type, string) ->
-          check_variable var_names t.ptyp_loc string;
-          Ptyp_alias(loop core_type, string)
-      | Ptyp_variant(row_field_list, flag, lbl_lst_option) ->
-          Ptyp_variant(List.map loop_row_field row_field_list,
-                       flag, lbl_lst_option)
-      | Ptyp_poly(string_lst, core_type) ->
-#ifversion >= 4.05
-          List.iter (fun v -> check_variable var_names t.ptyp_loc v.txt)
-                string_lst;
-#else
-          List.iter (check_variable var_names t.ptyp_loc) string_lst;
-#endif
-          Ptyp_poly(string_lst, loop core_type)
-      | Ptyp_package(longident,lst) ->
-          Ptyp_package(longident,List.map (fun (n,typ) -> (n,loop typ) ) lst)
-    in
-    {t with ptyp_desc = desc}
-#ifversion >= 4.06.0
-  and loop_core_field = function
-    | Otag(str, attr, ty) -> Otag(str, attr, loop ty)
-    | Oinherit(ty) -> Oinherit(loop ty)
-#else
-  and loop_core_field (str, attr, ty) = (str, attr, loop ty)
-#endif
-  and loop_row_field  =
-    function
-      | Rtag(label,attr,flag,lst) ->
-          Rtag(label,attr,flag,List.map loop lst)
-      | Rinherit t ->
-          Rinherit (loop t)
-  in
-  loop t
-
-let wrap_type_annotation _loc newtypes core_type body =
-  let exp = loc_expr (ghost _loc) (pexp_constraint(body,core_type)) in
+let wrap_type_annotation loc types core_type body =
+  let exp = Exp.constraint_ ~loc:(ghost loc) body core_type in
   let exp =
-    List.fold_right (fun newtype exp -> loc_expr _loc (Pexp_newtype (newtype, exp)))
-      newtypes exp
+    List.fold_right (fun ty exp -> Exp.newtype ~loc ty exp) types exp
   in
-#ifversion >= 4.05
-  let newtypes0 = List.map (fun v -> v.txt) newtypes in
-#else
-  let newtypes0 = newtypes in
-#endif
-  (exp, loc_typ _loc (Ptyp_poly(newtypes,varify_constructors newtypes0 core_type)))
+  (exp, Typ.poly ~loc types (Typ.varify_constructors types core_type))
 
 (* Floating-point litterals *)
 let float_litteral = Earley.apply fst Pa_lexing.float_litteral
@@ -394,11 +300,7 @@ let parser poly_typexpr =
        te
 
 let parser poly_syntax_typexpr =
-#ifversion >= 4.05
   | type_kw ids:{id:typeconstr_name -> id_loc id _loc_id}+ STR(".") te:typexpr ->
-#else
-  | type_kw ids:typeconstr_name+ STR(".") te:typexpr ->
-#endif
        (ids, te)
 
 let parser method_type =
@@ -1490,7 +1392,7 @@ let parser left_expr @(alm,lvl) =
   | (infix_expr Pow) when lvl <= Pow
 
 and parser prefix_expr lvl =
-  p:(prefix_symbol lvl) -> (lvl, false, (fun e _loc -> mk_unary_opp _loc p _loc_p e))
+  p:(prefix_symbol lvl) -> (lvl, false, (fun e _loc -> mk_unary_op _loc p _loc_p e))
 
 and infix_expr lvl =
   if assoc lvl = Left then

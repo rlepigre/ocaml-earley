@@ -7,6 +7,7 @@ open Parsetree
 open Longident
 open Pa_ast
 open Pa_lexing
+open Helper
 include Pa_ocaml_prelude
 module Make(Initial:Extension) =
   struct
@@ -86,99 +87,40 @@ module Make(Initial:Extension) =
                                      Quote.string_antiquotation _loc e)));
            oident])
       
-    let mk_unary_opp _loc name _loc_name arg =
-      let res =
-        match (name, (arg.pexp_desc)) with
-        | ("-",Pexp_constant (Pconst_integer (n,o))) ->
-            Pexp_constant (Pconst_integer (("-" ^ n), o))
-        | (("-"|"-."),Pexp_constant (Pconst_float (f,o))) ->
-            Pexp_constant (Pconst_float (("-" ^ f), o))
-        | ("+",Pexp_constant (Pconst_integer _))
-          |(("+"|"+."),Pexp_constant (Pconst_float _)) -> arg.pexp_desc
-        | (("-"|"-."|"+"|"+."),_) ->
-            let p =
-              loc_expr _loc_name
-                (Pexp_ident (id_loc (Lident ("~" ^ name)) _loc_name))
-               in
-            Pexp_apply (p, [(nolabel, arg)])
-        | _ ->
-            let p =
-              loc_expr _loc_name
-                (Pexp_ident (id_loc (Lident name) _loc_name))
-               in
-            Pexp_apply (p, [(nolabel, arg)])
-         in
-      loc_expr _loc res 
-    let mk_binary_op _loc e' op _loc_op e =
-      loc_expr _loc
-        (if op = "::"
-         then
-           pexp_construct
-             ((id_loc (Lident "::") _loc_op),
-               (Some (loc_expr (ghost _loc) (Pexp_tuple [e'; e]))))
-         else
-           Pexp_apply
-             ((loc_expr _loc_op (Pexp_ident (id_loc (Lident op) _loc_op))),
-               [(nolabel, e'); (nolabel, e)]))
+    let mk_unary_op loc name loc_name arg =
+      match (name, (arg.pexp_desc)) with
+      | ("-",Pexp_constant (Pconst_integer (n,o))) ->
+          Exp.constant ~loc (Const.integer ?suffix:o ("-" ^ n))
+      | (("-"|"-."),Pexp_constant (Pconst_float (f,o))) ->
+          Exp.constant ~loc (Const.float ?suffix:o ("-" ^ f))
+      | ("+",Pexp_constant (Pconst_integer _))
+        |(("+"|"+."),Pexp_constant (Pconst_float _)) ->
+          Exp.mk ~loc arg.pexp_desc
+      | (("-"|"-."|"+"|"+."),_) ->
+          let lid = id_loc (Lident ("~" ^ name)) loc_name  in
+          let fn = Exp.ident ~loc:loc_name lid  in
+          Exp.apply ~loc fn [(nolabel, arg)]
+      | _ ->
+          let lid = id_loc (Lident name) loc_name  in
+          let fn = Exp.ident ~loc:loc_name lid  in
+          Exp.apply ~loc fn [(nolabel, arg)]
       
-    let check_variable vl loc v =
-      if List.mem v vl
-      then raise (let open Syntaxerr in Error (Variable_in_scope (loc, v))) 
-    let varify_constructors var_names t =
-      let rec loop t =
-        let desc =
-          match t.ptyp_desc with
-          | Ptyp_any  -> Ptyp_any
-          | Ptyp_var x -> (check_variable var_names t.ptyp_loc x; Ptyp_var x)
-          | Ptyp_arrow (label,core_type,core_type') ->
-              Ptyp_arrow (label, (loop core_type), (loop core_type'))
-          | Ptyp_tuple lst -> Ptyp_tuple (List.map loop lst)
-          | Ptyp_constr ({ txt = Lident s },[]) when List.mem s var_names ->
-              Ptyp_var s
-          | Ptyp_constr (longident,lst) ->
-              Ptyp_constr (longident, (List.map loop lst))
-          | Ptyp_object (lst,cl) ->
-              Ptyp_object ((List.map loop_core_field lst), cl)
-          | Ptyp_class (longident,lst) ->
-              Ptyp_class (longident, (List.map loop lst))
-          | Ptyp_extension _ as ty -> ty
-          | Ptyp_alias (core_type,string) ->
-              (check_variable var_names t.ptyp_loc string;
-               Ptyp_alias ((loop core_type), string))
-          | Ptyp_variant (row_field_list,flag,lbl_lst_option) ->
-              Ptyp_variant
-                ((List.map loop_row_field row_field_list), flag,
-                  lbl_lst_option)
-          | Ptyp_poly (string_lst,core_type) ->
-              (List.iter (check_variable var_names t.ptyp_loc) string_lst;
-               Ptyp_poly (string_lst, (loop core_type)))
-          | Ptyp_package (longident,lst) ->
-              Ptyp_package
-                (longident, (List.map (fun (n,typ)  -> (n, (loop typ))) lst))
-           in
-        { t with ptyp_desc = desc }
+    let mk_binary_op loc e' op loc_op e =
+      if op = "::"
+      then
+        let lid = id_loc (Lident "::") loc_op  in
+        Exp.construct ~loc lid (Some (Exp.tuple ~loc:(ghost loc) [e'; e]))
+      else
+        (let id = Exp.ident ~loc:loc_op (id_loc (Lident op) loc_op)  in
+         Exp.apply ~loc id [(nolabel, e'); (nolabel, e)])
       
-      and loop_core_field (str,attr,ty) = (str, attr, (loop ty))
-      
-      and loop_row_field =
-        function
-        | Rtag (label,attr,flag,lst) ->
-            Rtag (label, attr, flag, (List.map loop lst))
-        | Rinherit t -> Rinherit (loop t)
-       in loop t 
-    let wrap_type_annotation _loc newtypes core_type body =
-      let exp = loc_expr (ghost _loc) (pexp_constraint (body, core_type))  in
+    let wrap_type_annotation loc types core_type body =
+      let exp = Exp.constraint_ ~loc:(ghost loc) body core_type  in
       let exp =
-        List.fold_right
-          (fun newtype  ->
-             fun exp  -> loc_expr _loc (Pexp_newtype (newtype, exp)))
-          newtypes exp
+        List.fold_right (fun ty  -> fun exp  -> Exp.newtype ~loc ty exp)
+          types exp
          in
-      let newtypes0 = newtypes  in
-      (exp,
-        (loc_typ _loc
-           (Ptyp_poly (newtypes, (varify_constructors newtypes0 core_type)))))
-      
+      (exp, (Typ.poly ~loc types (Typ.varify_constructors types core_type))) 
     let float_litteral = Earley.apply fst Pa_lexing.float_litteral 
     let _ = set_grammar char_litteral Pa_lexing.char_litteral 
     let _ =
@@ -571,7 +513,17 @@ module Make(Initial:Extension) =
               (Earley.apply List.rev
                  (Earley.fixpoint1 []
                     (Earley.apply (fun x  -> fun y  -> x :: y)
-                       typeconstr_name)))
+                       (Earley.apply
+                          (fun id  ->
+                             let (_loc_id,id) = id  in id_loc id _loc_id)
+                          (Earley.apply_position
+                             (fun x  ->
+                                fun str  ->
+                                  fun pos  ->
+                                    fun str'  ->
+                                      fun pos'  ->
+                                        ((locate str pos str' pos'), x))
+                             typeconstr_name)))))
               (Earley.sequence (Earley.string "." ".") typexpr
                  (fun _  ->
                     fun te  -> fun ids  -> fun _default_0  -> (ids, te)))))
@@ -5298,8 +5250,7 @@ module Make(Initial:Extension) =
                             __loc__end__buf __loc__end__pos
                            in
                         (lvl, false,
-                          (fun e  ->
-                             fun _loc  -> mk_unary_opp _loc p _loc_p e)))
+                          (fun e  -> fun _loc  -> mk_unary_op _loc p _loc_p e)))
              (Earley.apply_position
                 (fun x  ->
                    fun str  ->
