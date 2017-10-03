@@ -71,7 +71,7 @@ let occur id e =
     Exit -> true
 
 let find_locate () =
-  try Some(Exp.ident {txt = Lident(Sys.getenv "LOCATE"); loc = !default_loc})
+  try Some(Exp.ident {txt = Lident(Sys.getenv "LOCATE"); loc = Location.none})
   with Not_found -> None
 
 let mkpatt _loc (id, p) =
