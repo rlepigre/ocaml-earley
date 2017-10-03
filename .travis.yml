@@ -4,11 +4,10 @@ install: wget https://raw.githubusercontent.com/craff/ocaml-ci-scripts/master/.t
 script:
   - bash -ex .travis-opam.sh
 env:
-  - FORK_USER=craff
-  - OCAML_VERSION=4.02 TESTS=true
-  - OCAML_VERSION=4.03 TESTS=true
-  - OCAML_VERSION=4.04 TESTS=true
-  - OCAML_VERSION=4.05 TESTS=true
+  - OCAML_VERSION=4.02 TESTS=true FORK_USER=craff
+  - OCAML_VERSION=4.03 TESTS=true FORK_USER=craff
+  - OCAML_VERSION=4.04 TESTS=true FORK_USER=craff
+  - OCAML_VERSION=4.05 TESTS=true FORK_USER=craff
 os:
   - linux
   - osx
