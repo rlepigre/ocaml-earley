@@ -310,12 +310,9 @@ let parser method_type =
   | ty:(typexpr_lvl (next_type_prio DashType)) ->
        Oinherit(ty)
 #else
-#ifversion >= 4.05
       id_loc mn _loc_mn, [], pte
-#else
-      mn, [], pte
 #endif
-#endif
+
 let parser tag_spec =
   | tn:tag_name te:{_:of_kw '&'? typexpr}? ->
       let amp,t = match te with
@@ -377,10 +374,10 @@ let parser package_constraint =
       (tc, te)
 
 let parser package_type =
-  | mtp:modtype_path cs:{with_kw pc:package_constraint
-    pcs:{_:and_kw package_constraint}* -> (pc::pcs)}?[[]] ->
-      let mtp = id_loc mtp _loc_mtp in
-      Ptyp_package (mtp, cs)
+  | mtp:modtype_path
+          cs:{with_kw pc:package_constraint
+                      pcs:{_:and_kw package_constraint}* -> (pc::pcs)}?[[]]
+    -> Typ.package ~loc:_loc (id_loc mtp _loc_mtp) cs
 
 let parser opt_present =
   | STR("[>") l:tag_name+ STR("]") -> l
@@ -393,70 +390,77 @@ let mkoption loc d =
 let extra_types_grammar lvl =
   (alternatives (List.map (fun g -> g lvl) extra_types))
 
+let op_cl = parser d:".." -> Open | EMPTY -> Closed
+
 let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   parser
-  |[@unshared] e:(extra_types_grammar lvl) -> e
+  | [@unshared] e:(extra_types_grammar lvl)
+                         -> e
+  | "'" id:ident
+    -> Typ.var ~loc:_loc id
 
-  | "'" id:ident when lvl <= AtomType ->
-      loc_typ _loc (Ptyp_var id)
-  | joker_kw when lvl <= AtomType ->
-      loc_typ _loc Ptyp_any
-  | '(' module_kw pt:package_type ')' when lvl <= AtomType ->
-      loc_typ _loc pt
-  | '(' te:typexpr at:attribute* ')' when lvl <= AtomType && allow_par ->
-     { te with ptyp_attributes = at }
-  | ln:ty_opt_label te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl <= Arr ->
-#if version >= 4.03
-    loc_typ _loc (Ptyp_arrow (ln, te, te'))
-#else
-    loc_typ _loc (Ptyp_arrow (ln, mkoption _loc_te te, te'))
-#endif
-  | ln:label_name ':' te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl <= Arr ->
-      loc_typ _loc (Ptyp_arrow (labelled ln, te, te'))
+  | joker_kw
+    -> Typ.any ~loc:_loc ()
 
-  | te:(typexpr_lvl (next_type_prio Arr)) arrow_re te':(typexpr_lvl Arr) when lvl <= Arr ->
-     loc_typ _loc (Ptyp_arrow (nolabel, te, te'))
+  | '(' module_kw pt:package_type ')'
+    -> pt
 
-  | tc:typeconstr when lvl <= AtomType ->
-      loc_typ _loc (Ptyp_constr (id_loc tc _loc_tc, []))
+  | '(' te:typexpr at:attribute* ')'
+       when allow_par
+    -> { te with ptyp_attributes = at }
 
-  | '(' te:typexpr tes:{',' te:typexpr}+ ')' tc:typeconstr when lvl <= AppType ->
-      let constr = id_loc tc _loc_tc in
-      loc_typ _loc (Ptyp_constr (constr, te::tes))
+  | ln:ty_opt_label te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+       when lvl <= Arr
+    -> Typ.arrow ~loc:_loc ln te te'
 
-  | t:(typexpr_lvl AppType) tc:typeconstr when lvl <= AppType ->
-      let constr = id_loc tc _loc_tc in
-      loc_typ _loc (Ptyp_constr (constr, [t]))
-  | pvt:polymorphic_variant_type when lvl <= AtomType -> pvt
-  | '<' rv:".."? '>' when lvl <= AtomType ->
-      let ml = if rv = None then Closed else Open in
-      loc_typ _loc (Ptyp_object([], ml))
-  | STR("<") mt:method_type mts:{_:semi_col mt:method_type}*
-    rv:{_:semi_col rv:".."?}? '>' when lvl <= AtomType ->
-      let ml = if rv = None || rv = Some None then Closed else Open in
-      loc_typ _loc (Ptyp_object ((mt :: mts), ml))
-  | STR("#") cp:class_path when lvl <= AtomType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, []))
-  | STR("(") te:typexpr tes:{STR(",") te:typexpr}* STR(")")
-    STR("#") cp:class_path when lvl <= AtomType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, te::tes))
+  | ln:label_name ':' te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+       when lvl <= Arr
+    -> Typ.arrow ~loc:_loc (labelled ln) te te'
 
-  | te:(typexpr_lvl (next_type_prio ProdType))
-    tes:{_:{'*' | "×"} te:(typexpr_lvl (next_type_prio ProdType)) -> te}+  when lvl <= ProdType->
-     loc_typ _loc (Ptyp_tuple (te::tes))
+  | te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+       when lvl <= Arr
+    -> Typ.arrow ~loc:_loc nolabel te te'
 
-  | te:(typexpr_lvl As) as_kw STR("'") id:ident when lvl <= As ->
-     loc_typ _loc (Ptyp_alias (te, id))
+  | tc:typeconstr
+    -> Typ.constr ~loc:_loc (id_loc tc _loc_tc) []
 
-  | te:(typexpr_lvl DashType) STR("#") cp:class_path when lvl <= DashType ->
-      let cp = id_loc cp _loc_cp in
-      loc_typ _loc (Ptyp_class (cp, [te]))
+  | '(' te:typexpr tes:{',' te:typexpr}+ ')' tc:typeconstr
+       when lvl <= AppType
+    -> Typ.constr ~loc:_loc (id_loc tc _loc_tc) (te::tes)
 
-  | '$' - aq:{''[a-z]+'' - ':'}?["type"] e:expression - '$' when lvl <= AtomType ->
-     begin
-       let open Quote in
+  | t:(typexpr_lvl AppType) tc:typeconstr
+       when lvl <= AppType
+    -> Typ.constr ~loc:_loc (id_loc tc _loc_tc) [t]
+
+  | pvt:polymorphic_variant_type
+    -> pvt
+
+  | '<' rv:op_cl '>'
+    -> Typ.object_ ~loc:_loc [] rv
+
+  | '<' mts:(list1 semi_col method_type) rv:{_:semi_col op_cl}?[Closed] '>'
+    -> Typ.object_ ~loc:_loc mts rv
+
+  | '#' cp:class_path
+    -> Typ.class_ ~loc:_loc (id_loc cp _loc_cp) []
+
+  | te:(typexpr_lvl DashType) '#' cp:class_path
+       when lvl <= DashType
+    -> Typ.class_ ~loc:_loc (id_loc cp _loc_cp) [te]
+
+  | '(' te:typexpr tes:{',' te:typexpr}* ')' '#' cp:class_path
+    -> Typ.class_ ~loc:_loc (id_loc cp _loc_cp) (te::tes)
+
+  | tes:(list2 (parser {'*' | "×"}) (typexpr_lvl DashType))
+       when lvl <= ProdType
+    -> Typ.tuple ~loc:_loc tes
+
+  | te:(typexpr_lvl As) as_kw '\'' id:ident
+       when lvl <= As
+    -> Typ.alias ~loc:_loc te id
+
+  | '$' - aq:{''[a-z]+'' - ':'}?["type"] e:expression - '$'
+    -> let open Quote in
        let e_loc = exp_ident _loc "_loc" in
        let generic_antiquote e = function
 	 | Quote_ptyp -> e
@@ -465,11 +469,13 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
        let f =
 	 match aq with
 	    | "type" -> generic_antiquote e
-	    | "tuple" -> generic_antiquote (quote_apply e_loc _loc (pa_ast "typ_tuple") [quote_location_t e_loc _loc _loc; e])
+	    | "tuple" ->
+               generic_antiquote
+                 (quote_apply e_loc _loc (pa_ast "typ_tuple")
+                              [quote_location_t e_loc _loc _loc; e])
 	    | _ -> give_up ()
        in
        Quote.ptyp_antiquotation _loc f
-     end
 )
 
 (****************************************************************************
@@ -844,8 +850,7 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
       let unpack = Ppat_unpack mn in
       let pat = match pt with
                 | None    -> unpack
-                | Some pt -> let pt = loc_typ _loc_pt pt in
-                             Ppat_constraint (loc_pat _loc_mn unpack, pt)
+                | Some pt -> Ppat_constraint (loc_pat _loc_mn unpack, pt)
       in
       loc_pat _loc pat
   | '$' - c:uident when lvl <= AtomPat ->
@@ -1508,7 +1513,6 @@ let parser right_expression @lvl =
       let desc = match pt with
                  | None    -> Pexp_pack me
                  | Some pt -> let me = loc_expr (ghost _loc) (Pexp_pack me) in
-                              let pt = loc_typ (ghost _loc) pt in
                               pexp_constraint (me, pt)
       in loc_expr _loc desc
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
@@ -1670,8 +1674,7 @@ let parser module_expr_base =
   | '(' val_kw e:expression pt:{STR(":") pt:package_type}? ')' ->
       let e = match pt with
               | None    -> Pmod_unpack e
-              | Some pt -> let pt = loc_typ _loc_pt pt in
-                           Pmod_unpack (loc_expr (ghost _loc) (pexp_constraint (e, pt)))
+              | Some pt -> Pmod_unpack (loc_expr (ghost _loc) (pexp_constraint (e, pt)))
       in
       mexpr_loc _loc e
 (*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_expr (start_pos _loc_dol).Lexing.pos_cnum e*)
