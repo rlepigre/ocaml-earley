@@ -132,7 +132,7 @@ type pos2 = { buf : buffer; col : int; buf_ab  : buffer; col_ab : int }
 
 (** Some function on pos2 *)
 let eq_pos {buf;col} {buf=buf';col=col'} =
-  buffer_equal buf buf' && col = col'
+  col = col' && buffer_equal buf buf'
 
 let apply_pos_start =
   fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
