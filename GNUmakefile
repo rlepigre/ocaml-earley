@@ -201,7 +201,7 @@ tests:
 clean:
 	$(Q)echo "\e[93m"CLEAN"\e[0m"
 	$(Q)$(OCAMLBUILD) -clean
-	$(Q)rm -f $(ASTTOOLS)/*.native $(BOOTSTRAP)/*.native
+	$(Q)rm -f $(ASTTOOLS)/*.native $(BOOTDIR)/*.native
 	$(Q)cd $(BOOTDIR); $(OCAMLBUILD) -clean
 	$(Q)$(MAKE) -e -j 1 -C doc/examples clean
 	$(Q)if which patoline ; then cd doc; patoline --clean; fi
