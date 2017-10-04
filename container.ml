@@ -143,6 +143,9 @@ type ('a, 'b) el = 'a
 
 include Make(struct type ('a, 'b) elt = ('a, 'b) el end)
 
+type ('a, 'b) le = 'b
+module Ref = Make(struct type ('a, 'b) elt = ('a, 'b) le end)
+
 (** Exported name for [container]. *)
 type t = unit container
 

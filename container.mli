@@ -107,3 +107,5 @@ type 'a iter = { f : 'b.('a, 'b) elt -> unit }
 val iter : 'a iter -> 'a table -> unit
 type ('a,'c) fold = { f : 'b.('a, 'b) elt -> 'c -> 'c }
 val fold : ('a, 'c) fold -> 'a table -> 'c -> 'c
+
+module Ref : Param with type ('a,'b) elt = 'b

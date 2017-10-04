@@ -156,6 +156,12 @@ type info = (bool * Charset.t) Fixpoint.t
 
 (** THE MAIN TYPES *)
 
+type 'a terminal =
+  { input : 'a input
+  ; empty : bool
+  ; first : Charset.t
+  ; memo : ('a * buffer * int) Container.Ref.container }
+
 (** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
     the type of the semantics of the grammar. For example, parsing using a
     grammar of type [int grammar] will produce a value of type [int]. *)
@@ -165,7 +171,7 @@ module rec Types : sig
   type 'a grammar = info * 'a rule list
    (** The symbol, a more general concept that terminals *)
    and _ symbol =
-     | Term : Charset.t * 'a input -> 'a symbol
+     | Term : 'a terminal -> 'a symbol
      (** terminal symbol just read the input buffer *)
      | Greedy : info * 'a input2 -> 'a symbol
      (** Greedy correspond to a recursive call to the parser. We
@@ -391,7 +397,7 @@ let rec rule_info:type a.a rule -> info = fun r ->
   | Dep(_) -> any
 
 let symbol_info:type a.a symbol -> info  = function
-  | Term(i,_) -> Fixpoint.from_val (false,i)
+  | Term{empty;first} -> Fixpoint.from_val (empty,first)
   | NonTerm(i,_) | Greedy(i,_) -> i
   | Test(set,_) -> Fixpoint.from_val (true, set)
 
@@ -468,6 +474,8 @@ type 'a reads = 'a final OrdTbl.t ref
     associate stack to rule. Recall we construct stack for element whose
     end are the current position *)
 type 'a sct = 'a StackContainer.table
+
+type tmemo = unit Container.Ref.table
 
 (** [add_stack_hook sct rule fn] adds in [table] a hook [fn] for the given
     [rule]. [fn] will be called each time an element is added to the stack
@@ -631,9 +639,9 @@ let update_errpos errpos buf col =
    It perform prediction/completion/lecture in a recursive way.
  *)
 let rec pred_prod_lec
-        : type a. errpos -> a final -> a cur -> a reads -> a sct -> blank
-               -> pos2 -> char -> unit =
-  fun errpos elt0 elements forward sct blank cur_pos c ->
+        : type a. errpos -> a final -> a cur -> a reads -> a sct ->
+               tmemo -> blank -> pos2 -> char -> unit =
+  fun errpos elt0 elements forward sct tmemo blank cur_pos c ->
   let rec fn elt0 =
     match elt0 with
     | D {start; acts; stack; rest; full} ->
@@ -706,11 +714,16 @@ let rec pred_prod_lec
           with Error -> () end
 
        (** A terminal, we try to read *)
-       | Next(_,_,Term (_,f),rest) ->
+       | Next(_,_,Term{input=f;memo},rest) ->
           begin try
             if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
             let {buf_ab; col_ab} = cur_pos in
-            let a, buf, col = f buf_ab col_ab in
+            let a, buf, col =
+              try Container.Ref.find tmemo memo with
+              | Not_found ->
+                 let res = f buf_ab col_ab in
+                 Container.Ref.add tmemo memo res; res
+            in
             let elt =
               (D {start; stack; acts = cns a acts; rest; full})
             in
@@ -801,6 +814,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     let elements : a cur = Hashtbl.create 16 in
     let forward = ref OrdTbl.empty in
     let sct = StackContainer.create_table () in
+    let tmemo = Container.Ref.create_table () in
     (** contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)
@@ -827,7 +841,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       if !debug_lvl > 0 then log "NEXT=%5d: %a\n%!" parse_id print_pos cur_pos;
       List.iter (fun s ->
         if add "I" cur_pos c s elements then
-          pred_prod_lec errpos s elements forward sct blank cur_pos c) l;
+          pred_prod_lec errpos s elements forward sct tmemo blank cur_pos c) l;
     in
     (** searching a succes *)
     let search_success () =
@@ -838,10 +852,10 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     in
 
     (* main loop *)
-    while !todo <> [] do
-      (** clear the table *)
+    (try while !todo <> [] do
       StackContainer.clear sct;
       Hashtbl.clear elements;
+      Container.Ref.clear tmemo;
       (** read blanks *)
       let buf'', col'' = blank !buf !col in
       buf' := buf''; col' := col'';
@@ -858,7 +872,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
          (** advance positions *)
          col := new_col; buf := new_buf;
        with Not_found -> todo := []
-    done;
+    done with _ -> assert false);
     (** search succes at the end for non internal parse *)
     if not internal then search_success ();
     let parse_error () =

@@ -44,25 +44,39 @@ open EarleyUtils
 open Input
 open EarleyEngine
 
+(** a few values imported from EarleyEngine *)
+
 type blank = EarleyEngine.blank
 type 'a grammar = 'a EarleyEngine.grammar
-
 exception Parse_error = EarleyEngine.Parse_error
-
 let warn_merge = EarleyEngine.warn_merge
-
 let debug_lvl = EarleyEngine.debug_lvl
 
+(** The user visible function to reject a parsing rule from its action *)
 let give_up () = raise Error
 
-let no_blank str pos = str, pos
+(** Three predefined blank functions *)
 
-let partial_parse_buffer : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int -> a * buffer * int
-   = fun g bl ?(blank_after=false) buf pos ->
-       parse_buffer_aux blank_after bl g buf pos
+let no_blank : buffer -> int -> buffer * int = fun str pos -> str, pos
 
-let next_aux name s r = mkrule (Next(compose_info s r, name, s,r))
+let blank_regexp : string -> blank =
+  fun str ->
+    let (re, _) = Regexp.regexp_from_string str in
+    Regexp.read_regexp re
 
+(** blank grammar take another blank function. This is usefull
+    to define blank as list of comments separated by blanks *)
+let blank_grammar : unit grammar -> blank -> blank
+  = fun grammar blank buf pos ->
+      let save_debug = !debug_lvl in
+      debug_lvl := !debug_lvl / 10;
+      let (_,buf,pos) =
+        internal_parse_buffer ~blank_after:true blank grammar buf pos
+      in
+      debug_lvl := save_debug;
+      (buf,pos)
+
+(** composition of actions *)
 let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
   match f,g with
   | Idt, _ -> g
@@ -74,7 +88,11 @@ let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
 
 let compose3 f g h = compose f (compose g h)
 
+(** Smart constructors for rules *)
+
 let nonterm (i,s) = NonTerm(i,ref s)
+
+let next_aux name s r = mkrule (Next(compose_info s r, name, s,r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
   fun s r -> match snd s with
@@ -85,32 +103,25 @@ let next : type a c. a grammar -> (a -> c) rule -> c rule =
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
 
-let solo = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
-  let j = Fixpoint.from_val (accept_empty,set) in
-  (j, [mkrule (Next(j,name,Term (set, s),idtEmpty ()))])
+let term accept_empty first input =
+  Term{input;empty=accept_empty;first;memo=Container.Ref.create ()}
+
+(** Helper to build a terminal symbol *)
+let solo : ?name:string -> ?accept_empty:bool -> Charset.t
+           -> 'a input -> 'a grammar
+  = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
+      let j = Fixpoint.from_val (accept_empty,set) in
+      (j, [mkrule (Next(j,name,term accept_empty set s,idtEmpty ()))])
 
 type 'a result = Val of 'a | Exc of exn
 
+(** Function used to call use a grammar as a terminal. Do no abuse it,
+    it is for exceptional cases like changing blank. This function is
+    memoized *)
 let greedy_solo =
   fun ?(name=new_name ()) i s ->
-    let cache = Hashtbl.create 101 in
     let s = fun errpos blank b p b' p' ->
-      let key = (buffer_uid b, p, buffer_uid b', p') in
-      let l = try Hashtbl.find cache key with Not_found -> [] in
-      try
-        let (_,r) = List.find (fun (bl, _) -> bl == blank) l in
-        (match r with Exc e -> raise e | Val r -> r)
-      with Not_found ->
-        try
-          let r = s errpos blank b p b' p' in
-          let l = (blank,Val r)::l in
-          Hashtbl.replace cache key l;
-          r
-        with
-          e ->
-          let l = (blank,Exc e)::l in
-          Hashtbl.replace cache key l;
-          raise e
+      s errpos blank b p b' p'
     in
     (i, [mkrule (Next(i,name,Greedy(i,s),idtEmpty ()))])
 
@@ -157,40 +168,6 @@ let sequence_position : 'a grammar -> 'b grammar -> ('a -> 'b -> buffer -> int -
    = fun l1 l2 f ->
     mk_grammar [next l1 (next l2 (emp(WithPos(fun b p b' p' a' a -> f a a' b p b' p'))))]
 
-let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
-  fun g blank buf ->
-    let g = sequence g (eof ()) (fun x _ -> x) in
-    let (a, _, _) = partial_parse_buffer g blank buf 0 in
-    a
-
-let parse_string ?(filename="") grammar blank str =
-  let str = Input.from_string ~filename str in
-  parse_buffer grammar blank str
-
-let parse_channel ?(filename="") grammar blank ic  =
-  let str = Input.from_channel ~filename ic in
-  parse_buffer grammar blank str
-
-let parse_file grammar blank filename  =
-  let str = Input.from_file filename in
-  parse_buffer grammar blank str
-
-module WithPP(PP : Preprocessor) =
-  struct
-    module InPP = Input.WithPP(PP)
-
-    let parse_string ?(filename="") grammar blank str =
-      let str = InPP.from_string ~filename str in
-      parse_buffer grammar blank str
-
-    let parse_channel ?(filename="") grammar blank ic  =
-      let str = InPP.from_channel ~filename ic in
-      parse_buffer grammar blank str
-
-    let parse_file grammar blank filename  =
-      let str = InPP.from_file filename in
-      parse_buffer grammar blank str
-  end
 
 let fail : unit -> 'a grammar
   = fun () ->
@@ -306,11 +283,6 @@ let regexp : ?name:string -> string -> string array grammar =
     in
     solo ~name ~accept_empty:(Regexp.accept_empty re)
       (Regexp.accepted_first_chars re) fn
-
-let blank_regexp : string -> blank =
-  fun str ->
-    let (re, _) = Regexp.regexp_from_string str in
-    Regexp.read_regexp re
 
 (* charset is now useless ... will be suppressed soon *)
 (*
@@ -442,19 +414,6 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
       set_grammar r (f args p);
     ) tbl)
 
-let blank_grammar grammar blank buf pos =
-    let save_debug = !debug_lvl in
-    debug_lvl := !debug_lvl / 10;
-    let (_,buf,pos) = internal_parse_buffer ~blank_after:true blank grammar buf pos in
-    debug_lvl := save_debug;
-    (buf,pos)
-
-let accept_empty grammar =
-  try
-    ignore (parse_string grammar no_blank ""); true
-  with
-    Parse_error _ -> false
-
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a grammar -> blank -> 'a grammar
   = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
     let i = Fixpoint.from_val (false, Charset.full) in
@@ -511,3 +470,51 @@ let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
 
 let iter : 'a grammar grammar -> 'a grammar
   = fun g -> dependent_sequence g idt
+
+(** How to call the parser *)
+
+let partial_parse_buffer
+    : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int
+           -> a * buffer * int
+   = fun g bl ?(blank_after=false) buf pos ->
+       parse_buffer_aux blank_after bl g buf pos
+
+let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
+  fun g blank buf ->
+    let g = sequence g (eof ()) (fun x _ -> x) in
+    let (a, _, _) = partial_parse_buffer g blank buf 0 in
+    a
+
+let parse_string ?(filename="") grammar blank str =
+  let str = Input.from_string ~filename str in
+  parse_buffer grammar blank str
+
+let parse_channel ?(filename="") grammar blank ic  =
+  let str = Input.from_channel ~filename ic in
+  parse_buffer grammar blank str
+
+let parse_file grammar blank filename  =
+  let str = Input.from_file filename in
+  parse_buffer grammar blank str
+
+module WithPP(PP : Preprocessor) =
+  struct
+    module InPP = Input.WithPP(PP)
+
+    let parse_string ?(filename="") grammar blank str =
+      let str = InPP.from_string ~filename str in
+      parse_buffer grammar blank str
+
+    let parse_channel ?(filename="") grammar blank ic  =
+      let str = InPP.from_channel ~filename ic in
+      parse_buffer grammar blank str
+
+    let parse_file grammar blank filename  =
+      let str = InPP.from_file filename in
+      parse_buffer grammar blank str
+  end
+
+(** A test on grammar *)
+(* FIXME: this info is already computed in the grammar use full for tests ?*)
+let accept_empty : 'a grammar -> bool = fun grammar ->
+  fst (grammar_info grammar)
