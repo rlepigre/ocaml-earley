@@ -1,72 +1,72 @@
-File: ./tests_pa_ocaml/bibi.ml: 
-File: ./tests_pa_ocaml/UTF16.ml: 
-File: ./tests_pa_ocaml/test_offset.ml: 
-File: ./tests_pa_ocaml/imageGIF.ml: 
-File: ./tests_pa_ocaml/imageJPG.ml: 
-File: ./tests_pa_ocaml/image.ml: 
-File: ./tests_pa_ocaml/imagePNG.ml: 
-File: ./tests_pa_ocaml/imagePPM.ml: 
-File: ./tests_pa_ocaml/imageUtil.ml: 
-File: ./tests_pa_ocaml/imageXCF.ml: 
-File: ./tests_pa_ocaml/decap.ml: 
-File: ./tests_pa_ocaml/pa_byt_main.ml: 
-File: ./tests_pa_ocaml/pa_ocaml_prelude.ml: 
-File: ./tests_pa_ocaml/pa_parser.ml: 
-File: ./tests_pa_ocaml/test.ml: 
-File: ./tests_pa_ocaml/objects.ml: 
-File: ./tests_pa_ocaml/variants.ml: 
-File: ./tests_pa_ocaml/prefix.ml: 
-File: ./tests_pa_ocaml/mixin2.ml: 
-File: ./tests_pa_ocaml/mixev.ml: 
-File: ./tests_pa_ocaml/mixev2.ml: 
-File: ./tests_pa_ocaml/mixmod.ml: 
-File: ./tests_pa_ocaml/mixmod5.ml: 
-File: ./tests_pa_ocaml/mixobj.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/pervasives.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/pervasives.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/list.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/list.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/stack.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/stack.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/set.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/set.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/map.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/map.mli: 
-File: ./tests_pa_ocaml/bigarray.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/bigarray.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/string.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/string.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/array.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/array.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/char.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/char.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/arg.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/arg.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/arrayLabels.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/arrayLabels.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/buffer.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/buffer.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/complex.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/complex.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/digest.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/digest.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/dynlink.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/filename.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/filename.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/format.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/gc.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/gc.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/genlex.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/genlex.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/hashtbl.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/hashtbl.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/lexing.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/lexing.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/listLabels.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/listLabels.mli: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/moreLabels.ml: 
-File: /home/raffalli/.opam/4.06.0+trunk/lib/ocaml/moreLabels.mli: 
-File: ./tests_pa_ocaml/test4.ml: 
+bibi.ml: 
+UTF16.ml: 
+test_offset.ml: 
+imageGIF.ml: 
+imageJPG.ml: 
+image.ml: 
+imagePNG.ml: 
+imagePPM.ml: 
+imageUtil.ml: 
+imageXCF.ml: 
+decap.ml: 
+pa_byt_main.ml: 
+pa_ocaml_prelude.ml: 
+pa_parser.ml: 
+test.ml: 
+objects.ml: 
+variants.ml: 
+prefix.ml: 
+mixin2.ml: 
+mixev.ml: 
+mixev2.ml: 
+mixmod.ml: 
+mixmod5.ml: 
+mixobj.ml: 
+pervasives.ml: 
+pervasives.mli: 
+list.ml: 
+list.mli: 
+stack.ml: 
+stack.mli: 
+set.ml: 
+set.mli: 
+map.ml: 
+map.mli: 
+bigarray.ml: 
+bigarray.mli: 
+string.ml: 
+string.mli: 
+array.ml: 
+array.mli: 
+char.ml: 
+char.mli: 
+arg.ml: 
+arg.mli: 
+arrayLabels.ml: 
+arrayLabels.mli: 
+buffer.ml: 
+buffer.mli: 
+complex.ml: 
+complex.mli: 
+digest.ml: 
+digest.mli: 
+dynlink.mli: 
+filename.ml: 
+filename.mli: 
+format.ml: 
+gc.ml: 
+gc.mli: 
+genlex.ml: 
+genlex.mli: 
+hashtbl.ml: 
+hashtbl.mli: 
+lexing.ml: 
+lexing.mli: 
+listLabels.ml: 
+listLabels.mli: 
+moreLabels.ml: 
+moreLabels.mli: 
+test4.ml: 
 ********************************************
 TOTAL diff size:
 0 0 0 total

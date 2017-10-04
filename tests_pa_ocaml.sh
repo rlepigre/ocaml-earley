@@ -69,21 +69,22 @@ fi
 
 if [ ${COMPARE} -eq 1 ]; then
     for f in $files; do
-        echo -e "File: $f: "
+	n=$(basename $f)
+        echo -e "$n: "
         ./pa_ocaml $f > /dev/null
 
-        ocamlc -rectypes -c -dparsetree -o /tmp/foo.cmo -pp ./pa_ocaml  $f 2> $diff/$(basename $f).pa_ocaml.full
-        ocamlc -rectypes -c -dparsetree -o /tmp/bar.cmo                 $f 2> $diff/$(basename $f).ocamlc.full
+        ocamlc -rectypes -c -dparsetree -o /tmp/foo.cmo -pp ./pa_ocaml  $f 2> $diff/$n.pa_ocaml.full
+        ocamlc -rectypes -c -dparsetree -o /tmp/bar.cmo                 $f 2> $diff/$n.ocamlc.full
 
-        cat $diff/$(basename $f).pa_ocaml.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).pa_ocaml
-        cat $diff/$(basename $f).ocamlc.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$(basename $f).ocamlc
-        diff $diff/$(basename $f).pa_ocaml  $diff/$(basename $f).ocamlc > $diff/$(basename $f).diff
-        diff $diff/$(basename $f).pa_ocaml.full $diff/$(basename $f).ocamlc.full > $diff/$(basename $f).fulldiff
-        if [ -s $diff/$(basename $f).diff ]; then
-            echo -e "\e[31m"   diff size: $(wc $diff/$(basename $f).diff) "\e[0m"
+        cat $diff/$n.pa_ocaml.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$n.pa_ocaml
+        cat $diff/$n.ocamlc.full | sed -e 's/(.*\.mli\?\[.*\]\.\.\([^[]*\.mli\?\)\?\[.*\])\( ghost\)\?//' > $diff/$n.ocamlc
+        diff $diff/$n.pa_ocaml  $diff/$n.ocamlc > $diff/$n.diff
+        diff $diff/$n.pa_ocaml.full $diff/$n.ocamlc.full > $diff/$n.fulldiff
+        if [ -s $diff/$n.diff ]; then
+            echo -e "\e[31m"   diff size: $(wc $diff/$n.diff) "\e[0m"
         fi
-        if [ -s $diff/$(basename $f).fulldiff ]; then
-            echo -e "\e[93m"   diff size with pos: $(wc $diff/$(basename $f).fulldiff) "\e[0m"
+        if [ -s $diff/$n.fulldiff ]; then
+            echo -e "\e[93m"   diff size with pos: $(wc $diff/$n.fulldiff) "\e[0m"
         fi
     done
 
