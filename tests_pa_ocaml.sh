@@ -62,9 +62,8 @@ files="$local/bibi.ml $local/UTF16.ml $local/test_offset.ml $local/image*.ml $lo
 # echo $files
 
 if [ ${TIME} -eq 1 ]; then
-    rm test_parsers.cm*
-    make $MAKEOPTS test_parsers
-    ./test_parsers $files
+    make $MAKEOPTS test_parsers.native
+    ./test_parsers.native $files
 fi
 
 if [ ${COMPARE} -eq 1 ]; then
