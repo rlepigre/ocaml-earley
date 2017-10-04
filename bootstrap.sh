@@ -2,35 +2,55 @@
 
 export MAKE="make"
 
-set -v
+#set -v
 
 SAVE=`opam config var switch`
 GOOD_BOOTSTRAPS=""
-ALL_VERSIONS="4.07.0+trunk 4.06.0+trunk 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0"
-   # 4.02.3 4.02.2 4.02.1 4.02.0
+VERSIONS="4.07.0+trunk 4.06.0+trunk 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0"
 
 function build {
     opam switch $1
     eval `opam config env`
     make boot || exit 1
-    # ./tests_pa_ocaml.sh
+}
+
+function tests {
+    opam switch $1
+    eval `opam config env`
+    make distclean
+    make && make && make tests
+    if ! $?; then exit 1; fi
+}
+
+function expected {
+    opam switch $1
+    eval `opam config env`
+    make distclean
+    make && make && make expected
 }
 
 if [ "$1" = "--all" -o "$1" = "--allnew" ] ; then
-    VERSIONS=$ALL_VERSIONS
     echo ALL: bootstraping all version \($VERSIONS\) from file in bootstrap
-#elif [ "$1" = "--new" ] ; then
-#    echo NEW: bootstraping $2 from previous version
-#    VERSIONS=$2
+    for v in $VERSIONS; do
+	build $v
+    done
+elif [ "$1" = "--new" ] ; then
+    echo NEW: bootstraping $2 from previous version
+    make && make
+elif [ "$1" = "--expected" ] ; then
+    echo ALL: created expected tests results for \($VERSIONS\)
+    for v in $VERSIONS; do
+	expected $v
+    done
+elif [ "$1" = "--tests" ] ; then
+    echo ALL: created expected tests results for \($VERSIONS\)
+    for v in $VERSIONS; do
+	tests $v
+    done
 else
-    echo you give option --new VERSION or --all or --allnew or --earley dir
+    echo you give option --new VERSION, --all, --allnew, --expected or --tests
     exit 1
 fi
-
-for v in $VERSIONS; do
-    build $v $1
-    cp -f pa_ocaml pa_ocaml-$v
-done
 
 $MAKE distclean
 

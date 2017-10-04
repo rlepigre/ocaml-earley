@@ -1,0 +1,91 @@
+File: ./tests_pa_ocaml/bibi.ml: 
+[93m diff size with pos: 8 16 466 ./tests_pa_ocaml/bibi.ml.fulldiff [0m
+File: ./tests_pa_ocaml/UTF16.ml: 
+File: ./tests_pa_ocaml/test_offset.ml: 
+[93m diff size with pos: 4 8 192 ./tests_pa_ocaml/test_offset.ml.fulldiff [0m
+File: ./tests_pa_ocaml/imageGIF.ml: 
+File: ./tests_pa_ocaml/imageJPG.ml: 
+[93m diff size with pos: 4 8 232 ./tests_pa_ocaml/imageJPG.ml.fulldiff [0m
+File: ./tests_pa_ocaml/image.ml: 
+[93m diff size with pos: 16 32 840 ./tests_pa_ocaml/image.ml.fulldiff [0m
+File: ./tests_pa_ocaml/imagePNG.ml: 
+[93m diff size with pos: 64 128 3931 ./tests_pa_ocaml/imagePNG.ml.fulldiff [0m
+File: ./tests_pa_ocaml/imagePPM.ml: 
+[93m diff size with pos: 32 64 1796 ./tests_pa_ocaml/imagePPM.ml.fulldiff [0m
+File: ./tests_pa_ocaml/imageUtil.ml: 
+[93m diff size with pos: 12 24 624 ./tests_pa_ocaml/imageUtil.ml.fulldiff [0m
+File: ./tests_pa_ocaml/imageXCF.ml: 
+File: ./tests_pa_ocaml/decap.ml: 
+[93m diff size with pos: 24 48 1306 ./tests_pa_ocaml/decap.ml.fulldiff [0m
+File: ./tests_pa_ocaml/pa_byt_main.ml: 
+File: ./tests_pa_ocaml/pa_ocaml_prelude.ml: 
+File: ./tests_pa_ocaml/pa_parser.ml: 
+File: ./tests_pa_ocaml/test.ml: 
+File: ./tests_pa_ocaml/objects.ml: 
+File: ./tests_pa_ocaml/variants.ml: 
+File: ./tests_pa_ocaml/prefix.ml: 
+File: ./tests_pa_ocaml/mixin2.ml: 
+File: ./tests_pa_ocaml/mixev.ml: 
+File: ./tests_pa_ocaml/mixev2.ml: 
+File: ./tests_pa_ocaml/mixmod.ml: 
+File: ./tests_pa_ocaml/mixmod5.ml: 
+File: ./tests_pa_ocaml/mixobj.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/pervasives.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/pervasives.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/list.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/list.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/stack.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/stack.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/set.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/set.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/map.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/map.mli: 
+File: ./tests_pa_ocaml/bigarray.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/bigarray.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/string.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/string.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/array.ml: 
+[93m diff size with pos: 52 104 3542 ./tests_pa_ocaml/array.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/array.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/char.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/char.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/arg.ml: 
+[93m diff size with pos: 68 136 5358 ./tests_pa_ocaml/arg.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/arg.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/arrayLabels.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/arrayLabels.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/buffer.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/buffer.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/complex.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/complex.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/digest.ml: 
+[93m diff size with pos: 8 16 490 ./tests_pa_ocaml/digest.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/digest.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/dynlink.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/filename.ml: 
+[93m diff size with pos: 28 56 2066 ./tests_pa_ocaml/filename.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/filename.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/format.ml: 
+[93m diff size with pos: 76 152 4892 ./tests_pa_ocaml/format.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/gc.ml: 
+[93m diff size with pos: 4 8 226 ./tests_pa_ocaml/gc.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/gc.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/genlex.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/genlex.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/hashtbl.ml: 
+[93m diff size with pos: 16 32 1156 ./tests_pa_ocaml/hashtbl.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/hashtbl.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/lexing.ml: 
+[93m diff size with pos: 12 24 726 ./tests_pa_ocaml/lexing.ml.fulldiff [0m
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/lexing.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/listLabels.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/listLabels.mli: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/moreLabels.ml: 
+File: /home/raffalli/.opam/4.07.0+trunk/lib/ocaml/moreLabels.mli: 
+File: ./tests_pa_ocaml/test4.ml: 
+********************************************
+TOTAL diff size:
+0 0 0 total
+TOTAL diff size with pos:
+  428   856 27843 total
+********************************************

@@ -117,17 +117,9 @@ quote.ml: $(ASTTOOLS)/pa_quote.native $(ASTTOOLS)/generic_quote.ml \
 	$(Q) echo "(* parsetree.mli *)" >> $@
 	$(Q) ./pa_quote.native $(ASTDIR)/parsetree.mli >> $@
 
-
-#BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
-boot: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
-boot:
-	$(Q) make distclean && make
-	$(Q) echo "\e[93m"COMPILING USING V1"\e[0m"
-	$(Q) make
-	$(Q) echo "\e[93m"COMPILING USING V2"\e[0m"
-	$(Q) make clean && make
+.PHONY: bootstrap
+bootstrap:
 	$(Q) echo "\e[93m"BOOTSTRAP"\e[0m"
-	$(Q) if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
 	$(Q) if [ ! -d tmp ] ; then mkdir tmp; fi
 	$(Q) echo "\e[93m"MAIN FILES"\e[0m"
 	$(Q) export OCAMLVERSION=$(OCAMLVERSION); \
@@ -139,20 +131,54 @@ boot:
 	     $(PA_OCAML) --ascii pa_ast.ml > tmp/pa_ast.ml ;\
 	     $(PA_OCAML) --ascii pa_main.ml > tmp/pa_main.ml ;\
 	     $(PA_OCAML) --ascii pa_default.ml > tmp/pa_default.ml
+
+.PHONY: backup
+backup: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
+backup:
+	$(Q) echo "\e[93m"BACKUP $(BOOTDIR) IN $(BACKUP)"\e[0m"
+	$(Q) mkdir $(BACKUP)
+	$(Q) cp $(BOOTDIR)/*.ml* $(BACKUP)
+
+.PHONY: new
+new:
+	$(Q) echo "\e[93m"CREATING FRESH BOOTSTRAP FOR $(OCAMLVERSION)"\e[0m"
+	$(Q) make bootstrap
+	$(Q) OCAMLVERSION=$(OCAMLVERSION) make $(ASTML)
+	$(Q) OCAMLVERSION=$(OCAMLVERSION) make $(HLPML)
+	$(Q) if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
+	$(Q) make backup
+	$(Q) mv tmp/*.ml* $(BOOTDIR)
+
+#BOOTSTRAP OF ONE VERSION (SEE all_boot.sh AND INSTALL opam FOR MULTIPLE OCAML VERSION
+.PHONY: boot
+boot:
+	$(Q) make distclean && make
+	$(Q) echo "\e[93m"COMPILING USING V1"\e[0m"
+	$(Q) make
+	$(Q) echo "\e[93m"COMPILING USING V2"\e[0m"
+	$(Q) make clean && make
+	$(Q) make bootstrap
 	$(Q) echo "\e[93m"HELPER AND ASTTOOLS"\e[0m"
 	$(Q) cp $(ASTML) $(HLPML) tmp/
 	$(Q) touch .fixpoint
 	$(Q) cd tmp/ ; for f in *.ml; do\
                if ! diff -q $$f ../$(BOOTDIR)/$$f; then rm ../.fixpoint; fi ;\
 	     done
+	$(Q) if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
 	$(Q) if [ -f .fixpoint ]; then echo "\e[93m"FIXPOINT REACHED"\e[0m";\
 	     elif [ $(BOOT) -eq 1 -a ! -d $(BACKUP) ] ; then \
 	       echo "\e[93m"COPYING TO $(BOOTDIR)"\e[0m" ; \
-	       mkdir $(BACKUP) ; \
-	       cp $(BOOTDIR)/*.ml $(BACKUP) ; \
+	       make backup ;\
 	       cp -f tmp/*.ml $(BOOTDIR)/ ;\
 	       rm -rf tmp ;\
 	     fi
+
+tests_pa_ocaml/$(OCAMLVERSION)/expected: pa_ocaml
+	$(Q) echo "\e[93m"CREATING $@"\e[0m"
+	$(Q) ./tests_pa_ocaml.sh > $@
+
+.PHONY: expected
+expected: tests_pa_ocaml/$(OCAMLVERSION)/expected
 
 .PHONY: tests
 tests:
@@ -174,7 +200,7 @@ tests:
 clean:
 	$(Q) echo "\e[93m"CLEAN"\e[0m"
 	$(Q) $(OCAMLBUILD) -clean
-	$(Q) rm -f $(ASTTOOLS)/*.native
+	$(Q) rm -f $(ASTTOOLS)/*.native $(BOOTSTRAP)/*.native
 	$(Q) cd $(BOOTDIR); $(OCAMLBUILD) -clean
 	$(Q) $(MAKE) -e -j 1 -C doc/examples clean
 	$(Q) if which patoline ; then cd doc; patoline --clean; fi
