@@ -11,7 +11,7 @@ VERSIONS="4.07.0+trunk 4.06.0+trunk 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0 4.02.3 4.
 function build {
     opam switch $1
     eval `opam config env`
-    opam install ocamlbuild ocamlfind
+    opam install -y ocamlbuild ocamlfind
     $MAKE distclean && $MAKE && $MAKE install
     GOOD="$1 , $GOOD"
 }
