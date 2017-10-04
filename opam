@@ -12,6 +12,7 @@ build: [
   [make]
   [make]
 ]
+build-test: [make tests]
 install: [make "install" "BINDIR=%{bin}%" ]
 remove: [make "uninstall"]
 depends:
