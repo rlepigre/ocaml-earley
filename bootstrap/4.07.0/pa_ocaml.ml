@@ -4999,8 +4999,7 @@ module Make(Initial:Extension) =
                              __loc__end__buf __loc__end__pos in
                          ((next_exp Tupl), false,
                            (fun e' ->
-                              fun (_loc, _) ->
-                                loc_expr _loc (Pexp_tuple (l @ [e'])))))
+                              fun (_loc, _) -> Exp.tuple ~loc:_loc (l @ [e']))))
               (Earley.apply List.rev
                  (Earley.fixpoint1 []
                     (Earley.apply (fun x -> fun y -> x :: y)

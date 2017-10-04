@@ -1367,7 +1367,7 @@ let parser left_expr @(alm,lvl) =
 
   | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+
       when lvl <= Tupl ->
-       (next_exp Tupl, false, (fun e' (_loc,_) -> loc_expr _loc (Pexp_tuple (l@[e']))))
+       (next_exp Tupl, false, (fun e' (_loc,_) -> Exp.tuple ~loc:_loc (l@[e'])))
 
   | assert_kw when lvl <= App ->
        (next_exp App, false, (fun e (_loc,_) -> loc_expr _loc (Pexp_assert(e))))
