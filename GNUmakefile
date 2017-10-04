@@ -213,9 +213,9 @@ distclean: clean
 	$(Q)echo "\e[93m"DISTCLEAN"\e[0m"
 	$(Q)rm -f pa_ocaml .fixpoint $(ASTML) $(HLPML)
 	$(Q)rm -rf tmp
-	$(Q)find -name "*~" -type f -exec rm {} \;
-	$(Q)find -name "#*" -type f -exec rm {} \;
-	$(Q)find -name ".#*" -type f -exec rm {} \;
+	$(Q)find . -name "*~" -type f -exec rm {} \;
+	$(Q)find . -name "#*" -type f -exec rm {} \;
+	$(Q)find . -name ".#*" -type f -exec rm {} \;
 	$(Q)$(MAKE) -e -j 1 -C doc/examples distclean
 	$(Q)rm -f doc/doc.pdf
 
