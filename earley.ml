@@ -362,12 +362,10 @@ let fail_no_parse () = exit 1
 
 let handle_exception ?(error=fail_no_parse) f a =
   try f a with Parse_error(buf, pos) ->
-    begin
-      Printf.eprintf "Parse error: ";
-      Printf.eprintf "file %S, line %d, character %d\n"
-                     (filename buf) (line_num buf) (utf8_col_num buf pos);
-      error ()
-    end
+    let red fmt = "\027[31m" ^^ fmt ^^ "\027[0m%!" in
+    Printf.eprintf (red "Parse error: file %S, line %d, character %d.\n")
+      (filename buf) (line_num buf) (utf8_col_num buf pos);
+    error ()
 
 let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
   let tbl = EqHashtbl.create ~equal:eq_closure 8 in
