@@ -1630,17 +1630,22 @@ let parser noelse @b =
   | no_else when b
   | EMPTY when not b
 
+let parser debut lvl alm =
+  (lvl0,no_else,f as s):(left_expr (alm,lvl)) -> ((lvl0,no_else), (f, _loc_s))
+
+let parser suit lvl alm (lvl0,no_else) =
+  | e:(expression_lvl (alm,lvl0)) c:(semicol (alm,lvl)) (noelse no_else) ->
+      fun (f, _loc_s) ->
+        let _loc = merge2 _loc_s _loc_e in
+        (* position of the last semi column for sequence only *)
+        let _loc_c = if c then _loc_c else _loc_e in
+        f e (_loc, _loc_c)
+
 let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
 
   | e:(extra_expressions_grammar c) (semicol (alm,lvl)) -> e
 
-  | (lvl0,no_else,f as s):(left_expr (alm,lvl)) ->>
-                e:(expression_lvl (alm,lvl0))
-                c:(semicol (alm,lvl)) (noelse no_else)
-    -> (let _loc = merge2 _loc_s _loc_e in
-        (* position of the last semi column for sequence only *)
-        let _loc_c = if c then _loc_c else _loc_e in
-        f e (_loc, _loc_c))
+  | (Earley.dependent_sequence (debut lvl alm) (suit lvl alm))
 
   | r:(right_expression lvl) (semicol (alm,lvl)) -> r
 
