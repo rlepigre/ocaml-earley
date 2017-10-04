@@ -313,9 +313,10 @@ val sequence3 : 'a grammar -> 'b grammar -> 'c grammar
 
 
 (** [dependent_sequence g1 g2] is a grammar that first parses using [g1],
-    which returns a value [x], and then continues to parse with [g2 x] and
-    return its result. *)
-val dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
+    which returns a value [(a,b)], and then continues to parse with [g2 a] and
+    return its result applied to [b]. *)
+val dependent_sequence : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar)
+                         -> 'c grammar
 
 val iter : 'a grammar grammar -> 'a grammar
 (**  = fun g -> dependent_sequence g (fun x -> x) *)

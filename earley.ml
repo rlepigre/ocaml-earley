@@ -353,7 +353,6 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
       );
       g),
   (fun f ->
-    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     is_set := Some f;
     EqHashtbl.iter (fun p r ->
       set_grammar r (f p);
@@ -373,7 +372,6 @@ let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
       );
       g),
   (fun (gs,gp) ->
-    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     let f = fun p ->
       alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ (gp p))
     in
@@ -397,9 +395,9 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
       );
       g),
   (fun f ->
-    (*if !is_set <> None then invalid_arg ("grammar family "^name^" already set");*)
     let f = fun args ->
-      let (gs, gp) = f args in (* NOTE: to make sure the tbl2 is filled soon enough *)
+      (* NOTE: to make sure the tbl2 is filled soon enough *)
+      let (gs, gp) = f args in
       try
         Hashtbl.find tbl2 args
       with Not_found ->
@@ -414,7 +412,8 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
       set_grammar r (f args p);
     ) tbl)
 
-let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool -> 'a grammar -> blank -> 'a grammar
+let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
+                      -> 'a grammar -> blank -> 'a grammar
   = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
     let i = Fixpoint.from_val (false, Charset.full) in
     (* compose with a test with a full charset to pass the final charset test in
@@ -449,27 +448,25 @@ let greedy : 'a grammar -> 'a grammar
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
                                                 (ems (fun _ a -> a)))] in
-    (* FIXME: blank are parsed twice. internal_parse_buffer should have one more argument *)
+    (* FIXME: blank are parsed twice. internal_parse_buffer should have one
+              more argument *)
     let fn errpos blank buf pos _ _ =
       let (a,buf,pos) = internal_parse_buffer ~errpos blank l1 buf pos in
       (a,buf,pos)
     in
     greedy_solo (fst l1) fn
 
-let grammar_info : type a. a grammar -> bool * Charset.t = fun g -> (force (fst g))
+let grammar_info : type a. a grammar -> bool * Charset.t
+  = fun g -> (force (fst g))
 
-let dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
+let dependent_sequence
+    : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
   = fun l1 f2 ->
-    let tbl = EqHashtbl.create ~equal:eq_closure 8 in
-          mk_grammar [next l1 (mkrule (Dep (fun a ->
-              try EqHashtbl.find tbl a
-              with Not_found ->
-                let res = grammar_to_rule (f2 a) in
-                EqHashtbl.add tbl a res; res
-          )))]
+      mk_grammar [next l1 (mkrule (Dep (fun a -> grammar_to_rule (f2 a))))]
 
 let iter : 'a grammar grammar -> 'a grammar
-  = fun g -> dependent_sequence g idt
+  = fun g -> dependent_sequence (apply (fun x -> (x, ())) g)
+                                (apply (fun f () -> f ))
 
 (** How to call the parser *)
 

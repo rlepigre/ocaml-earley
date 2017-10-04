@@ -189,7 +189,7 @@ module rec Types : sig
    and _ prerule =
      | Empty : 'a pos -> 'a prerule
      (** Empty rule. *)
-     | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
+     | Dep : ('a -> ('b -> 'c) rule) -> ('a * 'b -> 'c) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
          no other solution is possible *)
      | Next : info * string * 'a symbol * ('a -> 'c) rule -> 'c prerule
@@ -770,7 +770,7 @@ let rec pred_prod_lec
        | Dep(fn_rule) ->
           begin try
             if !debug_lvl > 0 then log "dependant rule\n%!";
-            let a =
+            let (a, _) =
               let a = ref None in
               try
                 let _ = acts (fun x -> a := Some x; raise Exit) in
@@ -779,7 +779,7 @@ let rec pred_prod_lec
                 match !a with None -> assert false | Some a -> a
             in
             let elt = C { start; rest = idtEmpty (); full
-                      ; acts = Simple (fun b f -> f (acts (fun _ -> b))); stack
+                      ; acts = Simple (fun g f -> f (acts (fun (_,b) -> g b))); stack
                       } in
             let rule = fn_rule a in
             let stack = add_stack sct rule elt in

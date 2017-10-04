@@ -118,8 +118,8 @@ let _ = test_one astar2 "aa"
 let _ = test_one astar2 "aaa"
 let _ = test_one astar2 "aaaa"
 let _ = test_one astar2 "aaaaa"
-
-let _ = Printf.eprintf "Testing b(a*)(def)\n%!"
+(*
+let _ = Printf.eprintf "Testing b(a*)(dep)\n%!"
 
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives
@@ -132,7 +132,7 @@ let _ = test_one astar3 "baa"
 let _ = test_one astar3 "baaa"
 let _ = test_one astar3 "baaaa"
 let _ = test_one astar3 "baaaaa"
-
+*)
 let _ = Printf.eprintf "Testing b(a*)(right)\n%!"
 
 let astar3 = declare_grammar "astar3"
