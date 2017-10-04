@@ -16,4 +16,5 @@ install: [make "install" "BINDIR=%{bin}%" ]
 remove: [make "uninstall"]
 depends:
   [ "ocamlfind" {build}
+    "ocamlbuild" {build}
     "earley" ]
