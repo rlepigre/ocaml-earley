@@ -199,15 +199,8 @@ let string_exp (b,lvl) =
     = declare_grammar "structure_item"
   let signature_item : signature_item list grammar
     = declare_grammar "signature_item"
-#if version < 4.03
-  type arg_label = string
-#endif
   let (parameter : bool -> [`Arg of arg_label * expression option * pattern
-#ifversion >= 4.05
-                           | `Type of string loc ]
-#else
-                           | `Type of string ]
-#endif
+                           | `Type of string Location.loc ]
                              grammar), set_parameter = grammar_family "parameter"
 
   let structure = structure_item
@@ -285,7 +278,7 @@ let parse_string' g e' =
 let mk_attrib loc txt contents =
   let str = Const.string contents in
   ({txt; loc = Location.none}, PStr [Str.eval ~loc (Exp.constant ~loc str)])
-  
+
 
 let attach_attrib =
   let tbl_s = Hashtbl.create 31 in

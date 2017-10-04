@@ -2,8 +2,8 @@ open Asttypes
 open Parsetree
 open Longident
 open Pa_ocaml_prelude
-open Pa_ast
 open Pa_lexing
+open Helper
 type action =
   | Default 
   | Normal of expression 
@@ -20,11 +20,14 @@ let occur id e =
    with | Exit  -> true)
   
 let find_locate () =
-  try Some (exp_ident Location.none (Sys.getenv "LOCATE"))
+  try
+    Some
+      (Exp.ident
+         { txt = (Lident (Sys.getenv "LOCATE")); loc = Location.none })
   with | Not_found  -> None 
 let mkpatt _loc (id,p) =
   match (p, (find_locate ())) with
-  | (None ,_) -> pat_ident _loc id
+  | (None ,_) -> Pat.var ~loc:_loc { txt = id; loc = _loc }
   | (Some p,None ) ->
       {
         Parsetree.ppat_desc =
@@ -2917,8 +2920,7 @@ module Ext(In:Extension) =
                                              __loc__end__buf __loc__end__pos
                                             in
                                          fun x  ->
-                                           loc_expr _loc
-                                             (Pexp_let (r, lbs, (l x)))))))])
+                                           Exp.let_ ~loc:_loc r lbs (l x)))))])
       
     let _ =
       Earley.set_grammar glr_cond

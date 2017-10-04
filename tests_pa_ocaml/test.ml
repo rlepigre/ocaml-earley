@@ -4,7 +4,7 @@ let xy = 3
 let x = 10.0
 let f x = x
 let g x y z =
-  if x 
+  if x
   then y
   else z
 
@@ -56,7 +56,7 @@ let f13 = true, false, ()
 
 let f14 = (`A, `a, `a_B, `C true, `D (true, 42))
 
-let f15 x y = x::y 
+let f15 x y = x::y
 
 let f16 x = if x > 2 then let y = x + 3 in x + y else x - 1
 
@@ -98,7 +98,7 @@ let _ = f32.{0} <- 1.0 ; f32.{1} <- 2.
 let f33 = Bigarray.Array2.create Bigarray.float32 Bigarray.c_layout 2 2
 let _ = f33.{0,0} <- 1.0 ; f33.{0,1} <- 2.0
 
-let f34 x = -x, -. (float_of_int x), -x + - x * -x - - x - x  
+let f34 x = -x, -. (float_of_int x), -x + - x * -x - - x - x
 
 let f35 y = !y
 
@@ -109,7 +109,7 @@ let f37 n = let r = ref 1 in for i = 2 to n do r := !r * n done; !r
 type t1 = A | B
 
 let f38 x = match x with A -> B | B -> A
-let f38b x = match (x:t1) with 
+let f38b x = match (x:t1) with
   | A -> B
   | B -> A
 
@@ -122,6 +122,7 @@ let f41 = "toto", "ta
         ti"
 
 class type int_cl = object val x : int method get : int end
+       and float_cl = object val x : float method get : float end
 
 module M1 = struct
   type t = int
@@ -134,11 +135,11 @@ module M3 = Map.Make (M1)
 
 external idt : 'a -> 'a = "%idt"
 
-module type MT1 = 
+module type MT1 =
   sig
     val f : int -> int
     external idt : 'a -> 'a = "%idt"
-    type t 
+    type t
     type u = A | B
     module type A = sig val g : float -> float end
     module M : A
@@ -156,7 +157,7 @@ module M4 : MT1 =
     module M = struct let g x = x +. 1. end
     module F (A:A) = struct open A let g x = g (g x) end
     class type int = object val x : int method get : int end
-  end 
+  end
 
 exception Invalid_arg of string * string
 exception Invalid_arg2 = Invalid_arg
@@ -258,6 +259,7 @@ end
 module M5 : sig type c = private < x : int; .. > val o : c end =
   struct
     class c = object method x = 3 method y = 2 end
+        and d = object method x = 3.0 method y = 2.0 end
     let o = new c
   end
 
@@ -293,3 +295,6 @@ let sort_uniq (type s) (cmp : s -> s -> int) =
   fun l ->
   S.elements (List.fold_right S.add l S.empty)
 
+module type T = sig type t end
+let id_mod (module K) = (module K)
+let idt_mod (module K : T) = (module K : T)

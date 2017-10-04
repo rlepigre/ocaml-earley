@@ -2,8 +2,8 @@ open Input
 open Earley
 open Asttypes
 open Parsetree
-open Pa_ast
 open Pa_lexing
+open Helper
 type entry =
   | FromExt 
   | Impl 
@@ -168,7 +168,7 @@ module Initial =
     let ((parameter :
            bool ->
              [ `Arg of (arg_label * expression option * pattern) 
-             | `Type of string loc ] grammar),
+             | `Type of string Location.loc ] grammar),
          set_parameter)
       = grammar_family "parameter"
     let structure = structure_item
@@ -264,9 +264,10 @@ module Initial =
     let parse_string' g e' =
       try parse_string g ocaml_blank e'
       with | e -> (Printf.eprintf "Error in quotation: %s\n%!" e'; raise e)
-    let mk_attrib loc s contents =
-      ((id_loc s Location.none),
-        (PStr [loc_str loc (Pstr_eval ((exp_string loc contents), []))]))
+    let mk_attrib loc txt contents =
+      let str = Const.string contents in
+      ({ txt; loc = Location.none },
+        (PStr [Str.eval ~loc (Exp.constant ~loc str)]))
     let attach_attrib =
       let tbl_s = Hashtbl.create 31 in
       let tbl_e = Hashtbl.create 31 in
@@ -369,10 +370,8 @@ module Initial =
              | Not_found ->
                  let res = fn [] [] (!ocamldoc_comments) in
                  (Hashtbl.add tbl loc.loc_start res; res))
-    let attach_sig =
-      attach_gen (fun loc -> fun a -> loc_sig loc (Psig_attribute a))
-    let attach_str =
-      attach_gen (fun loc -> fun a -> loc_str loc (Pstr_attribute a))
+    let attach_sig = attach_gen (fun loc -> fun a -> Sig.attribute ~loc a)
+    let attach_str = attach_gen (fun loc -> fun a -> Str.attribute ~loc a)
     let union_re l =
       let l = List.map (fun s -> "\\(" ^ (s ^ "\\)")) l in
       String.concat "\\|" l

@@ -269,31 +269,32 @@ let ppat_alias _loc p id =
   if id = "_" then p else
     loc_pat _loc (Ppat_alias (p, (id_loc (id) _loc)))
 
-  let constructor_declaration ?(attributes=[]) _loc name args res =
-    { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
-  let label_declaration ?(attributes=[]) _loc name mut ty =
-    { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = attributes; pld_loc = _loc }
-  let params_map _loc params =
-    let fn (name, var) =
-      match name with
-	None -> (loc_typ _loc Ptyp_any, var)
-      | Some name -> (loc_typ name.loc (Ptyp_var name.txt), var)
-    in
-    List.map fn params
-  let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
-    let params = params_map _loc params in
-    {
-     ptype_name = name;
-     ptype_params = params;
-     ptype_cstrs = cstrs;
-     ptype_kind = kind;
-     ptype_private = priv;
-     ptype_manifest = manifest;
-     ptype_attributes = attributes;
-     ptype_loc = _loc;
-    }
-  let class_type_declaration ?(attributes=[]) _loc' _loc name params virt expr =
-    let params = params_map _loc' params in
+let constructor_declaration ?(attributes=[]) _loc name args res =
+  { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
+let label_declaration ?(attributes=[]) _loc name mut ty =
+  { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = attributes; pld_loc = _loc }
+type tpar = Joker of Location.t | Name of string loc
+let params_map params =
+  let fn (name, var) =
+    match name with
+    | Joker _loc -> (loc_typ _loc Ptyp_any, var)
+    | Name name -> (loc_typ name.loc (Ptyp_var name.txt), var)
+  in
+  List.map fn params
+let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
+  let params = params_map params in
+  {
+    ptype_name = name;
+    ptype_params = params;
+    ptype_cstrs = cstrs;
+    ptype_kind = kind;
+    ptype_private = priv;
+    ptype_manifest = manifest;
+    ptype_attributes = attributes;
+    ptype_loc = _loc;
+  }
+  let class_type_declaration ?(attributes=[]) _loc name params virt expr =
+    let params = params_map params in
       { pci_params = params
       ; pci_virt = virt
       ; pci_name = name
@@ -330,11 +331,13 @@ let pat_tuple _loc l =
 
 let pat_list _loc _loc_c l =
   let nil = id_loc (Lident "[]") (ghost _loc_c) in
+  let hd = match l with [] -> assert false | x::_ -> x in
   let cons x xs =
     let cloc = ghost (merge2 x.ppat_loc _loc) in
     let c = id_loc (Lident "::") cloc in
     let cons = ppat_construct (c, Some (loc_pat cloc (Ppat_tuple [x;xs]))) in
-    loc_pat _loc cons
+    let loc = if x == hd then _loc else cloc in
+    loc_pat loc cons
   in
   List.fold_right cons l (loc_pat (ghost _loc_c) (ppat_construct (nil, None)))
 

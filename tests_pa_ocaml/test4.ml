@@ -1,23 +1,22 @@
 let f46 : type t.(t -> t) = fun (x:t) -> x
 
-(* non parsé avec camlp4 ! *)
-class poly_idt = 
-  object 
+class poly_idt =
+  object
     method idt : type t.(t -> t) = fun (x:t) -> x
   end
- 
+
 type _ term =
   | Int : int -> int term
   | Add : (int -> int -> int) term
   | App : ('b -> 'a) term * 'b term -> 'a term
-					  
-let rec eval : type a. a term -> a 
+
+let rec eval : type a. a term -> a
 		 = function
 		   | Int n    -> n                 (* a = int *)
 		   | Add      -> (fun x y -> x+y)  (* a = int -> int -> int *)
 		   | App(f,x) -> (eval f) (eval x)
 (* eval called at types (b->a) and b for fresh b *)
-					  
+
 let two = eval (App (App (Add, Int 1), Int 1))
 
 
@@ -53,7 +52,7 @@ let rec eq_type : type a b. a typ -> b typ -> (a,b) eq option =
 		      | _ -> None
 
 type dyn = Dyn : 'a typ * 'a -> dyn
-				  
+
 let get_dyn : type a. a typ -> dyn -> a option =
 		  fun a (Dyn(b,x)) ->
 		  match eq_type a b with
