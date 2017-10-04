@@ -12,6 +12,7 @@ function build {
     opam switch $1
     eval `opam config env`
     make boot || exit 1
+    make distclean
 }
 
 function tests {
@@ -20,6 +21,7 @@ function tests {
     make distclean
     make && make && make tests
     if ! $?; then exit 1; fi
+    make distclean
 }
 
 function expected {
@@ -27,6 +29,7 @@ function expected {
     eval `opam config env`
     make distclean
     make && make && make expected
+    make distclean
 }
 
 if [ "$1" = "--all" -o "$1" = "--allnew" ] ; then

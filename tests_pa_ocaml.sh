@@ -81,18 +81,18 @@ if [ ${COMPARE} -eq 1 ]; then
         diff $diff/$n.pa_ocaml  $diff/$n.ocamlc > $diff/$n.diff
         diff $diff/$n.pa_ocaml.full $diff/$n.ocamlc.full > $diff/$n.fulldiff
         if [ -s $diff/$n.diff ]; then
-            echo -e "\e[31m"   diff size: $(wc $diff/$n.diff) "\e[0m"
+            echo -e "\e[31m"   diff size: $(wc -lw $diff/$n.diff) "\e[0m"
         fi
         if [ -s $diff/$n.fulldiff ]; then
-            echo -e "\e[93m"   diff size with pos: $(wc $diff/$n.fulldiff) "\e[0m"
+            echo -e "\e[93m"   diff size with pos: $(wc -lw $diff/$n.fulldiff) "\e[0m"
         fi
     done
 
     echo "********************************************"
     echo TOTAL diff size:
-    wc $diff/*.diff | grep total
+    wc -lw $diff/*.diff | grep total
     echo TOTAL diff size with pos:
-    wc $diff/*.fulldiff | grep total
+    wc -lw $diff/*.fulldiff | grep total
     echo "********************************************"
 fi
 

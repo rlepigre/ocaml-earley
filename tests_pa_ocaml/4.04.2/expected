@@ -1,32 +1,32 @@
 bibi.ml: 
-[93m diff size with pos: 24 56 1197 ./tests_pa_ocaml/bibi.ml.fulldiff [0m
+[93m diff size with pos: 24 56 ./tests_pa_ocaml/bibi.ml.fulldiff [0m
 UTF16.ml: 
-[93m diff size with pos: 8 20 370 ./tests_pa_ocaml/UTF16.ml.fulldiff [0m
+[93m diff size with pos: 8 20 ./tests_pa_ocaml/UTF16.ml.fulldiff [0m
 test_offset.ml: 
-[93m diff size with pos: 4 8 192 ./tests_pa_ocaml/test_offset.ml.fulldiff [0m
+[93m diff size with pos: 4 8 ./tests_pa_ocaml/test_offset.ml.fulldiff [0m
 imageGIF.ml: 
 imageJPG.ml: 
-[93m diff size with pos: 4 8 232 ./tests_pa_ocaml/imageJPG.ml.fulldiff [0m
+[93m diff size with pos: 4 8 ./tests_pa_ocaml/imageJPG.ml.fulldiff [0m
 image.ml: 
-[93m diff size with pos: 16 32 840 ./tests_pa_ocaml/image.ml.fulldiff [0m
+[93m diff size with pos: 16 32 ./tests_pa_ocaml/image.ml.fulldiff [0m
 imagePNG.ml: 
-[93m diff size with pos: 64 128 3931 ./tests_pa_ocaml/imagePNG.ml.fulldiff [0m
+[93m diff size with pos: 64 128 ./tests_pa_ocaml/imagePNG.ml.fulldiff [0m
 imagePPM.ml: 
-[93m diff size with pos: 32 64 1796 ./tests_pa_ocaml/imagePPM.ml.fulldiff [0m
+[93m diff size with pos: 32 64 ./tests_pa_ocaml/imagePPM.ml.fulldiff [0m
 imageUtil.ml: 
-[93m diff size with pos: 12 24 624 ./tests_pa_ocaml/imageUtil.ml.fulldiff [0m
+[93m diff size with pos: 12 24 ./tests_pa_ocaml/imageUtil.ml.fulldiff [0m
 imageXCF.ml: 
 decap.ml: 
-[93m diff size with pos: 152 368 7093 ./tests_pa_ocaml/decap.ml.fulldiff [0m
+[93m diff size with pos: 152 368 ./tests_pa_ocaml/decap.ml.fulldiff [0m
 pa_byt_main.ml: 
 pa_ocaml_prelude.ml: 
-[93m diff size with pos: 84 210 4586 ./tests_pa_ocaml/pa_ocaml_prelude.ml.fulldiff [0m
+[93m diff size with pos: 84 210 ./tests_pa_ocaml/pa_ocaml_prelude.ml.fulldiff [0m
 pa_parser.ml: 
 test.ml: 
-[93m diff size with pos: 4 10 176 ./tests_pa_ocaml/test.ml.fulldiff [0m
+[93m diff size with pos: 4 10 ./tests_pa_ocaml/test.ml.fulldiff [0m
 objects.ml: 
 variants.ml: 
-[93m diff size with pos: 12 30 531 ./tests_pa_ocaml/variants.ml.fulldiff [0m
+[93m diff size with pos: 12 30 ./tests_pa_ocaml/variants.ml.fulldiff [0m
 prefix.ml: 
 mixin2.ml: 
 mixev.ml: 
@@ -49,12 +49,12 @@ bigarray.mli:
 string.ml: 
 string.mli: 
 array.ml: 
-[93m diff size with pos: 52 104 3386 ./tests_pa_ocaml/array.ml.fulldiff [0m
+[93m diff size with pos: 52 104 ./tests_pa_ocaml/array.ml.fulldiff [0m
 array.mli: 
 char.ml: 
 char.mli: 
 arg.ml: 
-[93m diff size with pos: 76 152 5734 ./tests_pa_ocaml/arg.ml.fulldiff [0m
+[93m diff size with pos: 76 152 ./tests_pa_ocaml/arg.ml.fulldiff [0m
 arg.mli: 
 arrayLabels.ml: 
 arrayLabels.mli: 
@@ -63,24 +63,24 @@ buffer.mli:
 complex.ml: 
 complex.mli: 
 digest.ml: 
-[93m diff size with pos: 8 16 462 ./tests_pa_ocaml/digest.ml.fulldiff [0m
+[93m diff size with pos: 8 16 ./tests_pa_ocaml/digest.ml.fulldiff [0m
 digest.mli: 
 dynlink.mli: 
 filename.ml: 
-[93m diff size with pos: 28 56 1982 ./tests_pa_ocaml/filename.ml.fulldiff [0m
+[93m diff size with pos: 28 56 ./tests_pa_ocaml/filename.ml.fulldiff [0m
 filename.mli: 
 format.ml: 
-[93m diff size with pos: 76 152 4662 ./tests_pa_ocaml/format.ml.fulldiff [0m
+[93m diff size with pos: 76 152 ./tests_pa_ocaml/format.ml.fulldiff [0m
 gc.ml: 
-[93m diff size with pos: 4 8 214 ./tests_pa_ocaml/gc.ml.fulldiff [0m
+[93m diff size with pos: 4 8 ./tests_pa_ocaml/gc.ml.fulldiff [0m
 gc.mli: 
 genlex.ml: 
 genlex.mli: 
 hashtbl.ml: 
-[93m diff size with pos: 16 32 1108 ./tests_pa_ocaml/hashtbl.ml.fulldiff [0m
+[93m diff size with pos: 16 32 ./tests_pa_ocaml/hashtbl.ml.fulldiff [0m
 hashtbl.mli: 
 lexing.ml: 
-[93m diff size with pos: 12 24 690 ./tests_pa_ocaml/lexing.ml.fulldiff [0m
+[93m diff size with pos: 12 24 ./tests_pa_ocaml/lexing.ml.fulldiff [0m
 lexing.mli: 
 listLabels.ml: 
 listLabels.mli: 
@@ -89,7 +89,7 @@ moreLabels.mli:
 test4.ml: 
 ********************************************
 TOTAL diff size:
-0 0 0 total
+0 0 total
 TOTAL diff size with pos:
-  688  1502 39806 total
+  688  1502 total
 ********************************************

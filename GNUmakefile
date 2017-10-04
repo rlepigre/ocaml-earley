@@ -1,6 +1,7 @@
 VERSION    = 1.0.0
 OCAMLFIND  = ocamlfind
-OCAMLBUILD = ocamlbuild $(JOBS)
+J          = 1
+OCAMLBUILD = ocamlbuild -j $(J)
 BINDIR     = $(dir $(shell which ocamlc))
 
 HAS_PA_OCAML=$(shell if [ -x pa_ocaml ]; then echo 1; else echo 0; fi)
