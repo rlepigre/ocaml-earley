@@ -167,9 +167,9 @@ boot:
 	     done
 	$(Q)if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
 	$(Q)if [ -f .fixpoint ]; then echo "\e[93m"FIXPOINT REACHED"\e[0m";\
-	     elif [ $(BOOT) -eq 1 -a ! -d $(BACKUP) ] ; then \
-	       echo "\e[93m"COPYING TO $(BOOTDIR)"\e[0m" ; \
+	     elif [ $(BOOT) -eq 1 ] ; then \
 	       make backup ;\
+	       echo "\e[93m"COPYING TO $(BOOTDIR)"\e[0m" ; \
 	       cp -f tmp/*.ml $(BOOTDIR)/ ;\
 	       rm -rf tmp ;\
 	     fi

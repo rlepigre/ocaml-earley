@@ -6630,6 +6630,64 @@ module Make(Initial:Extension) =
             (Earley.apply (fun _  -> ()) (Earley.empty ())));
          (((fun b  -> b)), no_else)], (fun b  -> []))
       
+    let (debut,debut__set__grammar) = Earley.grammar_family "debut" 
+    let debut __curry__varx0 __curry__varx1 =
+      debut (__curry__varx0, __curry__varx1) 
+    let _ =
+      debut__set__grammar
+        (fun (lvl,alm)  ->
+           Earley.apply
+             (fun ((_,(lvl0,no_else,f)) as s)  ->
+                let (_loc_s,s) = s  in ((lvl0, no_else), (f, _loc_s)))
+             (Earley.apply_position
+                (fun x  ->
+                   fun str  ->
+                     fun pos  ->
+                       fun str'  ->
+                         fun pos'  -> ((locate str pos str' pos'), x))
+                (left_expr (alm, lvl))))
+      
+    let (suit,suit__set__grammar) = Earley.grammar_family "suit" 
+    let suit __curry__varx0 __curry__varx1 __curry__varx2 =
+      suit (__curry__varx0, __curry__varx1, __curry__varx2) 
+    let _ =
+      suit__set__grammar
+        (fun (lvl,alm,(lvl0,no_else))  ->
+           Earley.fsequence_position
+             (Earley.apply_position
+                (fun x  ->
+                   fun str  ->
+                     fun pos  ->
+                       fun str'  ->
+                         fun pos'  -> ((locate str pos str' pos'), x))
+                (expression_lvl (alm, lvl0)))
+             (Earley.sequence
+                (Earley.apply_position
+                   (fun x  ->
+                      fun str  ->
+                        fun pos  ->
+                          fun str'  ->
+                            fun pos'  -> ((locate str pos str' pos'), x))
+                   (semicol (alm, lvl))) (noelse no_else)
+                (fun c  ->
+                   let (_loc_c,c) = c  in
+                   fun _default_0  ->
+                     fun e  ->
+                       let (_loc_e,e) = e  in
+                       fun __loc__start__buf  ->
+                         fun __loc__start__pos  ->
+                           fun __loc__end__buf  ->
+                             fun __loc__end__pos  ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos
+                                  in
+                               fun (f,_loc_s)  ->
+                                 let _loc = merge2 _loc_s _loc_e  in
+                                 let _loc_c = if c then _loc_c else _loc_e
+                                    in
+                                 f e (_loc, _loc_c))))
+      
     let _ =
       set_expression_lvl
         (fun ((alm,lvl) as c)  ->
@@ -6641,69 +6699,7 @@ module Make(Initial:Extension) =
                else []) @
                 [Earley.sequence (extra_expressions_grammar c)
                    (semicol (alm, lvl)) (fun e  -> fun _default_0  -> e);
-                Earley.iter
-                  (Earley.apply_position
-                     (fun ((_,(lvl0,no_else,f)) as s)  ->
-                        let (_loc_s,s) = s  in
-                        fun __loc__start__buf  ->
-                          fun __loc__start__pos  ->
-                            fun __loc__end__buf  ->
-                              fun __loc__end__pos  ->
-                                let _loc =
-                                  locate __loc__start__buf __loc__start__pos
-                                    __loc__end__buf __loc__end__pos
-                                   in
-                                Earley.fsequence_position
-                                  (Earley.apply_position
-                                     (fun x  ->
-                                        fun str  ->
-                                          fun pos  ->
-                                            fun str'  ->
-                                              fun pos'  ->
-                                                ((locate str pos str' pos'),
-                                                  x))
-                                     (expression_lvl (alm, lvl0)))
-                                  (Earley.sequence
-                                     (Earley.apply_position
-                                        (fun x  ->
-                                           fun str  ->
-                                             fun pos  ->
-                                               fun str'  ->
-                                                 fun pos'  ->
-                                                   ((locate str pos str' pos'),
-                                                     x)) (semicol (alm, lvl)))
-                                     (noelse no_else)
-                                     (fun c  ->
-                                        let (_loc_c,c) = c  in
-                                        fun _default_0  ->
-                                          fun e  ->
-                                            let (_loc_e,e) = e  in
-                                            fun __loc__start__buf  ->
-                                              fun __loc__start__pos  ->
-                                                fun __loc__end__buf  ->
-                                                  fun __loc__end__pos  ->
-                                                    let _loc =
-                                                      locate
-                                                        __loc__start__buf
-                                                        __loc__start__pos
-                                                        __loc__end__buf
-                                                        __loc__end__pos
-                                                       in
-                                                    let _loc =
-                                                      merge2 _loc_s _loc_e
-                                                       in
-                                                    let _loc_c =
-                                                      if c
-                                                      then _loc_c
-                                                      else _loc_e  in
-                                                    f e (_loc, _loc_c))))
-                     (Earley.apply_position
-                        (fun x  ->
-                           fun str  ->
-                             fun pos  ->
-                               fun str'  ->
-                                 fun pos'  -> ((locate str pos str' pos'), x))
-                        (left_expr (alm, lvl))));
+                Earley.dependent_sequence (debut lvl alm) (suit lvl alm);
                 Earley.sequence (right_expression lvl) (semicol (alm, lvl))
                   (fun r  -> fun _default_0  -> r)]))
       
