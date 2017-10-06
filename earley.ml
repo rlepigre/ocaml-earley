@@ -90,50 +90,53 @@ let compose3 f g h = compose f (compose g h)
 
 (** Smart constructors for rules *)
 
-let nonterm (i,s) = NonTerm(i,ref s)
+let nonterm i s = NonTerm(i,s,Container.Ref.create ())
 
 let next_aux name s r = mkrule (Next(compose_info s r, name, s,r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
-  fun s r -> match snd s with
+  fun (i,rs) r -> match rs with
   | [{rule = Next(i,name,s0,{rule = Empty Idt})}] ->
      next_aux name s0 r
-  | _ -> next_aux (new_name ()) (nonterm s) r
+  | _ -> next_aux (new_name ()) (nonterm i (ref rs)) r
 
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
 
-let term accept_empty first input =
-  Term{input;empty=accept_empty;first;memo=Container.Ref.create ()}
+let mkterm info input =
+  Term{input;info;memo=Container.Ref.create ()}
+
+let mkter2 info input =
+  Ter2{input;info;memo=Container.Ref.create ()}
+
+let mktest info input =
+  Test{input;info;memo=Container.Ref.create ()}
 
 (** Helper to build a terminal symbol *)
 let solo : ?name:string -> ?accept_empty:bool -> Charset.t
            -> 'a input -> 'a grammar
   = fun ?(name=new_name ()) ?(accept_empty=false) set s ->
       let j = Fixpoint.from_val (accept_empty,set) in
-      (j, [mkrule (Next(j,name,term accept_empty set s,idtEmpty ()))])
+      (j, [mkrule (Next(j,name,mkterm j s,idtEmpty ()))])
 
 type 'a result = Val of 'a | Exc of exn
 
-(** Function used to call use a grammar as a terminal. Do no abuse it,
-    it is for exceptional cases like changing blank. This function is
-    memoized *)
-let greedy_solo =
+(** Function used to call use a grammar as a terminal.  its input
+    takes more arguments, in particular to record error position *)
+let solo2 =
   fun ?(name=new_name ()) i s ->
     let s = fun errpos blank b p b' p' ->
       s errpos blank b p b' p'
     in
-    (i, [mkrule (Next(i,name,Greedy(i,s),idtEmpty ()))])
+    (i, [mkrule (Next(i,name,mkter2 i s,idtEmpty ()))])
 
 let test = fun ?(name=new_name ()) set f ->
-  let i = (true,set) in
-  let j = Fixpoint.from_val i in
-  (j, [mkrule (Next(j,name,Test (set, (fun _ _ -> f)),idtEmpty ()))])
+  let j = Fixpoint.from_val (true,set) in
+  (j, [mkrule (Next(j,name,mktest j (fun _ _ -> f),idtEmpty ()))])
 
 let blank_test = fun ?(name=new_name ()) set f ->
-  let i = (true,set) in
-  let j = Fixpoint.from_val i in
-  (j, [mkrule (Next(j,name,Test (set, f),idtEmpty ()))])
+  let j = Fixpoint.from_val (true,set) in
+  (j, [mkrule (Next(j,name,mktest j f,idtEmpty ()))])
 
 let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
@@ -185,11 +188,11 @@ let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let ptr = ref g in
   let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [mkrule (Next(j,name,NonTerm (j, ptr), idtEmpty ()))]
+  mk_grammar [mkrule (Next(j,name,nonterm j ptr, idtEmpty ()))]
 
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
   match snd p1 with
-  | [{rule=Next(_,name,NonTerm(i,ptr),{rule=Empty Idt})}] ->
+  | [{rule=Next(_,name,NonTerm(i,ptr,_),{rule=Empty Idt})}] ->
      ptr := snd p2; Fixpoint.update i;
   (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
   | _ -> invalid_arg "set_grammar"
@@ -426,11 +429,10 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
         ~blank_after:new_blank_after blank1 l1 buf pos in
       (a,buf,pos)
     in
-    greedy_solo i fn
+    solo2 i fn
 
 let no_blank_layout : 'a grammar -> 'a grammar
   = fun l1 ->
-    let i = fst l1 in
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
     let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
@@ -440,7 +442,7 @@ let no_blank_layout : 'a grammar -> 'a grammar
         ~blank_after:false no_blank l1 buf pos in
       (a,buf,pos)
     in
-    greedy_solo i fn
+    solo2 (fst l1) fn
 
 let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
@@ -454,7 +456,7 @@ let greedy : 'a grammar -> 'a grammar
       let (a,buf,pos) = internal_parse_buffer ~errpos blank l1 buf pos in
       (a,buf,pos)
     in
-    greedy_solo (fst l1) fn
+    solo2 (fst l1) fn
 
 let grammar_info : type a. a grammar -> bool * Charset.t
   = fun g -> (force (fst g))
