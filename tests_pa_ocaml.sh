@@ -3,6 +3,7 @@
 TIME=0
 COMPARE=0
 EXTENSION=0
+COLOR=1
 
 ocaml=`ocamlc -where`
 local=./tests_pa_ocaml
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -e|--extension)
             EXTENSION=1
+            shift
+            ;;
+        -n|--no-color)
+            COLOR=0
             shift
             ;;
 	--clean)
@@ -66,6 +71,16 @@ if [ ${TIME} -eq 1 ]; then
     ./test_parsers.native $files
 fi
 
+if [ ${COLOR} -eq 1 ]; then
+    red="\e[31m"
+    yellow="\e[93m"
+    closing="\e[0m"
+else
+    res=""
+    yellow=""
+    closing=""
+fi
+
 if [ ${COMPARE} -eq 1 ]; then
     for f in $files; do
 	n=$(basename $f)
@@ -80,10 +95,10 @@ if [ ${COMPARE} -eq 1 ]; then
         diff $diff/$n.pa_ocaml  $diff/$n.ocamlc > $diff/$n.diff
         diff $diff/$n.pa_ocaml.full $diff/$n.ocamlc.full > $diff/$n.fulldiff
         if [ -s $diff/$n.diff ]; then
-            echo -e "\e[31m"   diff size: $(wc -lw $diff/$n.diff) "\e[0m"
+            echo -e $red   diff size: $(wc -lw $diff/$n.diff) $closing
         fi
         if [ -s $diff/$n.fulldiff ]; then
-            echo -e "\e[93m"   diff size with pos: $(wc -lw $diff/$n.fulldiff) "\e[0m"
+            echo -e $yellow   diff size with pos: $(wc -lw $diff/$n.fulldiff) $closing
         fi
     done
 

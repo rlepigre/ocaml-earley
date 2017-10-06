@@ -176,7 +176,7 @@ boot:
 
 tests_pa_ocaml/$(OCAMLVERSION)/expected: pa_ocaml
 	$(Q)echo "\e[93m"CREATING $@"\e[0m"
-	$(Q)./tests_pa_ocaml.sh > $@
+	$(Q)./tests_pa_ocaml.sh --no-color > $@
 
 .PHONY: expected
 expected: tests_pa_ocaml/$(OCAMLVERSION)/expected
@@ -190,7 +190,7 @@ tests:
 	       exit 1; \
 	     fi
 	$(Q)echo "\e[93m"REGRESSION TEST"\e[0m"
-	$(Q)./tests_pa_ocaml.sh > tests_pa_ocaml/$(OCAMLVERSION)/result
+	$(Q)./tests_pa_ocaml.sh --no-color > tests_pa_ocaml/$(OCAMLVERSION)/result
 	$(Q)if ! diff tests_pa_ocaml/$(OCAMLVERSION)/result \
                        tests_pa_ocaml/$(OCAMLVERSION)/expected; then \
 	       echo "\e[93m"REGRESSION TESTS FAILED"\e[0m" ;\

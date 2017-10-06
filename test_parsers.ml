@@ -70,6 +70,8 @@ let run_fork : 'a 'b.('a -> 'b) -> 'a -> 'b = fun f x ->
     close_in chin; close_out chout;
     res
 
+let _ = Printf.eprintf "TOP: %d\n%!" Gc.((quick_stat ()).top_heap_words)
+
 let with_time f x =
   let time = ref 0.0 in
   let words = ref 0 in
