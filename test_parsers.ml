@@ -51,27 +51,54 @@
 let _ = Location.input_name := ""
 
 (* necessite la librairie UNIX *)
-let min_time = 0.005
+let min_time = 0.01
+
+let run_fork : 'a 'b.('a -> 'b) -> 'a -> 'b = fun f x ->
+  let open Unix in
+  let chin, chout = pipe () in
+  let chin = in_channel_of_descr chin in
+  let chout = out_channel_of_descr chout in
+  let pid = fork () in
+  if pid = 0 then
+    begin
+      output_value chout (f x);
+      close_out chout;
+      exit 0
+    end
+  else
+    let res = input_value chin in
+    close_in chin; close_out chout;
+    res
 
 let with_time f x =
   let time = ref 0.0 in
-  let words = ref 0.0 in
+  let words = ref 0 in
   let res = ref None in
   let count = ref 0 in
   try
     while !time < min_time do
       incr count;
       Gc.full_major ();
-      let (major_words, _, _) = Gc.counters () in
-      let {Unix.tms_utime = ut;Unix.tms_stime = st} = Unix.times () in
-      res := Some (f x);
-      let {Unix.tms_utime = ut';Unix.tms_stime = st'} = Unix.times () in
-      let (major_words', _, _) = Gc.counters () in
-      time := !time +. (ut' -. ut) +. (st' -. st);
-      words := !words +. major_words' -. major_words;
+      let f () =
+        try
+          let {Unix.tms_utime = ut;Unix.tms_stime = st} = Unix.times () in
+          let res = f x in
+          let {Unix.tms_utime = ut';Unix.tms_stime = st'} = Unix.times () in
+          let words = Gc.((quick_stat ()).top_heap_words) in
+          Some(res,(ut' -. ut) +. (st' -. st),  words)
+        with e ->
+          Printf.eprintf "Uncaught exception: %s\n%!" (Printexc.to_string e);
+          None
+      in
+      match run_fork f () with
+      | None -> assert false
+      | Some(r,t,w) ->
+         time := !time +. t;
+         words := !words + w;
+         res := Some r
     done;
     let r = match !res with None -> assert false | Some r -> r in
-    (r, !time /. float !count, !words /. float !count)
+    (r, !time /. float !count, float !words /. float !count)
   with e ->
     flush stderr;
     raise e
