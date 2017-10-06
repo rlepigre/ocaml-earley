@@ -90,7 +90,7 @@ let compose3 f g h = compose f (compose g h)
 
 (** Smart constructors for rules *)
 
-let nonterm i s = NonTerm(i,s,Container.Ref.create ())
+let nonterm info rules = NonTerm{info;rules;memo=Container.Ref.create ()}
 
 let next_aux name s r = mkrule (Next(compose_info s r, name, s,r))
 
@@ -98,7 +98,7 @@ let next : type a c. a grammar -> (a -> c) rule -> c rule =
   fun (i,rs) r -> match rs with
   | [{rule = Next(i,name,s0,{rule = Empty Idt})}] ->
      next_aux name s0 r
-  | _ -> next_aux (new_name ()) (nonterm i (ref rs)) r
+  | _ -> next_aux (new_name ()) (nonterm i rs) r
 
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
@@ -186,16 +186,25 @@ let unset : string -> 'a grammar
 
 let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
-  let ptr = ref g in
-  let j = Fixpoint.from_ref ptr grammar_info in
-  mk_grammar [mkrule (Next(j,name,nonterm j ptr, idtEmpty ()))]
+  let nt = nonterm (Fixpoint.from_val (false, Charset.empty)) g in
+  let j = Fixpoint.from_ref nt
+                            (function
+                             | NonTerm{rules} -> grammar_info rules
+                             | _ -> assert false)
+  in
+  begin
+    match nt with
+    | NonTerm r -> r.info <- j
+    | _ -> assert false
+  end;
+  mk_grammar [mkrule (Next(j,name,nt, idtEmpty ()))]
 
-let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 p2 ->
-  match snd p1 with
-  | [{rule=Next(_,name,NonTerm(i,ptr,_),{rule=Empty Idt})}] ->
-     ptr := snd p2; Fixpoint.update i;
-  (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
-  | _ -> invalid_arg "set_grammar"
+let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 (_,rules2) ->
+      match snd p1 with
+      | [{rule=Next(_,name,NonTerm({info} as r),{rule=Empty Idt})}] ->
+         r.rules <- rules2; Fixpoint.update info;
+      (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
+      | _ -> invalid_arg "set_grammar"
 
 let grammar_name : type a.a grammar -> string = fun p1 ->
   match snd p1 with

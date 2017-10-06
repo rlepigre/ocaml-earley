@@ -163,7 +163,7 @@ module Fixpoint :
     val from_fun  : 'a t -> ('a -> 'a) -> 'a t
     val from_fun2 : 'a t -> 'a t -> ('a -> 'a -> 'a) -> 'a t
     val from_funl : 'a t list -> 'a -> ('a -> 'a -> 'a) -> 'a t
-    val from_ref  : 'b ref -> ('b -> 'a t) -> 'a t
+    val from_ref  : 'b -> ('b -> 'a t) -> 'a t
     val update    : 'a t -> unit
     val force     : 'a t -> 'a
   end =
@@ -266,12 +266,12 @@ module Fixpoint :
       res
 
     let from_ref l fn =
-      let a = fn !l in
+      let a = fn l in
       let rec res =
         { value   = a.value
-        ; compute = (fun () -> res.value <- (fn !l).value)
+        ; compute = (fun () -> res.value <- (fn l).value)
         ; deps    = Some (W.create 7)
-        ; is_ref  = Some (a, fun () -> fn !l)
+        ; is_ref  = Some (a, fun () -> fn l)
         ; ident   = new_id () }
       in
       ignore (add_deps res a);

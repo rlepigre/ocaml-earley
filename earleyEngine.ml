@@ -155,11 +155,9 @@ type info = (bool * Charset.t) Fixpoint.t
 
 (** THE MAIN TYPES *)
 
-type ('a, 'b) terminal =
-  { input : 'a
-  ; info : info
-  ; memo : ('b * buffer * int) option Container.Ref.container }
+type 'a tref = ('a * buffer * int) option Container.Ref.container
 
+type 'a nterm_me
 (** A BNF grammar is a list of rules. The type parameter ['a] corresponds to
     the type of the semantics of the grammar. For example, parsing using a
     grammar of type [int grammar] will produce a value of type [int]. *)
@@ -169,18 +167,19 @@ module rec Types : sig
   type 'a grammar = info * 'a rule list
    (** The symbol, a more general concept that terminals *)
    and _ symbol =
-     | Term : ('a input, 'a) terminal -> 'a symbol
+     | Term : { input : 'a input;  info : info; memo : 'a tref } -> 'a symbol
      (** terminal symbol just read the input buffer *)
-     | Ter2 : ('a input2, 'a) terminal -> 'a symbol
+     | Ter2 : { input : 'a input2; info : info; memo : 'a tref } -> 'a symbol
      (** Ter2 correspond to a recursive call to the parser. We
          can change the blank function for instance, or parse
          input as much as possible. In fact it is only in the
          combinators in earley.ml that we use Ter2 to call
          the parser back. *)
-     | Test : ('a test, 'a) terminal -> 'a symbol
+     | Test : { input : 'a test; info : info; memo : 'a tref } -> 'a symbol
      (** Test on the input, can for instance read blanks, usefull for
          things like ocamldoc (but not yet used by earley-ocaml). *)
-     | NonTerm : info * 'a rule list ref * 'a rule list Container.Ref.container -> 'a symbol
+     | NonTerm : { mutable rules : 'a rule list
+                 ; mutable info : info; memo : 'a ntref } -> 'a symbol
      (** Non terminals trough a reference to define recursive rule lists *)
 
    (** BNF rule. *)
@@ -200,6 +199,8 @@ module rec Types : sig
    and 'a rule = { rule : 'a prerule
                  ; ptr : 'a StackContainer.container
                  ; adr : int }
+
+   and 'a ntref = 'a rule list Container.Ref.container
 
    (** Type of an active element of the earley table.  In a
        description of earley, an element is [(start, end, done *
@@ -225,16 +226,14 @@ module rec Types : sig
          The type ['a final] represent an element of the earley table
          where [end] is the current position in the string being parsed.
     *)
-   and ('c,'r,'b,'f) cell =
-           { start : pos2           (* position in buffer, before and after blank *)
-           ; stack : ('c, 'r) stack (* tree of stack representing what should be done
-                                       after reading the [rest] of the rule *)
-           ; acts  : 'f             (* action to produce the final 'c. *)
-           ; rest  : 'b rule        (* remaining to parse, will produce 'b *)
-           ; full  : 'c rule        (* full rule. rest is a suffix of full. *)
-           }
-
-   and _ final = D : ('c,'r,'b,'b -> 'c) cell -> 'r final
+   and _ final = D :
+      { start : pos2           (* position in buffer, before and after blank *)
+      ; stack : ('c, 'r) stack (* tree of stack representing what should be done
+                                  after reading the [rest] of the rule *)
+      ; acts  : 'b -> 'c       (* action to produce the final 'c. *)
+      ; rest  : 'b rule        (* remaining to parse, will produce 'b *)
+      ; full  : 'c rule        (* full rule. rest is a suffix of full. *)
+      } -> 'r final
 
    (** Type of the element that appears in stack. Note: all other
        elements will be collected by the GC, which is what we want to
@@ -247,10 +246,15 @@ module rec Types : sig
        The action needs to be prametrised by the future position which
        is unknown.  *)
    and (_,_) element =
-     (* Cons cell of the stack *)
-     | C : ('c,'r,'b,('a -> 'b -> 'c) pos) cell -> ('a ,'r) element
      (* End of the stack *)
      | B : ('a -> 'r) pos -> ('a,'r) element
+     (* Cons cell of the stack with a record similar to D's *)
+     | C : { start : pos2
+           ; stack : ('c, 'r) stack
+           ; acts  : ('a -> 'b -> 'c) pos (* Here we wait [x:'a] from parents *)
+           ; rest  : 'b rule
+           ; full  : 'c rule
+           } -> ('a ,'r) element
 
    (** stack themselves are an acyclic graph of elements (sharing is
        important to be preserved). We need a reference for the stack
@@ -380,7 +384,9 @@ let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
     | [r] when name = None -> r
     | _ ->
        let name = match name with None -> new_name () | Some n -> n in
-       mkrule (Next(info,name,NonTerm(info,ref rules,Container.Ref.create ()),idtEmpty ()))
+       mkrule (Next(info,name,
+                    NonTerm{info;rules
+                           ;memo=Container.Ref.create ()},idtEmpty ()))
 
 (** Basic constants/functions for rule information *)
 let force = Fixpoint.force
@@ -395,8 +401,7 @@ let rec rule_info:type a.a rule -> info = fun r ->
   | Dep(_) -> any
 
 let symbol_info:type a.a symbol -> info  = function
-  | Term{info} | Ter2{info} | Test{info} -> info
-  | NonTerm(i,_,_) -> i
+  | Term{info} | Ter2{info} | Test{info} | NonTerm{info} -> info
 
 let compose_info i1 i2 =
   let i1 = symbol_info i1 in
@@ -566,6 +571,9 @@ let max_stack = ref 0
     new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
   fun msg pos_final c (D { rest } as element) elements ->
+    let (ae,cs) = Fixpoint.force (rule_info rest) in
+    if !debug_lvl > 2 then
+      log "try %-6s: %a (%b,%a)\n%!" msg print_final element ae Charset.print cs;
     good c rest &&
       begin
         let key = elt_key element in
@@ -651,15 +659,15 @@ let rec pred_prod_lec
        match rest.rule with
 
        (** A non terminal : prediction *)
-       | Next(info,_,(NonTerm(_,{contents = rules},ct)),rest2) ->
+       | Next(info,_,NonTerm{rules;memo},rest2) ->
           if !debug_lvl > 0 then
             log "Prediction: %a\n%!" print_final elt0;
           (** create one final elements for each rule and calls fn if not new *)
           let rules =
-            try Container.Ref.find tmemo ct
+            try Container.Ref.find tmemo memo
             with Not_found ->
               let rules = List.filter (fun rule -> good c rule) rules in
-              Container.Ref.add tmemo ct rules;
+              Container.Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
                   let start = cur_pos in
