@@ -1,3 +1,6 @@
+long.ml: 
+long_mod.ml: 
+vlong_mod.ml: 
 bibi.ml: 
 [93m diff size with pos: 24 56 ./tests_pa_ocaml/bibi.ml.fulldiff [0m
 UTF16.ml: 
@@ -19,6 +22,8 @@ imageXCF.ml:
 decap.ml: 
 [93m diff size with pos: 152 368 ./tests_pa_ocaml/decap.ml.fulldiff [0m
 pa_byt_main.ml: 
+pa_ocaml.ml: 
+[93m diff size with pos: 20 50 ./tests_pa_ocaml/pa_ocaml.ml.fulldiff [0m
 pa_ocaml_prelude.ml: 
 [93m diff size with pos: 84 210 ./tests_pa_ocaml/pa_ocaml_prelude.ml.fulldiff [0m
 pa_parser.ml: 
@@ -91,5 +96,5 @@ test4.ml:
 TOTAL diff size:
 0 0 total
 TOTAL diff size with pos:
-  688  1502 total
+  708  1552 total
 ********************************************
