@@ -37,6 +37,7 @@ module Make(Initial:Extension) =
                 (Pexp_ident (id_loc (Lident name) _loc_name)) in
             Pexp_apply (p, [("", arg)]) in
       loc_expr (merge2 _loc_name _loc_arg) res
+    ;;
     let check_variable vl loc v =
       if List.mem v vl
       then raise (let open Syntaxerr in Error (Variable_in_scope (loc, v)))
@@ -127,6 +128,7 @@ module Make(Initial:Extension) =
     let char_dec = "[\\\\][0-9][0-9][0-9]"
     let char_hex = "[\\\\][x][0-9a-fA-F][0-9a-fA-F]"
     exception Illegal_escape of string
+    ;;
     type string_litteral_type =
       | Char
       | String
@@ -354,6 +356,7 @@ module Make(Initial:Extension) =
     let label =
       Decap.sequence (Decap.string "~" "~") label_name
         (fun _  -> fun ln  -> ln)
+    ;;
     let opt_label =
       Decap.sequence (Decap.string "?" "?") label_name
         (fun _  -> fun ln  -> ln)
@@ -454,6 +457,7 @@ module Make(Initial:Extension) =
         (fun mp  ->
            fun fn  ->
              match mp with | None  -> Lident fn | Some p -> Ldot (p, fn))
+    ;;
     let class_path =
       Decap.sequence
         (Decap.option None
@@ -557,6 +561,7 @@ module Make(Initial:Extension) =
                     (Decap.fsequence attr_id
                        (Decap.sequence payload (Decap.char ']' ']')
                           (fun p  -> fun _  -> fun id  -> fun _  -> (id, p))))))))
+    ;;
     let ext_attributes =
       Decap.apply (fun l  -> l)
         (Decap.apply List.rev
@@ -650,6 +655,7 @@ module Make(Initial:Extension) =
                   | Some (amp,l) -> ((amp <> None), [l]) in
                 Rtag (tn, amp, t));
         Decap.apply (fun te  -> Rinherit te) typexpr]
+    ;;
     let tag_spec_first =
       Decap.alternatives
         [Decap.sequence tag_name
@@ -806,6 +812,7 @@ module Make(Initial:Extension) =
                    fun tc  ->
                      let (_loc_tc,tc) = tc in
                      fun _  -> let tc = id_loc tc _loc_tc in (tc, te))))
+    ;;
     let package_type =
       Decap.sequence
         (Decap.apply_position
@@ -1161,6 +1168,7 @@ module Make(Initial:Extension) =
                                       | "tuple" ->
                                           loc_typ _loc (Ptyp_tuple l)
                                       | _ -> raise (Give_up "")))))]
+    ;;
     let typexpr_suit_aux:
       type_prio ->
         type_prio ->
@@ -1896,6 +1904,7 @@ module Make(Initial:Extension) =
                                    then mkoption _loc_tes te
                                    else te), acc)) in
                      List.fold_left app cbt (List.rev tes))
+    ;;
     let type_parameters =
       Decap.sequence type_param
         (Decap.apply List.rev
@@ -2268,14 +2277,14 @@ module Make(Initial:Extension) =
                                                  fun f  ->
                                                    let (_loc_f,f) = f in
                                                    fun s  ->
-                                                     fun __loc__start__buf 
+                                                     fun __loc__start__buf
                                                        ->
-                                                       fun __loc__start__pos 
+                                                       fun __loc__start__pos
                                                          ->
-                                                         fun __loc__end__buf 
+                                                         fun __loc__end__buf
                                                            ->
                                                            fun
-                                                             __loc__end__pos 
+                                                             __loc__end__pos
                                                              ->
                                                              let _loc =
                                                                locate
@@ -2295,15 +2304,15 @@ module Make(Initial:Extension) =
                                                                    (lab, p)
                                                                | None  ->
                                                                    let slab =
-                                                                    match 
+                                                                    match
                                                                     lab.txt
                                                                     with
-                                                                    | 
+                                                                    |
                                                                     Lident s
                                                                     ->
                                                                     id_loc s
                                                                     lab.loc
-                                                                    | 
+                                                                    |
                                                                     _ ->
                                                                     raise
                                                                     (Give_up
@@ -2641,6 +2650,7 @@ module Make(Initial:Extension) =
                                 (ConstrPat, (loc_pat _loc ast))))
                 :: y
               else y)))
+    ;;
     let pattern_suit_aux:
       pattern_prio ->
         pattern_prio -> (pattern_prio* (pattern -> pattern)) grammar
@@ -4300,9 +4310,9 @@ module Make(Initial:Extension) =
                                                 fun o  ->
                                                   fun _  ->
                                                     fun __loc__start__buf  ->
-                                                      fun __loc__start__pos 
+                                                      fun __loc__start__pos
                                                         ->
-                                                        fun __loc__end__buf 
+                                                        fun __loc__end__buf
                                                           ->
                                                           fun __loc__end__pos
                                                              ->
@@ -4364,7 +4374,7 @@ module Make(Initial:Extension) =
                                                             fun _  ->
                                                               fun _  ->
                                                                 fun mn  ->
-                                                                  let 
+                                                                  let
                                                                     (_loc_mn,mn)
                                                                     = mn in
                                                                   fun _  ->
@@ -4456,10 +4466,10 @@ module Make(Initial:Extension) =
                                                                     let me =
                                                                     match mt
                                                                     with
-                                                                    | 
+                                                                    |
                                                                     None  ->
                                                                     me
-                                                                    | 
+                                                                    |
                                                                     Some mt
                                                                     ->
                                                                     mexpr_loc
@@ -4470,7 +4480,7 @@ module Make(Initial:Extension) =
                                                                     (me, mt)) in
                                                                     let me =
                                                                     List.fold_left
-                                                                    (fun acc 
+                                                                    (fun acc
                                                                     ->
                                                                     fun
                                                                     (mn,mt,_loc)
@@ -4484,7 +4494,7 @@ module Make(Initial:Extension) =
                                                                     acc))) me
                                                                     (List.rev
                                                                     l) in
-                                                                    fun _loc 
+                                                                    fun _loc
                                                                     ->
                                                                     (Let,
                                                                     (loc_expr
@@ -4714,11 +4724,11 @@ module Make(Initial:Extension) =
                                                fun e  ->
                                                  fun _  ->
                                                    fun __loc__start__buf  ->
-                                                     fun __loc__start__pos 
+                                                     fun __loc__start__pos
                                                        ->
-                                                       fun __loc__end__buf 
+                                                       fun __loc__end__buf
                                                          ->
-                                                         fun __loc__end__pos 
+                                                         fun __loc__end__pos
                                                            ->
                                                            let _loc =
                                                              locate
@@ -4786,9 +4796,9 @@ module Make(Initial:Extension) =
                                                                   fun d  ->
                                                                     fun e  ->
                                                                     fun _  ->
-                                                                    fun id 
+                                                                    fun id
                                                                     ->
-                                                                    let 
+                                                                    let
                                                                     (_loc_id,id)
                                                                     = id in
                                                                     fun _  ->
@@ -5130,11 +5140,11 @@ module Make(Initial:Extension) =
                                                  fun dol  ->
                                                    let (_loc_dol,dol) = dol in
                                                    fun __loc__start__buf  ->
-                                                     fun __loc__start__pos 
+                                                     fun __loc__start__pos
                                                        ->
-                                                       fun __loc__end__buf 
+                                                       fun __loc__end__buf
                                                          ->
-                                                         fun __loc__end__pos 
+                                                         fun __loc__end__pos
                                                            ->
                                                            let _loc =
                                                              locate
@@ -5172,7 +5182,7 @@ module Make(Initial:Extension) =
                                                                 | "list" ->
                                                                     let l =
                                                                     List.map
-                                                                    (fun x 
+                                                                    (fun x
                                                                     ->
                                                                     (x, _loc))
                                                                     l in
@@ -5311,7 +5321,7 @@ module Make(Initial:Extension) =
                                                   fun __loc__start__buf  ->
                                                     fun __loc__start__pos  ->
                                                       fun __loc__end__buf  ->
-                                                        fun __loc__end__pos 
+                                                        fun __loc__end__pos
                                                           ->
                                                           let _loc =
                                                             locate
@@ -5518,14 +5528,14 @@ module Make(Initial:Extension) =
                                                (Decap.apply_position
                                                   (fun f  ->
                                                      let (_loc_f,f) = f in
-                                                     fun __loc__start__buf 
+                                                     fun __loc__start__buf
                                                        ->
-                                                       fun __loc__start__pos 
+                                                       fun __loc__start__pos
                                                          ->
-                                                         fun __loc__end__buf 
+                                                         fun __loc__end__buf
                                                            ->
                                                            fun
-                                                             __loc__end__pos 
+                                                             __loc__end__pos
                                                              ->
                                                              let _loc =
                                                                locate
@@ -5596,7 +5606,7 @@ module Make(Initial:Extension) =
                                                                     __loc__end__pos in
                                                                   (Aff,
                                                                     (
-                                                                    fun e' 
+                                                                    fun e'
                                                                     ->
                                                                     let f =
                                                                     id_loc f
@@ -5679,7 +5689,7 @@ module Make(Initial:Extension) =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                     (Aff,
-                                                                    (fun e' 
+                                                                    (fun e'
                                                                     ->
                                                                     bigarray_set
                                                                     (merge2
@@ -5698,9 +5708,9 @@ module Make(Initial:Extension) =
                                                 fun _  ->
                                                   fun _  ->
                                                     fun __loc__start__buf  ->
-                                                      fun __loc__start__pos 
+                                                      fun __loc__start__pos
                                                         ->
-                                                        fun __loc__end__buf 
+                                                        fun __loc__end__buf
                                                           ->
                                                           fun __loc__end__pos
                                                              ->
@@ -5761,7 +5771,7 @@ module Make(Initial:Extension) =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                     (Aff,
-                                                                    (fun e' 
+                                                                    (fun e'
                                                                     ->
                                                                     ln e'
                                                                     _loc
@@ -6546,7 +6556,7 @@ module Make(Initial:Extension) =
                                                             fun mt  ->
                                                               fun _  ->
                                                                 fun mn  ->
-                                                                  let 
+                                                                  let
                                                                     (_loc_mn,mn)
                                                                     = mn in
                                                                   fun _  ->
@@ -6633,7 +6643,7 @@ module Make(Initial:Extension) =
                                                   fun __loc__start__buf  ->
                                                     fun __loc__start__pos  ->
                                                       fun __loc__end__buf  ->
-                                                        fun __loc__end__pos 
+                                                        fun __loc__end__pos
                                                           ->
                                                           let _loc =
                                                             locate
@@ -6879,7 +6889,7 @@ module Make(Initial:Extension) =
                                                  fun __loc__start__buf  ->
                                                    fun __loc__start__pos  ->
                                                      fun __loc__end__buf  ->
-                                                       fun __loc__end__pos 
+                                                       fun __loc__end__pos
                                                          ->
                                                          let _loc =
                                                            locate
@@ -6945,11 +6955,11 @@ module Make(Initial:Extension) =
                                                  let (_loc_mn,mn) = mn in
                                                  fun _  ->
                                                    fun __loc__start__buf  ->
-                                                     fun __loc__start__pos 
+                                                     fun __loc__start__pos
                                                        ->
-                                                       fun __loc__end__buf 
+                                                       fun __loc__end__buf
                                                          ->
-                                                         fun __loc__end__pos 
+                                                         fun __loc__end__pos
                                                            ->
                                                            let _loc =
                                                              locate

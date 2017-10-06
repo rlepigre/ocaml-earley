@@ -44,8 +44,8 @@ if [ ${TIME} -eq 0 -a ${COMPARE} -eq 0 -a ${EXTENSION} -eq 0 ]; then
     COMPARE=1
 fi
 
-files="$local/bibi.ml $local/UTF16.ml $local/test_offset.ml $local/image*.ml $local/decap.ml \
-       $local/pa_byt_main.ml $local/pa_ocaml_prelude.ml $local/pa_parser.ml \
+files="$local/long.ml $local/long_mod.ml $local/vlong_mod.ml $local/bibi.ml $local/UTF16.ml $local/test_offset.ml $local/image*.ml $local/decap.ml \
+       $local/pa_byt_main.ml $local/pa_ocaml.ml $local/pa_ocaml_prelude.ml $local/pa_parser.ml \
        $local/test.ml $local/objects.ml $local/variants.ml $local/prefix.ml\
        $local/mixin2.ml $local/mixev.ml $local/mixev2.ml $local/mixmod.ml $local/mixmod5.ml $local/mixobj.ml \
        $ocaml/pervasives.ml $ocaml/pervasives.mli $ocaml/list.ml $ocaml/list.mli $ocaml/stack.ml $ocaml/stack.mli\
