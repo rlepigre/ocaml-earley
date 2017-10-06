@@ -51,28 +51,28 @@
 let _ = Location.input_name := ""
 
 (* necessite la librairie UNIX *)
-let min_time = 0.02
+let min_time = 0.005
 
 let with_time f x =
-  Gc.compact ();
-  let (minor_words, _, _) = Gc.counters () in
-  let {Unix.tms_utime = ut;Unix.tms_stime = st} = Unix.times () in
   let time = ref 0.0 in
+  let words = ref 0.0 in
   let res = ref None in
   let count = ref 0 in
   try
     while !time < min_time do
-      res := Some (f x);
       incr count;
+      Gc.full_major ();
+      let (major_words, _, _) = Gc.counters () in
+      let {Unix.tms_utime = ut;Unix.tms_stime = st} = Unix.times () in
+      res := Some (f x);
       let {Unix.tms_utime = ut';Unix.tms_stime = st'} = Unix.times () in
-      time := (ut' -. ut) +. (st' -. st);
+      let (major_words', _, _) = Gc.counters () in
+      time := !time +. (ut' -. ut) +. (st' -. st);
+      words := !words +. major_words' -. major_words;
     done;
     let r = match !res with None -> assert false | Some r -> r in
-    let (minor_words', _, _) = Gc.counters () in
-    (r, !time /. float !count, minor_words' -. minor_words)
+    (r, !time /. float !count, !words /. float !count)
   with e ->
-    let {Unix.tms_utime = ut';Unix.tms_stime = st'} = Unix.times () in
-    Format.eprintf "exception after: %.2fs@." ((ut' -. ut) +. (st' -. st));
     flush stderr;
     raise e
 
