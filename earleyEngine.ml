@@ -388,13 +388,17 @@ let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r -
   in
   String.concat " " (List.filter (fun x -> x <> "") (fn r))
 
-let grammar_name : type a.a grammar -> string = fun p1 ->
-  match snd p1 with
-  | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
-  | [r] -> rule_name r
-  | rs ->
-     let name = String.concat " | " (List.map rule_name rs) in
-     "{"^name^"}"
+let grammar_name : type a. ?delim:bool -> a grammar -> string =
+  fun ?(delim=true) p1 ->
+    match snd p1 with
+    | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
+    | [r] -> rule_name r
+    | rs ->
+       let name = String.concat " | " (List.map rule_name rs) in
+       if delim then "{"^name^"}" else name
+
+let grammar_delim_name : type a. a grammar -> string = fun g ->
+  "{"^grammar_name ~delim:false g^"}"
 
 let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
   = fun ?name (info,rules as g) ->

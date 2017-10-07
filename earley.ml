@@ -313,7 +313,7 @@ let fsequence_position : 'a grammar -> ('a -> buffer -> int -> buffer -> int -> 
 
 let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
-    let name = grammar_name f1 ^ "*" in
+    let name = grammar_delim_name f1 ^ "*" in
     let res = declare_grammar name in
     let _ = set_grammar res
       (mk_grammar [ems a; next res (next f1 (idtEmpty ()))]) in
@@ -321,7 +321,7 @@ let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
 
 let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
-    let name = grammar_name f1 ^ "+" in
+    let name = grammar_delim_name f1 ^ "+" in
     let res = declare_grammar name in
     let _ = set_grammar res
       (mk_grammar [next f1 (ems (fun f -> f a));
@@ -463,7 +463,7 @@ let greedy : 'a grammar -> 'a grammar
       let (a,buf,pos) = internal_parse_buffer ~errpos blank l1 buf pos in
       (a,buf,pos)
     in
-    let name = grammar_name l1 ^ "$" in
+    let name = grammar_delim_name l1 ^ "$" in
     solo2 name (fst l1) fn
 
 let grammar_info : type a. a grammar -> bool * Charset.t
