@@ -186,22 +186,15 @@ let ocaml_blank buf pos =
  * Keywords management.                                                     *
  ****************************************************************************)
 
-let no_ident_char c =
+let ident_char c =
   match c with
-  | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> false
-  | _ -> true
-
-let test_end_kw =
-  let f buf pos _ _ =
-    let (c,_,_) = Input.read buf pos in
-    ((), no_ident_char c)
-  in
-  Earley.blank_test ~name:"test_end_kw" Charset.full f
+  | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> true
+  | _ -> false
 
 let key_word s =
   if String.length s <= 0 then
     invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Earley.give_name s (parser STR(s) test_end_kw -> ())
+  Earley.keyword s ident_char ()
 
 let mutable_kw     = key_word "mutable"
 let private_kw     = key_word "private"
@@ -258,7 +251,7 @@ let no_keyword s =
   let len = String.length s in
   let rec fn i buf pos =
     let c,buf,pos = Input.read buf pos in
-    if i >= len then ((), not (no_ident_char c)) else
+    if i >= len then ((), ident_char c) else
       if c <> s.[i] then ((), true) else fn (i+1) buf pos
   in
   Earley.test ~name:("no_"^s) Charset.full (fn 0)
@@ -506,7 +499,7 @@ let regexp =
         | _    -> assert false
   in
   parser cs:regexp_char* -> String.concat "" cs
- 
+
 let regexp_litteral : string Earley.grammar =
   parser _:double_quote - (Earley.no_blank_layout (parser regexp "''"))
 

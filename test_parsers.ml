@@ -154,7 +154,7 @@ let _ =
   in
 
   let csv = open_out "ocaml.csv" in
-  Printf.fprintf csv "size, yacctime, decaptime, yaccmem, decapmem\n";
+  Printf.fprintf csv "file, yacctime, earleytime, yaccmem, earleymem\n";
 
   Array.iteri (fun i path -> if i <> 0 (*&& Filename.check_suffix path ".ml"*) then begin
     Format.eprintf "%s@." path;
@@ -173,20 +173,17 @@ let _ =
 	end
       else assert false
     in
-    let st = Unix.lstat path in
-    let size = Unix.(st.st_size) in
-    if size > 8192 then begin
-		       max_time_orig := max !max_time_orig (time_pa_ocaml /. time_orig);
-		       min_time_orig := min !min_time_orig (time_pa_ocaml /. time_orig);
-		     end;
+    max_time_orig := max !max_time_orig (time_pa_ocaml /. time_orig);
+    min_time_orig := min !min_time_orig (time_pa_ocaml /. time_orig);
     time_sum_orig := !time_sum_orig +. time_orig;
     time_sum_pa_ocaml := !time_sum_pa_ocaml +. time_pa_ocaml;
     mem_sum_orig := !mem_sum_orig +. mem_orig;
     mem_sum_pa_ocaml := !mem_sum_pa_ocaml +. mem_pa_ocaml;
     print_times time_orig time_pa_ocaml;
     print_mem mem_orig mem_pa_ocaml;
-   Printf.fprintf csv "%d, %f, %f, %f, %f\n"
-		   size time_orig time_pa_ocaml
+    Printf.fprintf csv "%s, %f, %f, %f, %f\n"
+                   (Filename.basename path)
+		   time_orig time_pa_ocaml
 		   mem_orig mem_pa_ocaml
     ;
 

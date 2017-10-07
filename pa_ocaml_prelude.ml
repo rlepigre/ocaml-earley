@@ -93,10 +93,6 @@ type entry_point =
   | Implementation of Parsetree.structure_item list grammar * blank
   | Interface      of Parsetree.signature_item list grammar * blank
 
-(* Genetal parser help *)
-let list1 sep g = parser x:g xs:{ _:sep g}* -> x::xs
-let list2 sep g = parser x:g xs:{ _:sep g}+ -> x::xs
-
 (* Initial parser module, starting point of the functorial interface. *)
 module Initial =
   struct

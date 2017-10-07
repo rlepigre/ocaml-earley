@@ -427,7 +427,7 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   | '<' rv:op_cl '>'
     -> Typ.object_ ~loc:_loc [] rv
 
-  | '<' mts:(list1 semi_col method_type) rv:{_:semi_col op_cl}?[Closed] '>'
+  | '<' mts:(Earley.list1 method_type semi_col) rv:{_:semi_col op_cl}?[Closed] '>'
     -> Typ.object_ ~loc:_loc mts rv
 
   | '#' cp:class_path
@@ -440,7 +440,7 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   | '(' te:typexpr tes:{',' te:typexpr}* ')' '#' cp:class_path
     -> Typ.class_ ~loc:_loc (id_loc cp _loc_cp) (te::tes)
 
-  | tes:(list2 (parser {'*' | "×"}) (typexpr_lvl DashType))
+  | tes:(Earley.list2 (typexpr_lvl DashType) (parser {'*' | "×"}))
        when lvl <= ProdType
     -> Typ.tuple ~loc:_loc tes
 
@@ -479,6 +479,7 @@ let parser type_param =
       (Joker _loc_j, var)
 
 let parser type_params =
+  | EMPTY -> []
   | tp:type_param -> [tp]
   | '(' tp:type_param tps:{',' tp:type_param -> tp}* ')' ->
       tp::tps
@@ -584,7 +585,8 @@ let parser type_information =
 
 let typedef_gen = (fun att constr filter ->
   parser
-  | tps:type_params?[[]] tcn:constr ti:type_information a:{post_item_attributes when att}?[[]]
+  | tps:type_params tcn:constr ti:type_information
+            a:{post_item_attributes when att | EMPTY when not att -> []}
     -> (fun prev_loc ->
       let _loc = match
  	  (prev_loc:Location.t option) with None -> _loc
@@ -603,8 +605,8 @@ let typedef_gen = (fun att constr filter ->
 	_loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
    )
 
-let typedef = typedef_gen true typeconstr_name (fun x -> x)
-let typedef_in_constraint = typedef_gen false typeconstr Longident.last
+let parser typedef = (typedef_gen true typeconstr_name (fun x -> x))
+let parser typedef_in_constraint = (typedef_gen false typeconstr Longident.last)
 
 let parser type_definition =
   | l:type_kw td:typedef tds:{l:and_kw td:typedef -> snd (td (Some _loc_l))}* ->
@@ -1706,7 +1708,7 @@ let parser mod_constraint =
   | module_kw m1:module_path CHR('=') m2:extended_module_path ->
      let name = id_loc m1 _loc_m1 in
      Pwith_module(name, id_loc m2 _loc_m2 )
-  | type_kw tps:type_params?[[]] tcn:typeconstr STR(":=") te:typexpr ->
+  | type_kw tps:type_params tcn:typeconstr STR(":=") te:typexpr ->
       let tcn0 = id_loc (Longident.last tcn) _loc_tcn in
       let _tcn = id_loc tcn _loc_tcn in
       let td = type_declaration _loc tcn0 tps [] Ptype_abstract Public (Some te) in
@@ -1792,10 +1794,13 @@ let parser structure_item_base =
 let parser structure_item_aux =
   | _:ext_attributes -> []
   | _:ext_attributes e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
-  | s1:structure_item_aux double_semi_col?[()] _:ext_attributes e:(alternatives extra_structure) ->
-     List.rev_append e (List.rev_append (attach_str _loc_e) s1)
-  | s1:structure_item_aux double_semi_col?[()] _:ext_attributes s2:structure_item_base -> s2 :: (List.rev_append (attach_str _loc_s2) s1)
-  | s1:structure_item_aux double_semi_col _:ext_attributes e:expression -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
+  | s1:structure_item_aux double_semi_col?[()] _:ext_attributes f:{
+             | e:(alternatives extra_structure) ->
+                 (fun s1 -> List.rev_append e (List.rev_append (attach_str _loc_e) s1))
+             | s2:structure_item_base ->
+                  (fun s1 -> s2 :: (List.rev_append (attach_str _loc_s2) s1)) } -> f s1
+  | s1:structure_item_aux double_semi_col _:ext_attributes e:expression
+      -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
 
 let _ = set_grammar structure_item
   (parser l:structure_item_aux double_semi_col?[()] -> List.rev l)
