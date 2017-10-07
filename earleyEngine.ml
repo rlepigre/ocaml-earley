@@ -167,19 +167,23 @@ module rec Types : sig
   type 'a grammar = info * 'a rule list
    (** The symbol, a more general concept that terminals *)
    and _ symbol =
-     | Term : { input : 'a input;  info : info; memo : 'a tref } -> 'a symbol
+     | Term : { input : 'a input;  info : info
+              ; memo : 'a tref; name : string } -> 'a symbol
      (** terminal symbol just read the input buffer *)
-     | Ter2 : { input : 'a input2; info : info; memo : 'a tref } -> 'a symbol
+     | Ter2 : { input : 'a input2; info : info
+              ; memo : 'a tref; name : string  } -> 'a symbol
      (** Ter2 correspond to a recursive call to the parser. We
          can change the blank function for instance, or parse
          input as much as possible. In fact it is only in the
          combinators in earley.ml that we use Ter2 to call
          the parser back. *)
-     | Test : { input : 'a test; info : info; memo : 'a tref } -> 'a symbol
+     | Test : { input : 'a test; info : info
+              ; memo : 'a tref; name : string  } -> 'a symbol
      (** Test on the input, can for instance read blanks, usefull for
          things like ocamldoc (but not yet used by earley-ocaml). *)
      | NonTerm : { mutable rules : 'a rule list
-                 ; mutable info : info; memo : 'a ntref } -> 'a symbol
+                 ; mutable info : info
+                 ; memo : 'a ntref; name : string  } -> 'a symbol
      (** Non terminals trough a reference to define recursive rule lists *)
 
    (** BNF rule. *)
@@ -189,7 +193,7 @@ module rec Types : sig
      | Dep : ('a -> ('b -> 'c) rule) -> ('a * 'b -> 'c) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
          no other solution is possible *)
-     | Next : info * string * 'a symbol * ('a -> 'c) rule -> 'c prerule
+     | Next : info * 'a symbol * ('a -> 'c) rule -> 'c prerule
      (** Sequence of a symbol and a rule, with a possible name for debugging,
          the information on the rule, the symbol to read, an action and
          the rest of the rule *)
@@ -371,21 +375,36 @@ let eq_D (D {start; rest; full; stack; acts})
 (** Some rules/grammar contruction that we need already here *)
 let idtEmpty : type a.unit -> (a->a) rule = fun () -> mkrule (Empty Idt)
 
-let new_name =
-  let c = ref 0 in
-  (fun () ->
-    let x = !c in
-    c := x + 1;
-    "G__" ^ string_of_int x)
+let symbol_name:type a.a symbol -> string  = function
+  | Term{name} | Ter2{name} | Test{name} | NonTerm{name} -> name
+
+let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r ->
+  let rec fn : type a.a rule -> string list = fun r ->
+    match r.rule with
+    | Empty _ -> []
+    | Next(_,s,r) ->
+       symbol_name s :: fn r
+    | Dep _ -> ["DEP"] (* FIXME *)
+  in
+  String.concat " " (List.filter (fun x -> x <> "") (fn r))
+
+let grammar_name : type a.a grammar -> string = fun p1 ->
+  match snd p1 with
+  | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
+  | [r] -> rule_name r
+  | rs ->
+     let name = String.concat " | " (List.map rule_name rs) in
+     "{"^name^"}"
 
 let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
-  = fun ?name (info,rules) ->
+  = fun ?name (info,rules as g) ->
     match rules with
     | [r] when name = None -> r
     | _ ->
-       let name = match name with None -> new_name () | Some n -> n in
-       mkrule (Next(info,name,
-                    NonTerm{info;rules
+       let name = match name with None -> grammar_name g
+                                | Some n -> n in
+       mkrule (Next(info,
+                    NonTerm{info;rules;name
                            ;memo=Container.Ref.create ()},idtEmpty ()))
 
 (** Basic constants/functions for rule information *)
@@ -396,7 +415,7 @@ let any   = Fixpoint.from_val (true, Charset.full)
 (** managment of info = accept empty + charset accepted as first char *)
 let rec rule_info:type a.a rule -> info = fun r ->
   match r.rule with
-  | Next(i,_,_,_) -> i
+  | Next(i,_,_) -> i
   | Empty _ -> iempty
   | Dep(_) -> any
 
@@ -428,10 +447,11 @@ let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
       match rest with
       | None -> ()
       | Some rest ->
-         match eq_rule rule rest with Eq -> Printf.fprintf ch "* " | Neq -> ()
+         match eq_rule rule rest with Eq -> Printf.fprintf ch "\x1B[31m*\x1B[0m " | Neq -> ()
     end;
     match rule.rule with
-    | Next(_,name,_,rs) -> Printf.fprintf ch "%s %a" name (print_rule ?rest) rs
+    | Next(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+                                     (print_rule ?rest) rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
 
@@ -659,7 +679,7 @@ let rec pred_prod_lec
        match rest.rule with
 
        (** A non terminal : prediction *)
-       | Next(info,_,NonTerm{rules;memo},rest2) ->
+       | Next(info,NonTerm{rules;memo},rest2) ->
           if !debug_lvl > 0 then
             log "Prediction: %a\n%!" print_final elt0;
           (** create one final elements for each rule and calls fn if not new *)
@@ -733,7 +753,7 @@ let rec pred_prod_lec
           with Error -> () end
 
        (** A terminal, we try to read *)
-       | Next(_,_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
+       | Next(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
           begin try
             if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} = cur_pos in
@@ -800,7 +820,7 @@ let count = ref 0
     to get the key of an element representing a complete parsing *)
 let rec tail_key : type a. a rule -> int = fun rule ->
   match rule.rule with
-  | Next(_,_,_,rest) -> tail_key rest
+  | Next(_,_,rest) -> tail_key rest
   | Empty _ -> rule.adr
   | Dep _ -> assert false (* FIXME *)
 
