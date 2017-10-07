@@ -15,19 +15,24 @@ module Make(V:sig type ('a,'b) elt end) = struct
     | Nil  : 'b nu_list
 
   (** Actual container. *)
-  type 'b container =
-    { mutable data : 'b nu_list (** Contents for each table. *)
-    ;         uid  : int        (** Unique identifier.     *) }
-
-  (** counter outside because of value restriction *)
-  let counter = ref (-1)
+  type 'a container =
+    { mutable data : 'a nu_list (** Contents for each table. *)
+    ;         uid  : 'a tag     (** Unique identifier.     *)
+    ;         eq   : 'b. 'b tag -> ('a,'b) eq}
 
   (** Creation function for containers. *)
-  let create : unit -> 'b container =
-    fun () -> incr counter; {data = Nil; uid = !counter}
+  let create : type a. unit -> a container =
+    fun () ->
+      let module M = struct type _ tag += T : a tag end in
+      let eq : type b. b tag -> (a, b) eq = function M.T -> Y | _ -> N in
+      {data = Nil; uid = M.T; eq }
 
   (** Obtain the UID of a container. *)
-  let address : 'b container -> int = fun c -> c.uid
+  let address : 'b container -> 'b tag = fun c -> c.uid
+
+  (** Equality on containers *)
+  let eq : 'a container -> 'b container -> ('a, 'b) eq =
+    fun c1 c2 -> c1.eq c2.uid
 
   (** unboxed mandatory for weak hashtbl to work, 4.04.0 only
       we use Obj until 4.04.0 is more spreaded *)
@@ -129,7 +134,8 @@ module type Param = sig
   type ('a, 'b) elt
   val create : unit -> 'b container
   val create_table : unit -> 'a table
-  val address : 'b container -> int
+  val address : 'b container -> 'b tag
+  val eq : 'a container -> 'b container -> ('a, 'b) eq
   val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
   val find : 'a table -> 'b container -> ('a, 'b) elt
   val clear : 'a table -> unit
@@ -148,6 +154,8 @@ module Ref = Make(struct type ('a, 'b) elt = ('a, 'b) le end)
 
 (** Exported name for [container]. *)
 type t = unit container
+
+let eq c1 c2 = match eq c1 c2 with Y -> true | N -> false
 
 (* This does not work !
 let iter : type a.(a -> unit) -> a table -> unit =

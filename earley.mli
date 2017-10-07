@@ -383,9 +383,6 @@ val test : ?name:string -> Charset.t ->
 val blank_test : ?name:string -> Charset.t ->
                  (buffer -> int -> buffer -> int -> ('a * bool)) -> 'a grammar
 
-(** always succefull test, used internally *)
-val success_test : 'a -> 'a grammar
-
 (** a test that fails if there is no blank *)
 val with_blank_test : 'a -> 'a grammar
 
@@ -398,18 +395,6 @@ val no_blank_test : 'a -> 'a grammar
     can be provided to print the parameter and display better error messages. *)
 val grammar_family : ?param_to_string:('a -> string) -> string
   -> ('a -> 'b grammar) * (('a -> 'b grammar) -> unit)
-
-val grammar_prio : ?param_to_string
-    :('b -> string) -> string
-     -> ('b -> 'c grammar) *
-          ((('b -> bool) * 'c grammar) list * ('b -> 'c grammar list) -> unit)
-
-val grammar_prio_family
-    : ?param_to_string
-    :('a * 'b -> string) -> string
-     -> ('a -> 'b -> 'c grammar) *
-          (('a -> (('b -> bool) * 'c grammar) list
-                  * ('b -> 'c grammar list)) -> unit)
 
 (**
    {[
@@ -427,8 +412,23 @@ val grammar_prio_family
    ]}
 *)
 
+(** Similar to the previous one, with an optimization.
+    [grammar_prio to_str name] returns a pair [(gs, set_gs)], where
+    [gs] is a finite family of grammars parametrized by a value of type ['a].
+    [set_gs] requires two lists of grammars to set the value of the grammar:
+    - the first list are grammar that can only be activated by the parameter
+      (if the given function return true)
+    - the second list is used as for grammar family *)
+val grammar_prio : ?param_to_string:('b -> string) -> string
+     -> ('b -> 'c grammar) *
+          ((('b -> bool) * 'c grammar) list * ('b -> 'c grammar list) -> unit)
 
-
+(** A mixture of the two above *)
+val grammar_prio_family
+    : ?param_to_string:('a * 'b -> string) -> string
+     -> ('a -> 'b -> 'c grammar) *
+          (('a -> (('b -> bool) * 'c grammar) list
+                  * ('b -> 'c grammar list)) -> unit)
 
 (** [accept_empty g] returns [true] if the grammar [g] accepts the empty input
     and [false] otherwise. *)

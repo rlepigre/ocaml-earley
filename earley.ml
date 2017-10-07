@@ -81,16 +81,17 @@ let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
   match f,g with
   | Idt, _ -> g
   | _, Idt -> f
-  | Simple f, Simple g -> Simple(fun x -> f (g x))
-  | Simple f, WithPos g -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
-  | WithPos f, Simple g -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
-  | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p' (g b p b' p' x))
+  | Simple f, Simple g  -> Simple(fun x -> f (g x))
+  | Simple f, WithPos g  -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
+  | WithPos f, Simple g  -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
+  | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p'
+                                                         (g b p b' p' x))
 
 let compose3 f g h = compose f (compose g h)
 
 (** Smart constructors for rules *)
-
-let nonterm name info rules = NonTerm{info;rules;name;memo=Container.Ref.create ()}
+let nonterm name info rules =
+  NonTerm{info;rules;name;memo=Container.Ref.create ()}
 
 let next_aux s r = mkrule (Next(compose_info s r, s,r))
 
@@ -112,6 +113,8 @@ let mkter2 name info input =
 let mktest name info input =
   Test{input;info;memo=Container.Ref.create ();name}
 
+let mkgrammar s = (grammar_info s, s)
+
 (** Helper to build a terminal symbol *)
 let solo : string -> ?accept_empty:bool -> Charset.t
            -> 'a input -> 'a grammar
@@ -121,7 +124,7 @@ let solo : string -> ?accept_empty:bool -> Charset.t
 
 type 'a result = Val of 'a | Exc of exn
 
-(** Function used to call use a grammar as a terminal.  its input
+(** Function used to call a grammar as a terminal. Its input
     takes more arguments, in particular to record error position *)
 let solo2 =
   fun name i s ->
@@ -130,52 +133,31 @@ let solo2 =
     in
     (i, [mkrule (Next(i,mkter2 name i s,idtEmpty ()))])
 
-let test = fun ?(name="") set f ->
-  let j = Fixpoint.from_val (true,set) in
-  (j, [mkrule (Next(j,mktest name j (fun _ _ -> f),idtEmpty ()))])
+(** Combinator for test at current position *)
+let test : ?name:string -> Charset.t
+           -> (buffer -> int -> 'a * bool) -> 'a grammar =
+  fun ?(name="") set f ->
+    let j = Fixpoint.from_val (true,set) in
+    (j, [mkrule (Next(j,mktest name j (fun _ _ -> f),idtEmpty ()))])
 
-let blank_test = fun ?(name="") set f ->
+(** Combinator for test blank before the current position *)
+let blank_test : ?name:string -> Charset.t -> 'a test -> 'a grammar =
+  fun ?(name="") set f ->
   let j = Fixpoint.from_val (true,set) in
   (j, [mkrule (Next(j,mktest name j f,idtEmpty ()))])
 
-let success_test a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
+(** A test that always pass *)
+let success a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
+(** A test that blank exists before the current position *)
 let with_blank_test a = blank_test ~name:"BLANK" Charset.full
   (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
 
+(** A test that blank do not exists before the current position *)
 let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
   (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
 
-let eof : 'a -> 'a grammar
-  = fun a ->
-    let fn buf pos =
-      if is_empty buf pos then (a,buf,pos) else raise Error
-    in
-    solo "EOF" (Charset.singleton '\255') fn
-
-let mk_grammar s = (grammar_info s, s)
-
-let give_name name (i,_ as g) =
-  (i, [grammar_to_rule ~name g])
-
-let apply : type a b. (a -> b) -> a grammar -> b grammar = fun f l1 ->
-  mk_grammar [next l1 (mkrule (Empty (Simple f)))]
-
-let apply_position : type a b. (a -> buffer -> int -> buffer -> int -> b) -> a grammar -> b grammar = fun f l1 ->
-  mk_grammar [next l1 (emp(WithPos(fun b p b' p' a -> f a b p b' p')))]
-
-let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
-  = fun l1 l2 f -> mk_grammar [next l1 (next l2 (ems (fun b a -> f a b)))]
-
-let sequence_position : 'a grammar -> 'b grammar -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c) -> 'c grammar
-   = fun l1 l2 f ->
-    mk_grammar [next l1 (next l2 (emp(WithPos(fun b p b' p' a' a -> f a a' b p b' p'))))]
-
-let fail : unit -> 'a grammar
-  = fun () ->
-    let fn buf pos = raise Error in
-    solo "FAIL" Charset.empty fn
-
+(** Used for unset recursive grammars *)
 let unset : string -> 'a grammar
   = fun msg ->
     let fn buf pos =
@@ -183,6 +165,11 @@ let unset : string -> 'a grammar
     in
     solo msg Charset.empty fn (* make sure we have the message *)
 
+(** Alternatives between many grammars *)
+let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
+  mkgrammar (List.flatten (List.map snd g))
+
+(** Declare a recusive grammar *)
 let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let nt = nonterm name (Fixpoint.from_val (false, Charset.empty)) g in
@@ -196,200 +183,15 @@ let declare_grammar name =
     | NonTerm r -> r.info <- j
     | _ -> assert false
   end;
-  mk_grammar [mkrule (Next(j,nt, idtEmpty ()))]
+  mkgrammar [mkrule (Next(j,nt, idtEmpty ()))]
 
+(** Set the value of a recursive grammar *)
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 (_,rules2) ->
       match snd p1 with
       | [{rule=Next(_,NonTerm({info} as r),{rule=Empty Idt})}] ->
          r.rules <- rules2; Fixpoint.update info;
       (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
       | _ -> invalid_arg "set_grammar"
-
-let char : ?name:string -> char -> 'a -> 'a grammar
-  = fun ?name c a ->
-    let msg = Printf.sprintf "%C" c in
-    let name = match name with None -> msg | Some n -> n in
-    let fn buf pos =
-      let c', buf', pos' = read buf pos in
-      if c = c' then (a,buf',pos') else give_up ()
-    in
-    solo name (Charset.singleton c) fn
-
-let in_charset : ?name:string -> Charset.t -> char grammar
-  = fun ?name cs ->
-    let msg = Printf.sprintf "[%s]" (Charset.show cs) in
-    let name = match name with None -> msg | Some n -> n in
-    let fn buf pos =
-      let c, buf', pos' = read buf pos in
-      if Charset.mem cs c then (c,buf',pos') else give_up ()
-    in
-    solo name cs fn
-
-let not_in_charset : ?name:string -> Charset.t -> unit grammar
-  = fun ?name cs ->
-    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
-    let name = match name with None -> msg | Some n -> n in
-    let fn buf pos =
-      let c, buf', pos' = read buf pos in
-      if Charset.mem cs c then ((), false) else ((), true)
-    in
-    test ~name (Charset.complement cs) fn
-
-let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
-  = fun ?name cs ->
-    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
-    let name = match name with None -> msg | Some n -> n in
-    let fn buf pos _ _ =
-      let c, buf', pos' = read buf pos in
-      if Charset.mem cs c then ((), false) else ((), true)
-    in
-    blank_test ~name (Charset.complement cs) fn
-
-let any : char grammar
-  = let fn buf pos =
-      let c, buf', pos' = read buf pos in
-      if c = '\255' then give_up ();
-      (c,buf',pos')
-    in
-    solo "ANY" Charset.(del full '\255') fn
-
-let debug msg : unit grammar
-    = let fn buf pos =
-        Printf.eprintf "%s file:%s line:%d col:%d\n%!" msg (filename buf) (line_num buf) pos;
-        ((), true)
-      in
-      test ~name:msg Charset.empty fn
-
-let string : ?name:string -> string -> 'a -> 'a grammar
-  = fun ?name s a ->
-    let name = match name with None -> s | Some n -> n in
-    let fn buf pos =
-      let buf = ref buf in
-      let pos = ref pos in
-      let len_s = String.length s in
-      for i = 0 to len_s - 1 do
-        let c, buf', pos' = read !buf !pos in
-        if c <> s.[i] then give_up ();
-        buf := buf'; pos := pos'
-      done;
-      (a,!buf,!pos)
-    in
-    solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
-
-let keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
-  = fun ?name s test a ->
-    let name = match name with None -> s | Some n -> n in
-    let fn buf pos =
-      let buf = ref buf in
-      let pos = ref pos in
-      let len_s = String.length s in
-      for i = 0 to len_s - 1 do
-        let c, buf', pos' = read !buf !pos in
-        if c <> s.[i] then give_up ();
-        buf := buf'; pos := pos'
-      done;
-      let c, _, _ = read !buf !pos in
-      if test c then give_up ();
-      (a,!buf,!pos)
-    in
-    solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
-
-let option : 'a -> 'a grammar -> 'a grammar
-  = fun a (_,l) -> mk_grammar (mkrule (Empty (Simple a))::l)
-
-let regexp : ?name:string -> string -> string array grammar =
-  fun ?name str ->
-    let name = match name with None -> String.escaped str | Some n -> n in
-    let (re, grps) = Regexp.regexp_from_string str in
-    let fn buf pos =
-      let (buf, pos) = Regexp.read_regexp re buf pos in
-      (Array.map (!) grps, buf, pos)
-    in
-    solo name ~accept_empty:(Regexp.accept_empty re)
-      (Regexp.accepted_first_chars re) fn
-
-(* charset is now useless ... will be suppressed soon *)
-(*
-let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> string -> 'a grammar
-  = fun fn set name -> solo ~name set fn
-*)
-let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool -> string -> 'a grammar
-  = fun fn set accept_empty name -> solo name ~accept_empty set fn
-
-let empty : 'a -> 'a grammar = fun a -> (iempty,[ems a])
-
-let sequence3 : 'a grammar -> 'b grammar -> 'c grammar -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
-  = fun l1 l2 l3 f ->
-    sequence l1 (sequence l2 l3 (fun x y z -> f z x y)) (fun z f -> f z)
-
-let fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
-  = fun l1 l2 -> mk_grammar [next l1 (grammar_to_rule l2)]
-
-let fsequence_position : 'a grammar -> ('a -> buffer -> int -> buffer -> int -> 'b) grammar -> 'b grammar
-  = fun l1 l2 ->
-    apply_position idt (fsequence l1 l2)
-
-let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
-  = fun a f1 ->
-    let name = grammar_delim_name f1 ^ "*" in
-    let res = declare_grammar name in
-    let _ = set_grammar res
-      (mk_grammar [ems a; next res (next f1 (idtEmpty ()))]) in
-    res
-
-let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
-  = fun a f1 ->
-    let name = grammar_delim_name f1 ^ "+" in
-    let res = declare_grammar name in
-    let _ = set_grammar res
-      (mk_grammar [next f1 (ems (fun f -> f a));
-       next res (next f1 (idtEmpty ()))]) in
-    res
-
-(* General lists with seprator *)
-(* General lists with seprator *)
-let list0 g sep =
-  option []
-    (sequence g
-       (apply List.rev
-          (fixpoint []
-             (apply (fun x -> fun y -> x :: y)
-                (sequence sep g
-                   (fun _ -> fun x -> x)))))
-       (fun x -> fun xs -> x :: xs))
-let list1 g sep =
-  sequence g
-    (apply List.rev
-       (fixpoint []
-          (apply (fun x -> fun y -> x :: y)
-             (sequence sep g (fun _ -> fun x -> x)))))
-    (fun x -> fun xs -> x :: xs)
-let list2 g sep =
-  sequence g
-    (apply List.rev
-       (fixpoint1 []
-          (apply (fun x -> fun y -> x :: y)
-             (sequence sep g (fun _ -> fun x -> x)))))
-    (fun x -> fun xs -> x :: xs)
-
-let delim g = g
-
-let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
-  mk_grammar (List.flatten (List.map snd g))
-
-(* FIXME: optimisation: modify g inside when possible *)
-let position g =
-  apply_position (fun a buf pos buf' pos' ->
-    (filename buf, line_num buf, pos, line_num buf', pos', a)) g
-
-let fail_no_parse () = exit 1
-
-let handle_exception ?(error=fail_no_parse) f a =
-  try f a with Parse_error(buf, pos) ->
-    let red fmt = "\027[31m" ^^ fmt ^^ "\027[0m%!" in
-    Printf.eprintf (red "Parse error: file %S, line %d, character %d.\n")
-      (filename buf) (line_num buf) (utf8_col_num buf pos);
-    error ()
 
 let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
   let tbl = EqHashtbl.create 8 in
@@ -464,14 +266,253 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
       set_grammar r (f args p);
     ) tbl)
 
+(** Parse the end of file *)
+let eof : 'a -> 'a grammar
+  = fun a ->
+    let fn buf pos =
+      if is_empty buf pos then (a,buf,pos) else raise Error
+    in
+    solo "EOF" (Charset.singleton '\255') fn
+
+(** Give a name to a grammar *)
+let give_name name (i,_ as g) =
+  (i, [grammar_to_rule ~name g])
+
+(** Change the action of the grammar by applying a function *)
+let apply : type a b. (a -> b) -> a grammar -> b grammar = fun f l1 ->
+  mkgrammar [next l1 (mkrule (Empty (Simple f)))]
+
+(** Idem, with positions *)
+let apply_position : type a b. (a -> buffer -> int -> buffer -> int -> b)
+                          -> a grammar -> b grammar
+  = fun f l1 ->
+    mkgrammar [next l1 (emp(WithPos(fun b p b' p' a -> f a b p b' p')))]
+
+(** Build a tuple with positions *)
+let position g =
+  apply_position (fun a buf pos buf' pos' ->
+    (filename buf, line_num buf, pos, line_num buf', pos', a)) g
+
+
+(** An always failing grammar *)
+let fail : unit -> 'a grammar
+  = fun () ->
+    let fn buf pos = raise Error in
+    solo "FAIL" Charset.empty fn
+
+(** Accept only one char *)
+let char : ?name:string -> char -> 'a -> 'a grammar
+  = fun ?name c a ->
+    let msg = Printf.sprintf "%C" c in
+    let name = match name with None -> msg | Some n -> n in
+    let fn buf pos =
+      let c', buf', pos' = read buf pos in
+      if c = c' then (a,buf',pos') else give_up ()
+    in
+    solo name (Charset.singleton c) fn
+
+(** Accept any char in a given char set *)
+let in_charset : ?name:string -> Charset.t -> char grammar
+  = fun ?name cs ->
+    let msg = Printf.sprintf "[%s]" (Charset.show cs) in
+    let name = match name with None -> msg | Some n -> n in
+    let fn buf pos =
+      let c, buf', pos' = read buf pos in
+      if Charset.mem cs c then (c,buf',pos') else give_up ()
+    in
+    solo name cs fn
+
+(** Test that the current char is not in a given char set (do not parse it) *)
+let not_in_charset : ?name:string -> Charset.t -> unit grammar
+  = fun ?name cs ->
+    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
+    let name = match name with None -> msg | Some n -> n in
+    let fn buf pos =
+      let c, buf', pos' = read buf pos in
+      if Charset.mem cs c then ((), false) else ((), true)
+    in
+    test ~name (Charset.complement cs) fn
+
+(** Test the charactere at the beginning of the blank.
+    TODO: should not it test all blank char ? *)
+let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
+  = fun ?name cs ->
+    let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
+    let name = match name with None -> msg | Some n -> n in
+    let fn buf pos _ _ =
+      let c, buf', pos' = read buf pos in
+      if Charset.mem cs c then ((), false) else ((), true)
+    in
+    blank_test ~name (Charset.complement cs) fn
+
+(** Accept exactly one char *)
+let any : char grammar
+  = let fn buf pos =
+      let c, buf', pos' = read buf pos in
+      if c = '\255' then give_up ();
+      (c,buf',pos')
+    in
+    solo "ANY" Charset.(del full '\255') fn
+
+(** Print a debugging message, with the position *)
+let debug msg : unit grammar
+    = let fn buf pos =
+        log "%s file:%s line:%d col:%d\n%!"
+            msg (filename buf) (line_num buf) pos;
+        ((), true)
+      in
+      test ~name:msg Charset.empty fn
+
+(** Accept a string *)
+let string : ?name:string -> string -> 'a -> 'a grammar
+  = fun ?name s a ->
+    let name = match name with None -> s | Some n -> n in
+    let fn buf pos =
+      let buf = ref buf in
+      let pos = ref pos in
+      let len_s = String.length s in
+      for i = 0 to len_s - 1 do
+        let c, buf', pos' = read !buf !pos in
+        if c <> s.[i] then give_up ();
+        buf := buf'; pos := pos'
+      done;
+      (a,!buf,!pos)
+    in
+    solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
+
+(** Accept a keyword: the charter after the parsed string should
+    return false for the given function *)
+let keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
+  = fun ?name s test a ->
+    let name = match name with None -> s | Some n -> n in
+    let fn buf pos =
+      let buf = ref buf in
+      let pos = ref pos in
+      let len_s = String.length s in
+      for i = 0 to len_s - 1 do
+        let c, buf', pos' = read !buf !pos in
+        if c <> s.[i] then give_up ();
+        buf := buf'; pos := pos'
+      done;
+      let c, _, _ = read !buf !pos in
+      if test c then give_up ();
+      (a,!buf,!pos)
+    in
+    solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
+
+(** option combinator *)
+let option : 'a -> 'a grammar -> 'a grammar
+  = fun a (_,l) -> mkgrammar (mkrule (Empty (Simple a))::l)
+
+(** Regexp (use our own regexp, look at EarleyStr for Str regexp support *)
+let regexp : ?name:string -> string -> string array grammar =
+  fun ?name str ->
+    let name = match name with None -> String.escaped str | Some n -> n in
+    let (re, grps) = Regexp.regexp_from_string str in
+    let fn buf pos =
+      let (buf, pos) = Regexp.read_regexp re buf pos in
+      (Array.map (!) grps, buf, pos)
+    in
+    solo name ~accept_empty:(Regexp.accept_empty re)
+      (Regexp.accepted_first_chars re) fn
+
+(** Allow to write any terminal, by supplying a function *)
+let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool
+                  -> string -> 'a grammar
+  = fun fn set accept_empty name -> solo name ~accept_empty set fn
+
+(** Parse the empty string *)
+let empty : 'a -> 'a grammar = fun a -> (iempty,[ems a])
+
+(** Various wy to make sequence of parsing *)
+let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
+  = fun l1 l2 f -> mkgrammar [next l1 (next l2 (ems (fun b a -> f a b)))]
+
+let sequence_position : 'a grammar -> 'b grammar
+                        -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c)
+                        -> 'c grammar
+  = fun l1 l2 f ->
+    mkgrammar [next l1
+                (next l2
+                      (emp(WithPos(fun b p b' p' a' a -> f a a' b p b' p'))))]
+
+let sequence3 : 'a grammar -> 'b grammar -> 'c grammar
+                -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
+  = fun l1 l2 l3 f ->
+    sequence l1 (sequence l2 l3 (fun x y z -> f z x y)) (fun z f -> f z)
+
+let fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
+  = fun l1 l2 -> mkgrammar [next l1 (grammar_to_rule l2)]
+
+let fsequence_position : 'a grammar
+                         -> ('a -> buffer -> int -> buffer -> int -> 'b) grammar
+                         -> 'b grammar
+  = fun l1 l2 ->
+    apply_position idt (fsequence l1 l2)
+
+let dependent_sequence
+    : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
+  = fun l1 f2 ->
+      mkgrammar [next l1 (mkrule (Dep (fun a -> grammar_to_rule (f2 a))))]
+
+(** A nice one !*)
+let iter : 'a grammar grammar -> 'a grammar
+  = fun g -> dependent_sequence (apply (fun x -> (x, ())) g)
+                                (apply (fun f () -> f ))
+
+(** Various fixpoints *)
+let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
+  = fun a f1 ->
+    let name = grammar_delim_name f1 ^ "*" in
+    let res = declare_grammar name in
+    let _ = set_grammar res
+      (mkgrammar [ems a; next res (next f1 (idtEmpty ()))]) in
+    res
+
+let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
+  = fun a f1 ->
+    let name = grammar_delim_name f1 ^ "+" in
+    let res = declare_grammar name in
+    let _ = set_grammar res
+      (mkgrammar [next f1 (ems (fun f -> f a));
+       next res (next f1 (idtEmpty ()))]) in
+    res
+
+(** General lists with seprator *)
+let list0 g sep =
+  option []
+    (sequence g
+       (apply List.rev
+          (fixpoint []
+             (apply (fun x -> fun y -> x :: y)
+                (sequence sep g
+                   (fun _ -> fun x -> x)))))
+       (fun x -> fun xs -> x :: xs))
+
+let list1 g sep =
+  sequence g
+    (apply List.rev
+       (fixpoint []
+          (apply (fun x -> fun y -> x :: y)
+             (sequence sep g (fun _ -> fun x -> x)))))
+    (fun x -> fun xs -> x :: xs)
+
+let list2 g sep =
+  sequence g
+    (apply List.rev
+       (fixpoint1 []
+          (apply (fun x -> fun y -> x :: y)
+             (sequence sep g (fun _ -> fun x -> x)))))
+    (fun x -> fun xs -> x :: xs)
+
+(** A combinator to change the notion of blank *)
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
                       -> 'a grammar -> blank -> 'a grammar
   = fun ?(old_blank_before=true) ?(new_blank_after=true) l1 blank1 ->
     let i = Fixpoint.from_val (false, Charset.full) in
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
-                               (ems (fun _ a -> a)))] in
+    let l1 = mkgrammar [next l1 (next (success ()) (ems (fun _ a -> a)))] in
     let fn errpos _ buf pos buf' pos' =
       let buf,pos = if old_blank_before then buf', pos' else buf, pos in
       let (a,buf,pos) = internal_parse_buffer ~errpos
@@ -481,12 +522,12 @@ let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
     let name = grammar_name l1 in
     solo2 name i fn
 
+(** A combinator to parse with no blank at all *)
 let no_blank_layout : 'a grammar -> 'a grammar
   = fun l1 ->
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
-                               (ems (fun _ a -> a)))] in
+    let l1 = mkgrammar [next l1 (next (success ()) (ems (fun _ a -> a)))] in
     let fn errpos _ _ _ buf pos =
       let (a,buf,pos) = internal_parse_buffer ~errpos
         ~blank_after:false no_blank l1 buf pos in
@@ -495,12 +536,12 @@ let no_blank_layout : 'a grammar -> 'a grammar
     let name = grammar_name l1 in
     solo2 name (fst l1) fn
 
+(** Calls a grammar "greedy": retains only the longuest match *)
 let greedy : 'a grammar -> 'a grammar
   = fun l1 ->
     (* compose with a test with a full charset to pass the final charset test in
        internal_parse_buffer *)
-    let l1 = mk_grammar [next l1 (next (test Charset.full (fun _ _ -> (), true))
-                                                (ems (fun _ a -> a)))] in
+    let l1 = mkgrammar [next l1 (next (success ()) (ems (fun _ a -> a)))] in
     (* FIXME: blank are parsed twice. internal_parse_buffer should have one
               more argument *)
     let fn errpos blank buf pos _ _ =
@@ -509,18 +550,6 @@ let greedy : 'a grammar -> 'a grammar
     in
     let name = grammar_delim_name l1 ^ "$" in
     solo2 name (fst l1) fn
-
-let grammar_info : type a. a grammar -> bool * Charset.t
-  = fun g -> (force (fst g))
-
-let dependent_sequence
-    : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
-  = fun l1 f2 ->
-      mk_grammar [next l1 (mkrule (Dep (fun a -> grammar_to_rule (f2 a))))]
-
-let iter : 'a grammar grammar -> 'a grammar
-  = fun g -> dependent_sequence (apply (fun x -> (x, ())) g)
-                                (apply (fun f () -> f ))
 
 (** How to call the parser *)
 
@@ -548,6 +577,17 @@ let parse_file grammar blank filename  =
   let str = Input.from_file filename in
   parse_buffer grammar blank str
 
+(** A helper to hangle exceptions *)
+let fail_no_parse () = exit 1
+
+let handle_exception ?(error=fail_no_parse) f a =
+  try f a with Parse_error(buf, pos) ->
+    let red fmt = "\027[31m" ^^ fmt ^^ "\027[0m%!" in
+    Printf.eprintf (red "Parse error: file %S, line %d, character %d.\n")
+      (filename buf) (line_num buf) (utf8_col_num buf pos);
+    error ()
+
+(** A module to call a parser with a preprocessor (see Input) *)
 module WithPP(PP : Preprocessor) =
   struct
     module InPP = Input.WithPP(PP)
@@ -565,7 +605,10 @@ module WithPP(PP : Preprocessor) =
       parse_buffer grammar blank str
   end
 
+(** Collect info a bout grammars *)
+let grammar_info : type a. a grammar -> bool * Charset.t
+  = fun g -> (force (fst g))
+
 (** A test on grammar *)
-(* FIXME: this info is already computed in the grammar use full for tests ?*)
-let accept_empty : 'a grammar -> bool = fun grammar ->
-  fst (grammar_info grammar)
+let accept_empty : 'a grammar -> bool
+  = fun grammar -> fst (grammar_info grammar)

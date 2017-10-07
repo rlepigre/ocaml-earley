@@ -80,9 +80,6 @@ let eq_closure : type a. a -> a -> bool =
 
     in fn (repr f) (repr g)
 
-(* Equality types *)
-type ('a,'b) eq  = Eq : ('a, 'a) eq | Neq : ('a, 'b) eq
-
 (* Custom hash table module. [Hashtbl] won't  do  because  it  does  not
    accept keys that contain closures. Here a custom  comparing  function
    can be provided at the creation of the hash table. *)
@@ -154,16 +151,29 @@ module EqHashtbl :
         find h.buckets.(i)
   end
 
+(** This modules implements a computation of a fixpoints for valus
+    that depends upon other values. Cycles are handled through update of
+    references. If the fixpoint is not reached, this might loop.
+
+    This modules ressemble a little the Lazy module.
+*)
 module Fixpoint :
   sig
     type 'a t
 
+    (** Standard way to construct a value of type ['a t] *)
     val from_val  : 'a -> 'a t
-    val from_fun  : 'a t -> ('a -> 'a) -> 'a t
-    val from_fun2 : 'a t -> 'a t -> ('a -> 'a -> 'a) -> 'a t
-    val from_funl : 'a t list -> 'a -> ('a -> 'a -> 'a) -> 'a t
+    val from_fun  : 'a t -> ('a -> 'b) -> 'b t
+    val from_fun2 : 'a t -> 'b t -> ('a -> 'b -> 'c) -> 'c t
+    val from_funl : 'a t list -> 'b -> ('b -> 'a -> 'b) -> 'b t
+
+    (** value obtained by reading 'b which is mutable *)
     val from_ref  : 'b -> ('b -> 'a t) -> 'a t
+
+    (** Must be called when updating a mutable field used in [from_ref]  *)
     val update    : 'a t -> unit
+
+    (** Reading the value *)
     val force     : 'a t -> 'a
   end =
   struct

@@ -78,8 +78,16 @@ val clear : 'a table -> unit
 (** [ create_table () ] creates a new table *)
 val create_table : unit -> 'a table
 
+(** GADT to represent types in the syntax (extended when needed). *)
+type _ tag = ..
+
 (** [ address n ] return a unique id of each cell *)
-val address   : t -> int
+val address   : t -> unit tag
+
+(** Standard eq-type. *)
+type ('a,'b) eq =
+  | Y : ('a,'a) eq
+  | N : ('a,'b) eq
 
 module type Param = sig
   type 'a table
@@ -87,7 +95,8 @@ module type Param = sig
   type ('a, 'b) elt
   val create : unit -> 'b container
   val create_table : unit -> 'a table
-  val address : 'b container -> int
+  val address : 'b container -> 'b tag
+  val eq : 'a container -> 'b container -> ('a, 'b) eq
   val add : 'a table -> 'b container -> ('a, 'b) elt -> unit
   val find : 'a table -> 'b container -> ('a, 'b) elt
   val clear : 'a table -> unit
@@ -97,6 +106,7 @@ module type Param = sig
   val fold : ('a, 'c) fold -> 'a table -> 'c -> 'c
 end
 
+val eq : t -> t -> bool
 
 module Make(T:sig type ('a,'b) elt end) : Param
        with type ('a, 'b) elt = ('a,'b) T.elt
