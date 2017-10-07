@@ -16,7 +16,7 @@ PACKAGES  = earley,earley.str,unix,str,compiler-libs
 LINKFLOGS = -lflags -I,+compiler-libs,ocamlbytecomp.cmxa,ocamlcommon.cmxa
 LINKFLAGS = -lflags -I,+compiler-libs,ocamlbytecomp.cma,ocamlcommon.cma
 
-INSTALLED = _build/*.cm*
+INSTALLED = _build/*.cm* _build/*.a
 PA_OCAML=`pwd`/pa_ocaml
 
 BOOT=1
@@ -30,11 +30,11 @@ PP=
 all: cold
 endif
 
-SRCS=earley_ocaml.ml pa_default.ml pa_main.ml pa_ocaml_prelude.ml pa_parser.ml\
+SRCS=pa_default.ml pa_main.ml pa_ocaml_prelude.ml pa_parser.ml\
      pa_ast.ml pa_lexing.ml pa_ocaml.ml pa_opt_main.ml
 
 ASTML=compare.ml iter.ml quote.ml
-HLPML=helper.ml helper.mli astextra.mli
+HLPML=helper.ml helper.mli astextra.ml astextra.mli
 
 .PHONY: cold
 cold:
@@ -48,6 +48,8 @@ helper.mli: $(ASTHELP)/helper.mli
 helper.ml: $(HELPDIR)/helper.ml
 	cp $< $@
 astextra.mli: $(HELPDIR)/astextra.mli
+	cp $< $@
+astextra.ml: $(HELPDIR)/astextra.ml
 	cp $< $@
 
 pa_default.native: $(SRCS) $(ASTML) $(HLPML)
