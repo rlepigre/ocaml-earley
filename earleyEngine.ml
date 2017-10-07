@@ -354,10 +354,10 @@ let eq_C : type a b.(a,b) element -> (a,b) element -> bool =
          C {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'}) ->
         begin
           match eq_pos start s', eq_rule rest r', eq_rule full fu' with
-          | true, Eq, Eq -> assert (stack == stack'); eq_closure acts acts'
+          | true, Eq, Eq -> assert (stack == stack'); acts == acts'
           | _ -> false
         end
-      | (B acts, B acts') -> eq_closure acts acts'
+      | (B acts, B acts') -> acts == acts'
       | _ -> false
         in
         if res then assert (c1 == c2);
@@ -392,6 +392,7 @@ let grammar_name : type a. ?delim:bool -> a grammar -> string =
   fun ?(delim=true) p1 ->
     match snd p1 with
     | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
+    | [] -> "EMPTY"
     | [r] -> rule_name r
     | rs ->
        let name = String.concat " | " (List.map rule_name rs) in
@@ -595,9 +596,6 @@ let max_stack = ref 0
     new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
   fun msg pos_final c (D { rest } as element) elements ->
-    let (ae,cs) = Fixpoint.force (rule_info rest) in
-    if !debug_lvl > 2 then
-      log "try %-6s: %a (%b,%a)\n%!" msg print_final element ae Charset.print cs;
     good c rest &&
       begin
         let key = elt_key element in
@@ -608,7 +606,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
              D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
              match eq_rule rest r', eq_rule full fu' with
              | Eq, Eq ->
-                if !warn_merge && not (eq_closure acts acts') then
+                if !warn_merge && not (acts == acts') then
                   begin
                     let fname = filename s.buf_ab in
                     let ls = line_num s.buf_ab in
@@ -879,7 +877,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     in
 
     (* main loop *)
-    (try while !todo <> [] do
+    while !todo <> [] do
       StackContainer.clear sct;
       Hashtbl.clear elements;
       Container.Ref.clear tmemo;
@@ -899,7 +897,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
          (** advance positions *)
          col := new_col; buf := new_buf;
        with Not_found -> todo := []
-    done with _ -> assert false);
+    done;
     (** search succes at the end for non internal parse *)
     if not internal then search_success ();
     let parse_error () =

@@ -90,27 +90,26 @@ module EqHashtbl :
   sig
     type ('a, 'b) t
 
-    val create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t
+    val create : int -> ('a, 'b) t
     val add    : ('a, 'b) t -> 'a -> 'b -> unit
     val find   : ('a, 'b) t -> 'a -> 'b
     val iter   : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
   end =
   struct
     type ('a, 'b) t =
-      { equal              : 'a -> 'a -> bool
-      ; mutable nb_buckets : int
+      { mutable nb_buckets : int
       ; mutable buckets    : ('a * 'b) list array
       ; mutable max_size   : int
       ; mutable size_limit : int }
 
     let rec log2 n = if n <= 0 then 0 else 1 + log2 (n lsr 1)
 
-    let create : ?equal:('a -> 'a -> bool) -> int -> ('a, 'b) t =
-      fun ?(equal=(=)) nb_buckets ->
+    let create : int -> ('a, 'b) t =
+      fun nb_buckets ->
         let nb_buckets = max nb_buckets 8 in
         let buckets = Array.make nb_buckets [] in
         let size_limit = log2 nb_buckets + 7 in
-        { equal ; nb_buckets ; buckets ; max_size = 0 ; size_limit }
+        { nb_buckets ; buckets ; max_size = 0 ; size_limit }
 
     let iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit =
       fun fn h ->
@@ -127,7 +126,7 @@ module EqHashtbl :
         let i = find_bucket h k in
         let rec remove sz = function
           | []                             -> raise (Size_is sz)
-          | (kv,_) :: ls when h.equal k kv -> ls
+          | (kv,_) :: ls when eq_closure k kv -> ls
           | e      :: ls                   -> e :: remove (sz+1) ls
         in
         try h.buckets.(i) <- (k,v) :: remove 0 h.buckets.(i)
@@ -150,7 +149,7 @@ module EqHashtbl :
         let i = find_bucket h k in
         let rec find = function
           | []         -> raise Not_found
-          | (kv,v)::xs -> if h.equal k kv then v else find xs
+          | (kv,v)::xs -> if eq_closure k kv then v else find xs
         in
         find h.buckets.(i)
   end

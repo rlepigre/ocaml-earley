@@ -95,10 +95,10 @@ let nonterm name info rules = NonTerm{info;rules;name;memo=Container.Ref.create 
 let next_aux s r = mkrule (Next(compose_info s r, s,r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
-  fun (i,rs) r -> match rs with
+  fun (i,rs as g) r -> match rs with
   | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
      next_aux s0 r
-  | _ -> next_aux (nonterm (rule_name ~delim:true r) i rs) r
+  | _ -> next_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
@@ -276,6 +276,24 @@ let string : ?name:string -> string -> 'a -> 'a grammar
     in
     solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
 
+let keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
+  = fun ?name s test a ->
+    let name = match name with None -> s | Some n -> n in
+    let fn buf pos =
+      let buf = ref buf in
+      let pos = ref pos in
+      let len_s = String.length s in
+      for i = 0 to len_s - 1 do
+        let c, buf', pos' = read !buf !pos in
+        if c <> s.[i] then give_up ();
+        buf := buf'; pos := pos'
+      done;
+      let c, _, _ = read !buf !pos in
+      if test c then give_up ();
+      (a,!buf,!pos)
+    in
+    solo name ~accept_empty:(s="") (Charset.singleton s.[0]) fn
+
 let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mk_grammar (mkrule (Empty (Simple a))::l)
 
@@ -328,6 +346,32 @@ let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
        next res (next f1 (idtEmpty ()))]) in
     res
 
+(* General lists with seprator *)
+(* General lists with seprator *)
+let list0 g sep =
+  option []
+    (sequence g
+       (apply List.rev
+          (fixpoint []
+             (apply (fun x -> fun y -> x :: y)
+                (sequence sep g
+                   (fun _ -> fun x -> x)))))
+       (fun x -> fun xs -> x :: xs))
+let list1 g sep =
+  sequence g
+    (apply List.rev
+       (fixpoint []
+          (apply (fun x -> fun y -> x :: y)
+             (sequence sep g (fun _ -> fun x -> x)))))
+    (fun x -> fun xs -> x :: xs)
+let list2 g sep =
+  sequence g
+    (apply List.rev
+       (fixpoint1 []
+          (apply (fun x -> fun y -> x :: y)
+             (sequence sep g (fun _ -> fun x -> x)))))
+    (fun x -> fun xs -> x :: xs)
+
 let delim g = g
 
 let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
@@ -348,7 +392,7 @@ let handle_exception ?(error=fail_no_parse) f a =
     error ()
 
 let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
-  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
+  let tbl = EqHashtbl.create 8 in
   let is_set = ref None in
   (fun p ->
     try EqHashtbl.find tbl p
@@ -367,7 +411,7 @@ let grammar_family ?(param_to_string=(fun _ -> "<...>")) name =
     ) tbl)
 
 let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
-  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
+  let tbl = EqHashtbl.create 8 in
   let is_set = ref None in
   (fun p ->
     try EqHashtbl.find tbl p
@@ -389,8 +433,8 @@ let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
     ) tbl)
 
 let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
-  let tbl = EqHashtbl.create ~equal:eq_closure 8 in
-  let tbl2 = Hashtbl.create (*~equal:eq_closure*) 8 in
+  let tbl = EqHashtbl.create 8 in
+  let tbl2 = EqHashtbl.create 8 in
   let is_set = ref None in
   (fun args p ->
     try EqHashtbl.find tbl (args,p)
@@ -407,12 +451,12 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
       (* NOTE: to make sure the tbl2 is filled soon enough *)
       let (gs, gp) = f args in
       try
-        Hashtbl.find tbl2 args
+        EqHashtbl.find tbl2 args
       with Not_found ->
         let g = fun p ->
             alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ gp p)
         in
-        Hashtbl.add tbl2 args g;
+        EqHashtbl.add tbl2 args g;
         g
     in
     is_set := Some f;

@@ -91,6 +91,11 @@ val char : ?name:string -> char -> 'a -> 'a grammar
     the grammar for reference in error messages. *)
 val string : ?name:string -> string -> 'a -> 'a grammar
 
+(** [keyword s forbidden v] is simalar to string, but the parsing fails
+    if [forbidden c] returns [true] when [c] is the next available
+    character. *)
+val keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
+
 (** [eof v] is a grammar that only accepts the end of file  and  returns
     [v] as a semantic value. Note that the end of file can be parsed one
     or more times (i.e. the input ends with infinitely many end of  file
@@ -339,6 +344,12 @@ val fixpoint : 'a -> ('a -> 'a) grammar -> 'a grammar
 
 val fixpoint1 : 'a -> ('a -> 'a) grammar -> 'a grammar
 (** as [fixpoint] but parses at leat once with the given grammar *)
+
+(** [listN g sep] parses sequences of [g] separated by  [sep] of length at
+    least [N], for [N=0,1] or [2]. *)
+val list0 : 'a grammar -> unit grammar -> 'a list grammar
+val list1 : 'a grammar -> unit grammar -> 'a list grammar
+val list2 : 'a grammar -> unit grammar -> 'a list grammar
 
 (** [alternatives [g1;...;gn]] tries to parse using all the grammars
     [[g1;...;gn]] and keeps only the first success. *)
