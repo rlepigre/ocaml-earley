@@ -41,22 +41,6 @@ let locate str pos str' pos' =
 type entry_point =
   | Implementation of Parsetree.structure_item list grammar* blank 
   | Interface of Parsetree.signature_item list grammar* blank 
-let list1 sep g =
-  Earley.sequence g
-    (Earley.apply List.rev
-       (Earley.fixpoint []
-          (Earley.apply (fun x  -> fun y  -> x :: y)
-             (Earley.sequence sep g (fun _  -> fun _default_0  -> _default_0)))))
-    (fun x  -> fun xs  -> x :: xs)
-  
-let list2 sep g =
-  Earley.sequence g
-    (Earley.apply List.rev
-       (Earley.fixpoint1 []
-          (Earley.apply (fun x  -> fun y  -> x :: y)
-             (Earley.sequence sep g (fun _  -> fun _default_0  -> _default_0)))))
-    (fun x  -> fun xs  -> x :: xs)
-  
 module Initial =
   struct
     let debug_attach = ref false 

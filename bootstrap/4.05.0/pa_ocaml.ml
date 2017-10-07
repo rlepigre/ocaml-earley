@@ -1094,7 +1094,7 @@ module Make(Initial:Extension) =
                                 Typ.object_ ~loc:_loc [] rv))));
          (((fun _  -> true)),
            (Earley.fsequence_position (Earley.char '<' '<')
-              (Earley.fsequence (list1 semi_col method_type)
+              (Earley.fsequence (Earley.list1 method_type semi_col)
                  (Earley.sequence
                     (Earley.option Closed
                        (Earley.sequence semi_col op_cl
@@ -1209,12 +1209,11 @@ module Make(Initial:Extension) =
                              __loc__end__buf __loc__end__pos
                             in
                          Typ.tuple ~loc:_loc tes)
-              (list2
+              (Earley.list2 (typexpr_lvl DashType)
                  (Earley.alternatives
                     [Earley.apply (fun _  -> ())
                        (Earley.string "\195\151" "\195\151");
-                    Earley.apply (fun _  -> ()) (Earley.char '*' '*')])
-                 (typexpr_lvl DashType))));
+                    Earley.apply (fun _  -> ()) (Earley.char '*' '*')]))));
          (((fun (allow_par,lvl)  -> lvl <= As)),
            (Earley.fsequence_position (typexpr_lvl As)
               (Earley.fsequence as_kw
@@ -1276,6 +1275,7 @@ module Make(Initial:Extension) =
                                 type_param (fun _  -> fun tp  -> tp)))))
                     (Earley.char ')' ')')
                     (fun tps  -> fun _  -> fun tp  -> fun _  -> tp :: tps)));
+           Earley.apply (fun _  -> []) (Earley.empty ());
            Earley.apply (fun tp  -> [tp]) type_param])
       
     let type_equation = Earley.declare_grammar "type_equation" 
@@ -1572,7 +1572,7 @@ module Make(Initial:Extension) =
                      (pri, te, tkind, cstrs))))
       
     let typedef_gen att constr filter =
-      Earley.fsequence_position (Earley.option [] type_params)
+      Earley.fsequence_position type_params
         (Earley.fsequence
            (Earley.apply_position
               (fun x  ->
@@ -1581,8 +1581,11 @@ module Make(Initial:Extension) =
                      fun str'  ->
                        fun pos'  -> ((locate str pos str' pos'), x)) constr)
            (Earley.sequence type_information
-              (Earley.option []
-                 (if att then post_item_attributes else Earley.fail ()))
+              (Earley.alternatives
+                 ((if not att
+                   then [Earley.apply (fun _  -> []) (Earley.empty ())]
+                   else []) @
+                    ((if att then [post_item_attributes] else []) @ [])))
               (fun ti  ->
                  fun a  ->
                    fun tcn  ->
@@ -1617,8 +1620,17 @@ module Make(Initial:Extension) =
                                       (id_loc (filter tcn) _loc_tcn) tps
                                       cstrs tkind pri te)))))
       
-    let typedef = typedef_gen true typeconstr_name (fun x  -> x) 
-    let typedef_in_constraint = typedef_gen false typeconstr Longident.last 
+    let typedef = Earley.declare_grammar "typedef" 
+    let _ =
+      Earley.set_grammar typedef
+        (typedef_gen true typeconstr_name (fun x  -> x))
+      
+    let typedef_in_constraint =
+      Earley.declare_grammar "typedef_in_constraint" 
+    let _ =
+      Earley.set_grammar typedef_in_constraint
+        (typedef_gen false typeconstr Longident.last)
+      
     let type_definition = Earley.declare_grammar "type_definition" 
     let _ =
       Earley.set_grammar type_definition
@@ -7027,7 +7039,7 @@ module Make(Initial:Extension) =
                             let name = id_loc m1 _loc_m1  in
                             Pwith_module (name, (id_loc m2 _loc_m2)))));
            Earley.fsequence_position type_kw
-             (Earley.fsequence (Earley.option [] type_params)
+             (Earley.fsequence type_params
                 (Earley.fsequence
                    (Earley.apply_position
                       (fun x  ->
@@ -7613,36 +7625,35 @@ module Make(Initial:Extension) =
            Earley.fsequence structure_item_aux
              (Earley.fsequence (Earley.option () double_semi_col)
                 (Earley.sequence ext_attributes
-                   (Earley.apply_position
-                      (fun x  ->
-                         fun str  ->
-                           fun pos  ->
-                             fun str'  ->
-                               fun pos'  -> ((locate str pos str' pos'), x))
-                      (alternatives extra_structure))
-                   (fun _  ->
-                      fun e  ->
-                        let (_loc_e,e) = e  in
-                        fun _default_0  ->
-                          fun s1  ->
-                            List.rev_append e
-                              (List.rev_append (attach_str _loc_e) s1))));
-           Earley.fsequence structure_item_aux
-             (Earley.fsequence (Earley.option () double_semi_col)
-                (Earley.sequence ext_attributes
-                   (Earley.apply_position
-                      (fun x  ->
-                         fun str  ->
-                           fun pos  ->
-                             fun str'  ->
-                               fun pos'  -> ((locate str pos str' pos'), x))
-                      structure_item_base)
-                   (fun _  ->
-                      fun s2  ->
-                        let (_loc_s2,s2) = s2  in
-                        fun _default_0  ->
-                          fun s1  -> s2 ::
-                            (List.rev_append (attach_str _loc_s2) s1))))])
+                   (Earley.alternatives
+                      [Earley.apply
+                         (fun s2  ->
+                            let (_loc_s2,s2) = s2  in
+                            fun s1  -> s2 ::
+                              (List.rev_append (attach_str _loc_s2) s1))
+                         (Earley.apply_position
+                            (fun x  ->
+                               fun str  ->
+                                 fun pos  ->
+                                   fun str'  ->
+                                     fun pos'  ->
+                                       ((locate str pos str' pos'), x))
+                            structure_item_base);
+                      Earley.apply
+                        (fun e  ->
+                           let (_loc_e,e) = e  in
+                           fun s1  ->
+                             List.rev_append e
+                               (List.rev_append (attach_str _loc_e) s1))
+                        (Earley.apply_position
+                           (fun x  ->
+                              fun str  ->
+                                fun pos  ->
+                                  fun str'  ->
+                                    fun pos'  ->
+                                      ((locate str pos str' pos'), x))
+                           (alternatives extra_structure))])
+                   (fun _  -> fun f  -> fun _default_0  -> fun s1  -> f s1)))])
       
     let _ =
       set_grammar structure_item
