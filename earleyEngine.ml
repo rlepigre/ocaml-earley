@@ -202,9 +202,14 @@ module rec Types : sig
        see below the description of the type ('a,'b) pre_stack *)
    and 'a rule = { rule : 'a prerule
                  ; ptr : 'a StackContainer.container
+                 ; mutable readers : symbols Lazy.t
                  ; adr : int }
 
    and 'a ntref = 'a rule list Container.Ref.container
+
+   and symbols =
+     | Cons : 'a symbol * symbols -> symbols
+     | Nil  : symbols
 
    (** Type of an active element of the earley table.  In a
        description of earley, an element is [(start, end, done *
@@ -327,12 +332,6 @@ include Types
    (start, rest, full) in the same stack have phisically equal actions.
  *)
 
-(** a function to build rule from pre_rule *)
-let count_rule = ref 0 (** counet outside because of value restriction *)
-let mkrule : type a. a prerule -> a rule = fun rule ->
-  let adr = let c = !count_rule in count_rule := c+1; c in
-  { rule; ptr = StackContainer.create (); adr  }
-
 (** rule equlity: we use a little of magic. In 4.04.0 and above,
     we could avoid it using extensible GADT, the it costs two fields
     in each rule. It is safe in the case as the type of rule is
@@ -341,6 +340,130 @@ let eq_rule : type a b. a rule -> b rule -> (a, b) eq =
   fun r1 r2 -> if Obj.repr r1 == Obj.repr r2
                then Obj.magic Eq
                else Neq
+
+(** Basic constants/functions for rule information *)
+let force = Fixpoint.force
+let iempty = Fixpoint.from_val (true, Charset.empty)
+let any   = Fixpoint.from_val (true, Charset.full)
+
+(** managment of info = accept empty + charset accepted as first char *)
+let rec rule_info:type a.a rule -> info = fun r ->
+  match r.rule with
+  | Next(i,_,_) -> i
+  | Empty _ -> iempty
+  | Dep(_) -> any
+
+let symbol_info:type a.a symbol -> info  = function
+  | Term{info} | Ter2{info} | Test{info} | NonTerm{info} -> info
+
+let symbol_name:type a.a symbol -> string  = function
+  | Term{name} | Ter2{name} | Test{name} | NonTerm{name} -> name
+
+let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r ->
+  let rec fn : type a.a rule -> string list = fun r ->
+    match r.rule with
+    | Empty _ -> []
+    | Next(_,s,r) ->
+       symbol_name s :: fn r
+    | Dep _ -> ["DEP"] (* FIXME *)
+  in
+  String.concat " " (List.filter (fun x -> x <> "") (fn r))
+
+let grammar_name : type a. ?delim:bool -> a grammar -> string =
+  fun ?(delim=true) p1 ->
+    match snd p1 with
+    | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
+    | [] -> "EMPTY"
+    | [r] -> rule_name r
+    | rs ->
+       let name = String.concat " | " (List.map rule_name rs) in
+       if delim then "{"^name^"}" else name
+
+let grammar_delim_name : type a. a grammar -> string = fun g ->
+  "{"^grammar_name ~delim:false g^"}"
+
+(* Printing *)
+let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
+  fun ?rest ch rule ->
+    begin
+      match rest with
+      | None -> ()
+      | Some rest ->
+         match eq_rule rule rest with Eq -> Printf.fprintf ch "\x1B[31m*\x1B[0m " | Neq -> ()
+    end;
+    match rule.rule with
+    | Next(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+                                     (print_rule ?rest) rs
+    | Dep _ -> Printf.fprintf ch "DEP"
+    | Empty _ -> ()
+
+let print_pos ch {buf; col; buf_ab; col_ab} =
+  Printf.fprintf ch "%5d:%3d-%5d:%3d"
+                 (line_num buf) col (line_num buf_ab) col_ab
+
+let print_final pos ch (D {start; rest; full}) =
+  if pos then Printf.fprintf ch "%a == " print_pos start;
+  print_rule ~rest ch full;
+  let (ae,set) = Fixpoint.force (rule_info rest) in
+  if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
+
+let print_final_no_pos ch f = print_final false ch f
+let print_final ch f = print_final true ch f
+
+let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
+  match el with
+  | C {start; rest; full} ->
+     Printf.fprintf ch "%a == " print_pos start;
+     print_rule ~rest ch full;
+     let (ae,set) = force (rule_info rest) in
+     if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
+  | B _ ->
+    Printf.fprintf ch "B"
+
+let print_rule ch rule = print_rule ?rest:None ch rule
+
+let readers : type a. a rule -> symbols = fun rule ->
+  let rec mem t0 = function
+    | Cons(t,r) ->
+       (Obj.magic t) == t0 || mem t0 r
+    | Nil -> false
+  in
+  let adone = ref Nil in
+  let rec fn : type a. symbols -> a prerule -> symbols =
+    fun acc rule ->
+      match rule with
+      | Next(_,(Term _ | Test _ | Ter2 _ as s),_) ->
+         if mem s acc then acc else Cons(s,acc)
+      | Next(_,(NonTerm{info;rules} as t),r) ->
+         let acc =
+           if mem t !adone then acc else
+             begin
+               adone := Cons(t,!adone);
+               List.fold_left gn acc rules
+             end
+         in
+         let (ae,_) = Fixpoint.force info in
+         if ae then gn acc r else acc
+      | Dep(_) -> acc
+      | Empty(_) -> acc
+  and gn : type a. symbols -> a rule -> symbols =
+    fun acc rule ->
+      fn acc rule.rule
+  in
+  gn Nil rule
+
+(** a function to build rule from pre_rule *)
+let count_rule = ref 0 (** counet outside because of value restriction *)
+
+let mkrule : type a. a prerule -> a rule = fun rule ->
+  let adr = let c = !count_rule in count_rule := c+1; c in
+  let res =
+    { rule; ptr = StackContainer.create (); adr
+      ; readers = Lazy.from_val Nil
+    }
+  in
+  res.readers <- Lazy.from_fun (fun () -> readers res);
+  res
 
 (** Equality for stack element: as we keep the invariant, we only
     need physical equality. You may uncomment the code below
@@ -375,32 +498,6 @@ let eq_D (D {start; rest; full; stack; acts})
 (** Some rules/grammar contruction that we need already here *)
 let idtEmpty : type a.unit -> (a->a) rule = fun () -> mkrule (Empty Idt)
 
-let symbol_name:type a.a symbol -> string  = function
-  | Term{name} | Ter2{name} | Test{name} | NonTerm{name} -> name
-
-let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r ->
-  let rec fn : type a.a rule -> string list = fun r ->
-    match r.rule with
-    | Empty _ -> []
-    | Next(_,s,r) ->
-       symbol_name s :: fn r
-    | Dep _ -> ["DEP"] (* FIXME *)
-  in
-  String.concat " " (List.filter (fun x -> x <> "") (fn r))
-
-let grammar_name : type a. ?delim:bool -> a grammar -> string =
-  fun ?(delim=true) p1 ->
-    match snd p1 with
-    | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
-    | [] -> "EMPTY"
-    | [r] -> rule_name r
-    | rs ->
-       let name = String.concat " | " (List.map rule_name rs) in
-       if delim then "{"^name^"}" else name
-
-let grammar_delim_name : type a. a grammar -> string = fun g ->
-  "{"^grammar_name ~delim:false g^"}"
-
 let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
   = fun ?name (info,rules as g) ->
     match rules with
@@ -411,21 +508,6 @@ let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
        mkrule (Next(info,
                     NonTerm{info;rules;name
                            ;memo=Container.Ref.create ()},idtEmpty ()))
-
-(** Basic constants/functions for rule information *)
-let force = Fixpoint.force
-let iempty = Fixpoint.from_val (true, Charset.empty)
-let any   = Fixpoint.from_val (true, Charset.full)
-
-(** managment of info = accept empty + charset accepted as first char *)
-let rec rule_info:type a.a rule -> info = fun r ->
-  match r.rule with
-  | Next(i,_,_) -> i
-  | Empty _ -> iempty
-  | Dep(_) -> any
-
-let symbol_info:type a.a symbol -> info  = function
-  | Term{info} | Ter2{info} | Test{info} | NonTerm{info} -> info
 
 let compose_info i1 i2 =
   let i1 = symbol_info i1 in
@@ -445,45 +527,6 @@ let grammar_info:type a.a rule list -> info = fun g ->
   let g = List.map rule_info g in
   Fixpoint.from_funl g (false, Charset.empty) or_info
 
-(* Printing *)
-let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
-  fun ?rest ch rule ->
-    begin
-      match rest with
-      | None -> ()
-      | Some rest ->
-         match eq_rule rule rest with Eq -> Printf.fprintf ch "\x1B[31m*\x1B[0m " | Neq -> ()
-    end;
-    match rule.rule with
-    | Next(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
-                                     (print_rule ?rest) rs
-    | Dep _ -> Printf.fprintf ch "DEP"
-    | Empty _ -> ()
-
-let print_pos ch {buf; col; buf_ab; col_ab} =
-  Printf.fprintf ch "%5d:%3d-%5d:%3d"
-                 (line_num buf) col (line_num buf_ab) col_ab
-
-let print_final pos ch (D {start; rest; full}) =
-  if pos then Printf.fprintf ch "%a == " print_pos start;
-  print_rule ~rest ch full;
-  let (ae,set) = force (rule_info rest) in
-  if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
-
-let print_final_no_pos ch f = print_final false ch f
-let print_final ch f = print_final true ch f
-
-let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
-  match el with
-  | C {start; rest; full} ->
-     Printf.fprintf ch "%a == " print_pos start;
-     print_rule ~rest ch full;
-     let (ae,set) = force (rule_info rest) in
-     if !debug_lvl > 2 then Printf.fprintf ch "(%a %b)" Charset.print set ae
-  | B _ ->
-    Printf.fprintf ch "B"
-
-let print_rule ch rule = print_rule ?rest:None ch rule
 
 (** Here are the 3 type for tables used by out algorithm *)
 
@@ -596,7 +639,6 @@ let max_stack = ref 0
     new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
   fun msg pos_final c (D { rest } as element) elements ->
-    good c rest &&
       begin
         let key = elt_key element in
         try
@@ -675,6 +717,48 @@ let rec pred_prod_lec
         : type a. errpos -> a final -> a cur -> a reads -> a sct ->
                tmemo -> blank -> pos2 -> char -> unit =
   fun errpos elt0 elements forward sct tmemo blank cur_pos c ->
+
+  let read_symbol t =
+    let {buf; col; buf_ab; col_ab} = cur_pos in
+    let memo = match t with
+      | Term{memo} | Ter2{memo} | Test{memo} -> memo
+      | _ -> assert false
+    in
+    let res =
+      try Container.Ref.find tmemo memo
+      with Not_found ->
+        try
+          let ae, set = Fixpoint.force (symbol_info t) in
+          if ae || Charset.mem set c then
+            let res = match t with
+              | Term{input=f} -> f buf_ab col_ab
+              | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
+              | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
+                                 if b then (a,buf_ab,col_ab)
+                                 else raise Error
+              | _ -> assert false
+            in
+            Container.Ref.add tmemo memo (Some res);
+            Some res
+          else raise Error
+        with Error ->
+          Container.Ref.add tmemo memo None;
+          None
+    in
+    if !debug_lvl > 2 then
+      Printf.eprintf "READ %s => %b\n%!" (symbol_name t) (res <> None);
+    res
+  in
+  let rec read_symbols = function
+    | Cons(t,r) -> read_symbol t <> None || read_symbols r
+    | Nil -> false
+  in
+  let good rule =
+    let i = rule_info rule in
+    let (ae,set) = force i in
+    ae || (Charset.mem set c &&
+             read_symbols (Lazy.force rule.readers))
+  in
   let rec fn elt0 =
     match elt0 with
     | D {start; acts; stack; rest; full} ->
@@ -688,7 +772,9 @@ let rec pred_prod_lec
           let rules =
             try Container.Ref.find tmemo memo
             with Not_found ->
-              let rules = List.filter (fun rule -> good c rule) rules in
+              let rules =
+                List.filter good rules
+              in
               Container.Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
@@ -741,10 +827,11 @@ let rec pred_prod_lec
             let complete = fun element ->
               match element with
               | C {start; stack=els'; acts; rest; full} ->
-                 let acts = apply_pos_start acts start cur_pos x in
-                 let elt = D {start; acts; stack=els'; rest; full } in
-                 let b = add "C" cur_pos c elt elements in
-                 if b then fn elt
+                 if good rest then
+                   let acts = apply_pos_start acts start cur_pos x in
+                   let elt = D {start; acts; stack=els'; rest; full } in
+                   let b = add "C" cur_pos c elt elements in
+                   if b then fn elt
               | B _ -> ()
             in
             let complete = protect complete in
@@ -758,31 +845,15 @@ let rec pred_prod_lec
        | Next(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
           begin try
             if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
-            let {buf; col; buf_ab; col_ab} = cur_pos in
             let a, buf, col =
-              try
-                match Container.Ref.find tmemo memo with
-                | Some v -> v
-                | None -> raise Error
-              with Not_found ->
-                   try
-                     let res = match t with
-                       | Term{input=f} -> f buf_ab col_ab
-                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
-                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
-                                          if b then (a,buf_ab,col_ab)
-                                          else raise Error
-                       | _ -> assert false
-                     in
-                     Container.Ref.add tmemo memo (Some res); res
-                   with Error ->
-                     Container.Ref.add tmemo memo None; raise Error
+              match read_symbol t with
+              | Some r -> r | None -> raise Error
             in
             let elt =
               (D {start; stack; acts = cns a acts; rest; full})
             in
             (** if we read nothing: add immediately to the table *)
-            if buffer_before buf col buf_ab col_ab then
+            if buffer_before buf col cur_pos.buf_ab cur_pos.col_ab then
               begin
                 let b = add "T" cur_pos c elt elements in
                 if b then fn elt
@@ -807,11 +878,12 @@ let rec pred_prod_lec
                       ; acts = Simple (fun g f -> f (acts (fun (_,b) -> g b))); stack
                       } in
             let rule = fn_rule a in
-            let stack = add_stack sct rule elt in
-            let start = cur_pos in
-            let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
-            let b = add "P" cur_pos c elt elements in
-            if b then fn elt
+            if good rule then
+              let stack = add_stack sct rule elt in
+              let start = cur_pos in
+              let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
+              let b = add "P" cur_pos c elt elements in
+              if b then fn elt
           with Error -> () end
 
   in fn elt0
@@ -902,6 +974,9 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     if not internal then search_success ();
     let parse_error () =
       update_errpos errpos !buf' !col';
+      StackContainer.clear sct;
+      Hashtbl.clear elements;
+      Container.Ref.clear tmemo;
       if internal then raise Error else
         match !errpos with
         | None -> assert false
@@ -946,6 +1021,9 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       in kn !last_success
     in
     if !debug_lvl > 0 then log "EXIT=%5d: %a\n%!" parse_id print_pos cur_pos;
+    StackContainer.clear sct;
+    Hashtbl.clear elements;
+    Container.Ref.clear tmemo;
     result
 
 let internal_parse_buffer
