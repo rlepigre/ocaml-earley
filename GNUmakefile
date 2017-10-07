@@ -1,6 +1,6 @@
 VERSION    = 1.0.0
 OCAMLFIND  = ocamlfind
-J          = 4
+J          = 1
 OCAMLBUILD = ocamlbuild -j $(J)
 BINDIR     = $(dir $(shell which ocamlc))
 
