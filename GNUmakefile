@@ -97,7 +97,7 @@ clean:
 distclean: clean
 	- find . -name "*~" -type f -exec rm {} \;
 	- find . -name "#*" -type f -exec rm {} \;
-	- find . -name ".#*" -type f -exec rm {}
+	- find . -name ".#*" -type f -exec rm {} \;
 
 .PHONY: release
 release: distclean
