@@ -637,13 +637,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
 (** This one for completion *)
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
-(** This one for prediction with right recursion optimisation *)
-let combine2 : type a0 a1 b bb c.(a1 -> b) -> (b -> c) pos -> (a0 -> a1) pos ->
-                    (a0 -> c) pos =
-  fun acts acts' g ->
-       pos_apply2 (fun acts' g x -> acts' (acts (g x))) acts' g
-
-(** This one for normal prediction *)
+(** This one for prediction *)
 let combine1 : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
   fun acts -> Simple (fun a f -> acts (f a))
 
@@ -702,34 +696,9 @@ let rec pred_prod_lec
                 ) rules;
               rules
           in
-          if rules = [] then () else
           (** Computes the elements to add in the stack of all created rules *)
-          let tails =
-            match rest2.rule, eq_pos start cur_pos with
-            | Empty (g), false -> (** Right recursion optim *)
-               (** NOTE: right recursion optim is bad for rule with only one
-                  non terminal.
-                  - loops for grammar like A = A | ...
-                  NOTE: more merge may appends without right recursion *)
-               (** We need to fix the start for the action g for
-                   right recursion optim *)
-               let g = fix_begin g start in
-               (** We contract the head of the stack. This is similar
-                   to tail call optimisation in compilation *)
-               let contract = function
-                 | C {rest; acts=acts'; full; start; stack} ->
-                    C {rest; acts=combine2 acts acts' g; full; start; stack}
-                 | B acts' ->
-                    B (combine2 acts acts' g)
-               in
-               List.map contract !stack;
-            | _ ->
-               [C {rest=rest2; acts=combine1 acts; full; start; stack}]
-          in
-          List.iter
-            (fun rule ->
-                List.iter (fun c -> ignore (add_stack sct rule c)) tails;
-            ) rules
+          let c = C {rest=rest2; acts=combine1 acts; full; start; stack} in
+          List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
        (** Nothing left to parse in the current rule: completion/production *)
        | Empty(a) ->
