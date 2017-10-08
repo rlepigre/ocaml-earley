@@ -78,40 +78,6 @@ let apply_pos: type a.a pos -> buffer -> int -> buffer -> int -> a =
     | Simple f -> f
     | WithPos f -> f buf col buf' col'
 
-let app_pos:type a b.(a -> b) pos -> a pos -> b pos = fun f g ->
-  match f,g with
-  | Idt, _ -> g
-  | Simple f, Idt -> Simple(f idt)
-  | WithPos f, Idt -> WithPos(fun b p b' p' -> f b p b' p' idt)
-  | Simple f, Simple g -> Simple(f g)
-  | Simple f, WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-  | WithPos f, Simple g -> WithPos(fun b p b' p' -> f b p b' p' g)
-  | WithPos f, WithPos g -> WithPos(fun b p b' p' -> f b p b' p' (g b p b' p'))
-
-let pos_apply : type a b.(a -> b) -> a pos -> b pos =
-  fun f a ->
-    match a with
-    | Idt -> Simple(f idt)
-    | Simple g -> Simple(f g)
-    | WithPos g -> WithPos(fun b p b' p' -> f (g b p b' p'))
-
-let pos_apply2 : type a b c.(a -> b -> c) -> a pos -> b pos -> c pos =
-   fun f a b ->
-     let a : a pos = match a with Idt -> Simple idt | a -> a
-     and b : b pos = match b with Idt -> Simple idt | b -> b in
-    match a, b with
-    | Idt, _ -> assert false
-    | _, Idt -> assert false
-    | Simple g, Simple h -> Simple(f g h)
-    | WithPos g, Simple h  -> WithPos(fun b p b' p' -> f (g b p b' p') h)
-    | Simple g, WithPos h  -> WithPos(fun b p b' p' -> f g (h b p b' p'))
-    | WithPos g, WithPos h  ->
-       WithPos(fun b p b' p' -> f (g b p b' p') (h b p b' p'))
-
-let pos_apply3
-    : type a b c d.(a -> b -> c -> d) -> a pos -> b pos -> c pos -> d pos =
-  fun f a b c -> app_pos (pos_apply2 f a b) c
-
 (** For terminals: get the start position and returns a value with the final
     position *)
 type 'a input = buffer -> int -> 'a * buffer * int
@@ -264,7 +230,7 @@ module rec Types : sig
      (** Cons cell of the stack with a record similar to D's *)
      | C : { start : pos2
            ; stack : ('c, 'r) stack
-           ; acts  : ('a -> 'b -> 'c) pos (* Here we wait [x:'a] from parents *)
+           ; acts  : 'a -> 'b -> 'c (** Here we wait [x:'a] from parents *)
            ; rest  : 'b rule
            ; full  : 'c rule
            } -> ('a ,'r) element
@@ -593,43 +559,40 @@ let good c rule =
 let max_stack = ref 0
 
 (** Adds an element in the current table of elements, return true if new *)
-let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
-  fun msg pos_final c (D { rest } as element) elements ->
-    good c rest &&
-      begin
-        let key = elt_key element in
-        try
-          let e = Hashtbl.find elements key in
-          (match e, element with
-             D {start=s; rest; full; stack; acts},
-             D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
-             match eq_rule rest r', eq_rule full fu' with
-             | Y, Y ->
-                if !warn_merge && not (acts == acts') then
-                  begin
-                    let fname = filename s.buf_ab in
-                    let ls = line_num s.buf_ab in
-                    let lc = utf8_col_num s.buf_ab s.col_ab in
-                    let es = line_num pos_final.buf in
-                    let ec = utf8_col_num pos_final.buf pos_final.col in
-                    log "\027[31mmerging %a at %s %d:%d-%d:%d\027[0m\n%!"
-                        print_final_no_pos element fname ls lc es ec
-                  end;
-                assert(stack == stack');
-                false
-             | _ -> assert false)
-        with Not_found ->
-             if !debug_lvl > 1 then
-               begin
-                 let (ae,cs) = Fixpoint.force (rule_info rest) in
-                 let size = size element in
-                 if size > !max_stack then max_stack := size;
-                 log "add %-6s: %a (%d/%d,%b,%a)\n%!" msg print_final element
-                     size !max_stack ae Charset.print cs;
-               end;
-          Hashtbl.add elements key element;
-          true
-      end
+let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
+  = fun msg pos_final c (D { rest } as element) elements ->
+    let key = elt_key element in
+    try
+      let e = Hashtbl.find elements key in
+      (match e, element with
+         D {start=s; rest; full; stack; acts},
+         D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
+         match eq_rule rest r', eq_rule full fu' with
+         | Y, Y ->
+            if !warn_merge && not (acts == acts') then
+              begin
+                let fname = filename s.buf_ab in
+                let ls = line_num s.buf_ab in
+                let lc = utf8_col_num s.buf_ab s.col_ab in
+                let es = line_num pos_final.buf in
+                let ec = utf8_col_num pos_final.buf pos_final.col in
+                log "\027[31mmerging %a at %s %d:%d-%d:%d\027[0m\n%!"
+                    print_final_no_pos element fname ls lc es ec
+              end;
+            assert(stack == stack');
+            false
+         | _ -> assert false)
+    with Not_found ->
+         if !debug_lvl > 1 then
+           begin
+             let (ae,cs) = Fixpoint.force (rule_info rest) in
+             let size = size element in
+             if size > !max_stack then max_stack := size;
+             log "add %-6s: %a (%d/%d,%b,%a)\n%!" msg print_final element
+                 size !max_stack ae Charset.print cs;
+           end;
+         Hashtbl.add elements key element;
+         true
 
 (** Combinators for actions, these are just the combinators we need, contructed
     from there types *)
@@ -638,11 +601,8 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
 (** This one for prediction *)
-let combine1 : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
-  fun acts -> Simple (fun a f -> acts (f a))
-
-(** Protection from give_up: just do nothing *)
-let protect f a = try f a with Error -> ()
+let combine1 : type a c d.(c -> d) -> (a -> (a -> c) -> d) =
+  fun acts a f -> acts (f a)
 
 (** Exception for parse error, can also be raise by
     Ter2 terminals, but no other terminal handles it *)
@@ -684,7 +644,7 @@ let rec pred_prod_lec
           let rules =
             try Ref.find tmemo memo (** Check if this was done *)
             with Not_found ->
-              let rules = List.filter (fun rule -> good c rule) rules in
+              let rules = List.filter (good c) rules in
               Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
@@ -710,15 +670,18 @@ let rec pred_prod_lec
             (** create a new element in the table for each element
                 in the stack *)
             let complete = fun element ->
-              match element with
-              | C {start; stack=els'; acts; rest; full} ->
-                 let acts = apply_pos_start acts start cur_pos x in
-                 let elt = D {start; acts; stack=els'; rest; full } in
-                 let b = add "C" cur_pos c elt elements in
-                 if b then fn elt
-              | B _ -> ()
+              try
+                match element with
+                | C {start; stack=els'; acts; rest; full} ->
+                   if good c rest then begin
+                       let acts = acts x in
+                       let elt = D {start; acts; stack=els'; rest; full } in
+                       let b = add "C" cur_pos c elt elements in
+                       if b then fn elt
+                     end
+                | B _ -> ()
+              with Error -> ()
             in
-            let complete = protect complete in
             (** use hook if D starts at current position because element might
                 still be added to the stack *)
             if eq_pos start cur_pos then add_stack_hook sct full complete
@@ -755,8 +718,9 @@ let rec pred_prod_lec
             (** if we read nothing: add immediately to the table *)
             if buffer_before buf col buf_ab col_ab then
               begin
-                let b = add "T" cur_pos c elt elements in
-                if b then fn elt
+                if good c rest then
+                  let b = add "T" cur_pos c elt elements in
+                  if b then fn elt
               end
             else (** otherwise write in the forward table for the next cycles *)
               forward := OrdTbl.add buf col elt !forward
@@ -774,16 +738,17 @@ let rec pred_prod_lec
               with Exit ->
                 match !a with None -> assert false | Some a -> a
             in
-            let elt = C { start; rest = idtEmpty (); full
-                        ; acts = Simple (fun g f -> f (acts (fun (_,b) -> g b)))
-                        ; stack }
-            in
             let rule = fn_rule a in
-            let stack = add_stack sct rule elt in
-            let start = cur_pos in
-            let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
-            let b = add "P" cur_pos c elt elements in
-            if b then fn elt
+            if good c rule then
+              let elt = C { start; rest = idtEmpty (); full
+                            ; acts = (fun g f -> f (acts (fun (_,b) -> g b)))
+                            ; stack }
+              in
+              let stack = add_stack sct rule elt in
+              let start = cur_pos in
+              let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
+              let b = add "P" cur_pos c elt elements in
+              if b then fn elt
           with Error -> () end
 
   in fn elt0
