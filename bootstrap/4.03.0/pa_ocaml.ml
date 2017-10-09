@@ -169,6 +169,13 @@ module Make(Initial:Extension) =
            (fun o  ->
               fun ln  -> if o = None then labelled ln else optional ln))
       
+    let list_antiquotation _loc e =
+      let open Quote in
+        let generic_antiquote e =
+          function | Quote_loc  -> e | _ -> failwith "invalid antiquotation"
+           in
+        make_list_antiquotation _loc Quote_loc (generic_antiquote e)
+      
     let operator_name =
       alternatives ((prefix_symbol Prefix) ::
         (List.map infix_symbol infix_prios))
@@ -399,8 +406,8 @@ module Make(Initial:Extension) =
               (Earley.sequence pattern
                  (Earley.option None
                     (Earley.apply (fun x  -> Some x)
-                       (Earley.sequence (Earley.string "when" "when")
-                          expression (fun _  -> fun e  -> e))))
+                       (Earley.sequence when_kw expression
+                          (fun _  -> fun e  -> e))))
                  (fun p  -> fun e  -> fun _  -> PPat (p, e)));
            Earley.apply (fun s  -> PStr s) structure;
            Earley.sequence (Earley.char ':' ':') typexpr
@@ -473,7 +480,7 @@ module Make(Initial:Extension) =
            (Earley.apply List.rev
               (Earley.fixpoint1 []
                  (Earley.apply (fun x  -> fun y  -> x :: y)
-                    (Earley.sequence_position (Earley.string "'" "'") ident
+                    (Earley.sequence_position (Earley.char '\'' '\'') ident
                        (fun _  ->
                           fun id  ->
                             fun __loc__start__buf  ->
@@ -486,7 +493,7 @@ module Make(Initial:Extension) =
                                         __loc__end__pos
                                        in
                                     id_loc id _loc)))))
-           (Earley.sequence (Earley.string "." ".") typexpr
+           (Earley.sequence (Earley.char '.' '.') typexpr
               (fun _  ->
                  fun te  ->
                    fun ids  ->
@@ -509,7 +516,7 @@ module Make(Initial:Extension) =
              (Earley.apply List.rev
                 (Earley.fixpoint1 []
                    (Earley.apply (fun x  -> fun y  -> x :: y)
-                      (Earley.sequence_position (Earley.string "'" "'") ident
+                      (Earley.sequence_position (Earley.char '\'' '\'') ident
                          (fun _  ->
                             fun id  ->
                               fun __loc__start__buf  ->
@@ -522,7 +529,7 @@ module Make(Initial:Extension) =
                                           __loc__end__pos
                                          in
                                       id_loc id _loc)))))
-             (Earley.sequence (Earley.string "." ".") typexpr
+             (Earley.sequence (Earley.char '.' '.') typexpr
                 (fun _  ->
                    fun te  ->
                      fun ids  ->
@@ -555,7 +562,7 @@ module Make(Initial:Extension) =
                                       fun pos'  ->
                                         ((locate str pos str' pos'), x))
                              typeconstr_name)))))
-              (Earley.sequence (Earley.string "." ".") typexpr
+              (Earley.sequence (Earley.char '.' '.') typexpr
                  (fun _  ->
                     fun te  -> fun ids  -> fun _default_0  -> (ids, te)))))
       
@@ -563,7 +570,7 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar method_type
         (Earley.fsequence method_name
-           (Earley.sequence (Earley.string ":" ":") poly_typexpr
+           (Earley.sequence (Earley.char ':' ':') poly_typexpr
               (fun _  -> fun pte  -> fun mn  -> (mn, [], pte))))
       
     let tag_spec = Earley.declare_grammar "tag_spec" 
@@ -596,7 +603,7 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [Earley.fsequence
               (Earley.option None (Earley.apply (fun x  -> Some x) typexpr))
-              (Earley.sequence (Earley.string "|" "|") tag_spec
+              (Earley.sequence (Earley.char '|' '|') tag_spec
                  (fun _  ->
                     fun ts  ->
                       fun te  ->
@@ -638,7 +645,7 @@ module Make(Initial:Extension) =
                          (Earley.apply List.rev
                             (Earley.fixpoint []
                                (Earley.apply (fun x  -> fun y  -> x :: y)
-                                  (Earley.sequence (Earley.string "&" "&")
+                                  (Earley.sequence (Earley.char '&' '&')
                                      typexpr (fun _  -> fun te  -> te)))))
                          (fun te  ->
                             fun tes  ->
@@ -656,24 +663,24 @@ module Make(Initial:Extension) =
            [Earley.fsequence_position (Earley.string "[<" "[<")
               (Earley.fsequence
                  (Earley.option None
-                    (Earley.apply (fun x  -> Some x) (Earley.string "|" "|")))
+                    (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
                  (Earley.fsequence tag_spec_full
                     (Earley.fsequence
                        (Earley.apply List.rev
                           (Earley.fixpoint []
                              (Earley.apply (fun x  -> fun y  -> x :: y)
-                                (Earley.sequence (Earley.string "|" "|")
+                                (Earley.sequence (Earley.char '|' '|')
                                    tag_spec_full (fun _  -> fun tsf  -> tsf)))))
                        (Earley.sequence
                           (Earley.option []
-                             (Earley.sequence (Earley.string ">" ">")
+                             (Earley.sequence (Earley.char '>' '>')
                                 (Earley.apply List.rev
                                    (Earley.fixpoint1 []
                                       (Earley.apply
                                          (fun x  -> fun y  -> x :: y)
                                          tag_name)))
                                 (fun _  -> fun tns  -> tns)))
-                          (Earley.string "]" "]")
+                          (Earley.char ']' ']')
                           (fun tns  ->
                              fun _  ->
                                fun tfss  ->
@@ -690,20 +697,17 @@ module Make(Initial:Extension) =
                                                    __loc__end__buf
                                                    __loc__end__pos
                                                   in
-                                               let flag = Closed  in
-                                               loc_typ _loc
-                                                 (Ptyp_variant
-                                                    ((tfs :: tfss), flag,
-                                                      (Some tns))))))));
-           Earley.fsequence_position (Earley.string "[" "[")
+                                               Typ.variant ~loc:_loc (tfs ::
+                                                 tfss) Closed (Some tns))))));
+           Earley.fsequence_position (Earley.char '[' '[')
              (Earley.fsequence tag_spec_first
                 (Earley.sequence
                    (Earley.apply List.rev
                       (Earley.fixpoint []
                          (Earley.apply (fun x  -> fun y  -> x :: y)
-                            (Earley.sequence (Earley.string "|" "|") tag_spec
+                            (Earley.sequence (Earley.char '|' '|') tag_spec
                                (fun _  -> fun ts  -> ts)))))
-                   (Earley.string "]" "]")
+                   (Earley.char ']' ']')
                    (fun tss  ->
                       fun _  ->
                         fun tsf  ->
@@ -717,9 +721,8 @@ module Make(Initial:Extension) =
                                         __loc__start__pos __loc__end__buf
                                         __loc__end__pos
                                        in
-                                    let flag = Closed  in
-                                    loc_typ _loc
-                                      (Ptyp_variant ((tsf @ tss), flag, None)))));
+                                    Typ.variant ~loc:_loc (tsf @ tss) Closed
+                                      None)));
            Earley.fsequence_position (Earley.string "[>" "[>")
              (Earley.fsequence
                 (Earley.option None
@@ -728,9 +731,9 @@ module Make(Initial:Extension) =
                    (Earley.apply List.rev
                       (Earley.fixpoint []
                          (Earley.apply (fun x  -> fun y  -> x :: y)
-                            (Earley.sequence (Earley.string "|" "|") tag_spec
+                            (Earley.sequence (Earley.char '|' '|') tag_spec
                                (fun _  -> fun ts  -> ts)))))
-                   (Earley.string "]" "]")
+                   (Earley.char ']' ']')
                    (fun tss  ->
                       fun _  ->
                         fun ts  ->
@@ -748,9 +751,7 @@ module Make(Initial:Extension) =
                                       match ts with
                                       | None  -> tss
                                       | Some ts -> ts :: tss  in
-                                    let flag = Open  in
-                                    loc_typ _loc
-                                      (Ptyp_variant (tss, flag, None)))))] : 
+                                    Typ.variant ~loc:_loc tss Open None)))] : 
         core_type grammar)
       
     let package_constraint = Earley.declare_grammar "package_constraint" 
@@ -820,10 +821,7 @@ module Make(Initial:Extension) =
       
     let mkoption loc d =
       let loc = ghost loc  in
-      loc_typ loc
-        (Ptyp_constr
-           ((id_loc (Ldot ((Lident "*predef*"), "option")) loc), [d]))
-      
+      Typ.constr ~loc (id_loc (Ldot ((Lident "*predef*"), "option")) loc) [d] 
     let extra_types_grammar lvl =
       alternatives (List.map (fun g  -> g lvl) extra_types) 
     let op_cl =
@@ -1313,7 +1311,7 @@ module Make(Initial:Extension) =
                                       __loc__start__pos __loc__end__buf
                                       __loc__end__pos
                                      in
-                                  ((loc_typ _loc_id (Ptyp_var id)), te,
+                                  ((Typ.var ~loc:_loc_id id), te,
                                     (merge2 _loc_id _loc))))))
       
     let constr_name2 = Earley.declare_grammar "constr_name2" 
@@ -1323,34 +1321,6 @@ module Make(Initial:Extension) =
            [Earley.sequence (Earley.char '(' '(') (Earley.char ')' ')')
               (fun _  -> fun _  -> "()");
            constr_name])
-      
-    let of_constr_decl = Earley.declare_grammar "of_constr_decl" 
-    let _ =
-      Earley.set_grammar of_constr_decl
-        (Earley.alternatives
-           [Earley.fsequence of_kw
-              (Earley.fsequence (Earley.char '{' '{')
-                 (Earley.sequence field_decl_list (Earley.char '}' '}')
-                    (fun fds  ->
-                       fun _  ->
-                         fun _  -> fun _default_0  -> Pcstr_record fds)));
-           Earley.apply
-             (fun te  ->
-                let tes =
-                  match te with
-                  | None  -> []
-                  | Some ({ ptyp_desc = Ptyp_tuple tes },false ) -> tes
-                  | Some (t,_) -> [t]  in
-                let tes = Pcstr_tuple tes  in tes)
-             (Earley.option None
-                (Earley.apply (fun x  -> Some x)
-                   (Earley.sequence of_kw
-                      (Earley.alternatives
-                         [Earley.apply (fun te  -> (te, false)) typexpr_nopar;
-                         Earley.fsequence (Earley.char '(' '(')
-                           (Earley.sequence typexpr (Earley.char ')' ')')
-                              (fun te  -> fun _  -> fun _  -> (te, true)))])
-                      (fun _  -> fun _default_0  -> _default_0))))])
       
     let (bar,bar__set__grammar) = Earley.grammar_family "bar" 
     let _ =
@@ -1367,7 +1337,7 @@ module Make(Initial:Extension) =
     let _ =
       constr_decl__set__grammar
         (fun with_bar  ->
-           Earley.fsequence_position (bar with_bar)
+           Earley.fsequence (bar with_bar)
              (Earley.fsequence
                 (Earley.apply_position
                    (fun x  ->
@@ -1392,7 +1362,36 @@ module Make(Initial:Extension) =
                                                 fun _  ->
                                                   ((Pcstr_record fds),
                                                     (Some te)))))));
-                      Earley.apply (fun te  -> (te, None)) of_constr_decl;
+                      Earley.apply
+                        (fun te  ->
+                           let tes =
+                             match te with
+                             | None  -> []
+                             | Some ({ ptyp_desc = Ptyp_tuple tes },false )
+                                 -> tes
+                             | Some (t,_) -> [t]  in
+                           ((Pcstr_tuple tes), None))
+                        (Earley.option None
+                           (Earley.apply (fun x  -> Some x)
+                              (Earley.sequence of_kw
+                                 (Earley.alternatives
+                                    [Earley.apply (fun te  -> (te, false))
+                                       typexpr_nopar;
+                                    Earley.fsequence (Earley.char '(' '(')
+                                      (Earley.sequence typexpr
+                                         (Earley.char ')' ')')
+                                         (fun te  ->
+                                            fun _  -> fun _  -> (te, true)))])
+                                 (fun _  -> fun _default_0  -> _default_0))));
+                      Earley.fsequence of_kw
+                        (Earley.fsequence (Earley.char '{' '{')
+                           (Earley.sequence field_decl_list
+                              (Earley.char '}' '}')
+                              (fun fds  ->
+                                 fun _  ->
+                                   fun _  ->
+                                     fun _default_0  ->
+                                       ((Pcstr_record fds), None))));
                       Earley.fsequence (Earley.char ':' ':')
                         (Earley.sequence
                            (Earley.option []
@@ -1416,45 +1415,68 @@ module Make(Initial:Extension) =
                            (typexpr_lvl (next_type_prio Arr))
                            (fun tes  ->
                               fun te  ->
-                                fun _  ->
-                                  let tes = Pcstr_tuple tes  in
-                                  (tes, (Some te))))]) post_item_attributes
-                   (fun ((tes,te) as _default_0)  ->
+                                fun _  -> ((Pcstr_tuple tes), (Some te))))])
+                   post_item_attributes
+                   (fun ((args,res) as _default_0)  ->
                       fun a  ->
                         fun cn  ->
                           let (_loc_cn,cn) = cn  in
                           fun _default_1  ->
-                            fun __loc__start__buf  ->
-                              fun __loc__start__pos  ->
-                                fun __loc__end__buf  ->
-                                  fun __loc__end__pos  ->
-                                    let _loc =
-                                      locate __loc__start__buf
-                                        __loc__start__pos __loc__end__buf
-                                        __loc__end__pos
-                                       in
-                                    let c = id_loc cn _loc_cn  in
-                                    constructor_declaration
-                                      ~attributes:(attach_attrib _loc a) _loc
-                                      c tes te))))
+                            let name = id_loc cn _loc_cn  in
+                            (name, args, res, a)))))
       
-    let (all_constr_decl,all_constr_decl__set__grammar) =
-      Earley.grammar_family "all_constr_decl" 
+    [@@@ocaml.text " FIXME OCAML: the bar is included in position "]
+    let (type_constr_decl,type_constr_decl__set__grammar) =
+      Earley.grammar_family "type_constr_decl" 
     let _ =
-      all_constr_decl__set__grammar
+      type_constr_decl__set__grammar
         (fun with_bar  ->
-           Earley.apply (fun cd  -> [cd]) (constr_decl with_bar))
+           Earley.apply_position
+             (fun ((name,args,res,a) as _default_0)  ->
+                fun __loc__start__buf  ->
+                  fun __loc__start__pos  ->
+                    fun __loc__end__buf  ->
+                      fun __loc__end__pos  ->
+                        let _loc =
+                          locate __loc__start__buf __loc__start__pos
+                            __loc__end__buf __loc__end__pos
+                           in
+                        Type.constructor ~attrs:(attach_attrib _loc a)
+                          ~loc:_loc ~args ?res name) (constr_decl with_bar))
       
     let _ =
       set_grammar constr_decl_list
         (Earley.alternatives
            [Earley.apply (fun _  -> []) (Earley.empty ());
-           Earley.sequence (all_constr_decl false)
+           Earley.sequence (type_constr_decl false)
              (Earley.apply List.rev
                 (Earley.fixpoint []
                    (Earley.apply (fun x  -> fun y  -> x :: y)
-                      (all_constr_decl true))))
-             (fun cd  -> fun cds  -> List.flatten (cd :: cds))])
+                      (type_constr_decl true))))
+             (fun cd  -> fun cds  -> cd :: cds);
+           Earley.fsequence_position (Earley.char '$' '$')
+             (Earley.fsequence (Earley.no_blank_test ())
+                (Earley.fsequence (expression_lvl (NoMatch, App))
+                   (Earley.fsequence (Earley.no_blank_test ())
+                      (Earley.sequence (Earley.char '$' '$') constr_decl_list
+                         (fun _  ->
+                            fun cds  ->
+                              fun _  ->
+                                fun e  ->
+                                  fun _  ->
+                                    fun dol  ->
+                                      fun __loc__start__buf  ->
+                                        fun __loc__start__pos  ->
+                                          fun __loc__end__buf  ->
+                                            fun __loc__end__pos  ->
+                                              let _loc =
+                                                locate __loc__start__buf
+                                                  __loc__start__pos
+                                                  __loc__end__buf
+                                                  __loc__end__pos
+                                                 in
+                                              (list_antiquotation _loc e) @
+                                                cds)))))])
       
     let field_decl_semi = Earley.declare_grammar "field_decl_semi" 
     let _ =
@@ -1524,9 +1546,37 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar field_decl_aux
         (Earley.alternatives
-           [Earley.sequence field_decl_aux field_decl_semi
-              (fun fs  -> fun fd  -> fd :: fs);
-           Earley.apply (fun _  -> []) (Earley.empty ())])
+           [Earley.fsequence_position (Earley.char '$' '$')
+              (Earley.fsequence (Earley.no_blank_test ())
+                 (Earley.fsequence (expression_lvl (NoMatch, App))
+                    (Earley.fsequence (Earley.no_blank_test ())
+                       (Earley.fsequence (Earley.char '$' '$')
+                          (Earley.sequence
+                             (Earley.option None
+                                (Earley.apply (fun x  -> Some x)
+                                   (Earley.char ';' ';'))) field_decl_list
+                             (fun _default_0  ->
+                                fun ls  ->
+                                  fun _  ->
+                                    fun _  ->
+                                      fun e  ->
+                                        fun _  ->
+                                          fun dol  ->
+                                            fun __loc__start__buf  ->
+                                              fun __loc__start__pos  ->
+                                                fun __loc__end__buf  ->
+                                                  fun __loc__end__pos  ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos
+                                                       in
+                                                    list_antiquotation _loc e))))));
+           Earley.apply (fun _  -> []) (Earley.empty ());
+           Earley.sequence field_decl_aux field_decl_semi
+             (fun fs  -> fun fd  -> fd :: fs)])
       
     let _ =
       set_grammar field_decl_list
@@ -1539,12 +1589,13 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar type_representation
         (Earley.alternatives
-           [Earley.apply
-              (fun cds  -> if cds = [] then give_up (); Ptype_variant cds)
-              constr_decl_list;
+           [Earley.apply (fun _  -> Ptype_open) (Earley.string ".." "..");
            Earley.fsequence (Earley.string "{" "{")
              (Earley.sequence field_decl_list (Earley.string "}" "}")
-                (fun fds  -> fun _  -> fun _  -> Ptype_record fds))])
+                (fun fds  -> fun _  -> fun _  -> Ptype_record fds));
+           Earley.apply
+             (fun cds  -> if cds = [] then give_up (); Ptype_variant cds)
+             constr_decl_list])
       
     let type_information = Earley.declare_grammar "type_information" 
     let _ =
@@ -1662,50 +1713,26 @@ module Make(Initial:Extension) =
                    fun l  ->
                      let (_loc_l,l) = l  in (snd (td (Some _loc_l))) :: tds)))
       
-    let exception_declaration =
-      Earley.declare_grammar "exception_declaration" 
-    let _ =
-      Earley.set_grammar exception_declaration
-        (Earley.fsequence_position exception_kw
-           (Earley.sequence
-              (Earley.apply_position
-                 (fun x  ->
-                    fun str  ->
-                      fun pos  ->
-                        fun str'  ->
-                          fun pos'  -> ((locate str pos str' pos'), x))
-                 constr_name) of_constr_decl
-              (fun cn  ->
-                 let (_loc_cn,cn) = cn  in
-                 fun te  ->
-                   fun _default_0  ->
-                     fun __loc__start__buf  ->
-                       fun __loc__start__pos  ->
-                         fun __loc__end__buf  ->
-                           fun __loc__end__pos  ->
-                             let _loc =
-                               locate __loc__start__buf __loc__start__pos
-                                 __loc__end__buf __loc__end__pos
-                                in
-                             ((id_loc cn _loc_cn), te, _loc))))
-      
     let exception_definition = Earley.declare_grammar "exception_definition" 
     let _ =
       Earley.set_grammar exception_definition
         (Earley.alternatives
-           [Earley.apply_position
-              (fun ((name,ed,_loc') as _default_0)  ->
-                 fun __loc__start__buf  ->
-                   fun __loc__start__pos  ->
-                     fun __loc__end__buf  ->
-                       fun __loc__end__pos  ->
-                         let _loc =
-                           locate __loc__start__buf __loc__start__pos
-                             __loc__end__buf __loc__end__pos
-                            in
-                         (Str.exception_ ~loc:_loc
-                            (Te.decl ~loc:_loc ~args:ed name)).pstr_desc)
-              exception_declaration;
+           [Earley.sequence_position exception_kw (constr_decl false)
+              (fun _default_1  ->
+                 fun ((name,args,res,a) as _default_0)  ->
+                   fun __loc__start__buf  ->
+                     fun __loc__start__pos  ->
+                       fun __loc__end__buf  ->
+                         fun __loc__end__pos  ->
+                           let _loc =
+                             locate __loc__start__buf __loc__start__pos
+                               __loc__end__buf __loc__end__pos
+                              in
+                           let cd =
+                             Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc
+                               ~args ?res name
+                              in
+                           (Str.exception_ ~loc:_loc cd).pstr_desc);
            Earley.fsequence_position exception_kw
              (Earley.fsequence
                 (Earley.apply_position
@@ -2157,37 +2184,145 @@ module Make(Initial:Extension) =
       
     let _ =
       set_pattern_lvl
-        ([(((fun (as_ok,lvl)  -> lvl <= ConsPat)),
-            (Earley.fsequence_position
-               (pattern_lvl (true, (next_pat_prio ConsPat)))
-               (Earley.sequence
-                  (Earley.apply_position
-                     (fun x  ->
-                        fun str  ->
-                          fun pos  ->
-                            fun str'  ->
-                              fun pos'  -> ((locate str pos str' pos'), x))
-                     (Earley.string "::" "::"))
-                  (pattern_lvl (false, ConsPat))
-                  (fun c  ->
-                     let (_loc_c,c) = c  in
-                     fun p'  ->
-                       fun p  ->
-                         fun __loc__start__buf  ->
-                           fun __loc__start__pos  ->
-                             fun __loc__end__buf  ->
-                               fun __loc__end__pos  ->
-                                 let _loc =
-                                   locate __loc__start__buf __loc__start__pos
-                                     __loc__end__buf __loc__end__pos
-                                    in
-                                 let cons = id_loc (Lident "::") _loc_c  in
-                                 let args =
-                                   loc_pat (ghost _loc) (Ppat_tuple [p; p'])
-                                    in
-                                 loc_pat _loc
-                                   (ppat_construct (cons, (Some args)))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+        ([(((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+            (Earley.fsequence_position (Earley.char '$' '$')
+               (Earley.fsequence (Earley.no_blank_test ())
+                  (Earley.fsequence
+                     (Earley.option "pat"
+                        (Earley.fsequence
+                           (EarleyStr.regexp ~name:"[a-z]+" "[a-z]+"
+                              (fun groupe  -> groupe 0))
+                           (Earley.sequence (Earley.no_blank_test ())
+                              (Earley.char ':' ':')
+                              (fun _  ->
+                                 fun _  -> fun _default_0  -> _default_0))))
+                     (Earley.fsequence expression
+                        (Earley.sequence (Earley.no_blank_test ())
+                           (Earley.char '$' '$')
+                           (fun _  ->
+                              fun _  ->
+                                fun e  ->
+                                  fun aq  ->
+                                    fun _  ->
+                                      fun _  ->
+                                        fun __loc__start__buf  ->
+                                          fun __loc__start__pos  ->
+                                            fun __loc__end__buf  ->
+                                              fun __loc__end__pos  ->
+                                                let _loc =
+                                                  locate __loc__start__buf
+                                                    __loc__start__pos
+                                                    __loc__end__buf
+                                                    __loc__end__pos
+                                                   in
+                                                let open Quote in
+                                                  let e_loc =
+                                                    exp_ident _loc "_loc"  in
+                                                  let locate _loc e =
+                                                    quote_record e_loc _loc
+                                                      [((parsetree
+                                                           "ppat_desc"), e);
+                                                      ((parsetree "ppat_loc"),
+                                                        (quote_location_t
+                                                           e_loc _loc _loc));
+                                                      ((parsetree
+                                                          "ppat_attributes"),
+                                                        (quote_attributes
+                                                           e_loc _loc []))]
+                                                     in
+                                                  let generic_antiquote e =
+                                                    function
+                                                    | Quote_ppat  -> e
+                                                    | _ ->
+                                                        failwith
+                                                          ("invalid antiquotation type ppat expected at "
+                                                             ^
+                                                             (string_location
+                                                                _loc))
+                                                     in
+                                                  let f =
+                                                    match aq with
+                                                    | "pat" ->
+                                                        generic_antiquote e
+                                                    | "bool" ->
+                                                        let e =
+                                                          quote_const e_loc
+                                                            _loc
+                                                            (parsetree
+                                                               "Ppat_constant")
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               (pa_ast
+                                                                  "const_bool")
+                                                               [e]]
+                                                           in
+                                                        generic_antiquote
+                                                          (locate _loc e)
+                                                    | "int" ->
+                                                        let e =
+                                                          quote_const e_loc
+                                                            _loc
+                                                            (parsetree
+                                                               "Ppat_constant")
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               (pa_ast
+                                                                  "const_int")
+                                                               [e]]
+                                                           in
+                                                        generic_antiquote
+                                                          (locate _loc e)
+                                                    | "string" ->
+                                                        let e =
+                                                          quote_const e_loc
+                                                            _loc
+                                                            (parsetree
+                                                               "Ppat_constant")
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               (pa_ast
+                                                                  "const_string")
+                                                               [e]]
+                                                           in
+                                                        generic_antiquote
+                                                          (locate _loc e)
+                                                    | "list" ->
+                                                        generic_antiquote
+                                                          (quote_apply e_loc
+                                                             _loc
+                                                             (pa_ast
+                                                                "pat_list")
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             quote_location_t
+                                                               e_loc _loc
+                                                               _loc;
+                                                             e])
+                                                    | "tuple" ->
+                                                        generic_antiquote
+                                                          (quote_apply e_loc
+                                                             _loc
+                                                             (pa_ast
+                                                                "pat_tuple")
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e])
+                                                    | "array" ->
+                                                        generic_antiquote
+                                                          (quote_apply e_loc
+                                                             _loc
+                                                             (pa_ast
+                                                                "pat_array")
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e])
+                                                    | _ -> give_up ()  in
+                                                  Quote.ppat_antiquotation
+                                                    _loc f)))))));
+         (((fun _  -> true)),
            (Earley.apply_position
               (fun vn  ->
                  let (_loc_vn,vn) = vn  in
@@ -2199,7 +2334,7 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         loc_pat _loc (Ppat_var (id_loc vn _loc_vn)))
+                         Pat.var ~loc:_loc (id_loc vn _loc_vn))
               (Earley.apply_position
                  (fun x  ->
                     fun str  ->
@@ -2207,7 +2342,7 @@ module Make(Initial:Extension) =
                         fun str'  ->
                           fun pos'  -> ((locate str pos str' pos'), x))
                  value_name)));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+         (((fun _  -> true)),
            (Earley.apply_position
               (fun _default_0  ->
                  fun __loc__start__buf  ->
@@ -2218,8 +2353,8 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         loc_pat _loc Ppat_any) joker_kw));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                         Pat.any ~loc:_loc ()) joker_kw));
+         (((fun _  -> true)),
            (Earley.fsequence_position char_litteral
               (Earley.sequence (Earley.string ".." "..") char_litteral
                  (fun _  ->
@@ -2233,13 +2368,8 @@ module Make(Initial:Extension) =
                                   locate __loc__start__buf __loc__start__pos
                                     __loc__end__buf __loc__end__pos
                                    in
-                                let (ic1,ic2) =
-                                  ((Char.code c1), (Char.code c2))  in
-                                if ic1 > ic2 then assert false;
-                                loc_pat _loc
-                                  (Ppat_interval
-                                     ((const_char (Char.chr ic1)),
-                                       (const_char (Char.chr ic2))))))));
+                                Pat.interval ~loc:_loc (Const.char c1)
+                                  (Const.char c2)))));
          (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
            (Earley.apply_position
               (fun c  ->
@@ -2251,9 +2381,9 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         loc_pat _loc (Ppat_constant c))
+                         Pat.constant ~loc:_loc c)
               (Earley.alternatives [neg_constant; constant])));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+         (((fun _  -> true)),
            (Earley.fsequence_position (Earley.char '(' '(')
               (Earley.fsequence pattern
                  (Earley.sequence
@@ -2279,8 +2409,7 @@ module Make(Initial:Extension) =
                                        match ty with
                                        | None  -> loc_pat _loc p.ppat_desc
                                        | Some ty ->
-                                           loc_pat _loc
-                                             (Ppat_constraint (p, ty))
+                                           Pat.constraint_ ~loc:_loc p ty
                                         in
                                      p)))));
          (((fun (as_ok,lvl)  -> lvl <= ConstrPat)),
@@ -2295,7 +2424,7 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           let ast = Ppat_lazy p  in loc_pat _loc ast)));
+                           Pat.lazy_ ~loc:_loc p)));
          (((fun (as_ok,lvl)  -> lvl <= ConstrPat)),
            (Earley.sequence_position exception_kw
               (pattern_lvl (false, ConstrPat))
@@ -2309,7 +2438,7 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           let ast = Ppat_exception p  in loc_pat _loc ast)));
+                           Pat.exception_ ~loc:_loc p)));
          (((fun (as_ok,lvl)  -> lvl <= ConstrPat)),
            (Earley.sequence_position
               (Earley.apply_position
@@ -2330,10 +2459,8 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           let ast =
-                             ppat_construct ((id_loc c _loc_c), (Some p))  in
-                           loc_pat _loc ast)));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                           Pat.construct ~loc:_loc (id_loc c _loc_c) (Some p))));
+         (((fun _  -> true)),
            (Earley.apply_position
               (fun c  ->
                  let (_loc_c,c) = c  in
@@ -2345,9 +2472,7 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         let ast = ppat_construct ((id_loc c _loc_c), None)
-                            in
-                         loc_pat _loc ast)
+                         Pat.construct ~loc:_loc (id_loc c _loc_c) None)
               (Earley.apply_position
                  (fun x  ->
                     fun str  ->
@@ -2355,7 +2480,7 @@ module Make(Initial:Extension) =
                         fun str'  ->
                           fun pos'  -> ((locate str pos str' pos'), x))
                  constr)));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+         (((fun _  -> true)),
            (Earley.apply_position
               (fun b  ->
                  fun __loc__start__buf  ->
@@ -2366,8 +2491,8 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         let fls = id_loc (Lident b) _loc  in
-                         loc_pat _loc (ppat_construct (fls, None))) bool_lit));
+                         Pat.construct ~loc:_loc (id_loc (Lident b) _loc)
+                           None) bool_lit));
          (((fun (as_ok,lvl)  -> lvl <= ConstrPat)),
            (Earley.sequence_position tag_name
               (pattern_lvl (false, ConstrPat))
@@ -2381,8 +2506,8 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           loc_pat _loc (Ppat_variant (c, (Some p))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                           Pat.variant ~loc:_loc c (Some p))));
+         (((fun _  -> true)),
            (Earley.apply_position
               (fun c  ->
                  fun __loc__start__buf  ->
@@ -2393,8 +2518,8 @@ module Make(Initial:Extension) =
                            locate __loc__start__buf __loc__start__pos
                              __loc__end__buf __loc__end__pos
                             in
-                         loc_pat _loc (Ppat_variant (c, None))) tag_name));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                         Pat.variant ~loc:_loc c None) tag_name));
+         (((fun _  -> true)),
            (Earley.sequence_position (Earley.char '#' '#')
               (Earley.apply_position
                  (fun x  ->
@@ -2414,8 +2539,8 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           loc_pat _loc (Ppat_type (id_loc t _loc_t)))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                           Pat.type_ ~loc:_loc (id_loc t _loc_t))));
+         (((fun _  -> true)),
            (Earley.fsequence_position (Earley.char '{' '{')
               (Earley.fsequence
                  (Earley.apply_position
@@ -2508,47 +2633,39 @@ module Make(Initial:Extension) =
                                                       match clsd with
                                                       | None  -> Closed
                                                       | Some _ -> Open  in
-                                                    loc_pat _loc
-                                                      (Ppat_record (all, cl))))))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.fsequence_position (Earley.string "[" "[")
-              (Earley.fsequence pattern
-                 (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint []
-                          (Earley.apply (fun x  -> fun y  -> x :: y)
-                             (Earley.sequence semi_col pattern
-                                (fun _default_0  -> fun p  -> p)))))
-                    (Earley.sequence
-                       (Earley.option None
-                          (Earley.apply (fun x  -> Some x) semi_col))
-                       (Earley.apply_position
-                          (fun x  ->
-                             fun str  ->
-                               fun pos  ->
-                                 fun str'  ->
-                                   fun pos'  ->
-                                     ((locate str pos str' pos'), x))
-                          (Earley.string "]" "]"))
-                       (fun _default_0  ->
-                          fun c  ->
-                            let (_loc_c,c) = c  in
-                            fun ps  ->
-                              fun p  ->
-                                fun _  ->
-                                  fun __loc__start__buf  ->
-                                    fun __loc__start__pos  ->
-                                      fun __loc__end__buf  ->
-                                        fun __loc__end__pos  ->
-                                          let _loc =
-                                            locate __loc__start__buf
-                                              __loc__start__pos
-                                              __loc__end__buf __loc__end__pos
-                                             in
-                                          pat_list _loc _loc_c (p :: ps)))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.sequence_position (Earley.string "[" "[")
-              (Earley.string "]" "]")
+                                                    Pat.record ~loc:_loc all
+                                                      cl))))))));
+         (((fun _  -> true)),
+           (Earley.fsequence_position (Earley.char '[' '[')
+              (Earley.fsequence (list1 pattern semi_col)
+                 (Earley.sequence
+                    (Earley.option None
+                       (Earley.apply (fun x  -> Some x) semi_col))
+                    (Earley.apply_position
+                       (fun x  ->
+                          fun str  ->
+                            fun pos  ->
+                              fun str'  ->
+                                fun pos'  -> ((locate str pos str' pos'), x))
+                       (Earley.char ']' ']'))
+                    (fun _default_0  ->
+                       fun c  ->
+                         let (_loc_c,c) = c  in
+                         fun ps  ->
+                           fun _  ->
+                             fun __loc__start__buf  ->
+                               fun __loc__start__pos  ->
+                                 fun __loc__end__buf  ->
+                                   fun __loc__end__pos  ->
+                                     let _loc =
+                                       locate __loc__start__buf
+                                         __loc__start__pos __loc__end__buf
+                                         __loc__end__pos
+                                        in
+                                     pat_list _loc _loc_c ps)))));
+         (((fun _  -> true)),
+           (Earley.sequence_position (Earley.char '[' '[')
+              (Earley.char ']' ']')
               (fun _  ->
                  fun _  ->
                    fun __loc__start__buf  ->
@@ -2559,39 +2676,32 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           let nil = id_loc (Lident "[]") _loc  in
-                           loc_pat _loc (ppat_construct (nil, None)))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                           Pat.construct ~loc:_loc
+                             (id_loc (Lident "[]") _loc) None)));
+         (((fun _  -> true)),
            (Earley.fsequence_position (Earley.string "[|" "[|")
-              (Earley.fsequence pattern
-                 (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint []
-                          (Earley.apply (fun x  -> fun y  -> x :: y)
-                             (Earley.sequence semi_col pattern
-                                (fun _default_0  -> fun p  -> p)))))
-                    (Earley.sequence
-                       (Earley.option None
-                          (Earley.apply (fun x  -> Some x) semi_col))
-                       (Earley.string "|]" "|]")
-                       (fun _default_0  ->
-                          fun _  ->
-                            fun ps  ->
-                              fun p  ->
-                                fun _  ->
-                                  fun __loc__start__buf  ->
-                                    fun __loc__start__pos  ->
-                                      fun __loc__end__buf  ->
-                                        fun __loc__end__pos  ->
-                                          let _loc =
-                                            locate __loc__start__buf
-                                              __loc__start__pos
-                                              __loc__end__buf __loc__end__pos
-                                             in
-                                          loc_pat _loc (Ppat_array (p :: ps))))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.sequence_position (Earley.string "[|" "[|")
-              (Earley.string "|]" "|]")
+              (Earley.fsequence (list0 pattern semi_col)
+                 (Earley.sequence
+                    (Earley.option None
+                       (Earley.apply (fun x  -> Some x) semi_col))
+                    (Earley.string "|]" "|]")
+                    (fun _default_0  ->
+                       fun _  ->
+                         fun ps  ->
+                           fun _  ->
+                             fun __loc__start__buf  ->
+                               fun __loc__start__pos  ->
+                                 fun __loc__end__buf  ->
+                                   fun __loc__end__pos  ->
+                                     let _loc =
+                                       locate __loc__start__buf
+                                         __loc__start__pos __loc__end__buf
+                                         __loc__end__pos
+                                        in
+                                     Pat.array ~loc:_loc ps)))));
+         (((fun _  -> true)),
+           (Earley.sequence_position (Earley.char '(' '(')
+              (Earley.char ')' ')')
               (fun _  ->
                  fun _  ->
                    fun __loc__start__buf  ->
@@ -2602,23 +2712,9 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           loc_pat _loc (Ppat_array []))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.sequence_position (Earley.string "(" "(")
-              (Earley.string ")" ")")
-              (fun _  ->
-                 fun _  ->
-                   fun __loc__start__buf  ->
-                     fun __loc__start__pos  ->
-                       fun __loc__end__buf  ->
-                         fun __loc__end__pos  ->
-                           let _loc =
-                             locate __loc__start__buf __loc__start__pos
-                               __loc__end__buf __loc__end__pos
-                              in
-                           let unt = id_loc (Lident "()") _loc  in
-                           loc_pat _loc (ppat_construct (unt, None)))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+                           Pat.construct ~loc:_loc
+                             (id_loc (Lident "()") _loc) None)));
+         (((fun _  -> true)),
            (Earley.sequence_position begin_kw end_kw
               (fun _default_1  ->
                  fun _default_0  ->
@@ -2630,8 +2726,8 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           let unt = id_loc (Lident "()") _loc  in
-                           loc_pat _loc (ppat_construct (unt, None)))));
+                           Pat.construct ~loc:_loc
+                             (id_loc (Lident "()") _loc) None)));
          (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
            (Earley.fsequence_position (Earley.char '(' '(')
               (Earley.fsequence module_kw
@@ -2669,154 +2765,6 @@ module Make(Initial:Extension) =
                                                   ((loc_pat _loc unpack), pt)
                                              in
                                           loc_pat _loc pat))))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.fsequence (Earley.char '$' '$')
-              (Earley.sequence (Earley.no_blank_test ()) uident
-                 (fun _  ->
-                    fun c  ->
-                      fun _  ->
-                        try
-                          let str = Sys.getenv c  in
-                          parse_string ~filename:("ENV:" ^ c) pattern
-                            ocaml_blank str
-                        with | Not_found  -> give_up ()))));
-         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
-           (Earley.fsequence_position (Earley.char '$' '$')
-              (Earley.fsequence (Earley.no_blank_test ())
-                 (Earley.fsequence
-                    (Earley.option "pat"
-                       (Earley.fsequence
-                          (EarleyStr.regexp ~name:"[a-z]+" "[a-z]+"
-                             (fun groupe  -> groupe 0))
-                          (Earley.sequence (Earley.no_blank_test ())
-                             (Earley.char ':' ':')
-                             (fun _  ->
-                                fun _  -> fun _default_0  -> _default_0))))
-                    (Earley.fsequence expression
-                       (Earley.sequence (Earley.no_blank_test ())
-                          (Earley.char '$' '$')
-                          (fun _  ->
-                             fun _  ->
-                               fun e  ->
-                                 fun aq  ->
-                                   fun _  ->
-                                     fun _  ->
-                                       fun __loc__start__buf  ->
-                                         fun __loc__start__pos  ->
-                                           fun __loc__end__buf  ->
-                                             fun __loc__end__pos  ->
-                                               let _loc =
-                                                 locate __loc__start__buf
-                                                   __loc__start__pos
-                                                   __loc__end__buf
-                                                   __loc__end__pos
-                                                  in
-                                               let open Quote in
-                                                 let e_loc =
-                                                   exp_ident _loc "_loc"  in
-                                                 let locate _loc e =
-                                                   quote_record e_loc _loc
-                                                     [((parsetree "ppat_desc"),
-                                                        e);
-                                                     ((parsetree "ppat_loc"),
-                                                       (quote_location_t
-                                                          e_loc _loc _loc));
-                                                     ((parsetree
-                                                         "ppat_attributes"),
-                                                       (quote_attributes
-                                                          e_loc _loc []))]
-                                                    in
-                                                 let generic_antiquote e =
-                                                   function
-                                                   | Quote_ppat  -> e
-                                                   | _ ->
-                                                       failwith
-                                                         ("invalid antiquotation type ppat expected at "
-                                                            ^
-                                                            (string_location
-                                                               _loc))
-                                                    in
-                                                 let f =
-                                                   match aq with
-                                                   | "pat" ->
-                                                       generic_antiquote e
-                                                   | "bool" ->
-                                                       let e =
-                                                         quote_const e_loc
-                                                           _loc
-                                                           (parsetree
-                                                              "Ppat_constant")
-                                                           [quote_apply e_loc
-                                                              _loc
-                                                              (pa_ast
-                                                                 "const_bool")
-                                                              [e]]
-                                                          in
-                                                       generic_antiquote
-                                                         (locate _loc e)
-                                                   | "int" ->
-                                                       let e =
-                                                         quote_const e_loc
-                                                           _loc
-                                                           (parsetree
-                                                              "Ppat_constant")
-                                                           [quote_apply e_loc
-                                                              _loc
-                                                              (pa_ast
-                                                                 "const_int")
-                                                              [e]]
-                                                          in
-                                                       generic_antiquote
-                                                         (locate _loc e)
-                                                   | "string" ->
-                                                       let e =
-                                                         quote_const e_loc
-                                                           _loc
-                                                           (parsetree
-                                                              "Ppat_constant")
-                                                           [quote_apply e_loc
-                                                              _loc
-                                                              (pa_ast
-                                                                 "const_string")
-                                                              [e]]
-                                                          in
-                                                       generic_antiquote
-                                                         (locate _loc e)
-                                                   | "list" ->
-                                                       generic_antiquote
-                                                         (quote_apply e_loc
-                                                            _loc
-                                                            (pa_ast
-                                                               "pat_list")
-                                                            [quote_location_t
-                                                               e_loc _loc
-                                                               _loc;
-                                                            quote_location_t
-                                                              e_loc _loc _loc;
-                                                            e])
-                                                   | "tuple" ->
-                                                       generic_antiquote
-                                                         (quote_apply e_loc
-                                                            _loc
-                                                            (pa_ast
-                                                               "pat_tuple")
-                                                            [quote_location_t
-                                                               e_loc _loc
-                                                               _loc;
-                                                            e])
-                                                   | "array" ->
-                                                       generic_antiquote
-                                                         (quote_apply e_loc
-                                                            _loc
-                                                            (pa_ast
-                                                               "pat_array")
-                                                            [quote_location_t
-                                                               e_loc _loc
-                                                               _loc;
-                                                            e])
-                                                   | _ -> give_up ()  in
-                                                 Quote.ppat_antiquotation
-                                                   _loc f)))))));
          (((fun (as_ok,lvl)  -> lvl <= AltPat)),
            (Earley.fsequence_position (pattern_lvl (true, AltPat))
               (Earley.sequence (Earley.char '|' '|')
@@ -2832,7 +2780,7 @@ module Make(Initial:Extension) =
                                   locate __loc__start__buf __loc__start__pos
                                     __loc__end__buf __loc__end__pos
                                    in
-                                loc_pat _loc (Ppat_or (p, p'))))));
+                                Pat.or_ ~loc:_loc p p'))));
          (((fun (as_ok,lvl)  -> lvl <= TupPat)),
            (Earley.sequence_position
               (Earley.apply List.rev
@@ -2853,7 +2801,46 @@ module Make(Initial:Extension) =
                              locate __loc__start__buf __loc__start__pos
                                __loc__end__buf __loc__end__pos
                               in
-                           loc_pat _loc (Ppat_tuple (ps @ [p])))))],
+                           Pat.tuple ~loc:_loc (ps @ [p]))));
+         (((fun (as_ok,lvl)  -> lvl <= ConsPat)),
+           (Earley.fsequence_position
+              (pattern_lvl (true, (next_pat_prio ConsPat)))
+              (Earley.sequence
+                 (Earley.apply_position
+                    (fun x  ->
+                       fun str  ->
+                         fun pos  ->
+                           fun str'  ->
+                             fun pos'  -> ((locate str pos str' pos'), x))
+                    (Earley.string "::" "::")) (pattern_lvl (false, ConsPat))
+                 (fun c  ->
+                    let (_loc_c,c) = c  in
+                    fun p'  ->
+                      fun p  ->
+                        fun __loc__start__buf  ->
+                          fun __loc__start__pos  ->
+                            fun __loc__end__buf  ->
+                              fun __loc__end__pos  ->
+                                let _loc =
+                                  locate __loc__start__buf __loc__start__pos
+                                    __loc__end__buf __loc__end__pos
+                                   in
+                                let cons = id_loc (Lident "::") _loc_c  in
+                                let args =
+                                  loc_pat (ghost _loc) (Ppat_tuple [p; p'])
+                                   in
+                                Pat.construct ~loc:_loc cons (Some args)))));
+         (((fun (as_ok,lvl)  -> lvl <= AtomPat)),
+           (Earley.fsequence (Earley.char '$' '$')
+              (Earley.sequence (Earley.no_blank_test ()) uident
+                 (fun _  ->
+                    fun c  ->
+                      fun _  ->
+                        try
+                          let str = Sys.getenv c  in
+                          parse_string ~filename:("ENV:" ^ c) pattern
+                            ocaml_blank str
+                        with | Not_found  -> give_up ()))))],
           (fun (as_ok,lvl)  -> (extra_patterns_grammar (as_ok, lvl)) ::
              ((if as_ok
                then
@@ -2880,8 +2867,8 @@ module Make(Initial:Extension) =
                                           __loc__start__pos __loc__end__buf
                                           __loc__end__pos
                                          in
-                                      loc_pat _loc
-                                        (Ppat_alias (p, (id_loc vn _loc_vn)))))]
+                                      Pat.alias ~loc:_loc p
+                                        (id_loc vn _loc_vn)))]
                else []) @ [])))
       
     let let_re = "\\(let\\)\\|\\(val\\)\\b" 
@@ -3748,16 +3735,17 @@ module Make(Initial:Extension) =
            [Earley.fsequence_position (Earley.char '$' '$')
               (Earley.fsequence (Earley.no_blank_test ())
                  (Earley.fsequence
-                    (Earley.option "cases"
-                       (Earley.sequence (Earley.string "cases" "cases")
-                          (Earley.string ":" ":") (fun c  -> fun _  -> c)))
+                    (Earley.option None
+                       (Earley.apply (fun x  -> Some x)
+                          (Earley.sequence (Earley.string "cases" "cases")
+                             (Earley.string ":" ":") (fun _  -> fun _  -> ()))))
                     (Earley.fsequence expression
                        (Earley.sequence (Earley.no_blank_test ())
                           (Earley.char '$' '$')
                           (fun _  ->
                              fun _  ->
                                fun e  ->
-                                 fun aq  ->
+                                 fun _default_0  ->
                                    fun _  ->
                                      fun _  ->
                                        fun __loc__start__buf  ->
@@ -3770,21 +3758,7 @@ module Make(Initial:Extension) =
                                                    __loc__end__buf
                                                    __loc__end__pos
                                                   in
-                                               let open Quote in
-                                                 let generic_antiquote e =
-                                                   function
-                                                   | Quote_loc  -> e
-                                                   | _ ->
-                                                       failwith
-                                                         "invalid antiquotation"
-                                                    in
-                                                 let f =
-                                                   match aq with
-                                                   | "cases" ->
-                                                       generic_antiquote e
-                                                   | _ -> give_up ()  in
-                                                 make_list_antiquotation _loc
-                                                   Quote_loc f)))));
+                                               list_antiquotation _loc e)))));
            Earley.fsequence
              (Earley.option None
                 (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
@@ -7766,10 +7740,9 @@ module Make(Initial:Extension) =
                            in
                         loc_sig _loc (Psig_type (Recursive, td)))
              type_definition;
-           Earley.sequence_position exception_declaration
-             post_item_attributes
-             (fun ((name,ed,_loc') as _default_0)  ->
-                fun a  ->
+           Earley.sequence_position exception_kw (constr_decl false)
+             (fun _default_1  ->
+                fun ((name,args,res,a) as _default_0)  ->
                   fun __loc__start__buf  ->
                     fun __loc__start__pos  ->
                       fun __loc__end__buf  ->
@@ -7778,10 +7751,11 @@ module Make(Initial:Extension) =
                             locate __loc__start__buf __loc__start__pos
                               __loc__end__buf __loc__end__pos
                              in
-                          loc_sig _loc
-                            (Psig_exception
-                               (Te.decl ~attrs:(attach_attrib _loc' a)
-                                  ~loc:_loc' ~args:ed name)));
+                          let cd =
+                            Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc
+                              ~args ?res name
+                             in
+                          loc_sig _loc (Psig_exception cd));
            Earley.fsequence_position module_kw
              (Earley.fsequence rec_kw
                 (Earley.fsequence

@@ -58,3 +58,9 @@ let get_dyn : type a. a typ -> dyn -> a option =
 		  match eq_type a b with
 		  | None -> None
 		  | Some Eq -> Some x
+
+exception Toto
+exception Tata : exn
+exception Titi : 'a -> exn
+
+type x = X | Y and y = ..
