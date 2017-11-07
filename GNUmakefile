@@ -31,7 +31,7 @@ all: cold
 endif
 
 SRCS=pa_default.ml pa_main.ml pa_ocaml_prelude.ml pa_parser.ml\
-     pa_ast.ml pa_lexing.ml pa_ocaml.ml pa_opt_main.ml
+     pa_ast.ml pa_lexing.ml pa_ocaml.ml
 
 ASTML=compare.ml iter.ml quote.ml
 HLPML=helper.ml helper.mli astextra.ml astextra.mli
