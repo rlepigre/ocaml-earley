@@ -538,6 +538,10 @@ let parser type_constr_decl with_bar =
   (name,args,res,a):(constr_decl with_bar) ->
      Type.constructor ~attrs:(attach_attrib _loc a) ~loc:_loc ~args ?res name
 
+let parser type_constr_extn with_bar =
+  (name,args,res,a):(constr_decl with_bar) ->
+     Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc ~args ?res name
+
 let _ = set_grammar constr_decl_list (
   parser
   | cd:(type_constr_decl false) cds:(type_constr_decl true)* -> cd::cds
@@ -545,6 +549,12 @@ let _ = set_grammar constr_decl_list (
         list_antiquotation _loc e @ cds
   | EMPTY -> []
   )
+
+let parser constr_extn_list =
+  | cd:(type_constr_extn false) cds:(type_constr_extn true)* -> cd::cds
+  | dol:'$' - e:(expression_lvl (NoMatch, App)) - '$' cds:constr_extn_list ->
+        list_antiquotation _loc e @ cds
+  | EMPTY -> []
 
 (* NOTE: OCaml includes the semi column in the position *)
 let parser field_decl_semi =
@@ -605,6 +615,13 @@ let typedef_gen = (fun att constr filter ->
       type_declaration ~attributes:(if att then attach_attrib _loc a else [])
 	_loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
   )
+
+let parser type_extension =
+  type_kw params:type_params tcn:typeconstr "+=" priv:private_flag
+     cds:constr_extn_list attrs:post_item_attributes ->
+        let tcn = id_loc tcn _loc_tcn in
+        let params = params_map params in
+        Te.mk ~attrs ~params ~priv tcn cds
 
 let parser typedef = (typedef_gen true typeconstr_name (fun x -> x))
 let parser typedef_in_constraint = (typedef_gen false typeconstr Longident.last)
@@ -1127,7 +1144,7 @@ let _ = set_grammar let_binding (
 let parser match_case alm lvl =
   | pat:pattern  w:{_:when_kw expression }? arrow_re
                  e:{ (expression_lvl (alm, lvl))
-                   | "." -> loc_expr _loc (Pexp_unreachable) }
+                   | "." -> Exp.unreachable ~loc:_loc () }
   -> make_case pat e w
 
 let _ = set_grammar match_cases (
@@ -1744,7 +1761,8 @@ let parser structure_item_base =
       if l < 1 || l > 3 then give_up ();
      loc_str _loc (Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
 		      pval_attributes = attach_attrib _loc a }))
-  | td:type_definition -> loc_str _loc (Pstr_type (Recursive, td)) (* FIXME for NonRec *)
+  | td:type_definition -> Str.type_ ~loc:_loc Recursive td (* FIXME for NonRec *)
+  | te:type_extension  -> Str.type_extension ~loc:_loc te
   | ex:exception_definition -> loc_str _loc ex
   | module_kw r:{rec_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
     me:module_expr ms:{and_kw mn:module_name mt:{STR(":") mt:module_type}? CHR('=')
@@ -1807,13 +1825,14 @@ let _ = set_grammar structure_item_simple
   (parser ls:{l:structure_item_base -> l}* -> ls)
 
 let parser signature_item_base =
-  | val_kw n:value_name STR(":") ty:typexpr a:post_item_attributes ->
+  | val_kw n:value_name ':' ty:typexpr a:post_item_attributes ->
      loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty [])
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
       let l = List.length ls in
       if l < 1 || l > 3 then give_up ();
       loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls)
-  | td:type_definition -> loc_sig _loc (Psig_type (Recursive, td)) (* FIXME non rec *)
+  | td:type_definition -> Sig.type_ ~loc:_loc Recursive td (* FIXME non rec *)
+  | te:type_extension  -> Sig.type_extension ~loc:_loc te
   | exception_kw (name,args,res,a):(constr_decl false) ->
       let cd = Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc ~args ?res name in
       loc_sig _loc (Psig_exception cd)
@@ -1823,8 +1842,8 @@ let parser signature_item_base =
       let loc_first = merge2 _loc_mn _loc_a in
       let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
       loc_sig _loc (Psig_recmodule (m::ms))
-  | module_kw r:{mn:module_name l:{ STR"(" mn:module_name mt:{STR":" mt:module_type}? STR ")" -> (mn, mt, _loc)}*
-                                    STR":" mt:module_type a:post_item_attributes ->
+  | module_kw r:{mn:module_name l:{ '(' mn:module_name mt:{':' mt:module_type}? ')' -> (mn, mt, _loc)}*
+                                    ':' mt:module_type a:post_item_attributes ->
      let mt = List.fold_left (fun acc (mn,mt,_loc) ->
                                   mtyp_loc (merge2 _loc _loc_mt) (Pmty_functor(mn, mt, acc))) mt (List.rev l) in
      Psig_module(module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt)
