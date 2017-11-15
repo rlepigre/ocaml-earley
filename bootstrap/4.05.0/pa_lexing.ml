@@ -295,10 +295,7 @@ let reserved_symbs =
   "|]";
   "}";
   "~";
-  "$";
-  ">>";
-  "<<";
-  "<:"] 
+  "$"] 
 let (is_reserved_id,add_reserved_id) = make_reserved reserved_ids 
 let (is_reserved_symb,add_reserved_symb) = make_reserved reserved_symbs 
 let not_special =

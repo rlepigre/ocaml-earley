@@ -331,9 +331,9 @@ module Ext(In:Extension) = struct
     | '{' r:glr_rules '}'
      -> (true, build_alternatives _loc_r r)
     | "EOF" oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.eof $from_opt oe <:expr<()>>$>>)
+     -> (oe <> None, <:expr<Earley.eof $from_opt oe <:expr<()>>$ >>)
     | "EMPTY" oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.empty $from_opt oe <:expr<()>>$>>)
+     -> (oe <> None, <:expr<Earley.empty $from_opt oe <:expr<()>>$ >>)
     | "FAIL" e:expr_arg
      -> (false, <:expr<Earley.fail $e$>>)
     | "DEBUG" e:expr_arg
@@ -356,7 +356,7 @@ module Ext(In:Extension) = struct
         (oe <> None, <:expr<Earley.string $s$ $e$>>)
     | "RE" e:expr_arg opt:glr_opt_expr
      -> begin
-          let act = <:expr<fun groupe -> $from_opt opt <:expr<groupe 0>>$>> in
+          let act = <:expr<fun groupe -> $from_opt opt <:expr<groupe 0>>$ >> in
           match e.pexp_desc with
           | Pexp_ident { txt = Lident id } ->
               let id =
