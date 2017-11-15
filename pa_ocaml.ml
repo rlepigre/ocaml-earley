@@ -1125,8 +1125,10 @@ let _ = set_grammar let_binding (
   )
 
 let parser match_case alm lvl =
-  | pat:pattern  w:{_:when_kw expression }? arrow_re e:(expression_lvl (alm, lvl)) ->
-    make_case pat e w
+  | pat:pattern  w:{_:when_kw expression }? arrow_re
+                 e:{ (expression_lvl (alm, lvl))
+                   | "." -> loc_expr _loc (Pexp_unreachable) }
+  -> make_case pat e w
 
 let _ = set_grammar match_cases (
   parser
