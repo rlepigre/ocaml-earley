@@ -539,8 +539,11 @@ let parser type_constr_decl with_bar =
      Type.constructor ~attrs:(attach_attrib _loc a) ~loc:_loc ~args ?res name
 
 let parser type_constr_extn with_bar =
-  (name,args,res,a):(constr_decl with_bar) ->
+  | (name,args,res,a):(constr_decl with_bar) ->
      Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc ~args ?res name
+  | li:lident '=' cn:constr a:post_item_attributes ->
+     Te.rebind ~attrs:(attach_attrib _loc a) ~loc:_loc (id_loc li _loc_li)
+                                                       (id_loc cn _loc_cn)
 
 let _ = set_grammar constr_decl_list (
   parser
