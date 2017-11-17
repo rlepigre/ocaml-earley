@@ -1372,17 +1372,53 @@ module Make(Initial:Extension) =
     let _ =
       type_constr_extn__set__grammar
         (fun with_bar ->
-           Earley.apply_position
-             (fun ((name, args, res, a) as _default_0) ->
-                fun __loc__start__buf ->
-                  fun __loc__start__pos ->
-                    fun __loc__end__buf ->
-                      fun __loc__end__pos ->
-                        let _loc =
-                          locate __loc__start__buf __loc__start__pos
-                            __loc__end__buf __loc__end__pos in
-                        Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc ~args
-                          ?res name) (constr_decl with_bar))
+           Earley.alternatives
+             [Earley.fsequence_position
+                (Earley.apply_position
+                   (fun x ->
+                      fun str ->
+                        fun pos ->
+                          fun str' ->
+                            fun pos' -> ((locate str pos str' pos'), x))
+                   lident)
+                (Earley.fsequence (Earley.char '=' '=')
+                   (Earley.sequence
+                      (Earley.apply_position
+                         (fun x ->
+                            fun str ->
+                              fun pos ->
+                                fun str' ->
+                                  fun pos' -> ((locate str pos str' pos'), x))
+                         constr) post_item_attributes
+                      (fun cn ->
+                         let (_loc_cn, cn) = cn in
+                         fun a ->
+                           fun _ ->
+                             fun li ->
+                               let (_loc_li, li) = li in
+                               fun __loc__start__buf ->
+                                 fun __loc__start__pos ->
+                                   fun __loc__end__buf ->
+                                     fun __loc__end__pos ->
+                                       let _loc =
+                                         locate __loc__start__buf
+                                           __loc__start__pos __loc__end__buf
+                                           __loc__end__pos in
+                                       Te.rebind
+                                         ~attrs:(attach_attrib _loc a)
+                                         ~loc:_loc (id_loc li _loc_li)
+                                         (id_loc cn _loc_cn))));
+             Earley.apply_position
+               (fun ((name, args, res, a) as _default_0) ->
+                  fun __loc__start__buf ->
+                    fun __loc__start__pos ->
+                      fun __loc__end__buf ->
+                        fun __loc__end__pos ->
+                          let _loc =
+                            locate __loc__start__buf __loc__start__pos
+                              __loc__end__buf __loc__end__pos in
+                          Te.decl ~attrs:(attach_attrib _loc a) ~loc:_loc
+                            ~args ?res name) (constr_decl with_bar)])
     let _ =
       set_grammar constr_decl_list
         (Earley.alternatives
