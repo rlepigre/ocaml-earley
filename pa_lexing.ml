@@ -471,20 +471,17 @@ let quoted_string : (string * string option) Earley.grammar =
   Earley.black_box f (Charset.singleton '{') false "quoted_string"
 
 let normal_string : string Earley.grammar =
-  let char_reg = "[^\\\"\\\\]" in
   let single_char = parser
-    | c:RE(char_reg)        -> c.[0]
+    | c:ANY                 -> if c = '"' || c = '\\' then Earley.give_up (); c
     | '\\' - e:escaped_char -> e
-    | c:'\n'                -> c
   in
   parser
     '"' cs:single_char* css:{_:"\\\n" _:RE("[ \t]*")$ single_char*}* '"' ->
       cs_to_string (List.flatten (cs :: css))
 
 let string_litteral : (string * string option) Earley.grammar =
-  Earley.no_blank_layout (parser
-                           | s:normal_string -> (s, None)
-                           | quoted_string)
+  let string_litteral = parser s:normal_string -> (s, None) | quoted_string in
+  Earley.no_blank_layout string_litteral
 
 (* Regexp litteral. *)
 let regexp =
