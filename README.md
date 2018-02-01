@@ -1,11 +1,13 @@
-This software depends on:
+# Dependencies
+
  * OCaml (at least 4.02.0)
  * OCamlbuild
  * Findlib
  * Earley (https://github.com/rlepigre/ocaml-earley)
  * GNU Make
 
-Installation procedure:
+# Installation procedure
+
 ```bash
 git clone https://github.com/rlepigre/ocaml-earley-ocaml.git
 cd ocaml-earley-ocaml
