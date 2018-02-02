@@ -42,7 +42,9 @@ ocamlfind ocamlopt -pp pa_ocaml -package earley -linkpkg -o my_project my_projec
 
 ## Parser expression
 
-A parser expression can be constructed using:
+A parser expression, corresponding to a value of type `'a Earley.grammar`
+(where `'a` is the type of object the parser produces), can be constructed
+using:
 ```ocaml
 parser
 | RULE1
