@@ -15,4 +15,4 @@ sudo make install
 ```
 
 **Note:** the Earley library is intended to be used with the Earley-OCaml
-preprocessor (https://github.com/rlepigre/ocaml-earley-ocaml)
+preprocessor (https://github.com/rlepigre/ocaml-earley-ocaml).
