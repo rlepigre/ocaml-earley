@@ -1,6 +1,6 @@
 # Dependencies
 
- * OCaml (at least 4.02.0)
+ * OCaml (at least 4.03.0)
  * OCamlbuild
  * Findlib
  * Earley (https://github.com/rlepigre/ocaml-earley)
