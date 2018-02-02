@@ -112,7 +112,7 @@ x1:ATOM1 x2:ATOM2 ... xN:ATOMN -> ACTION
 ```
 Here, the parsed input corresponding to `ATOM1` is put in variable `x1`,
 which is bound in `ACTION`, and similarly for other atoms. If no labels
-is given in font of an atom, then the parsed input is not recorded.
+is given in front of an atom, then the parsed input is not recorded.
 
 If no action is given, the value of the atoms are gathered in a tuple. As
 a consequence, the following three rules are equivalent.
