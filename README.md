@@ -162,7 +162,7 @@ RE("[ab]+") (* Same as above, but needs escaping as with usual Str regexp. *)
 
 More complex atoms can be built from OCaml expressions or other atoms:
 ```ocaml
-expr        (* Any OCaml expression corresponding to a parser. *)
+(expr)      (* Any OCaml expression corresponding to a parser. *)
 ATOM?       (* Optionally accept an ATOM, returns option type. *)
 ATOM?[v]    (* Optionally accept an ATOM, returns v as default value. *)
 ATOM*       (* Accepts a list of ATOM, returns a list. *)
