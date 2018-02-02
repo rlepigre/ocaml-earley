@@ -51,13 +51,14 @@ parser
 ```
 
 **Note:** the syntax is similar to `match ... with ...`. The first `|` can be
-omitted, and parentheses are often required around parser expressions.
+omitted, and parentheses are often required around parser expressions. In
+particular, `parser` is a keyword.
 
 ## Parser declaration at the top level
 
 Declaration of a simple parser:
 ```ocaml
-let parser p1 =
+let parser p1 = (* Here, "parser" is a keyword, like "rec" in "let rec". *)
   | RULE11
   | RULE12
   | ...
