@@ -1,13 +1,10 @@
-TESTS = --quick
-
 VERSION    := 1.0.0
-OCAMLBUILD := ocamlbuild -use-ocamlfind
-IMPLFILES  := $(wildcard *.ml)
-INTFFILES  := $(wildcard *.mli)
+OCAMLBUILD := ocamlbuild -use-ocamlfind -quiet
 
-all: earley.cma earley.cmxa earleyStr.cma earleyStr.cmxa
+all: depchecks library
 
-# Try to find ocamlfind and ocamlbuild.
+#### Checking for dependencies ###############################################
+
 OCAMLF := $(shell which ocamlfind  2> /dev/null)
 OCAMLB := $(shell which ocamlbuild 2> /dev/null)
 
@@ -20,17 +17,48 @@ ifndef OCAMLF
 	$(error "The ocamlfind program is required...")
 endif
 
-earley.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $@
+#### Library targets #########################################################
 
-earley.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $@
+IMPLFILES  := $(wildcard *.ml)
+INTFFILES  := $(wildcard *.mli)
 
-earleyStr.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $@
+.PHONY: library
+library: _build/earley.cma _build/earley.cmxa \
+	       _build/earleyStr.cma _build/earleyStr.cmxa META
 
-earleyStr.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
-	$(OCAMLBUILD) $@
+_build/earley.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
+	@echo "[BYT] $(notdir $@)"
+	@$(OCAMLBUILD) earley.cma
+
+_build/earley.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earley.mllib
+	@echo "[OPT] $(notdir $@)"
+	@$(OCAMLBUILD) earley.cmxa
+
+_build/earleyStr.cma: $(IMPLFILES) $(INTFFILES) GNUmakefile earleyStr.mllib
+	@echo "[BYT] $(notdir $@)"
+	@$(OCAMLBUILD) earleyStr.cma
+
+_build/earleyStr.cmxa: $(IMPLFILES) $(INTFFILES) GNUmakefile earleyStr.mllib
+	@echo "[OPT] $(notdir $@)"
+	@$(OCAMLBUILD) earleyStr.cmxa
+
+META: GNUmakefile
+	@echo "[GEN] $@"
+	@echo 'name="earley"'                                   > $@
+	@echo 'version="$(VERSION)"'                           >> $@
+	@echo 'description="Earley parser combinator library"' >> $@
+	@echo 'archive(byte)="earley.cma"'                     >> $@
+	@echo 'archive(native)="earley.cmxa"'                  >> $@
+	@echo                                                  >> $@
+	@echo 'package "str" ('                                >> $@
+	@echo '  version="$(VERSION)"'                         >> $@
+	@echo '  requires="earley,str"'                        >> $@
+	@echo '  description="Str support for Earley"'         >> $@
+	@echo '  archive(byte)="earleyStr.cma"'                >> $@
+	@echo '  archive(native)="earleyStr.cmxa"'             >> $@
+	@echo ')'                                              >> $@
+
+#### Documentation ###########################################################
 
 .PHONY: doc
 doc: earley.docdir/index.html
@@ -38,8 +66,41 @@ doc: earley.docdir/index.html
 earley.docdir/index.html: $(IMPLFILES) $(INTFFILES)
 	$(OCAMLBUILD) $@
 
+#### Cleaning targets ########################################################
+
+clean:
+	@$(OCAMLBUILD) -clean
+
+distclean: clean
+	@rm -f META
+	@find . -name "*~" -type f -exec rm {} \;
+	@find . -name "#*" -type f -exec rm {} \;
+	@find . -name ".#*" -type f -exec rm {} \;
+
+#### Installation and release ################################################
+
 uninstall:
-	@ocamlfind remove earley
+	@(ocamlfind query earley -qo -qe && ocamlfind remove earley) || true
+
+EXPORTED := charset input regexp earley earleyStr
+MLIS := $(addsuffix .mli,$(addprefix _build/,$(EXPORTED)))
+CMIS := $(MLIS:.mli=.cmi)
+CMXS := $(addprefix _build/,$(IMPLFILES:.ml=.cmx))
+LIB  := _build/earley.cma _build/earley.cmxa _build/earley.a \
+	      _build/earleyStr.cma _build/earleyStr.cmxa _build/earleyStr.a
+
+install: all uninstall
+	@ocamlfind install earley $(MLIS) $(CMIS) $(CMXS) $(LIB) META
+
+.PHONY: release
+release: distclean
+	git push origin
+	git tag -a ocaml-earley_$(VERSION)
+	git push origin ocaml-bindlib_$(VERSION)
+
+#### Tests ###################################################################
+
+TESTS = --quick
 
 .PHONY: tests
 tests: earley.cmxa earleyStr.cmxa\
@@ -80,29 +141,3 @@ nopatests:
 
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
-
-IMPL := $(addprefix _build/,$(IMPLFILES))
-INTF := $(addprefix _build/,$(INTFFILES))
-CMX  := $(IMPL:.ml=.cmx)
-CMO  := $(IMPL:.ml=.cmo)
-CMI  := $(IMPL:.ml=.cmi)
-OBJ  := $(IMPL:.ml=.o)
-LIB  := _build/earley.cma _build/earley.cmxa _build/earley.a \
-	      _build/earleyStr.cma _build/earleyStr.cmxa _build/earleyStr.a
-
-install: all uninstall META
-	@ocamlfind install earley $(INTF) $(CMX) $(CMO) $(CMI) $(OBJ) $(LIB) META
-
-clean:
-	$(OCAMLBUILD) -clean
-
-distclean: clean
-	- find . -name "*~" -type f -exec rm {} \;
-	- find . -name "#*" -type f -exec rm {} \;
-	- find . -name ".#*" -type f -exec rm {} \;
-
-.PHONY: release
-release: distclean
-	git push origin
-	git tag -a ocaml-earley_$(VERSION)
-	git push origin ocaml-bindlib_$(VERSION)

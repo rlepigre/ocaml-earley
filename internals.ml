@@ -40,7 +40,7 @@
   ======================================================================
 *)
 
-open EarleyUtils
+open Utils
 open Input
 open Container
 

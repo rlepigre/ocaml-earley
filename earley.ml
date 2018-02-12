@@ -40,17 +40,17 @@
   ======================================================================
 *)
 
-open EarleyUtils
+open Utils
 open Input
-open EarleyEngine
+open Internals
 
-(** a few values imported from EarleyEngine *)
+(** a few values imported from Internals *)
 
-type blank = EarleyEngine.blank
-type 'a grammar = 'a EarleyEngine.grammar
-exception Parse_error = EarleyEngine.Parse_error
-let warn_merge = EarleyEngine.warn_merge
-let debug_lvl = EarleyEngine.debug_lvl
+type blank = Internals.blank
+type 'a grammar = 'a Internals.grammar
+exception Parse_error = Internals.Parse_error
+let warn_merge = Internals.warn_merge
+let debug_lvl = Internals.debug_lvl
 
 (** The user visible function to reject a parsing rule from its action *)
 let give_up () = raise Error
