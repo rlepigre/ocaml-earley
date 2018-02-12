@@ -17,14 +17,9 @@ struct
     STR("in") e:(expression) STR("with") c:(match_cases) ->
 
     (* missing quotation in pattern yet *)
-#ifversion >= 4.02
        let c = List.map
            Parsetree.(fun ({ pc_rhs = e; _ } as b) ->
               { b with pc_rhs = <:expr< fun () -> $e$ >> }) c
-#else
-       let c = List.map
-          (fun (pat, e) -> (pat, <:expr< fun () -> $e$ >>)) c
-#endif
        in
         <:expr<(try let $bindings:b$ in fun () -> $e$ with $cases:c$) ()>>
 

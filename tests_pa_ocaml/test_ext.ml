@@ -12,14 +12,14 @@ let toto = true
 let toto = false
 #endif
 
-#ifversion >= 4.01
-let at_least_4_01 = true
+#ifversion >= 4.03
+let at_least_4_03 = true
 #else
-let at_least_4_01 = false
+let at_least_4_03 = false
 #endif
 
-#ifversion >= 4.02
-let at_least_4_02 = true
+#ifversion >= 4.04
+let at_least_4_04 = true
 #else
-let at_least_4_02 = false
+let at_least_4_04 = false
 #endif
