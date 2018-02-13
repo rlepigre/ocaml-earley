@@ -23,8 +23,7 @@ before_install:
   - opam init
   - opam switch ${OCAML_VERSION}
   - eval `opam config env`
-  - opam pin add --no-action earley .
-  - opam install --deps-only earley
+  - opam install ocamlbuild ocamlfind
   - make
 install:
   - make install

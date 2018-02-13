@@ -8,7 +8,7 @@ homepage    : "https://rlepigre.github.io/ocaml-earley/"
 license     : "CeCILL-B_V1"
 dev-repo    : "https://github.com/rlepigre/ocaml-earley.git"
 build       : [make]
-build-test  : [make "nopatests" "TESTS=--full"]
+build-test  : [make "tests" "TESTS=--full"]
 install     : [make "install"]
 remove      : [make "uninstall"]
 depends     : [ "ocamlbuild" {build}
