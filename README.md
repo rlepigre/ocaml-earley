@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/rlepigre/ocaml-earley.svg?branch=master)](https://travis-ci.org/rlepigre/ocaml-earley)
+
 # Dependencies
 
  * OCaml (at least 4.03.0)
