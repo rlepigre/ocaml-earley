@@ -200,6 +200,14 @@ tests:
 	     fi
 	$(Q)echo -e "\e[93m"NO REGRESSION"\e[0m"
 
+META: GNUmakefile
+	@echo "[GEN] $@"
+	@echo 'name="earley_ocaml"'                                > $@
+	@echo 'version="$(VERSION)"'                              >> $@
+	@echo 'requires="compiler-libs.common,earley,earley.str"' >> $@
+	@echo 'archive(native)="earley_ocaml.cmxa"'               >> $@
+	@echo 'archive(byte)="earley_ocaml.cma"'                  >> $@
+
 .PHONY: clean
 clean:
 	$(Q)echo -e "\e[93m"CLEAN"\e[0m"
@@ -214,6 +222,7 @@ clean:
 distclean: clean
 	$(Q)echo -e "\e[93m"DISTCLEAN"\e[0m"
 	$(Q)rm -f pa_ocaml .fixpoint $(ASTML) $(HLPML)
+	$(Q)rm -f META
 	$(Q)rm -rf tmp
 	$(Q)find . -name "*~" -type f -exec rm {} \;
 	$(Q)find . -name "#*" -type f -exec rm {} \;
@@ -222,7 +231,7 @@ distclean: clean
 	$(Q)rm -f doc/doc.pdf
 
 .PHONY: install
-install: uninstall $(INSTALLED)
+install: uninstall $(INSTALLED) META
 	install -m 755 -d $(BINDIR)
 	$(OCAMLFIND) install earley_ocaml META $(INSTALLED)
 	install -m 755 pa_ocaml $(BINDIR)
