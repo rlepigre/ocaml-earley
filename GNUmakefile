@@ -1,4 +1,4 @@
-VERSION    := 1.0.0
+VERSION    := 1.0.1
 OCAMLBUILD := ocamlbuild -use-ocamlfind -quiet
 
 all: depchecks library
