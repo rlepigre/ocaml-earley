@@ -28,7 +28,7 @@ before_install:
 install:
   - make install
 script:
-  - make tests
+  - make full_tests
 os:
   - linux
 notifications:

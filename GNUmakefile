@@ -100,36 +100,10 @@ release: distclean
 
 #### Tests ###################################################################
 
-TESTS = --quick
-
 .PHONY: tests
-tests: all $(wildcard tests/*.ml) $(wildcard tests/calcyacc/*.ml*)
-	$(OCAMLBUILD) tests/test.native
-	$(OCAMLBUILD) -pkgs unix,str tests/blank_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left2_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left3_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left5_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left6_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left7_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left8_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left9_ml.native
-	$(OCAMLBUILD) -pkgs unix,str tests/gamma3_ml.native
-	#$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_error_ml.native
-	$(OCAMLBUILD) -pkgs unix     tests/calcyacc/calc.native
-	./test.native $(TESTS) > /dev/null
-	./blank_ml.native $(TESTS) > /dev/null
-	./calc_prio_left_ml.native $(TESTS) > /dev/null
-	./calc_prio_left2_ml.native --quick > /dev/null #too slow!
-	./calc_prio_left3_ml.native $(TESTS) > /dev/null
-	./calc_prio_left5_ml.native $(TESTS) > /dev/null
-	./calc_prio_left6_ml.native $(TESTS) > /dev/null
-	./calc_prio_left7_ml.native $(TESTS) > /dev/null
-	./calc_prio_left8_ml.native $(TESTS) > /dev/null
-	./calc_prio_left9_ml.native $(TESTS) > /dev/null
-	./gamma3_ml.native 30 > /dev/null
-	#./calc_prio_left_error_ml.native $(TESTS) > /dev/null
+tests: all
+	@./tests.sh --quick
 
-# Can only be run if pa_ocaml is installed.
-tests/%_ml.ml: tests/%.ml
-	pa_ocaml --ascii $< > $@
+.PHONY: full_tests
+full_tests: all
+	@./tests.sh --full
