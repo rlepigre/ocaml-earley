@@ -103,12 +103,7 @@ release: distclean
 TESTS = --quick
 
 .PHONY: tests
-tests: earley.cmxa earleyStr.cmxa\
-       tests/calc_prio_left_ml.ml tests/calc_prio_left2_ml.ml\
-       tests/calc_prio_left3_ml.ml tests/calc_prio_left5_ml.ml\
-       tests/calc_prio_left6_ml.ml tests/calc_prio_left7_ml.ml\
-       tests/calc_prio_left8_ml.ml tests/calc_prio_left9_ml.ml\
-       tests/blank_ml.ml tests/gamma3_ml.ml
+tests: all $(wildcard tests/*.ml) $(wildcard tests/calcyacc/*.ml*)
 	$(OCAMLBUILD) tests/test.native
 	$(OCAMLBUILD) -pkgs unix,str tests/blank_ml.native
 	$(OCAMLBUILD) -pkgs unix,str tests/calc_prio_left_ml.native
@@ -135,9 +130,6 @@ tests: earley.cmxa earleyStr.cmxa\
 	./gamma3_ml.native 30 > /dev/null
 	#./calc_prio_left_error_ml.native $(TESTS) > /dev/null
 
-nopatests:
-	touch tests/*_ml.ml # avoid rebuild on machine
-	make tests          # without pa_ocaml
-
+# Can only be run if pa_ocaml is installed.
 tests/%_ml.ml: tests/%.ml
 	pa_ocaml --ascii $< > $@
