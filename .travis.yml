@@ -29,7 +29,7 @@ before_install:
 install:
   - make install
 script:
-  - make nopatests
+  - make tests
 os:
   - linux
   - osx
