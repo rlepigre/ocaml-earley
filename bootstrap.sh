@@ -11,6 +11,16 @@ VERSIONS="4.07.0+trunk 4.06.0 4.05.0 4.04.2 4.04.1 4.04.0 4.03.0"
 function build {
     opam switch $1
     eval `opam config env`
+    opam install -y ocamlfind ocamlbuild
+    # Check if earley is installed.
+    ocamlfind query -qo -qe earley
+    if [ $? -ne 0 ]; then
+      cd ../earley
+      make distclean
+      make install
+      make distclean
+      cd -
+    fi
     make boot || exit 1
     make distclean
 }

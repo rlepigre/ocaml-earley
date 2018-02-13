@@ -442,15 +442,14 @@ let quoted_string : (string * string option) Earley.grammar =
     let r = ((cs_to_string cs), (Some (cs_to_string id))) in (r, buf, pos) in
   Earley.black_box f (Charset.singleton '{') false "quoted_string"
 let normal_string : string Earley.grammar =
-  let char_reg = "[^\\\"\\\\]" in
   let single_char =
     Earley.alternatives
-      [Earley.char '\n' '\n';
-      Earley.apply (fun c -> c.[0])
-        (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0));
-      Earley.fsequence (Earley.char '\\' '\\')
-        (Earley.sequence (Earley.no_blank_test ()) escaped_char
-           (fun _ -> fun e -> fun _ -> e))] in
+      [Earley.fsequence (Earley.char '\\' '\\')
+         (Earley.sequence (Earley.no_blank_test ()) escaped_char
+            (fun _ -> fun e -> fun _ -> e));
+      Earley.apply
+        (fun c -> if (c = '"') || (c = '\\') then Earley.give_up (); c)
+        Earley.any] in
   Earley.fsequence (Earley.char '"' '"')
     (Earley.fsequence
        (Earley.apply List.rev
@@ -475,9 +474,10 @@ let normal_string : string Earley.grammar =
              fun _ ->
                fun cs -> fun _ -> cs_to_string (List.flatten (cs :: css)))))
 let string_litteral : (string * string option) Earley.grammar =
-  Earley.no_blank_layout
-    (Earley.alternatives
-       [quoted_string; Earley.apply (fun s -> (s, None)) normal_string])
+  let string_litteral =
+    Earley.alternatives
+      [quoted_string; Earley.apply (fun s -> (s, None)) normal_string] in
+  Earley.no_blank_layout string_litteral
 let regexp =
   let regexp_char =
     Earley.alternatives

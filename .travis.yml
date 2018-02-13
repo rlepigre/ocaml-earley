@@ -35,7 +35,7 @@ before_install:
 install:
   - make install
 script:
-  - echo "TESTS DISABLED FOR NOW..."
+  - make tests
 os:
   - linux
 notifications:
