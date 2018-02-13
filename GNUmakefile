@@ -1,4 +1,4 @@
-VERSION    = 1.0.0
+VERSION    = 1.0.1
 OCAMLFIND  = ocamlfind
 J          = 1
 OCAMLBUILD = ocamlbuild -j $(J)
