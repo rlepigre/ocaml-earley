@@ -32,7 +32,6 @@ script:
   - make tests
 os:
   - linux
-  - osx
 notifications:
   email:
     - christophe@raffalli.eu
