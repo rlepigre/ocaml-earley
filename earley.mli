@@ -167,17 +167,19 @@ val blank_regexp : string -> blank
     and returns the reached position. *)
 val blank_grammar : unit grammar -> blank -> blank
 
-(** [change_layout ~obb ~oba gr bl] replaces the current  [blank]  func-
-    tion with [bl], while parsing using the grammar [gr].  The  optional
-    parameter [obb] ([true] by default) forces the  application  of  the
-    new blank function, before starting to parse with  [gr].  Note  that
-    the old blank function is always called before the first terminal of
-    [gr]. Similarly, the optional parameter [oba]  ([true]  by  default)
-    forces a call to the old blank function after the end of the parsing
-    of [gr]. Note that the new blank function is always called after the
-    last terminal. *)
+(** [change_layout ~old_blank_before  ~new_blank_after  gr bl]  replaces
+    the current  [blank]  function with [bl],  while  parsing  using the
+    grammar [gr].  The optional  parameter [old_blank_before] ([true] by
+    default)  forces the application of the old blank  function,  before
+    starting to parse with  [gr].  Note  that the new blank  function is
+    always called before the first terminal of [gr]. Similarly, the opt-
+    -ional parameter [new_blank_after] ([true] by default) forces a call
+    to the new blank function after the end of the parsing of [gr]. Note
+    that the old blank function is always called after the last terminal.
+*)
 val change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
                       -> 'a grammar -> blank -> 'a grammar
+
 
 (** [change_layout ~oba gr bl] same as abobe but with no blank.  It
     keeps the first char prediction and is therefore more efficient *)
