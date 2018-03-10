@@ -410,11 +410,15 @@ let regexp : ?name:string -> string -> string array grammar =
     let name = match name with None -> String.escaped str | Some n -> n in
     let (re, grps) = Regexp.regexp_from_string str in
     let fn buf pos =
-      let (buf, pos) = Regexp.read_regexp re buf pos in
+      let (buf, pos) =
+        try Regexp.read_regexp re buf pos
+        with Regexp.Regexp_error(_,_) -> give_up ()
+      in
       (Array.map (!) grps, buf, pos)
     in
-    solo name ~accept_empty:(Regexp.accept_empty re)
-      (Regexp.accepted_first_chars re) fn
+    let accept_empty = Regexp.accept_empty re in
+    let charset = Regexp.accepted_first_chars re in
+    solo name ~accept_empty charset fn
 
 (** Allow to write any terminal, by supplying a function *)
 let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool
