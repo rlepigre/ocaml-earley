@@ -452,7 +452,7 @@ let fsequence_position : 'a grammar
                          -> ('a -> buffer -> int -> buffer -> int -> 'b) grammar
                          -> 'b grammar
   = fun l1 l2 ->
-    apply_position idt (fsequence l1 l2)
+    mkgrammar [next l1 (next l2 (emp(WithPos(fun b p b' p' f a -> f a b p b' p'))))]
 
 let dependent_sequence
     : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
