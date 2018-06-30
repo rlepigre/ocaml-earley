@@ -635,12 +635,8 @@ let rec pred_prod_lec
             try let res = Ref.find tmemo memo in
                 res (** Check if this was done *)
             with Not_found ->
-	    if !debug_lvl > 0 then
-              log "Prediction: %d rule\n%!" (List.length rules);
-	    let rules = List.filter (good c) rules in
-	    if !debug_lvl > 0 then
-              log "Prediction: %d filtered rule\n%!" (List.length rules);
-              Ref.add tmemo memo rules;
+	      let rules = List.filter (good c) rules in
+	      Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
                   let start = cur_pos in
