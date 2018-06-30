@@ -108,15 +108,6 @@ let apply_pos_start =
     (** parse something *)
     else apply_pos f buf_ab col_ab buf col
 
-(** For optimisation of right recursion, we need to fix the position
-    of the beginning for an action *)
-let fix_begin : type a.a pos -> pos2 -> a pos =
-  fun f p ->
-    match f with
-    | WithPos f -> let f = f p.buf_ab p.col_ab in
-                   WithPos (fun _ _ p1 p2 -> f p1 p2)
-    | x -> x
-
 (** Type of the information computed on a rule: the boolean tells if
     the grammar can parse an empty string and the charset, the first
     accepted characteres when the rule is used to parse something. *)
@@ -252,10 +243,9 @@ module rec Types : sig
       position". An important point: new stack elements are
       constructed when the stack position is the current position.
 
-      Moreover, if we omit the "right recursion optimisation", when we
-      add a point from an element (start, end, rest, full) to a stack
-      (which is therefore at position [start], we have [start = end]
-      and [rest = full]. The rule has not parsed anything! This is the
+      Moreover, when we add a point from an element (start, end, rest, full)
+      to a stack (which is therefore at position [start], we have [start =
+      end] and [rest = full]. The rule has not parsed anything! This is the
       "prediction" phase of earley.
 
       To do this construction, we use the record below with a hook
@@ -642,9 +632,14 @@ let rec pred_prod_lec
             log "Prediction: %a\n%!" print_final elt0;
           (** Create one final elements for each rule and calls fn if not new *)
           let rules =
-            try Ref.find tmemo memo (** Check if this was done *)
+            try let res = Ref.find tmemo memo in
+                res (** Check if this was done *)
             with Not_found ->
-              let rules = List.filter (good c) rules in
+	    if !debug_lvl > 0 then
+              log "Prediction: %d rule\n%!" (List.length rules);
+	    let rules = List.filter (good c) rules in
+	    if !debug_lvl > 0 then
+              log "Prediction: %d filtered rule\n%!" (List.length rules);
               Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
@@ -656,7 +651,7 @@ let rec pred_prod_lec
                 ) rules;
               rules
           in
-          (** Computes the elements to add in the stack of all created rules *)
+               (** Computes the elements to add in the stack of all created rules *)
           let c = C {rest=rest2; acts=combine1 acts; full; start; stack} in
           List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
@@ -774,7 +769,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     (** get a fresh parse_id *)
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
-    let elements : a cur = Hashtbl.create 16 in
+    let elements : a cur = Hashtbl.create 8 in
     let forward = ref OrdTbl.empty in
     let sct = StackContainer.create_table () in
     let tmemo = Ref.create_table () in
