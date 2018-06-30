@@ -196,7 +196,7 @@ module rec Types : sig
          The type ['a final] represent an element of the earley table
          where [end] is the current position in the string being parsed.
     *)
-   and _ final = D :
+   type _ final = D :
       { start : pos2           (** position in buffer, before and after blank *)
       ; stack : ('c, 'r) stack (** tree of stack representing what should be
                                 done after reading the [rest] of the rule *)
