@@ -349,7 +349,7 @@ module Ext(In:Extension) = struct
      -> (oe <> None, <:expr<Earley.string $e$ $from_opt oe e$>>)
     | "ERROR" e:expr_arg
      -> (true, <:expr<Earley.error_message (fun () -> $e$)>>)
-    | s:string_litteral oe:glr_opt_expr
+    | (s,_):string_litteral oe:glr_opt_expr
      -> if String.length s = 0 then Earley.give_up ();
         let s = <:expr<$string:s$>> in
         let e = from_opt oe s in

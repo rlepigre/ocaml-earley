@@ -59,7 +59,7 @@ include Pa_ocaml_prelude
 
 #define LOCATE locate
 
-module Make = functor (Initial:Extension) -> struct
+module Make(Initial : Extension) = struct
 
 include Initial
 
@@ -110,12 +110,6 @@ let wrap_type_annotation loc types core_type body =
     List.fold_right (fun ty exp -> Exp.newtype ~loc ty exp) types exp
   in
   (exp, Typ.poly ~loc:(ghost loc) types (Typ.varify_constructors types core_type))
-
-(* Floating-point litterals *)
-let float_litteral = Earley.apply fst Pa_lexing.float_litteral
-let _ = set_grammar char_litteral Pa_lexing.char_litteral
-let _ = set_grammar string_litteral (Earley.apply fst Pa_lexing.string_litteral)
-let _ = set_grammar regexp_litteral Pa_lexing.regexp_litteral
 
 type tree = Node of tree * tree | Leaf of string
 
@@ -686,9 +680,6 @@ let _ = set_grammar class_body_type (
       let sign =
         { pcsig_self = self
         ; pcsig_fields = cfs
-#ifversion <= 4.01
-        ; pcsig_loc = merge2 _loc_te _loc_cfs
-#endif
         }
       in
       pcty_loc _loc (Pcty_signature sign)
@@ -703,11 +694,7 @@ let parser class_type =
       let app acc (lab, te) =
         match lab with
         | None   -> pcty_loc _loc (Pcty_arrow (nolabel, te, acc))
-#ifversion >= 4.03
         | Some l -> pcty_loc _loc (Pcty_arrow (l, (match l with Optional _ -> te | _ -> te), acc))
-#else
-        | Some l -> pcty_loc _loc (Pcty_arrow (l, (if l.[0] = '?' then mkoption _loc_tes te else te), acc))
-#endif
       in
       List.fold_left app cbt (List.rev tes)
 
@@ -736,41 +723,21 @@ let parser classtype_definition =
 (****************************************************************************
  * Constants and Patterns                                                   *
  ****************************************************************************)
-let parser integer_litteral = (s,co):int_litteral ->
-#ifversion >= 4.03
-  Pconst_integer(s,co)
-#else
-  match co with
-  | None     -> const_int (int_of_string s)
-  | Some 'l' -> const_int32 (Int32.of_string s)
-  | Some 'L' -> const_int64 (Int64.of_string s)
-  | Some 'n' -> const_nativeint (Nativeint.of_string s)
-  | Some _   -> Earley.give_up ()
-#endif
 
 (* Constants *)
 let parser constant =
-    f:float_litteral   -> const_float f
-  | c:char_litteral    -> const_char c
-  | s:string_litteral  -> const_string s
+  | (f,suffix):float_litteral -> Const.float ?suffix f
+  | c:char_litteral           -> Const.char c
+  | (s,delim):string_litteral -> Const.string ?quotation_delimiter:delim s
   | s:regexp_litteral  -> const_string s
   | s:new_regexp_litteral -> const_string s
-  | i:integer_litteral -> i
+  | (i,suffix):int_litteral -> Const.integer ?suffix i
 
 (* we do like parser.mly from ocaml: neg_constant for pattern only *)
 let parser neg_constant =
-    {'-' | "-."} f:float_litteral -> const_float ("-"^f)
-  | '-' i:integer_litteral ->
-     match i with
-#ifversion < 4.03
-     | Const_int i   -> const_int (-i)
-     | Const_int32 i -> const_int32 (Int32.neg i)
-     | Const_int64 i -> const_int64 (Int64.neg i)
-     | Const_nativeint i -> const_nativeint (Nativeint.neg i)
-#else
-     | Pconst_integer(s,o) -> Pconst_integer("-"^s,o)
-#endif
-     | _ -> assert false
+  | '-' - '.'? (f,suffix):float_litteral -> Const.float   ?suffix ("-" ^ f)
+  | '-' (i,suffix):int_litteral          -> Const.integer ?suffix ("-" ^ i)
+
 (* Patterns *)
 
 let parser extra_patterns_grammar lvl =
@@ -1487,13 +1454,8 @@ let parser right_expression @lvl =
 
   | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl <= App ->
      loc_expr _loc (match f.pexp_desc, l with
-#ifversion >= 4.03
      | Pexp_construct(c,None), [Nolabel, a] ->  Pexp_construct(c,Some a)
      | Pexp_variant(c,None), [Nolabel, a] -> Pexp_variant(c,Some a)
-#else
-     | Pexp_construct(c,None), ["", a] ->  Pexp_construct(c,Some a)
-     | Pexp_variant(c,None), ["", a] -> Pexp_variant(c,Some a)
-#endif
      | _ -> Pexp_apply(f,l))
 
   | c:constructor no_dot when lvl <= Atom ->
@@ -1755,11 +1717,9 @@ let _ = set_grammar module_type (
 let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
      loc_str _loc (match l with
-#ifversion < 4.03
-       | [{pvb_pat = {ppat_desc = Ppat_any}; pvb_expr = e}] -> pstr_eval e
-#endif
        | _                                           -> Pstr_value (r, l))
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral*  a:post_item_attributes ->
+      let ls = List.map fst ls in
       let l = List.length ls in
       if l < 1 || l > 3 then give_up ();
      loc_str _loc (Pstr_primitive({ pval_name = id_loc n _loc_n; pval_type = ty; pval_prim = ls; pval_loc = _loc;
@@ -1831,6 +1791,7 @@ let parser signature_item_base =
   | val_kw n:value_name ':' ty:typexpr a:post_item_attributes ->
      loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty [])
   | external_kw n:value_name STR":" ty:typexpr STR"=" ls:string_litteral* a:post_item_attributes ->
+      let ls = List.map fst ls in
       let l = List.length ls in
       if l < 1 || l > 3 then give_up ();
       loc_sig _loc (psig_value ~attributes:(attach_attrib _loc a) _loc (id_loc n _loc_n) ty ls)
@@ -1875,12 +1836,6 @@ let _ = set_grammar signature_item (
   | e:(alternatives extra_signature) -> attach_sig _loc @ e
   | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [s]
   )
-
-exception Top_Exit
-
-let parser top_phrase =
-  | CHR(';')? l:{s:structure_item_base -> s}+ (double_semi_col) -> Ptop_def(l)
-  | CHR(';')? EOF -> raise Top_Exit
 
 (*
 let _ =

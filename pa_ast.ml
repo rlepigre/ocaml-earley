@@ -52,11 +52,6 @@ open Longident
 let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc; }
 let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc; }
 
-#ifversion >= 4.03
-let const_string s = Pconst_string(s, None)
-#else
-let const_string s = Const_string(s, None)
-#endif
 let loc_expr ?(attributes=[]) _loc e = { pexp_desc = e; pexp_loc = _loc; pexp_attributes = attributes; }
 let loc_pat ?(attributes=[]) _loc pat = { ppat_desc = pat; ppat_loc = _loc; ppat_attributes = attributes; }
 let loc_pcl ?(attributes=[]) _loc desc = { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes; }
@@ -100,35 +95,21 @@ let merge2 l1 l2 =
   Location.(
     {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
 
-let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 
-#ifversion >= 4.03
+let const_string s = Pconst_string(s, None)
 let const_float s = Pconst_float(s,None)
 let const_char s = Pconst_char(s)
 let const_int s = Pconst_integer(string_of_int s,None)
 let const_int32 s = Pconst_integer(Int32.to_string s, Some 'l')
 let const_int64 s = Pconst_integer(Int64.to_string s, Some 'L')
 let const_nativeint s = Pconst_integer(Nativeint.to_string s, Some 'n')
+let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
 let exp_int _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (string_of_int i,None)))
 let exp_char _loc c = loc_expr _loc (Pexp_constant (Pconst_char c))
 let exp_float _loc f = loc_expr _loc (Pexp_constant (Pconst_float (f,None)))
 let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int32.to_string i,Some 'l')))
 let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int64.to_string i,Some 'L')))
 let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Pconst_integer(Nativeint.to_string i,Some 'n')))
-#else
-let const_float s = Const_float(s)
-let const_char s = Const_char(s)
-let const_int s = Const_int(s)
-let const_int32 s = Const_int32(s)
-let const_int64 s = Const_int64(s)
-let const_nativeint s = Const_nativeint(s)
-let exp_int _loc i = loc_expr _loc (Pexp_constant (Const_int i))
-let exp_char _loc c = loc_expr _loc (Pexp_constant (Const_char c))
-let exp_float _loc f = loc_expr _loc (Pexp_constant (Const_float f))
-let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Const_int32 i))
-let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Const_int64 i))
-let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Const_nativeint i))
-#endif
 
 let exp_const _loc c es =
   let c = id_loc c _loc in
@@ -207,15 +188,9 @@ let typ_tuple _loc l =
   | [t] -> t
   | _ -> loc_typ _loc (Ptyp_tuple l)
 
-#ifversion >= 4.03
 let nolabel = Nolabel
 let labelled s = Labelled s
 let optional s = Optional s
-#else
-let nolabel = ""
-let labelled s = s
-let optional s = "?"^s
-#endif
 
 let exp_apply _loc f l =
   loc_expr _loc (Pexp_apply(f, List.map (fun x -> nolabel, x) l))

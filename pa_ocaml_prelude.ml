@@ -119,11 +119,6 @@ module Initial =
     (* Function to be run before parsing. *)
     let before_parse_hook : unit -> unit = fun () -> ()
 
-    (* Declaration of grammars for litterals *)
-    let char_litteral   : char   grammar = declare_grammar "char_litteral"
-    let string_litteral : string grammar = declare_grammar "string_litteral"
-    let regexp_litteral : string grammar = declare_grammar "regexp_litteral"
-
 type expression_prio =
   | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append
   | Cons | Sum | Prod | Pow | Opp | App | Dash | Dot | Prefix | Atom

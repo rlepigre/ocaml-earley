@@ -27,9 +27,6 @@ type quotation =
   | Quote_pstr
   | Quote_loc
   | Quote_cases
-#ifversion <= 4.01
-  | Quote_pfield (* for 4.01.0 *)
-#endif
 
 let dummy_pexp   = (exp_ident Location.none "$Antiquotation$").pexp_desc
 let dummy_ppat   = (pat_ident Location.none "$Antiquotation$").ppat_desc
@@ -41,11 +38,6 @@ let dummy_pcf    = Obj.magic (Some None)
 let dummy_pmty   = Obj.magic (Some None)
 let dummy_pmod   = Obj.magic (Some None)
 let dummy_loc d  = d
-#if version <= 4.01
-let dummy_psig   = Psig_open ( Fresh, id_loc (Lident "$Antiquotation$")  Location.none)
-let dummy_pstr   = Pstr_open ( Fresh, id_loc (Lident "$Antiquotation$")  Location.none)
-let dummy_pfield = Obj.magic (Some None) (* for 4.01.0 *)
-#else
 let dummy_psig   = Psig_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
 			       popen_override = Fresh;
 			       popen_loc = Location.none;
@@ -54,7 +46,6 @@ let dummy_pstr   = Pstr_open { popen_lid = id_loc (Lident "$Antiquotation$")  Lo
 			       popen_override = Fresh;
 			       popen_loc = Location.none;
 			       popen_attributes = [] }
-#endif
 
 let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
 let string_anti_table = (Hashtbl.create 101 : (string,expression) Hashtbl.t)
