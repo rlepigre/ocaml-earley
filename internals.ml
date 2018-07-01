@@ -660,15 +660,31 @@ let rec pred_prod_lec
             let is_empty = eq_pos start cur_pos in
             (* make the action lazy, essatial for rules like "a*" which
                 are quadratic otherwise *)
-            let x =
-              if is_empty then (* no thunk if empty, not needed and could break give_up ? *)
-                Lazy.from_val (acts (apply_pos_start a start cur_pos))
-              else
-                Lazy.from_fun (fun () -> acts (apply_pos_start a start cur_pos))
-            in
-            (** create a new element in the table for each element
+            if is_empty then (* no thunk if empty, not needed and could break give_up ? *)
+              let x = acts (apply_pos_start a start cur_pos) in
+              (** create a new element in the table for each element
                 in the stack *)
-            let complete = fun element ->
+              let complete = fun element ->
+                try
+                  match element with
+                  | C {start; stack=els'; acts; rest; full} ->
+                     if good c rest then begin
+                         let acts = acts x in
+                         let elt = D {start; acts; stack=els'; rest; full } in
+                         let b = add "C" cur_pos c elt elements in
+                         if b then fn elt
+                       end
+                  | B _ -> ()
+                with Error -> ()
+              in
+              (** use hook if D starts at current position because element might
+                still be added to the stack *)
+              add_stack_hook sct full complete
+            else
+              let x = Lazy.from_fun (fun () -> acts (apply_pos_start a start cur_pos)) in
+              (** create a new element in the table for each element
+                in the stack *)
+              let complete = fun element ->
                 try
                   match element with
                   | C {start; stack=els'; acts; rest; full} ->
@@ -680,11 +696,8 @@ let rec pred_prod_lec
                        end
                   | B _ -> ()
                 with Error -> ()
-            in
-            (** use hook if D starts at current position because element might
-                still be added to the stack *)
-            if is_empty then add_stack_hook sct full complete
-            else List.iter complete !stack;
+              in
+              List.iter complete !stack;
             with Error -> () end
 
        (** A terminal, we try to read *)
