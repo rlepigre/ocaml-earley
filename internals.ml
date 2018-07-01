@@ -657,7 +657,7 @@ let rec pred_prod_lec
             if !debug_lvl > 0 then
               log "Completion: %a\n%!" print_final elt0;
             (** run the action *)
-            let x = acts (apply_pos_start a start cur_pos) in
+            let x = Lazy.from_fun (fun () -> acts (apply_pos_start a start cur_pos)) in
             (** create a new element in the table for each element
                 in the stack *)
             let complete = fun element ->
@@ -665,7 +665,7 @@ let rec pred_prod_lec
                 match element with
                 | C {start; stack=els'; acts; rest; full} ->
                    if good c rest then begin
-                       let acts = acts x in
+                       let acts = acts (Lazy.force x) in
                        let elt = D {start; acts; stack=els'; rest; full } in
                        let b = add "C" cur_pos c elt elements in
                        if b then fn elt
