@@ -136,6 +136,8 @@ module type MinimalInput =
                      -> 'a -> buffer
   end
 
+(* The following code has been borrowed from OCaml's “pervasives.ml” file of
+   the standard library. This version preserves the newline in the output. *)
 external unsafe_input : in_channel -> bytes -> int -> int -> int =
   "caml_ml_input"
 
