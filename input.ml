@@ -298,20 +298,11 @@ module OrdTbl = struct
            List.rev_append acc ((buf, pos, [x]) :: tbl)
          else fn (c::acc) rest
     in
-    match tbl with
-    | ((buf',pos', y as c) :: rest) ->
-       if pos = pos' && buf.uid = buf'.uid then
-         (buf',pos',x::y)::rest
-       else  if leq_buf buf pos buf' pos' then
-           ((buf, pos, [x]) :: tbl)
-       else
-           fn [c] rest
-    | [] -> [buf,pos,[x]]
+    fn [] tbl
 
   let pop = function
     | [] -> raise Not_found
-    | (buf,pos,l)::rest ->
-       Lazy.from_val buf,pos,l,rest
+    | (buf,pos,l)::rest -> Lazy.from_val buf,pos,l,rest
 
   let is_empty tbl = tbl = []
 
