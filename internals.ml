@@ -69,6 +69,7 @@ type _ pos =
   | Idt : ('a -> 'a) pos
   | Simple : 'a -> 'a pos
   | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
+  | Error : 'a pos
 
 (** Common combinators, easy from their types *)
 let apply_pos: type a.a pos -> buffer -> int -> buffer -> int -> a =
@@ -77,6 +78,7 @@ let apply_pos: type a.a pos -> buffer -> int -> buffer -> int -> a =
     | Idt -> idt
     | Simple f -> f
     | WithPos f -> f buf col buf' col'
+    | Error -> raise Error
 
 (** For terminals: get the start position and returns a value with the final
     position *)

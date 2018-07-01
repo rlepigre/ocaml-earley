@@ -79,6 +79,7 @@ let blank_grammar : unit grammar -> blank -> blank
 (** composition of actions *)
 let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
   match f,g with
+  | Error, _ | _, Error-> Error
   | Idt, _ -> g
   | _, Idt -> f
   | Simple f, Simple g  -> Simple(fun x -> f (g x))
@@ -117,15 +118,17 @@ let mkgrammar s = (grammar_info s, s)
 
 let map_pos:type a b.(a -> b) -> a pos -> b pos = fun f p ->
   match p with
-  | Idt             -> Simple (f (fun x -> x))
-  | Simple a   -> Simple (f a)
+  | Idt             -> (try Simple (f (fun x -> x)) with Error -> Error)
+  | Simple a   -> (try Simple (f a) with Error -> Error)
   | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p'))
+  | Error            -> Error
 
 let map_with_pos:type a b.(a -> buffer -> int -> buffer -> int -> b) -> a pos -> b pos =
   fun f p -> match p with
   | Idt             -> WithPos (fun b p b' p' -> f (fun x -> x) b p b' p')
   | Simple a   -> WithPos (fun b p b' p' -> f a b p b' p')
   | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p') b p b' p' )
+  | Error            -> Error
 
 let rec map_rule : type a b.(a -> b) -> a rule -> b rule = fun f r ->
   match r.rule with
