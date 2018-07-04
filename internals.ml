@@ -205,6 +205,7 @@ module rec Types : sig
       ; acts  : 'b -> 'c       (** action to produce the final 'c. *)
       ; rest  : 'b rule        (** remaining to parse, will produce 'b *)
       ; full  : 'c rule        (** full rule. rest is a suffix of full. *)
+      ; key   : int * int * int
       } -> 'r final
 
    (** Type of the element that appears in stacks. Note: all other
@@ -441,7 +442,16 @@ let print_rule ch rule = print_rule ?rest:None ch rule
     it only hold ['a final] elements whose [end] are the current position,
     the keys are the buffer uid's, column position and uid of the
     [full] and [rest] rules  *)
-type 'a cur = (int * int * int * int, 'a final) Hashtbl.t
+module K =
+  struct
+    type t = int * int * int
+    let equal (a,b,h) (a',b',h') = a = a' && b == b' && h = h'
+    let hash (_,_,h) = h
+  end
+
+module HK = Hashtbl.Make(K)
+
+type 'a cur = 'a final HK.t
 
 (** Type of a table with pending reading, that is elements resulting from
     reading the string with some symbols. We need this table, because two
@@ -537,10 +547,48 @@ let size_tables els forward =
 (** wrap up the size function *)
 let size el = size el (ref [])
 
+(** A fonction to fetch the key of the tail of a rule, needed
+    to get the key of an element representing a complete parsing *)
+let rec tail_key : type a. a rule -> int = fun rule ->
+  match rule.rule with
+  | Next(_,_,rest) -> tail_key rest
+  | Empty _ -> rule.adr
+  | Dep _ -> rule.adr
+
+let rec rule_len : type a. a rule -> int = fun rule ->
+  match rule.rule with
+  | Next(_,_,rest) -> rule_len rest + 1
+  | Empty _ -> 1
+  | Dep _ -> 1
+
+let rec rule_diff : type a b. a rule -> b rule -> int = fun full rest ->
+  if full.adr = rest.adr then 0 else
+  match full.rule with
+  | Next(_,_,r) -> rule_diff r rest + 1
+  | _ -> assert false
+
 (** Get the key of an element *)
-let elt_key : type a. a final -> int * int * int * int =
-  function D { start = {buf;col}; rest; full } ->
-    (buffer_uid buf, col, full.adr, rest.adr)
+let elt_key {buf;col} rest full =
+  let a = full.adr in
+  let b = rest.adr in
+  let c = line_offset buf + col in
+  let h = a lxor b lxor c in
+  (a,b,h)
+
+(** Get the key of the final element when parsing is finished *)
+let final_key {buf;col} full =
+  let a = full.adr in
+  let b = tail_key full in
+  let c = line_offset buf + col in
+  let h = a lxor b lxor c in
+  (a,b,h)
+
+(** Constructor for the final type which includes its hash ley *)
+let final : type b c r. pos2 -> (b -> c) -> (c, r) stack ->
+                 b rule -> c rule -> r final =
+  fun start acts stack rest full ->
+    let key = elt_key start rest full in
+    D {start; acts; stack; rest; full; key }
 
 (** Test is a given char is accepted by the given rule *)
 let good c rule =
@@ -552,10 +600,9 @@ let max_stack = ref 0
 
 (** Adds an element in the current table of elements, return true if new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
-  = fun msg pos_final c (D { rest } as element) elements ->
-    let key = elt_key element in
+  = fun msg pos_final c (D { rest; key } as element) elements ->
     try
-      let e = Hashtbl.find elements key in
+      let e = HK.find elements key in
       (match e, element with
          D {start=s; rest; full; stack; acts},
          D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
@@ -583,7 +630,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
              log "add %-6s: %a (%d/%d,%b,%a)\n%!" msg print_final element
                  size !max_stack ae Charset.print cs;
            end;
-         Hashtbl.add elements key element;
+         HK.add elements key element;
          true
 
 (** Combinators for actions, these are just the combinators we need, contructed
@@ -643,7 +690,7 @@ let rec pred_prod_lec
                 (fun rule ->
                   let start = cur_pos in
                   let stack = find_stack sct rule in
-                  let elt = D{start; acts=idt; stack; rest=rule; full=rule} in
+                  let elt = final start idt stack rule rule in
                   let b = add "P" cur_pos c elt elements in
                   if b then fn elt;
                 ) rules;
@@ -672,7 +719,7 @@ let rec pred_prod_lec
                   | C {start; stack=els'; acts; rest; full} ->
                      if good c rest then begin
                          let acts = acts x in
-                         let elt = D {start; acts; stack=els'; rest; full } in
+                         let elt = final start acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
                        end
@@ -692,7 +739,7 @@ let rec pred_prod_lec
                   | C {start; stack=els'; acts; rest; full} ->
                      if good c rest then begin
                          let acts = acts (Lazy.force x) in
-                         let elt = D {start; acts; stack=els'; rest; full } in
+                         let elt = final start acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
                        end
@@ -726,9 +773,7 @@ let rec pred_prod_lec
                    with Error ->
                      Ref.add tmemo memo None; raise Error
             in
-            let elt =
-              (D {start; stack; acts = cns a acts; rest; full})
-            in
+            let elt = final start (cns a acts) stack rest full in
             (** if we read nothing: add immediately to the table *)
             if buffer_before buf col buf_ab col_ab then
               begin
@@ -760,7 +805,7 @@ let rec pred_prod_lec
               in
               let stack = add_stack sct rule elt in
               let start = cur_pos in
-              let elt = D {start; acts = idt; stack; rest = rule; full = rule } in
+              let elt = final start idt stack rule rule in
               let b = add "P" cur_pos c elt elements in
               if b then fn elt
           with Error -> () end
@@ -768,14 +813,6 @@ let rec pred_prod_lec
   in fn elt0
 
 let count = ref 0
-
-(** A fonction to fetch the key of the tail of a rule, needed
-    to get the key of an element representing a complete parsing *)
-let rec tail_key : type a. a rule -> int = fun rule ->
-  match rule.rule with
-  | Next(_,_,rest) -> tail_key rest
-  | Empty _ -> rule.adr
-  | Dep _ -> assert false (* FIXME *)
 
 (** The main parsing loop *)
 let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
@@ -788,21 +825,20 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     (** get a fresh parse_id *)
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
-    let elements : a cur = Hashtbl.create 8 in
+    let elements : a cur = HK.create 8 in
     let forward = ref OrdTbl.empty in
     let sct = StackContainer.create_table () in
     let tmemo = Ref.create_table () in
     (** contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)
-    let final_key = tail_key main_rule in
-    let main_key = (buffer_uid buf0, col0, main_rule.adr, final_key) in
     let s0 : (a, a) stack = ref [B (Simple idt)] in
     let start = { buf = buf0; col = col0; buf_ab = buf0; col_ab = col0 } in
     let col = ref col0 and buf = ref buf0 in
     let col' = ref col0 and buf' = ref buf0 in
     (** the initial elements *)
-    let init = D {start; acts=idt; stack=s0; rest=main_rule; full=main_rule } in
+    let main_key = final_key start main_rule in
+    let init = final start idt s0 main_rule main_rule in
     (** old the last success for partial_parse *)
     let last_success = ref [] in
     (** the list of elements to be treated at the next step *)
@@ -827,7 +863,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     (** Searching a succes *)
     let search_success () =
       try
-        let success = Hashtbl.find elements main_key in
+        let success = HK.find elements main_key in
         last_success := (!buf,!col,success) :: !last_success
       with Not_found -> ()
     in
@@ -835,7 +871,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     (* Main loop *)
     while !todo <> [] do
       StackContainer.clear sct;
-      Hashtbl.clear elements;
+      HK.clear elements;
       Ref.clear tmemo;
       (** read blanks *)
       let buf'', col'' = blank !buf !col in
