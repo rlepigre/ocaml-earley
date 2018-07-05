@@ -205,7 +205,6 @@ module rec Types : sig
       ; acts  : 'b -> 'c       (** action to produce the final 'c. *)
       ; rest  : 'b rule        (** remaining to parse, will produce 'b *)
       ; full  : 'c rule        (** full rule. rest is a suffix of full. *)
-      ; key   : int * int * int
       } -> 'r final
 
    (** Type of the element that appears in stacks. Note: all other
@@ -491,14 +490,14 @@ let add_stack : type a b. b sct -> a rule -> (a, b) element -> (a, b) stack =
     try
       let { stack; hooks } = StackContainer.find sct r.ptr in
       if not (List.exists (eq_C el) !stack) then (
-        if !debug_lvl > 3 then
+        (*if !debug_lvl > 3 then
           log "    Add stack %a ==> %a\n%!"
-                         print_rule r print_element el;
+                         print_rule r print_element el;*)
         stack := el :: !stack;
         List.iter (fun f -> f el) hooks); stack
     with Not_found ->
-      if !debug_lvl > 3 then
-        log "    New stack %a ==> %a\n%!" print_rule r print_element el;
+      (*if !debug_lvl > 3 then
+        log "    New stack %a ==> %a\n%!" print_rule r print_element el;*)
       let stack = ref [el] in
       StackContainer.add sct r.ptr {stack; hooks=[]};
       stack
@@ -555,20 +554,14 @@ let rec tail_key : type a. a rule -> int = fun rule ->
   | Empty _ -> rule.adr
   | Dep _ -> rule.adr
 
-let rec rule_len : type a. a rule -> int = fun rule ->
-  match rule.rule with
-  | Next(_,_,rest) -> rule_len rest + 1
-  | Empty _ -> 1
-  | Dep _ -> 1
-
-let rec rule_diff : type a b. a rule -> b rule -> int = fun full rest ->
-  if full.adr = rest.adr then 0 else
-  match full.rule with
-  | Next(_,_,r) -> rule_diff r rest + 1
-  | _ -> assert false
+(** Constructor for the final type which includes its hash ley *)
+let final : type b c r. pos2 -> (b -> c) -> (c, r) stack ->
+                 b rule -> c rule -> r final =
+  fun start acts stack rest full ->
+    D {start; acts; stack; rest; full }
 
 (** Get the key of an element *)
-let elt_key {buf;col} rest full =
+let elt_key (D {start={buf;col}; rest; full}) =
   let a = full.adr in
   let b = rest.adr in
   let c = line_offset buf + col in
@@ -583,13 +576,6 @@ let final_key {buf;col} full =
   let h = a lxor b lxor c in
   (a,b,h)
 
-(** Constructor for the final type which includes its hash ley *)
-let final : type b c r. pos2 -> (b -> c) -> (c, r) stack ->
-                 b rule -> c rule -> r final =
-  fun start acts stack rest full ->
-    let key = elt_key start rest full in
-    D {start; acts; stack; rest; full; key }
-
 (** Test is a given char is accepted by the given rule *)
 let good c rule =
   let i = rule_info rule in
@@ -600,7 +586,8 @@ let max_stack = ref 0
 
 (** Adds an element in the current table of elements, return true if new *)
 let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
-  = fun msg pos_final c (D { rest; key } as element) elements ->
+  = fun msg pos_final c (D { rest } as element) elements ->
+    let key = elt_key element in
     try
       let e = HK.find elements key in
       (match e, element with
