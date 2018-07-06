@@ -119,35 +119,40 @@ let mkgrammar s = (grammar_info s, s)
 
 let map_pos:type a b.(a -> b) -> a pos -> b pos = fun f p ->
   match p with
-  | Idt             -> (try Simple (f (fun x -> x)) with Error -> Error)
-  | Simple a   -> (try Simple (f a) with Error -> Error)
+  | Idt       -> (try Simple (f (fun x -> x)) with Error -> Error)
+  | Simple a  -> (try Simple (f a) with Error -> Error)
   | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p'))
-  | Error            -> Error
+  | Error     -> Error
 
-let map_with_pos:type a b.(a -> buffer -> int -> buffer -> int -> b) -> a pos -> b pos =
+let map_with_pos:type a b.(a -> buffer -> int -> buffer -> int -> b)
+                      -> a pos -> b pos =
   fun f p -> match p with
-  | Idt             -> WithPos (fun b p b' p' -> f (fun x -> x) b p b' p')
-  | Simple a   -> WithPos (fun b p b' p' -> f a b p b' p')
+  | Idt       -> WithPos (fun b p b' p' -> f (fun x -> x) b p b' p')
+  | Simple a  -> WithPos (fun b p b' p' -> f a b p b' p')
   | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p') b p b' p' )
-  | Error            -> Error
+  | Error     -> Error
 
 let rec map_rule : type a b.(a -> b) -> a rule -> b rule = fun f r ->
   match r.rule with
-  | Empty p    -> emp (map_pos f p)
+  | Empty p     -> emp (map_pos f p)
   | Next(i,s,r) -> next_aux s (map_rule (fun g a -> f (g a)) r)
-  | Dep(g)      -> next (mkgrammar [r]) (mkrule (Empty (Simple f)))
+  | Dep(g)      -> next (mkgrammar [r]) (ems f)
 
-let rec map_rule_with_pos : type a b.(a -> buffer -> int -> buffer -> int -> b) -> a rule -> b rule = fun f r ->
+let rec map_rule_with_pos : type a b.(a -> buffer -> int -> buffer -> int -> b)
+                                 -> a rule -> b rule = fun f r ->
   match r.rule with
-  | Empty p    -> emp (map_with_pos f p)
-  | Next(i,s,r) -> next_aux s (map_rule_with_pos (fun g b p b' p' a -> f (g a) b p b' p') r)
-  | Dep(g)      -> next (mkgrammar [r]) (mkrule (Empty (WithPos (fun b p b' p' a -> f a b p b' p'))))
+  | Empty p     -> emp (map_with_pos f p)
+  | Next(i,s,r) -> next_aux s (map_rule_with_pos
+                                 (fun g b p b' p' a -> f (g a) b p b' p') r)
+  | Dep(g)      -> next (mkgrammar [r])
+                        (emp (WithPos (fun b p b' p' a -> f a b p b' p')))
 
 let rec map_grammar : type a b.(a -> b) -> a grammar -> b grammar =
   fun f (i,l) -> (i, List.map (map_rule f) l)
 
-let rec map_grammar_with_pos : type a b.(a -> buffer -> int -> buffer -> int -> b) ->
-                                    a grammar -> b grammar =
+let rec map_grammar_with_pos
+        : type a b.(a -> buffer -> int -> buffer -> int -> b) ->
+               a grammar -> b grammar =
   fun f (i,l) -> (i, List.map (map_rule_with_pos f) l)
 
 (** Helper to build a terminal symbol *)
