@@ -119,17 +119,17 @@ let mkgrammar s = (grammar_info s, s)
 
 let map_pos:type a b.(a -> b) -> a pos -> b pos = fun f p ->
   match p with
-  | Idt       -> (try Simple (f (fun x -> x)) with Error -> Error)
+  | Idt       -> (try Simple (f idt) with Error -> Error)
   | Simple a  -> (try Simple (f a) with Error -> Error)
   | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p'))
   | Error     -> Error
 
-let map_with_pos:type a b.(a -> buffer -> int -> buffer -> int -> b)
+let map_with_pos:type a b.(buffer -> int -> buffer -> int -> a -> b)
                       -> a pos -> b pos =
   fun f p -> match p with
-  | Idt       -> WithPos (fun b p b' p' -> f (fun x -> x) b p b' p')
-  | Simple a  -> WithPos (fun b p b' p' -> f a b p b' p')
-  | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p') b p b' p' )
+  | Idt       -> WithPos (fun b p b' p' -> f b p b' p' idt)
+  | Simple a  -> WithPos (fun b p b' p' -> f b p b' p' a)
+  | WithPos a -> WithPos (fun b p b' p' -> f b p b' p' (a b p b' p'))
   | Error     -> Error
 
 let rec map_rule : type a b.(a -> b) -> a rule -> b rule = fun f r ->
@@ -138,20 +138,20 @@ let rec map_rule : type a b.(a -> b) -> a rule -> b rule = fun f r ->
   | Next(i,s,r) -> next_aux s (map_rule (fun g a -> f (g a)) r)
   | Dep(g)      -> next (mkgrammar [r]) (ems f)
 
-let rec map_rule_with_pos : type a b.(a -> buffer -> int -> buffer -> int -> b)
+let rec map_rule_with_pos : type a b.(buffer -> int -> buffer -> int -> a -> b)
                                  -> a rule -> b rule = fun f r ->
   match r.rule with
   | Empty p     -> emp (map_with_pos f p)
   | Next(i,s,r) -> next_aux s (map_rule_with_pos
-                                 (fun g b p b' p' a -> f (g a) b p b' p') r)
+                                 (fun b p b' p' g a -> f b p b' p' (g a)) r)
   | Dep(g)      -> next (mkgrammar [r])
-                        (emp (WithPos (fun b p b' p' a -> f a b p b' p')))
+                        (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
 
 let rec map_grammar : type a b.(a -> b) -> a grammar -> b grammar =
   fun f (i,l) -> (i, List.map (map_rule f) l)
 
-let rec map_grammar_with_pos
-        : type a b.(a -> buffer -> int -> buffer -> int -> b) ->
+let map_grammar_with_pos
+        : type a b.(buffer -> int -> buffer -> int -> a -> b) ->
                a grammar -> b grammar =
   fun f (i,l) -> (i, List.map (map_rule_with_pos f) l)
 
@@ -322,13 +322,13 @@ let give_name name (i,_ as g) =
 let apply : type a b. (a -> b) -> a grammar -> b grammar = map_grammar
 
 (** Idem, with positions *)
-let apply_position : type a b. (a -> buffer -> int -> buffer -> int -> b)
+let apply_position : type a b. (buffer -> int -> buffer -> int -> a -> b)
                           -> a grammar -> b grammar
-  =  map_grammar_with_pos
+  = map_grammar_with_pos
 
 (** Build a tuple with positions *)
 let position g =
-  apply_position (fun a buf pos buf' pos' ->
+  apply_position (fun buf pos buf' pos' a ->
     (filename buf, line_num buf, pos, line_num buf', pos', a)) g
 
 
@@ -468,14 +468,15 @@ let empty : 'a -> 'a grammar = fun a -> (iempty,[ems a])
 
 (** Various wy to make sequence of parsing *)
 let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
-  = fun l1 l2 f -> mkgrammar [next l1 (map_rule (fun b a -> f a b) (grammar_to_rule l2))]
+  = fun l1 l2 f ->
+    mkgrammar [next l1 (map_rule (fun b a -> f a b) (grammar_to_rule l2))]
 
 let sequence_position : 'a grammar -> 'b grammar
-                        -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c)
+                        -> (buffer -> int -> buffer -> int -> 'a -> 'b -> 'c)
                         -> 'c grammar
   = fun l1 l2 f ->
-    mkgrammar [next l1
-                (map_rule_with_pos (fun a' b p b' p' a -> f a a' b p b' p') (grammar_to_rule l2))]
+    mkgrammar [next l1 (map_rule_with_pos
+              (fun b p b' p' a a' -> f b p b' p' a' a)  (grammar_to_rule l2))]
 
 let sequence3 : 'a grammar -> 'b grammar -> 'c grammar
                 -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
@@ -486,10 +487,16 @@ let fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
   = fun l1 l2 -> mkgrammar [next l1 (grammar_to_rule l2)]
 
 let fsequence_position : 'a grammar
-                         -> ('a -> buffer -> int -> buffer -> int -> 'b) grammar
-                         -> 'b grammar
+                       -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
+                       -> 'b grammar
   = fun l1 l2 ->
-    mkgrammar [next l1 (map_rule_with_pos (fun f b p b' p' a -> f a b p b' p') (grammar_to_rule l2))]
+    mkgrammar [next l1 (map_rule_with_pos
+                    (fun b p b' p' f a -> f b p b' p' a) (grammar_to_rule l2))]
+
+let new_fsequence_position : 'a grammar
+                         -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
+                         -> 'b grammar
+  = fsequence_position
 
 let simple_dependent_sequence
     : 'a grammar -> ('a -> 'b grammar) -> 'b grammar

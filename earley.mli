@@ -293,9 +293,9 @@ val sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
     buffer and index) of the corresponding parsed input.
 
     Remark: [sequence g1 g2 f] is equivalent to
-    [sequence_position g1 g2 (fun r1 r2 _ _ _ _ -> f r1 r2)]. *)
+    [sequence_position g1 g2 (fun _ _ _ _ -> f)]. *)
 val sequence_position : 'a grammar -> 'b grammar
-  -> ('a -> 'b -> buffer -> int -> buffer -> int -> 'c)
+  -> (buffer -> int -> buffer -> int -> 'a -> 'b -> 'c)
   -> 'c grammar
 
 (** [fsequence g1 g2] is a grammar that first parses using [g1], and then
@@ -311,7 +311,7 @@ val fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
     applying the result of [g1] and position information (see the definition of
     [sequence_position]) to the result of [g2]. *)
 val fsequence_position : 'a grammar
-  -> ('a -> buffer -> int -> buffer -> int -> 'b) grammar
+  -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
   -> 'b grammar
 
 (** [sequence3] is similar to [sequence], but it composes three grammars into
@@ -331,7 +331,8 @@ val simple_dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
     which returns a value [(a,b)], and then continues to parse with [g2 a] and
     return its result applied to [b]. compared to the above function, allow
     memoizing the second grammar *)
-val dependent_sequence: ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
+val dependent_sequence: ('a * 'b) grammar ->
+                        ('a -> ('b -> 'c) grammar) -> 'c grammar
 
 val iter : 'a grammar grammar -> 'a grammar
 (**  = fun g -> dependent_sequence g (fun x -> x) *)
@@ -372,7 +373,7 @@ val apply : ('a -> 'b) -> 'a grammar -> 'b grammar
 (** [apply_position f g] applies function [f] to the value returned by the
     grammar [g] and the positions at the beginning and at the end of the
     input parsed input. *)
-val apply_position : ('a -> buffer -> int -> buffer -> int -> 'b)
+val apply_position : (buffer -> int -> buffer -> int -> 'a -> 'b)
   -> 'a grammar -> 'b grammar
 
 (** [position g] tranforms the grammar [g] to add information about the
