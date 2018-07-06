@@ -485,17 +485,19 @@ let fsequence_position : 'a grammar
   = fun l1 l2 ->
     mkgrammar [next l1 (map_rule_with_pos (fun f b p b' p' a -> f a b p b' p') (grammar_to_rule l2))]
 
+let simple_dependent_sequence
+    : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
+  = fun l1 f2 ->
+      mkgrammar [next l1 (mkrule (Dep (fun a -> grammar_to_rule (f2 a))))]
 
 let dependent_sequence
     : ('a * 'b) grammar -> ('a -> ('b -> 'c) grammar) -> 'c grammar
   = fun f1 f2 ->
-  mkgrammar [next f1 (mkrule (Dep (fun a -> grammar_to_rule (f2 a))))]
-
+        simple_dependent_sequence f1 (fun (a,b) -> apply (fun g -> g b) (f2 a))
 
 (** A nice one !*)
 let iter : 'a grammar grammar -> 'a grammar
-  = fun g -> dependent_sequence (apply (fun x -> (x, ())) g)
-                                (apply (fun f () -> f))
+  = fun g -> simple_dependent_sequence g (fun f -> f)
 
 (** Various fixpoints *)
 let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar

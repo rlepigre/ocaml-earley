@@ -163,7 +163,7 @@ module rec Types : sig
      (** Sequence of a symbol and a rule, with a possible name for debugging,
          the information on the rule, the symbol to read, an action and
          the rest of the rule *)
-     | Dep : ('a -> ('b -> 'c) rule) -> ('a * 'b -> 'c) prerule
+     | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
          no other solution is possible *)
 
@@ -779,7 +779,7 @@ let rec pred_prod_lec
             let a =
               let a = ref None in
               try
-                let _ = acts (fun (x,_) -> a := Some x; raise Exit) in
+                let _ = acts (fun x -> a := Some x; raise Exit) in
                 assert false
               with Exit ->
                 match !a with None -> assert false | Some a -> a
@@ -787,7 +787,7 @@ let rec pred_prod_lec
             let rule = fn_rule a in
             if good c rule then
               let elt = C { start; rest = idtEmpty (); full
-                            ; acts = (fun g f -> f (acts (fun (_,b) -> g b)))
+                            ; acts = (fun g f -> f (acts (fun _ -> g)))
                             ; stack }
               in
               let stack = add_stack sct rule elt in

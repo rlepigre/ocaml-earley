@@ -318,6 +318,11 @@ val fsequence_position : 'a grammar
 val sequence3 : 'a grammar -> 'b grammar -> 'c grammar
   -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
 
+(** [simple_dependent_sequence g1 g2] is a grammar that first parses using [g1],
+    which returns a value [a], and then continues to parse with [g2 a] and
+    return its result. *)
+val simple_dependent_sequence : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
+
 (** [dependent_sequence g1 g2] is a grammar that first parses using [g1],
     which returns a value [(a,b)], and then continues to parse with [g2 a] and
     return its result applied to [b]. compared to the above function, allow
