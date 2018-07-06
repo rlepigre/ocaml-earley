@@ -267,7 +267,11 @@ val debug_lvl : int ref
     default value is [true]. *)
 val warn_merge : bool ref
 
-
+(** [keep_all_names] is false by default and allow for inlining  grammar
+    with a name to optimise parsing.  When debugging,  it is possible to
+    set it to true  (before all grammar constructions) for more accurate
+    messages. *)
+val keep_all_names : bool ref
 
 
 

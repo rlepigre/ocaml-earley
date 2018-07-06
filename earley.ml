@@ -51,6 +51,7 @@ type 'a grammar = 'a Internals.grammar
 exception Parse_error = Internals.Parse_error
 let warn_merge = Internals.warn_merge
 let debug_lvl = Internals.debug_lvl
+let keep_all_names = Internals.keep_all_names
 
 (** The user visible function to reject a parsing rule from its action *)
 let give_up () = raise Error

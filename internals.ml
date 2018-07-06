@@ -349,11 +349,13 @@ let grammar_name : type a. ?delim:bool -> a grammar -> string =
 let grammar_delim_name : type a. a grammar -> string = fun g ->
   "{"^grammar_name ~delim:false g^"}"
 
+let keep_all_names = ref false
+
 (** Converting a grammar to a rule *)
 let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
   = fun ?name (info,rules as g) ->
     match rules with
-    | [r] when name = None -> r
+    | [r] when name = None || not !keep_all_names -> r
     | _ ->
        let name = match name with None -> grammar_name g
                                 | Some n -> n in
