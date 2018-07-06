@@ -629,7 +629,7 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
 (** This one for prediction *)
-let combine1 : type a c d.(c -> d) -> (a -> (a -> c) -> d) =
+let combine : type a c d.(c -> d) -> a -> (a -> c) -> d =
   fun acts a f -> acts (f a)
 
 (** Exception for parse error, can also be raise by
@@ -686,7 +686,7 @@ let rec pred_prod_lec
               rules
           in
                (** Computes the elements to add in the stack of all created rules *)
-          let c = C {rest=rest2; acts=combine1 acts; full; start; stack} in
+          let c = C {rest=rest2; acts=combine acts; full; start; stack} in
           List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
        (** Nothing left to parse in the current rule: completion/production *)
@@ -821,7 +821,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     (** contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
     (** the key of a final parsing *)
-    let s0 : (a, a) stack = ref [B (Simple idt)] in
+    let s0 : (a, a) stack = ref [B Idt] in
     let start = { buf = buf0; col = col0; buf_ab = buf0; col_ab = col0 } in
     let col = ref col0 and buf = ref buf0 in
     let col' = ref col0 and buf' = ref buf0 in
