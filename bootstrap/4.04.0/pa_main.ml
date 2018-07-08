@@ -4,12 +4,6 @@ open Input
 open Earley
 open Format
 open Pa_lexing
-module type Final  =
-  sig
-    include Extension
-    exception Top_Exit 
-    val top_phrase : Parsetree.toplevel_phrase Earley.grammar
-  end
 let define_directive =
   Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*" 
 let if_directive = Str.regexp "[ \t]*if" 
@@ -122,7 +116,7 @@ module OCamlPP : Preprocessor =
       match st with | [] -> () | _ -> pp_error name "unclosed conditionals" 
   end 
 module PP = (Earley.WithPP)(OCamlPP)
-module Start(Main:Final) =
+module Start(Main:Extension) =
   struct
     let anon_fun s = file := (Some s) 
     let _ =

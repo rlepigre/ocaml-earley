@@ -62,11 +62,6 @@ module Initial =
                                                      Arg.doc) list)
       
     let before_parse_hook = (fun ()  -> () : unit -> unit) 
-    let char_litteral = (declare_grammar "char_litteral" : char grammar) 
-    let string_litteral =
-      (declare_grammar "string_litteral" : string grammar) 
-    let regexp_litteral =
-      (declare_grammar "regexp_litteral" : string grammar) 
     type expression_prio =
       | Seq 
       | If 
@@ -429,12 +424,14 @@ module Initial =
            Earley.alternatives
              ((if prio <> Cons
                then
-                 [Earley.sequence
+                 [Earley.fsequence
                     (EarleyStr.regexp (infix_symb_re prio)
-                       (fun groupe  -> groupe 0)) not_special
-                    (fun sym  ->
-                       fun _default_0  ->
-                         if is_reserved_symb sym then give_up (); sym)]
+                       (fun groupe  -> groupe 0))
+                    (Earley.apply
+                       (fun _default_0  ->
+                          fun sym  ->
+                            if is_reserved_symb sym then give_up (); sym)
+                       not_special)]
                else []) @
                 ((if prio = Cons
                   then
@@ -446,13 +443,15 @@ module Initial =
     let _ =
       prefix_symbol__set__grammar
         (fun prio  ->
-           Earley.sequence
+           Earley.fsequence
              (EarleyStr.regexp (prefix_symb_re prio)
-                (fun groupe  -> groupe 0)) not_special
-             (fun sym  ->
-                fun _default_0  ->
-                  if (is_reserved_symb sym) || (sym = "!=") then give_up ();
-                  sym))
+                (fun groupe  -> groupe 0))
+             (Earley.apply
+                (fun _default_0  ->
+                   fun sym  ->
+                     if (is_reserved_symb sym) || (sym = "!=")
+                     then give_up ();
+                     sym) not_special))
       
     let mutable_flag = Earley.declare_grammar "mutable_flag" 
     let _ =

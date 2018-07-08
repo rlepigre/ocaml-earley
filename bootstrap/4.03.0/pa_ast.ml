@@ -3,7 +3,6 @@ open Parsetree
 open Longident
 let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc } 
 let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc } 
-let const_string s = Pconst_string (s, None) 
 let loc_expr ?(attributes= [])  _loc e =
   { pexp_desc = e; pexp_loc = _loc; pexp_attributes = attributes } 
 let loc_pat ?(attributes= [])  _loc pat =
@@ -58,13 +57,14 @@ let merge2 l1 l2 =
       loc_ghost = (l1.loc_ghost && l2.loc_ghost)
     }
   
-let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s)) 
+let const_string s = Pconst_string (s, None) 
 let const_float s = Pconst_float (s, None) 
 let const_char s = Pconst_char s 
 let const_int s = Pconst_integer ((string_of_int s), None) 
 let const_int32 s = Pconst_integer ((Int32.to_string s), (Some 'l')) 
 let const_int64 s = Pconst_integer ((Int64.to_string s), (Some 'L')) 
 let const_nativeint s = Pconst_integer ((Nativeint.to_string s), (Some 'n')) 
+let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s)) 
 let exp_int _loc i =
   loc_expr _loc (Pexp_constant (Pconst_integer ((string_of_int i), None))) 
 let exp_char _loc c = loc_expr _loc (Pexp_constant (Pconst_char c)) 

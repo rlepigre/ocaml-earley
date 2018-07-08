@@ -89,7 +89,7 @@ let cache_filter = Hashtbl.create 101
 let filter _loc visible r =
   match find_locate (), visible with
   | Some(f2), true ->
-     let f = <:expr<fun x str pos str' pos' -> ($f2$ str pos str' pos', x)>> in
+     let f = <:expr<fun str pos str' pos' x -> ($f2$ str pos str' pos', x)>> in
      (try
        Hashtbl.find cache_filter (f,r)
      with Not_found ->
@@ -100,22 +100,23 @@ let filter _loc visible r =
 
 
 let rec build_action _loc occur_loc ids e =
-  let e = match find_locate (), occur_loc with
+  let e1 =
+    List.fold_left (fun e ((id,x),visible) ->
+        match find_locate (), visible with
+        | Some(_), true ->
+           <:expr<fun $pat:mkpatt _loc (id,x)$ ->
+            let ($lid:"_loc_"^id$, $lid:id$) = $lid:id$ in $e$>>
+        | _ ->
+           <:expr<fun $pat:mkpatt' _loc (id,x)$ -> $e$>>
+      ) e (List.rev ids)
+  in
+  match find_locate (), occur_loc with
     | Some(locate2), true ->
        <:expr<fun __loc__start__buf __loc__start__pos
                   __loc__end__buf __loc__end__pos ->
                   let _loc = $locate2$ __loc__start__buf __loc__start__pos
-                                        __loc__end__buf __loc__end__pos in $e$>>
-    | _ -> e
-  in
-  List.fold_left (fun e ((id,x),visible) ->
-    match find_locate (), visible with
-    | Some(_), true ->
-       <:expr<fun $pat:mkpatt _loc (id,x)$ ->
-        let ($lid:"_loc_"^id$, $lid:id$) = $lid:id$ in $e$>>
-    | _ ->
-       <:expr<fun $pat:mkpatt' _loc (id,x)$ -> $e$>>
-    ) e (List.rev ids)
+                                        __loc__end__buf __loc__end__pos in $e1$>>
+    | _ -> e1
 
 let apply_option _loc opt visible e =
   let fn e f d =
@@ -178,43 +179,26 @@ module Ext(In:Extension) = struct
 		    def (<:expr<if $cond$ then $a$ else Earley.fail ()>>))
       in
 
-      let rec fn first ids l = match l with
+      let rec fn ids l = match l with
 	  [] -> assert false
 	| [`Normal(id,_,e,opt,occur_loc_id)] ->
 	   let e = apply_option _loc opt occur_loc_id e in
-	   let f = match find_locate (), first && occur_loc with
+	   let f = match find_locate (), occur_loc with
 	     | Some _, true -> "apply_position"
 	     | _ -> "apply"
 	   in
 	   (match action.pexp_desc with
-		Pexp_ident({ txt = Lident id'}) when fst id = id' && f = "apply" -> e
+		Pexp_ident({ txt = Lident id'}) when ids = [] && fst id = id' && f = "apply" -> e
 	      | _ ->
                  let a = build_action _loc occur_loc ((id,occur_loc_id)::ids) action in
                  <:expr<Earley.$lid:f$ $a$ $e$>>)
 
-	| [`Normal(id,_,e,opt,occur_loc_id); `Normal(id',_,e',opt',occur_loc_id') ] ->
-	   let e = apply_option _loc opt occur_loc_id e in
-	   let e' = apply_option _loc opt' occur_loc_id' e' in
-	   let f = match find_locate (), first && occur_loc with
-	     | Some _, true -> "sequence_position"
-	     | _ -> "sequence"
-	   in
-           let a = build_action _loc occur_loc
-                                ((id,occur_loc_id)::(id',occur_loc_id')::ids)
-                                action
-           in
-           <:expr<Earley.$lid:f$ $e$ $e'$ $a$>>
-
 	| `Normal(id,_,e,opt,occur_loc_id) :: ls ->
 	   let e = apply_option _loc opt occur_loc_id e in
-	   let f = match find_locate (), first && occur_loc with
-	     | Some _, true -> "fsequence_position"
-	     | _ -> "fsequence"
-	   in
-           let a = fn false ((id,occur_loc_id)::ids) ls in
-           <:expr<Earley.$lid:f$ $e$ $a$>>
+           let a = fn ((id,occur_loc_id)::ids) ls in
+           <:expr<Earley.$lid:"fsequence"$ $e$ $a$>>
       in
-      let res = fn true [] l in
+      let res = fn [] l in
       let res = if iter then <:expr<Earley.iter $res$>> else res in
       def, condition, res
 

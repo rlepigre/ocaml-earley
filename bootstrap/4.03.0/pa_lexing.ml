@@ -386,8 +386,9 @@ let num_suffix =
      in
   Earley.alternatives
     [Earley.apply (fun _default_0  -> None) no_suffix_cs;
-    Earley.sequence (Earley.no_blank_test ()) (Earley.in_charset suffix_cs)
-      (fun _  -> fun s  -> Some s)]
+    Earley.fsequence (Earley.no_blank_test ())
+      (Earley.apply (fun s  -> fun _  -> Some s)
+         (Earley.in_charset suffix_cs))]
   
 let int_litteral : (string* char option) Earley.grammar =
   let int_re =
@@ -397,9 +398,9 @@ let int_litteral : (string* char option) Earley.grammar =
       "[0][bB][01][01_]*";
       "[0-9][0-9_]*"]
      in
-  Earley.sequence
+  Earley.fsequence
     (EarleyStr.regexp ~name:"int" int_re (fun groupe  -> groupe 0))
-    num_suffix (fun i  -> fun _default_0  -> (i, _default_0))
+    (Earley.apply (fun _default_0  -> fun i  -> (i, _default_0)) num_suffix)
   
 let float_litteral : (string* char option) Earley.grammar =
   let float_re =
@@ -407,9 +408,9 @@ let float_litteral : (string* char option) Earley.grammar =
       ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
       "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"]
      in
-  Earley.sequence
+  Earley.fsequence
     (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
-    num_suffix (fun f  -> fun _default_0  -> (f, _default_0))
+    (Earley.apply (fun _default_0  -> fun f  -> (f, _default_0)) num_suffix)
   
 let escaped_char : char Earley.grammar =
   let char_dec = "[0-9][0-9][0-9]"  in
@@ -435,16 +436,17 @@ let char_litteral : char Earley.grammar =
   let char_reg = "[^\\\\\\']"  in
   let single_char =
     Earley.alternatives
-      [Earley.sequence (Earley.char '\\' '\\') escaped_char
-         (fun _  -> fun e  -> e);
+      [Earley.fsequence (Earley.char '\\' '\\')
+         (Earley.apply (fun e  -> fun _  -> e) escaped_char);
       Earley.apply (fun c  -> c.[0])
         (EarleyStr.regexp ~name:"char_reg" char_reg (fun groupe  -> groupe 0))]
      in
   Earley.no_blank_layout
     (Earley.fsequence single_quote
        (Earley.fsequence single_char
-          (Earley.sequence (Earley.no_blank_test ()) (Earley.char '\'' '\'')
-             (fun _  -> fun _  -> fun c  -> fun _  -> c))))
+          (Earley.fsequence (Earley.no_blank_test ())
+             (Earley.apply (fun _  -> fun _  -> fun c  -> fun _  -> c)
+                (Earley.char '\'' '\'')))))
   
 let quoted_string : (string* string option) Earley.grammar =
   let f buf pos =
@@ -474,8 +476,8 @@ let normal_string : string Earley.grammar =
   let single_char =
     Earley.alternatives
       [Earley.fsequence (Earley.char '\\' '\\')
-         (Earley.sequence (Earley.no_blank_test ()) escaped_char
-            (fun _  -> fun e  -> fun _  -> e));
+         (Earley.fsequence (Earley.no_blank_test ())
+            (Earley.apply (fun e  -> fun _  -> fun _  -> e) escaped_char));
       Earley.apply
         (fun c  -> if (c = '"') || (c = '\\') then Earley.give_up (); c)
         Earley.any]
@@ -485,24 +487,28 @@ let normal_string : string Earley.grammar =
        (Earley.apply List.rev
           (Earley.fixpoint []
              (Earley.apply (fun x  -> fun y  -> x :: y) single_char)))
-       (Earley.sequence
+       (Earley.fsequence
           (Earley.apply List.rev
              (Earley.fixpoint []
                 (Earley.apply (fun x  -> fun y  -> x :: y)
                    (Earley.fsequence (Earley.string "\\\n" "\\\n")
-                      (Earley.sequence
+                      (Earley.fsequence
                          (Earley.greedy
                             (EarleyStr.regexp "[ \t]*"
                                (fun groupe  -> groupe 0)))
-                         (Earley.apply List.rev
-                            (Earley.fixpoint []
-                               (Earley.apply (fun x  -> fun y  -> x :: y)
-                                  single_char)))
-                         (fun _  -> fun _default_0  -> fun _  -> _default_0))))))
-          (Earley.char '"' '"')
-          (fun css  ->
-             fun _  ->
-               fun cs  -> fun _  -> cs_to_string (List.flatten (cs :: css)))))
+                         (Earley.apply
+                            (fun _default_0  ->
+                               fun _  -> fun _  -> _default_0)
+                            (Earley.apply List.rev
+                               (Earley.fixpoint []
+                                  (Earley.apply (fun x  -> fun y  -> x :: y)
+                                     single_char)))))))))
+          (Earley.apply
+             (fun _  ->
+                fun css  ->
+                  fun cs  ->
+                    fun _  -> cs_to_string (List.flatten (cs :: css)))
+             (Earley.char '"' '"'))))
   
 let string_litteral : (string* string option) Earley.grammar =
   let string_litteral =
@@ -513,21 +519,22 @@ let string_litteral : (string* string option) Earley.grammar =
 let regexp =
   let regexp_char =
     Earley.alternatives
-      [Earley.sequence (Earley.char '\\' '\\')
-         (EarleyStr.regexp "[ntbrs\\\\()|]" (fun groupe  -> groupe 0))
-         (fun _  ->
-            fun e  ->
-              match e.[0] with
-              | 'n' -> "\n"
-              | 't' -> "\t"
-              | 'b' -> "\b"
-              | 'r' -> "\r"
-              | 's' -> " "
-              | '\\' -> "\\"
-              | '(' -> "\\("
-              | ')' -> "\\)"
-              | '|' -> "\\|"
-              | _ -> assert false);
+      [Earley.fsequence (Earley.char '\\' '\\')
+         (Earley.apply
+            (fun e  ->
+               fun _  ->
+                 match e.[0] with
+                 | 'n' -> "\n"
+                 | 't' -> "\t"
+                 | 'b' -> "\b"
+                 | 'r' -> "\r"
+                 | 's' -> " "
+                 | '\\' -> "\\"
+                 | '(' -> "\\("
+                 | ')' -> "\\)"
+                 | '|' -> "\\|"
+                 | _ -> assert false)
+            (EarleyStr.regexp "[ntbrs\\\\()|]" (fun groupe  -> groupe 0)));
       EarleyStr.regexp "[^'\\\\]" (fun groupe  -> groupe 0);
       Earley.apply (fun _  -> "'") single_quote]
      in
@@ -538,15 +545,17 @@ let regexp =
   
 let regexp_litteral : string Earley.grammar =
   Earley.fsequence double_quote
-    (Earley.sequence (Earley.no_blank_test ())
-       (Earley.no_blank_layout
-          (Earley.sequence regexp (Earley.string "''" "''")
-             (fun _default_0  -> fun _  -> _default_0)))
-       (fun _  -> fun _default_0  -> fun _  -> _default_0))
+    (Earley.fsequence (Earley.no_blank_test ())
+       (Earley.apply (fun _default_0  -> fun _  -> fun _  -> _default_0)
+          (Earley.no_blank_layout
+             (Earley.fsequence regexp
+                (Earley.apply (fun _  -> fun _default_0  -> _default_0)
+                   (Earley.string "''" "''"))))))
   
 let new_regexp_litteral : string Earley.grammar =
   Earley.no_blank_layout
     (Earley.fsequence (Earley.string "{#" "{#")
-       (Earley.sequence regexp (Earley.string "#}" "#}")
-          (fun _default_0  -> fun _  -> fun _  -> _default_0)))
+       (Earley.fsequence regexp
+          (Earley.apply (fun _  -> fun _default_0  -> fun _  -> _default_0)
+             (Earley.string "#}" "#}"))))
   
