@@ -526,20 +526,20 @@ let fixpoint1' :  'a -> 'b grammar -> ('b -> 'a -> 'a) -> 'a grammar
 (** General lists with seprator *)
 let list1 g sep =
   fsequence g
-    (apply (fun xs x -> x :: List.rev xs)
-       (fixpoint' []
-                  (fsequence sep (apply (fun x _ -> x) g))
-                  (fun x l -> x::l)))
+    (apply (fun xs x -> x :: xs [])
+       (fixpoint' (fun l -> l)
+                  (fsequence_ignore sep g)
+                  (fun x f l -> f (x::l))))
 
 let list0 g sep =
   option [] (list1 g sep)
 
 let list2 g sep =
   fsequence g
-    (apply (fun xs x -> x :: List.rev xs)
-       (fixpoint1' []
-                   (fsequence sep (apply (fun x _ -> x) g))
-                   (fun x l -> x::l)))
+    (apply (fun xs x -> x :: xs [])
+       (fixpoint1' (fun l -> l)
+                   (fsequence_ignore sep g)
+                   (fun x f l -> f (x::l))))
 
 (** A combinator to change the notion of blank *)
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool
