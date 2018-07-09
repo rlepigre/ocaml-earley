@@ -114,7 +114,7 @@ let apply_pos_start =
     else apply_pos f buf_ab col_ab buf col
 
 let apply_start =
-  fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
+  fun f ({ buf_ab; col_ab } as p1) ({ buf; col} as p2) ->
     (** parse nothing : only position before blank *)
     if eq_pos p1 p2 then f buf col buf col
     (** parse something *)
@@ -883,9 +883,14 @@ let rec pred_prod_lec
                    with Error ->
                      Ref.add tmemo memo None; raise Error
             in
-            let elt = final start (apply_start cns_pos start cur_pos a acts) stack rest full in
+            let empty_parse = buffer_before buf col buf_ab col_ab in
+            let end_pos =
+              if empty_parse then cur_pos else
+                { buf_ab = buf; col_ab = col; buf; col }
+            in
+            let elt = final start (apply_start cns_pos cur_pos end_pos a acts) stack rest full in
             (** if we read nothing: add immediately to the table *)
-            if buffer_before buf col buf_ab col_ab then
+            if empty_parse then
               begin
                 if good c rest then
                   let b = add "T" cur_pos c elt elements in
