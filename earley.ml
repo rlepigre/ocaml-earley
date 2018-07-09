@@ -132,28 +132,58 @@ let map_with_pos:type a b.(buffer -> int -> buffer -> int -> a -> b)
   | WithPos a -> WithPos (fun b p b' p' -> f b p b' p' (a b p b' p'))
   | Error     -> Error
 
-let rec map_rule : type a b.(a -> b) -> a rule -> b rule = fun f r ->
-  match r.rule with
-  | Empty p     -> emp (map_pos f p)
-  | Next(i,s,r) -> next_aux s (map_rule (fun g a -> f (g a)) r)
-  | Dep(g)      -> next (mkgrammar [r]) (ems f)
+exception KeepPos
 
-let rec map_rule_with_pos : type a b.(buffer -> int -> buffer -> int -> a -> b)
-                                 -> a rule -> b rule = fun f r ->
-  match r.rule with
-  | Empty p     -> emp (map_with_pos f p)
-  | Next(i,s,r) -> next_aux s (map_rule_with_pos
-                                 (fun b p b' p' g a -> f b p b' p' (g a)) r)
-  | Dep(g)      -> next (mkgrammar [r])
-                        (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
+let rec map_rule : type a b.?keep_pos:bool -> (a -> b) -> a rule -> b rule
+  = fun ?(keep_pos=false) f r ->
+  let rec fn : type a b.(a -> b) -> a rule -> b rule
+  = fun f r ->
+    match r.rule with
+    | Empty p     -> if keep_pos then
+                       begin
+                         match p with
+                           WithPos _ -> raise KeepPos
+                         | _ -> ()
+                       end;
+                     emp (map_pos f p)
+    | Next(i,s,r) -> next_aux s (fn (fun g a -> f (g a)) r)
+    | Dep(g)      -> next (mkgrammar [r]) (ems f)
+  in try fn f r with KeepPos -> next (mkgrammar [r]) (ems f)
 
-let rec map_grammar : type a b.(a -> b) -> a grammar -> b grammar =
-  fun f (i,l) -> (i, List.map (map_rule f) l)
+
+let map_rule_with_pos
+    : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b)
+           -> a rule -> b rule
+  = fun ?(keep_pos=false) f r ->
+  let rec fn : type a b. (buffer -> int -> buffer -> int -> a -> b)
+                    -> a rule -> b rule
+  = fun f r ->
+    match r.rule with
+    | Empty p     -> if keep_pos then
+                       begin
+                         match p with
+                           WithPos _ -> raise KeepPos
+                         | _ -> ()
+                       end;
+                     emp (map_with_pos f p)
+    | Next(i,s,r) -> next_aux s (fn (fun b p b' p' g a -> f b p b' p' (g a)) r)
+    | Dep(g)      -> next (mkgrammar [r])
+                          (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
+  in try fn f r with KeepPos ->
+       next (mkgrammar [r]) (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
+
+let rec map_grammar
+        : type a b.?keep_pos:bool -> (a -> b) -> a grammar -> b grammar
+  = fun ?(keep_pos=false) f (i,l) -> (i, List.map (map_rule ~keep_pos f) l)
 
 let map_grammar_with_pos
-        : type a b.(buffer -> int -> buffer -> int -> a -> b) ->
+        : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b) ->
                a grammar -> b grammar =
-  fun f (i,l) -> (i, List.map (map_rule_with_pos f) l)
+  fun ?(keep_pos=false) f (i,l as g) ->
+  if keep_pos && match l with [] | [_] -> false | _ -> true then
+    mkgrammar [next g (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))]
+  else
+    (i, List.map (map_rule_with_pos ~keep_pos f) l)
 
 (** Helper to build a terminal symbol *)
 let solo : string -> ?accept_empty:bool -> Charset.t
@@ -319,12 +349,13 @@ let give_name name (i,_ as g) =
   (i, [grammar_to_rule ~name g])
 
 (** Change the action of the grammar by applying a function *)
-let apply : type a b. (a -> b) -> a grammar -> b grammar = map_grammar
+let apply : type a b. (a -> b) -> a grammar -> b grammar =
+  fun f g -> map_grammar ~keep_pos:true f g
 
 (** Idem, with positions *)
 let apply_position : type a b. (buffer -> int -> buffer -> int -> a -> b)
-                          -> a grammar -> b grammar
-  = map_grammar_with_pos
+                          -> a grammar -> b grammar =
+  fun f g -> map_grammar_with_pos ~keep_pos:true f g
 
 (** Build a tuple with positions *)
 let position g =
