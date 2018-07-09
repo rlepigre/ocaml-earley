@@ -159,8 +159,9 @@ module Initial =
     let _ =
       Earley.set_grammar signature
         (Earley.fsequence
-           (Earley.apply List.rev
-              (Earley.fixpoint' [] signature_item (fun x -> fun l -> x :: l)))
+           (Earley.apply (fun f -> f [])
+              (Earley.fixpoint' (fun l -> l) signature_item
+                 (fun x -> fun f -> fun l -> f (x :: l))))
            (Earley.empty (fun l -> List.flatten l)))
     type type_prio =
       | TopType 

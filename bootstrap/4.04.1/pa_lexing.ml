@@ -492,21 +492,22 @@ let normal_string : string Earley.grammar =
      in
   Earley.fsequence_ignore (Earley.char '"' '"')
     (Earley.fsequence
-       (Earley.apply List.rev
-          (Earley.fixpoint' [] single_char (fun x  -> fun l  -> x :: l)))
+       (Earley.apply (fun f  -> f [])
+          (Earley.fixpoint' (fun l  -> l) single_char
+             (fun x  -> fun f  -> fun l  -> f (x :: l))))
        (Earley.fsequence
-          (Earley.apply List.rev
-             (Earley.fixpoint' []
+          (Earley.apply (fun f  -> f [])
+             (Earley.fixpoint' (fun l  -> l)
                 (Earley.fsequence_ignore (Earley.string "\\\n" "\\\n")
                    (Earley.fsequence_ignore
                       (Earley.greedy
                          (EarleyStr.regexp "[ \t]*" (fun groupe  -> groupe 0)))
                       (Earley.fsequence
-                         (Earley.apply List.rev
-                            (Earley.fixpoint' [] single_char
-                               (fun x  -> fun l  -> x :: l)))
+                         (Earley.apply (fun f  -> f [])
+                            (Earley.fixpoint' (fun l  -> l) single_char
+                               (fun x  -> fun f  -> fun l  -> f (x :: l))))
                          (Earley.empty (fun _default_0  -> _default_0)))))
-                (fun x  -> fun l  -> x :: l)))
+                (fun x  -> fun f  -> fun l  -> f (x :: l))))
           (Earley.fsequence_ignore (Earley.char '"' '"')
              (Earley.empty
                 (fun css  ->
@@ -542,8 +543,9 @@ let regexp =
       Earley.fsequence_ignore single_quote (Earley.empty "'")]
      in
   Earley.fsequence
-    (Earley.apply List.rev
-       (Earley.fixpoint' [] regexp_char (fun x  -> fun l  -> x :: l)))
+    (Earley.apply (fun f  -> f [])
+       (Earley.fixpoint' (fun l  -> l) regexp_char
+          (fun x  -> fun f  -> fun l  -> f (x :: l))))
     (Earley.empty (fun cs  -> String.concat "" cs))
   
 let regexp_litteral : string Earley.grammar =

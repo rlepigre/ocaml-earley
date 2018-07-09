@@ -106,7 +106,7 @@ let apply_option _loc opt e =
   in
   let gn e f d =
     match d with
-      None   -> <:expr< Earley.apply List.rev (Earley.$lid:(f^"'")$ [] $e$ (fun x l -> x::l)) >>
+      None   -> <:expr< Earley.apply (fun f -> f []) (Earley.$lid:(f^"'")$ (fun l -> l) $e$ (fun x f l -> f (x::l))) >>
     | Some d -> <:expr< Earley.$lid:f$ $d$ $e$ >>
   in
   let kn e = function

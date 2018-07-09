@@ -409,11 +409,11 @@ module Make(Initial:Extension) =
       Earley.set_grammar attr_id
         (Earley.fsequence ident
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint' (fun l  -> l)
                     (Earley.fsequence_ignore (Earley.char '.' '.')
                        (Earley.fsequence ident (Earley.empty (fun id  -> id))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty_pos
                  (fun __loc__start__buf  ->
                     fun __loc__start__pos  ->
@@ -456,8 +456,9 @@ module Make(Initial:Extension) =
     let attributes = Earley.declare_grammar "attributes" 
     let _ =
       Earley.set_grammar attributes
-        (Earley.apply List.rev
-           (Earley.fixpoint' [] attribute (fun x  -> fun l  -> x :: l)))
+        (Earley.apply (fun f  -> f [])
+           (Earley.fixpoint' (fun l  -> l) attribute
+              (fun x  -> fun f  -> fun l  -> f (x :: l))))
       
     let ext_attributes = Earley.declare_grammar "ext_attributes" 
     let _ =
@@ -473,14 +474,14 @@ module Make(Initial:Extension) =
     let post_item_attributes = Earley.declare_grammar "post_item_attributes" 
     let _ =
       Earley.set_grammar post_item_attributes
-        (Earley.apply List.rev
-           (Earley.fixpoint' []
+        (Earley.apply (fun f  -> f [])
+           (Earley.fixpoint' (fun l  -> l)
               (Earley.fsequence_ignore (Earley.string "[@@" "[@@")
                  (Earley.fsequence attr_id
                     (Earley.fsequence payload
                        (Earley.fsequence_ignore (Earley.char ']' ']')
                           (Earley.empty (fun p  -> fun id  -> (id, p)))))))
-              (fun x  -> fun l  -> x :: l)))
+              (fun x  -> fun f  -> fun l  -> f (x :: l))))
       
     let floating_attribute = Earley.declare_grammar "floating_attribute" 
     let _ =
@@ -513,8 +514,8 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar only_poly_typexpr
         (Earley.fsequence
-           (Earley.apply List.rev
-              (Earley.fixpoint1' []
+           (Earley.apply (fun f  -> f [])
+              (Earley.fixpoint1' (fun l  -> l)
                  (Earley.fsequence_ignore (Earley.char '\'' '\'')
                     (Earley.fsequence ident
                        (Earley.empty_pos
@@ -528,7 +529,7 @@ module Make(Initial:Extension) =
                                        __loc__end__pos
                                       in
                                    fun id  -> id_loc id _loc))))
-                 (fun x  -> fun l  -> x :: l)))
+                 (fun x  -> fun f  -> fun l  -> f (x :: l))))
            (Earley.fsequence_ignore (Earley.char '.' '.')
               (Earley.fsequence typexpr
                  (Earley.empty_pos
@@ -548,8 +549,8 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [typexpr;
            Earley.fsequence
-             (Earley.apply List.rev
-                (Earley.fixpoint1' []
+             (Earley.apply (fun f  -> f [])
+                (Earley.fixpoint1' (fun l  -> l)
                    (Earley.fsequence_ignore (Earley.char '\'' '\'')
                       (Earley.fsequence ident
                          (Earley.empty_pos
@@ -563,7 +564,7 @@ module Make(Initial:Extension) =
                                          __loc__end__pos
                                         in
                                      fun id  -> id_loc id _loc))))
-                   (fun x  -> fun l  -> x :: l)))
+                   (fun x  -> fun f  -> fun l  -> f (x :: l))))
              (Earley.fsequence_ignore (Earley.char '.' '.')
                 (Earley.fsequence typexpr
                    (Earley.empty_pos
@@ -583,8 +584,8 @@ module Make(Initial:Extension) =
       Earley.set_grammar poly_syntax_typexpr
         (Earley.fsequence type_kw
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint1' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint1' (fun l  -> l)
                     (Earley.fsequence_position typeconstr_name
                        (Earley.empty
                           (fun str  ->
@@ -595,7 +596,7 @@ module Make(Initial:Extension) =
                                      let _loc_id = locate str pos str' pos'
                                         in
                                      id_loc id _loc_id)))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.fsequence_ignore (Earley.char '.' '.')
                  (Earley.fsequence typexpr
                     (Earley.empty
@@ -689,13 +690,14 @@ module Make(Initial:Extension) =
                                (Earley.char '&' '&')))
                          (Earley.fsequence typexpr
                             (Earley.fsequence
-                               (Earley.apply List.rev
-                                  (Earley.fixpoint' []
+                               (Earley.apply (fun f  -> f [])
+                                  (Earley.fixpoint' (fun l  -> l)
                                      (Earley.fsequence_ignore
                                         (Earley.char '&' '&')
                                         (Earley.fsequence typexpr
                                            (Earley.empty (fun te  -> te))))
-                                     (fun x  -> fun l  -> x :: l)))
+                                     (fun x  ->
+                                        fun f  -> fun l  -> f (x :: l))))
                                (Earley.empty
                                   (fun tes  ->
                                      fun te  ->
@@ -717,19 +719,21 @@ module Make(Initial:Extension) =
                     (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
                  (Earley.fsequence tag_spec_full
                     (Earley.fsequence
-                       (Earley.apply List.rev
-                          (Earley.fixpoint' []
+                       (Earley.apply (fun f  -> f [])
+                          (Earley.fixpoint' (fun l  -> l)
                              (Earley.fsequence_ignore (Earley.char '|' '|')
                                 (Earley.fsequence tag_spec_full
                                    (Earley.empty (fun tsf  -> tsf))))
-                             (fun x  -> fun l  -> x :: l)))
+                             (fun x  -> fun f  -> fun l  -> f (x :: l))))
                        (Earley.fsequence
                           (Earley.option []
                              (Earley.fsequence_ignore (Earley.char '>' '>')
                                 (Earley.fsequence
-                                   (Earley.apply List.rev
-                                      (Earley.fixpoint1' [] tag_name
-                                         (fun x  -> fun l  -> x :: l)))
+                                   (Earley.apply (fun f  -> f [])
+                                      (Earley.fixpoint1' (fun l  -> l)
+                                         tag_name
+                                         (fun x  ->
+                                            fun f  -> fun l  -> f (x :: l))))
                                    (Earley.empty (fun tns  -> tns)))))
                           (Earley.fsequence_ignore (Earley.char ']' ']')
                              (Earley.empty_pos
@@ -751,12 +755,12 @@ module Make(Initial:Extension) =
            Earley.fsequence_ignore (Earley.char '[' '[')
              (Earley.fsequence tag_spec_first
                 (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint' []
+                   (Earley.apply (fun f  -> f [])
+                      (Earley.fixpoint' (fun l  -> l)
                          (Earley.fsequence_ignore (Earley.char '|' '|')
                             (Earley.fsequence tag_spec
                                (Earley.empty (fun ts  -> ts))))
-                         (fun x  -> fun l  -> x :: l)))
+                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
                    (Earley.fsequence_ignore (Earley.char ']' ']')
                       (Earley.empty_pos
                          (fun __loc__start__buf  ->
@@ -777,12 +781,12 @@ module Make(Initial:Extension) =
                 (Earley.option None
                    (Earley.apply (fun x  -> Some x) tag_spec))
                 (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint' []
+                   (Earley.apply (fun f  -> f [])
+                      (Earley.fixpoint' (fun l  -> l)
                          (Earley.fsequence_ignore (Earley.char '|' '|')
                             (Earley.fsequence tag_spec
                                (Earley.empty (fun ts  -> ts))))
-                         (fun x  -> fun l  -> x :: l)))
+                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
                    (Earley.fsequence_ignore (Earley.char ']' ']')
                       (Earley.empty_pos
                          (fun __loc__start__buf  ->
@@ -831,13 +835,13 @@ module Make(Initial:Extension) =
                  (Earley.fsequence with_kw
                     (Earley.fsequence package_constraint
                        (Earley.fsequence
-                          (Earley.apply List.rev
-                             (Earley.fixpoint' []
+                          (Earley.apply (fun f  -> f [])
+                             (Earley.fixpoint' (fun l  -> l)
                                 (Earley.fsequence_ignore and_kw
                                    (Earley.fsequence package_constraint
                                       (Earley.empty
                                          (fun _default_0  -> _default_0))))
-                                (fun x  -> fun l  -> x :: l)))
+                                (fun x  -> fun f  -> fun l  -> f (x :: l))))
                           (Earley.empty
                              (fun pcs  ->
                                 fun pc  -> fun _default_0  -> pc :: pcs))))))
@@ -868,9 +872,9 @@ module Make(Initial:Extension) =
            [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
            Earley.fsequence_ignore (Earley.string "[>" "[>")
              (Earley.fsequence
-                (Earley.apply List.rev
-                   (Earley.fixpoint1' [] tag_name
-                      (fun x  -> fun l  -> x :: l)))
+                (Earley.apply (fun f  -> f [])
+                   (Earley.fixpoint1' (fun l  -> l) tag_name
+                      (fun x  -> fun f  -> fun l  -> f (x :: l))))
                 (Earley.fsequence_ignore (Earley.string "]" "]")
                    (Earley.empty (fun l  -> l))))])
       
@@ -987,9 +991,9 @@ module Make(Initial:Extension) =
            (Earley.fsequence_ignore (Earley.char '(' '(')
               (Earley.fsequence typexpr
                  (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint' [] attribute
-                          (fun x  -> fun l  -> x :: l)))
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint' (fun l  -> l) attribute
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.fsequence_ignore (Earley.char ')' ')')
                        (Earley.empty
                           (fun at  ->
@@ -1077,12 +1081,12 @@ module Make(Initial:Extension) =
            (Earley.fsequence_ignore (Earley.char '(' '(')
               (Earley.fsequence typexpr
                  (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint1' []
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint1' (fun l  -> l)
                           (Earley.fsequence_ignore (Earley.char ',' ',')
                              (Earley.fsequence typexpr
                                 (Earley.empty (fun te  -> te))))
-                          (fun x  -> fun l  -> x :: l)))
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.fsequence_ignore (Earley.char ')' ')')
                        (Earley.fsequence_position typeconstr
                           (Earley.empty_pos
@@ -1214,12 +1218,12 @@ module Make(Initial:Extension) =
            (Earley.fsequence_ignore (Earley.char '(' '(')
               (Earley.fsequence typexpr
                  (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint' []
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint' (fun l  -> l)
                           (Earley.fsequence_ignore (Earley.char ',' ',')
                              (Earley.fsequence typexpr
                                 (Earley.empty (fun te  -> te))))
-                          (fun x  -> fun l  -> x :: l)))
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.fsequence_ignore (Earley.char ')' ')')
                        (Earley.fsequence_ignore (Earley.char '#' '#')
                           (Earley.fsequence_position class_path
@@ -1320,12 +1324,12 @@ module Make(Initial:Extension) =
            [Earley.fsequence_ignore (Earley.char '(' '(')
               (Earley.fsequence type_param
                  (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint' []
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint' (fun l  -> l)
                           (Earley.fsequence_ignore (Earley.char ',' ',')
                              (Earley.fsequence type_param
                                 (Earley.empty (fun tp  -> tp))))
-                          (fun x  -> fun l  -> x :: l)))
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.fsequence_ignore (Earley.char ')' ')')
                        (Earley.empty (fun tps  -> fun tp  -> tp :: tps)))));
            Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
@@ -1455,8 +1459,8 @@ module Make(Initial:Extension) =
                               (Earley.fsequence
                                  (typexpr_lvl (next_type_prio ProdType))
                                  (Earley.fsequence
-                                    (Earley.apply List.rev
-                                       (Earley.fixpoint' []
+                                    (Earley.apply (fun f  -> f [])
+                                       (Earley.fixpoint' (fun l  -> l)
                                           (Earley.fsequence_ignore
                                              (Earley.char '*' '*')
                                              (Earley.fsequence
@@ -1465,7 +1469,8 @@ module Make(Initial:Extension) =
                                                 (Earley.empty
                                                    (fun _default_0  ->
                                                       _default_0))))
-                                          (fun x  -> fun l  -> x :: l)))
+                                          (fun x  ->
+                                             fun f  -> fun l  -> f (x :: l))))
                                     (Earley.fsequence arrow_re
                                        (Earley.empty
                                           (fun _default_0  ->
@@ -1578,9 +1583,9 @@ module Make(Initial:Extension) =
            [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
            Earley.fsequence (type_constr_decl false)
              (Earley.fsequence
-                (Earley.apply List.rev
-                   (Earley.fixpoint' [] (type_constr_decl true)
-                      (fun x  -> fun l  -> x :: l)))
+                (Earley.apply (fun f  -> f [])
+                   (Earley.fixpoint' (fun l  -> l) (type_constr_decl true)
+                      (fun x  -> fun f  -> fun l  -> f (x :: l))))
                 (Earley.empty (fun cds  -> fun cd  -> cd :: cds)));
            Earley.fsequence (Earley.char '$' '$')
              (Earley.fsequence_ignore (Earley.no_blank_test ())
@@ -1611,9 +1616,9 @@ module Make(Initial:Extension) =
            [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
            Earley.fsequence (type_constr_extn false)
              (Earley.fsequence
-                (Earley.apply List.rev
-                   (Earley.fixpoint' [] (type_constr_extn true)
-                      (fun x  -> fun l  -> x :: l)))
+                (Earley.apply (fun f  -> f [])
+                   (Earley.fixpoint' (fun l  -> l) (type_constr_extn true)
+                      (fun x  -> fun f  -> fun l  -> f (x :: l))))
                 (Earley.empty (fun cds  -> fun cd  -> cd :: cds)));
            Earley.fsequence (Earley.char '$' '$')
              (Earley.fsequence_ignore (Earley.no_blank_test ())
@@ -1774,9 +1779,9 @@ module Make(Initial:Extension) =
                           (Earley.fsequence type_representation
                              (Earley.empty (fun tr  -> fun pri  -> (pri, tr))))))))
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint' [] type_constraint
-                       (fun x  -> fun l  -> x :: l)))
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint' (fun l  -> l) type_constraint
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.empty
                     (fun cstrs  ->
                        fun ptr  ->
@@ -1899,8 +1904,8 @@ module Make(Initial:Extension) =
         (Earley.fsequence_position type_kw
            (Earley.fsequence typedef
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint' []
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint' (fun l  -> l)
                        (Earley.fsequence_position and_kw
                           (Earley.fsequence typedef
                              (Earley.empty
@@ -1913,7 +1918,7 @@ module Make(Initial:Extension) =
                                              let _loc_l =
                                                locate str pos str' pos'  in
                                              snd (td (Some _loc_l))))))
-                       (fun x  -> fun l  -> x :: l)))
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.empty
                     (fun tds  ->
                        fun td  ->
@@ -2140,13 +2145,13 @@ module Make(Initial:Extension) =
                  (Earley.fsequence_ignore (Earley.string "[" "[")
                     (Earley.fsequence typexpr
                        (Earley.fsequence
-                          (Earley.apply List.rev
-                             (Earley.fixpoint' []
+                          (Earley.apply (fun f  -> f [])
+                             (Earley.fixpoint' (fun l  -> l)
                                 (Earley.fsequence_ignore
                                    (Earley.string "," ",")
                                    (Earley.fsequence typexpr
                                       (Earley.empty (fun te  -> te))))
-                                (fun x  -> fun l  -> x :: l)))
+                                (fun x  -> fun f  -> fun l  -> f (x :: l))))
                           (Earley.fsequence_ignore (Earley.string "]" "]")
                              (Earley.empty (fun tes  -> fun te  -> te :: tes)))))))
               (Earley.fsequence_position classtype_path
@@ -2179,9 +2184,9 @@ module Make(Initial:Extension) =
                             (Earley.fsequence_ignore (Earley.string ")" ")")
                                (Earley.empty (fun te  -> te)))))))
                 (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint' [] class_field_spec
-                         (fun x  -> fun l  -> x :: l)))
+                   (Earley.apply (fun f  -> f [])
+                      (Earley.fixpoint' (fun l  -> l) class_field_spec
+                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
                    (Earley.fsequence end_kw
                       (Earley.empty_pos
                          (fun __loc__start__buf  ->
@@ -2222,15 +2227,15 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar class_type
         (Earley.fsequence
-           (Earley.apply List.rev
-              (Earley.fixpoint' []
+           (Earley.apply (fun f  -> f [])
+              (Earley.fixpoint' (fun l  -> l)
                  (Earley.fsequence
                     (Earley.option None
                        (Earley.apply (fun x  -> Some x) maybe_opt_label))
                     (Earley.fsequence_ignore (Earley.string ":" ":")
                        (Earley.fsequence typexpr
                           (Earley.empty (fun te  -> fun l  -> (l, te))))))
-                 (fun x  -> fun l  -> x :: l)))
+                 (fun x  -> fun f  -> fun l  -> f (x :: l))))
            (Earley.fsequence class_body_type
               (Earley.empty_pos
                  (fun __loc__start__buf  ->
@@ -2263,12 +2268,12 @@ module Make(Initial:Extension) =
       Earley.set_grammar type_parameters
         (Earley.fsequence type_param
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint' (fun l  -> l)
                     (Earley.fsequence_ignore (Earley.string "," ",")
                        (Earley.fsequence type_param
                           (Earley.empty (fun i2  -> i2))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty (fun l  -> fun i1  -> i1 :: l))))
       
     let class_spec = Earley.declare_grammar "class_spec" 
@@ -2316,12 +2321,12 @@ module Make(Initial:Extension) =
         (Earley.fsequence class_kw
            (Earley.fsequence class_spec
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint' []
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint' (fun l  -> l)
                        (Earley.fsequence_ignore and_kw
                           (Earley.fsequence class_spec
                              (Earley.empty (fun _default_0  -> _default_0))))
-                       (fun x  -> fun l  -> x :: l)))
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.empty
                     (fun css  -> fun cs  -> fun _default_0  -> cs :: css)))))
       
@@ -2363,8 +2368,8 @@ module Make(Initial:Extension) =
            (Earley.fsequence type_kw
               (Earley.fsequence_position classtype_def
                  (Earley.fsequence
-                    (Earley.apply List.rev
-                       (Earley.fixpoint' []
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint' (fun l  -> l)
                           (Earley.fsequence_ignore and_kw
                              (Earley.fsequence classtype_def
                                 (Earley.empty_pos
@@ -2379,7 +2384,7 @@ module Make(Initial:Extension) =
                                                 __loc__end__pos
                                                in
                                             fun cd  -> cd _loc))))
-                          (fun x  -> fun l  -> x :: l)))
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.empty
                        (fun cds  ->
                           fun str  ->
@@ -2808,8 +2813,8 @@ module Make(Initial:Extension) =
                              (Earley.fsequence pattern
                                 (Earley.empty (fun p  -> p))))))
                     (Earley.fsequence
-                       (Earley.apply List.rev
-                          (Earley.fixpoint' []
+                       (Earley.apply (fun f  -> f [])
+                          (Earley.fixpoint' (fun l  -> l)
                              (Earley.fsequence semi_col
                                 (Earley.fsequence_position field
                                    (Earley.fsequence
@@ -2833,7 +2838,7 @@ module Make(Initial:Extension) =
                                                       fun _default_0  ->
                                                         ((id_loc f _loc_f),
                                                           p))))))
-                             (fun x  -> fun l  -> x :: l)))
+                             (fun x  -> fun f  -> fun l  -> f (x :: l))))
                        (Earley.fsequence
                           (Earley.option None
                              (Earley.apply (fun x  -> Some x)
@@ -3064,13 +3069,13 @@ module Make(Initial:Extension) =
                                 fun p'  -> fun p  -> Pat.or_ ~loc:_loc p p'))))));
          (((fun (as_ok,lvl)  -> lvl <= TupPat)),
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint1' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint1' (fun l  -> l)
                     (Earley.fsequence
                        (pattern_lvl (true, (next_pat_prio TupPat)))
                        (Earley.fsequence_ignore (Earley.char ',' ',')
                           (Earley.empty (fun _default_0  -> _default_0))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.fsequence (pattern_lvl (false, (next_pat_prio TupPat)))
                  (Earley.empty_pos
                     (fun __loc__start__buf  ->
@@ -3703,8 +3708,8 @@ module Make(Initial:Extension) =
     let _ =
       Earley.set_grammar right_member
         (Earley.fsequence
-           (Earley.apply List.rev
-              (Earley.fixpoint1' []
+           (Earley.apply (fun f  -> f [])
+              (Earley.fixpoint1' (fun l  -> l)
                  (Earley.fsequence_position (parameter true)
                     (Earley.empty
                        (fun str  ->
@@ -3714,7 +3719,7 @@ module Make(Initial:Extension) =
                                 fun lb  ->
                                   let _loc_lb = locate str pos str' pos'  in
                                   (lb, _loc_lb))))
-                 (fun x  -> fun l  -> x :: l)))
+                 (fun x  -> fun f  -> fun l  -> f (x :: l))))
            (Earley.fsequence_position
               (Earley.option None
                  (Earley.apply (fun x  -> Some x)
@@ -4123,12 +4128,12 @@ module Make(Initial:Extension) =
              (Earley.option None
                 (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
              (Earley.fsequence
-                (Earley.apply List.rev
-                   (Earley.fixpoint' []
+                (Earley.apply (fun f  -> f [])
+                   (Earley.fixpoint' (fun l  -> l)
                       (Earley.fsequence (match_case Let Seq)
                          (Earley.fsequence_ignore (Earley.char '|' '|')
                             (Earley.empty (fun _default_0  -> _default_0))))
-                      (fun x  -> fun l  -> x :: l)))
+                      (fun x  -> fun f  -> fun l  -> f (x :: l))))
                 (Earley.fsequence (match_case Match Seq)
                    (Earley.fsequence no_semi
                       (Earley.empty
@@ -4159,8 +4164,8 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
            Earley.fsequence
-             (Earley.apply List.rev
-                (Earley.fixpoint' []
+             (Earley.apply (fun f  -> f [])
+                (Earley.fixpoint' (fun l  -> l)
                    (Earley.fsequence_position
                       (expression_lvl (NoMatch, (next_exp Seq)))
                       (Earley.fsequence_ignore semi_col
@@ -4173,7 +4178,7 @@ module Make(Initial:Extension) =
                                        let _loc_e = locate str pos str' pos'
                                           in
                                        (e, _loc_e)))))
-                   (fun x  -> fun l  -> x :: l)))
+                   (fun x  -> fun f  -> fun l  -> f (x :: l))))
              (Earley.fsequence_position
                 (expression_lvl (Match, (next_exp Seq)))
                 (Earley.fsequence
@@ -4248,12 +4253,12 @@ module Make(Initial:Extension) =
         (Earley.alternatives
            [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty []);
            Earley.fsequence
-             (Earley.apply List.rev
-                (Earley.fixpoint' []
+             (Earley.apply (fun f  -> f [])
+                (Earley.fixpoint' (fun l  -> l)
                    (Earley.fsequence record_item
                       (Earley.fsequence_ignore semi_col
                          (Earley.empty (fun _default_0  -> _default_0))))
-                   (fun x  -> fun l  -> x :: l)))
+                   (fun x  -> fun f  -> fun l  -> f (x :: l))))
              (Earley.fsequence last_record_item
                 (Earley.fsequence
                    (Earley.option None
@@ -4318,12 +4323,12 @@ module Make(Initial:Extension) =
            Earley.fsequence_ignore (Earley.char '[' '[')
              (Earley.fsequence typexpr
                 (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint' []
+                   (Earley.apply (fun f  -> f [])
+                      (Earley.fixpoint' (fun l  -> l)
                          (Earley.fsequence_ignore (Earley.char ',' ',')
                             (Earley.fsequence typexpr
                                (Earley.empty (fun te  -> te))))
-                         (fun x  -> fun l  -> x :: l)))
+                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
                    (Earley.fsequence_ignore (Earley.char ']' ']')
                       (Earley.fsequence_position class_path
                          (Earley.empty_pos
@@ -4384,8 +4389,8 @@ module Make(Initial:Extension) =
                                            (Pcl_constraint (ce, ct))))))));
            Earley.fsequence fun_kw
              (Earley.fsequence
-                (Earley.apply List.rev
-                   (Earley.fixpoint1' []
+                (Earley.apply (fun f  -> f [])
+                   (Earley.fixpoint1' (fun l  -> l)
                       (Earley.fsequence (parameter false)
                          (Earley.empty_pos
                             (fun __loc__start__buf  ->
@@ -4398,7 +4403,7 @@ module Make(Initial:Extension) =
                                          __loc__end__pos
                                         in
                                      fun p  -> (p, _loc))))
-                      (fun x  -> fun l  -> x :: l)))
+                      (fun x  -> fun f  -> fun l  -> f (x :: l))))
                 (Earley.fsequence arrow_re
                    (Earley.fsequence class_expr
                       (Earley.empty_pos
@@ -4445,9 +4450,9 @@ module Make(Initial:Extension) =
            (Earley.fsequence
               (Earley.option None
                  (Earley.apply (fun x  -> Some x)
-                    (Earley.apply List.rev
-                       (Earley.fixpoint1' [] argument
-                          (fun x  -> fun l  -> x :: l)))))
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint1' (fun l  -> l) argument
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))))
               (Earley.empty_pos
                  (fun __loc__start__buf  ->
                     fun __loc__start__pos  ->
@@ -4785,8 +4790,8 @@ module Make(Initial:Extension) =
                                  fun _default_2  ->
                                    (_default_2, _default_1, _default_0))))))
                 (Earley.fsequence
-                   (Earley.apply List.rev
-                      (Earley.fixpoint' []
+                   (Earley.apply (fun f  -> f [])
+                      (Earley.fixpoint' (fun l  -> l)
                          (Earley.fsequence_position (parameter true)
                             (Earley.empty
                                (fun str  ->
@@ -4797,7 +4802,7 @@ module Make(Initial:Extension) =
                                           let _loc_p =
                                             locate str pos str' pos'  in
                                           (p, _loc_p))))
-                         (fun x  -> fun l  -> x :: l)))
+                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
                    (Earley.fsequence_position
                       (Earley.option None
                          (Earley.apply (fun x  -> Some x)
@@ -5001,9 +5006,9 @@ module Make(Initial:Extension) =
         (Earley.fsequence_position
            (Earley.option None (Earley.apply (fun x  -> Some x) pattern))
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint' [] class_field
-                    (fun x  -> fun l  -> x :: l)))
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint' (fun l  -> l) class_field
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty
                  (fun f  ->
                     fun str  ->
@@ -5030,8 +5035,8 @@ module Make(Initial:Extension) =
                           (Earley.empty (fun params  -> params))))))
               (Earley.fsequence_position class_name
                  (Earley.fsequence_position
-                    (Earley.apply List.rev
-                       (Earley.fixpoint' []
+                    (Earley.apply (fun f  -> f [])
+                       (Earley.fixpoint' (fun l  -> l)
                           (Earley.fsequence (parameter false)
                              (Earley.empty_pos
                                 (fun __loc__start__buf  ->
@@ -5044,7 +5049,7 @@ module Make(Initial:Extension) =
                                              __loc__end__buf __loc__end__pos
                                             in
                                          fun p  -> (p, _loc))))
-                          (fun x  -> fun l  -> x :: l)))
+                          (fun x  -> fun f  -> fun l  -> f (x :: l))))
                     (Earley.fsequence
                        (Earley.option None
                           (Earley.apply (fun x  -> Some x)
@@ -5128,8 +5133,8 @@ module Make(Initial:Extension) =
         (Earley.fsequence_position class_kw
            (Earley.fsequence_position class_binding
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint' []
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint' (fun l  -> l)
                        (Earley.fsequence_ignore and_kw
                           (Earley.fsequence class_binding
                              (Earley.empty_pos
@@ -5143,7 +5148,7 @@ module Make(Initial:Extension) =
                                              __loc__end__buf __loc__end__pos
                                             in
                                          fun cb  -> cb _loc))))
-                       (fun x  -> fun l  -> x :: l)))
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.empty
                     (fun cbs  ->
                        fun str  ->
@@ -5238,8 +5243,8 @@ module Make(Initial:Extension) =
                                       mk_binary_op _l e' op _loc_op e)))))
         else
           Earley.fsequence
-            (Earley.apply List.rev
-               (Earley.fixpoint1' []
+            (Earley.apply (fun f  -> f [])
+               (Earley.fixpoint1' (fun l  -> l)
                   (Earley.fsequence
                      (expression_lvl (NoMatch, (next_exp lvl)))
                      (Earley.fsequence_position (infix_symbol lvl)
@@ -5262,7 +5267,7 @@ module Make(Initial:Extension) =
                                                 locate str pos str' pos'  in
                                               fun e'  ->
                                                 (_loc, e', op, _loc_op)))))
-                  (fun x  -> fun l  -> x :: l)))
+                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
             (Earley.empty
                (fun ls  ->
                   ((next_exp lvl), false,
@@ -5280,8 +5285,8 @@ module Make(Initial:Extension) =
          (((fun (alm,lvl)  -> (allow_let alm) && (lvl < App))),
            (Earley.fsequence fun_kw
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint' []
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint' (fun l  -> l)
                        (Earley.fsequence_position (parameter true)
                           (Earley.empty
                              (fun str  ->
@@ -5292,7 +5297,7 @@ module Make(Initial:Extension) =
                                         let _loc_lbl =
                                           locate str pos str' pos'  in
                                         (lbl, _loc_lbl))))
-                       (fun x  -> fun l  -> x :: l)))
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.fsequence arrow_re
                     (Earley.empty_pos
                        (fun __loc__start__buf  ->
@@ -5345,8 +5350,8 @@ module Make(Initial:Extension) =
                     Earley.fsequence module_kw
                       (Earley.fsequence module_name
                          (Earley.fsequence
-                            (Earley.apply List.rev
-                               (Earley.fixpoint' []
+                            (Earley.apply (fun f  -> f [])
+                               (Earley.fixpoint' (fun l  -> l)
                                   (Earley.fsequence_ignore
                                      (Earley.char '(' '(')
                                      (Earley.fsequence module_name
@@ -5379,7 +5384,7 @@ module Make(Initial:Extension) =
                                                           fun mt  ->
                                                             fun mn  ->
                                                               (mn, mt, _loc)))))))
-                                  (fun x  -> fun l  -> x :: l)))
+                                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
                             (Earley.fsequence_position
                                (Earley.option None
                                   (Earley.apply (fun x  -> Some x)
@@ -5520,13 +5525,13 @@ module Make(Initial:Extension) =
                                              }))))))));
          (((fun (alm,lvl)  -> lvl <= Seq)),
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint1' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint1' (fun l  -> l)
                     (Earley.fsequence
                        (expression_lvl (NoMatch, (next_exp Seq)))
                        (Earley.fsequence_ignore semi_col
                           (Earley.empty (fun _default_0  -> _default_0))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty
                  (fun ls  ->
                     ((next_exp Seq), false,
@@ -5612,13 +5617,13 @@ module Make(Initial:Extension) =
                              fun e'  -> ((next_exp Aff), false, (f e')))))))));
          (((fun (alm,lvl)  -> lvl <= Tupl)),
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint1' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint1' (fun l  -> l)
                     (Earley.fsequence
                        (expression_lvl (NoMatch, (next_exp Tupl)))
                        (Earley.fsequence_ignore (Earley.char ',' ',')
                           (Earley.empty (fun _default_0  -> _default_0))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty
                  (fun l  ->
                     ((next_exp Tupl), false,
@@ -6121,9 +6126,9 @@ module Make(Initial:Extension) =
          (((fun lvl  -> lvl <= App)),
            (Earley.fsequence (expression_lvl (NoMatch, (next_exp App)))
               (Earley.fsequence
-                 (Earley.apply List.rev
-                    (Earley.fixpoint1' [] argument
-                       (fun x  -> fun l  -> x :: l)))
+                 (Earley.apply (fun f  -> f [])
+                    (Earley.fixpoint1' (fun l  -> l) argument
+                       (fun x  -> fun f  -> fun l  -> f (x :: l))))
                  (Earley.empty_pos
                     (fun __loc__start__buf  ->
                        fun __loc__start__pos  ->
@@ -6347,12 +6352,12 @@ module Make(Initial:Extension) =
                  (Earley.option []
                     (Earley.fsequence obj_item
                        (Earley.fsequence
-                          (Earley.apply List.rev
-                             (Earley.fixpoint' []
+                          (Earley.apply (fun f  -> f [])
+                             (Earley.fixpoint' (fun l  -> l)
                                 (Earley.fsequence_ignore semi_col
                                    (Earley.fsequence obj_item
                                       (Earley.empty (fun o  -> o))))
-                                (fun x  -> fun l  -> x :: l)))
+                                (fun x  -> fun f  -> fun l  -> f (x :: l))))
                           (Earley.fsequence_ignore
                              (Earley.option None
                                 (Earley.apply (fun x  -> Some x) semi_col))
@@ -7135,8 +7140,8 @@ module Make(Initial:Extension) =
       set_grammar module_expr
         (Earley.fsequence_position module_expr_base
            (Earley.fsequence
-              (Earley.apply List.rev
-                 (Earley.fixpoint' []
+              (Earley.apply (fun f  -> f [])
+                 (Earley.fixpoint' (fun l  -> l)
                     (Earley.fsequence_ignore (Earley.string "(" "(")
                        (Earley.fsequence module_expr
                           (Earley.fsequence_ignore (Earley.string ")" ")")
@@ -7151,7 +7156,7 @@ module Make(Initial:Extension) =
                                              __loc__end__buf __loc__end__pos
                                             in
                                          fun m  -> (_loc, m))))))
-                    (fun x  -> fun l  -> x :: l)))
+                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
               (Earley.empty
                  (fun l  ->
                     fun str  ->
@@ -7378,13 +7383,13 @@ module Make(Initial:Extension) =
                     (Earley.fsequence_ignore with_kw
                        (Earley.fsequence mod_constraint
                           (Earley.fsequence
-                             (Earley.apply List.rev
-                                (Earley.fixpoint' []
+                             (Earley.apply (fun f  -> f [])
+                                (Earley.fixpoint' (fun l  -> l)
                                    (Earley.fsequence_ignore and_kw
                                       (Earley.fsequence mod_constraint
                                          (Earley.empty
                                             (fun _default_0  -> _default_0))))
-                                   (fun x  -> fun l  -> x :: l)))
+                                   (fun x  -> fun f  -> fun l  -> f (x :: l))))
                              (Earley.empty (fun l  -> fun m  -> m :: l)))))))
               (Earley.empty_pos
                  (fun __loc__start__buf  ->
@@ -7478,9 +7483,10 @@ module Make(Initial:Extension) =
                    (Earley.fsequence typexpr
                       (Earley.fsequence_ignore (Earley.string "=" "=")
                          (Earley.fsequence
-                            (Earley.apply List.rev
-                               (Earley.fixpoint' [] string_litteral
-                                  (fun x  -> fun l  -> x :: l)))
+                            (Earley.apply (fun f  -> f [])
+                               (Earley.fixpoint' (fun l  -> l)
+                                  string_litteral
+                                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
                             (Earley.fsequence post_item_attributes
                                (Earley.empty_pos
                                   (fun __loc__start__buf  ->
@@ -7629,8 +7635,8 @@ module Make(Initial:Extension) =
                            (Earley.fsequence_ignore (Earley.char '=' '=')
                               (Earley.fsequence_position module_expr
                                  (Earley.fsequence
-                                    (Earley.apply List.rev
-                                       (Earley.fixpoint' []
+                                    (Earley.apply (fun f  -> f [])
+                                       (Earley.fixpoint' (fun l  -> l)
                                           (Earley.fsequence and_kw
                                              (Earley.fsequence module_name
                                                 (Earley.fsequence_position
@@ -7689,7 +7695,8 @@ module Make(Initial:Extension) =
                                                                     _loc_mt
                                                                     _loc_me)
                                                                     mn mt me)))))))
-                                          (fun x  -> fun l  -> x :: l)))
+                                          (fun x  ->
+                                             fun f  -> fun l  -> f (x :: l))))
                                     (Earley.empty
                                        (fun ms  ->
                                           fun str  ->
@@ -7726,8 +7733,8 @@ module Make(Initial:Extension) =
                                                                     (m :: ms))))))));
                    Earley.fsequence module_name
                      (Earley.fsequence
-                        (Earley.apply List.rev
-                           (Earley.fixpoint' []
+                        (Earley.apply (fun f  -> f [])
+                           (Earley.fixpoint' (fun l  -> l)
                               (Earley.fsequence_ignore
                                  (Earley.string "(" "(")
                                  (Earley.fsequence module_name
@@ -7756,7 +7763,7 @@ module Make(Initial:Extension) =
                                                       fun mt  ->
                                                         fun mn  ->
                                                           (mn, mt, _loc)))))))
-                              (fun x  -> fun l  -> x :: l)))
+                              (fun x  -> fun f  -> fun l  -> f (x :: l))))
                         (Earley.fsequence_position
                            (Earley.option None
                               (Earley.apply (fun x  -> Some x)
@@ -8034,9 +8041,9 @@ module Make(Initial:Extension) =
       
     let _ =
       set_grammar structure_item_simple
-        (Earley.apply List.rev
-           (Earley.fixpoint' [] structure_item_base
-              (fun x  -> fun l  -> x :: l)))
+        (Earley.apply (fun f  -> f [])
+           (Earley.fixpoint' (fun l  -> l) structure_item_base
+              (fun x  -> fun f  -> fun l  -> f (x :: l))))
       
     let signature_item_base = Earley.declare_grammar "signature_item_base" 
     let _ =
@@ -8105,9 +8112,10 @@ module Make(Initial:Extension) =
                    (Earley.fsequence typexpr
                       (Earley.fsequence_ignore (Earley.string "=" "=")
                          (Earley.fsequence
-                            (Earley.apply List.rev
-                               (Earley.fixpoint' [] string_litteral
-                                  (fun x  -> fun l  -> x :: l)))
+                            (Earley.apply (fun f  -> f [])
+                               (Earley.fixpoint' (fun l  -> l)
+                                  string_litteral
+                                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
                             (Earley.fsequence post_item_attributes
                                (Earley.empty_pos
                                   (fun __loc__start__buf  ->
@@ -8200,8 +8208,8 @@ module Make(Initial:Extension) =
                       (Earley.fsequence module_type
                          (Earley.fsequence_position post_item_attributes
                             (Earley.fsequence
-                               (Earley.apply List.rev
-                                  (Earley.fixpoint' []
+                               (Earley.apply (fun f  -> f [])
+                                  (Earley.fixpoint' (fun l  -> l)
                                      (Earley.fsequence and_kw
                                         (Earley.fsequence module_name
                                            (Earley.fsequence_ignore
@@ -8241,7 +8249,8 @@ module Make(Initial:Extension) =
                                                                     _loc a)
                                                                     _loc mn
                                                                     mt)))))))
-                                     (fun x  -> fun l  -> x :: l)))
+                                     (fun x  ->
+                                        fun f  -> fun l  -> f (x :: l))))
                                (Earley.empty_pos
                                   (fun __loc__start__buf  ->
                                      fun __loc__start__pos  ->
@@ -8350,8 +8359,8 @@ module Make(Initial:Extension) =
                                                              })))));
                    Earley.fsequence module_name
                      (Earley.fsequence
-                        (Earley.apply List.rev
-                           (Earley.fixpoint' []
+                        (Earley.apply (fun f  -> f [])
+                           (Earley.fixpoint' (fun l  -> l)
                               (Earley.fsequence_ignore (Earley.char '(' '(')
                                  (Earley.fsequence module_name
                                     (Earley.fsequence
@@ -8379,7 +8388,7 @@ module Make(Initial:Extension) =
                                                       fun mt  ->
                                                         fun mn  ->
                                                           (mn, mt, _loc)))))))
-                              (fun x  -> fun l  -> x :: l)))
+                              (fun x  -> fun f  -> fun l  -> f (x :: l))))
                         (Earley.fsequence_ignore (Earley.char ':' ':')
                            (Earley.fsequence_position module_type
                               (Earley.fsequence post_item_attributes
