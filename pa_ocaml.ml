@@ -1496,17 +1496,17 @@ let parser right_expression @lvl =
       in loc_expr _loc desc
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
       r:{ STR("(") f:expression STR(")") ->
-	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "Array" "get") [e';f]
+	   fun e' _l -> exp_apply _l (array_function (ghost (merge2 e'.pexp_loc _l)) "Array" "get") [e';f]
 
 	| STR("[") f:expression STR("]") ->
-	   fun e' _loc -> exp_apply _loc (array_function (ghost (merge2 e'.pexp_loc _loc)) "String" "get") [e';f]
+	   fun e' _l -> exp_apply _l (array_function (ghost (merge2 e'.pexp_loc _l)) "String" "get") [e';f]
 
 	| STR("{") f:expression STR("}") ->
-	   fun e' _loc -> bigarray_get (ghost (merge2 e'.pexp_loc _loc)) e' f
+	   fun e' _l -> bigarray_get (ghost (merge2 e'.pexp_loc _l)) e' f
 
 	| f:field ->
-	   fun e' _loc ->
-	     let f = id_loc f _loc_f in loc_expr _loc (Pexp_field(e',f))
+	   fun e' _l ->
+	     let f = id_loc f _loc_f in loc_expr _l (Pexp_field(e',f))
         } when lvl <= Dot -> r e' _loc
 
   | e':(expression_lvl (NoMatch, Dash)) '#' f:method_name when lvl <= Dash ->

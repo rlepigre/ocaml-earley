@@ -163,10 +163,11 @@ module Initial =
     let signature = Earley.declare_grammar "signature" 
     let _ =
       Earley.set_grammar signature
-        (Earley.apply (fun l  -> List.flatten l)
+        (Earley.fsequence
            (Earley.apply List.rev
-              (Earley.fixpoint []
-                 (Earley.apply (fun x  -> fun y  -> x :: y) signature_item))))
+              (Earley.fixpoint' [] signature_item
+                 (fun x  -> fun l  -> x :: l)))
+           (Earley.empty (fun l  -> List.flatten l)))
       
     type type_prio =
       | TopType 
@@ -427,15 +428,16 @@ module Initial =
                  [Earley.fsequence
                     (EarleyStr.regexp (infix_symb_re prio)
                        (fun groupe  -> groupe 0))
-                    (Earley.apply
-                       (fun _default_0  ->
-                          fun sym  ->
-                            if is_reserved_symb sym then give_up (); sym)
-                       not_special)]
+                    (Earley.fsequence not_special
+                       (Earley.empty
+                          (fun _default_0  ->
+                             fun sym  ->
+                               if is_reserved_symb sym then give_up (); sym)))]
                else []) @
                 ((if prio = Cons
                   then
-                    [Earley.apply (fun _  -> "::") (Earley.string "::" "::")]
+                    [Earley.fsequence_ignore (Earley.string "::" "::")
+                       (Earley.empty "::")]
                   else []) @ [])))
       
     let (prefix_symbol,prefix_symbol__set__grammar) =
@@ -446,47 +448,55 @@ module Initial =
            Earley.fsequence
              (EarleyStr.regexp (prefix_symb_re prio)
                 (fun groupe  -> groupe 0))
-             (Earley.apply
-                (fun _default_0  ->
-                   fun sym  ->
-                     if (is_reserved_symb sym) || (sym = "!=")
-                     then give_up ();
-                     sym) not_special))
+             (Earley.fsequence not_special
+                (Earley.empty
+                   (fun _default_0  ->
+                      fun sym  ->
+                        if (is_reserved_symb sym) || (sym = "!=")
+                        then give_up ();
+                        sym))))
       
     let mutable_flag = Earley.declare_grammar "mutable_flag" 
     let _ =
       Earley.set_grammar mutable_flag
         (Earley.alternatives
-           [Earley.apply (fun _  -> Immutable) (Earley.empty ());
-           Earley.apply (fun _default_0  -> Mutable) mutable_kw])
+           [Earley.fsequence_ignore (Earley.empty ())
+              (Earley.empty Immutable);
+           Earley.fsequence mutable_kw
+             (Earley.empty (fun _default_0  -> Mutable))])
       
     let private_flag = Earley.declare_grammar "private_flag" 
     let _ =
       Earley.set_grammar private_flag
         (Earley.alternatives
-           [Earley.apply (fun _  -> Public) (Earley.empty ());
-           Earley.apply (fun _default_0  -> Private) private_kw])
+           [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty Public);
+           Earley.fsequence private_kw
+             (Earley.empty (fun _default_0  -> Private))])
       
     let virtual_flag = Earley.declare_grammar "virtual_flag" 
     let _ =
       Earley.set_grammar virtual_flag
         (Earley.alternatives
-           [Earley.apply (fun _  -> Concrete) (Earley.empty ());
-           Earley.apply (fun _default_0  -> Virtual) virtual_kw])
+           [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty Concrete);
+           Earley.fsequence virtual_kw
+             (Earley.empty (fun _default_0  -> Virtual))])
       
     let rec_flag = Earley.declare_grammar "rec_flag" 
     let _ =
       Earley.set_grammar rec_flag
         (Earley.alternatives
-           [Earley.apply (fun _  -> Nonrecursive) (Earley.empty ());
-           Earley.apply (fun _default_0  -> Recursive) rec_kw])
+           [Earley.fsequence_ignore (Earley.empty ())
+              (Earley.empty Nonrecursive);
+           Earley.fsequence rec_kw
+             (Earley.empty (fun _default_0  -> Recursive))])
       
     let downto_flag = Earley.declare_grammar "downto_flag" 
     let _ =
       Earley.set_grammar downto_flag
         (Earley.alternatives
-           [Earley.apply (fun _default_0  -> Downto) downto_kw;
-           Earley.apply (fun _default_0  -> Upto) to_kw])
+           [Earley.fsequence downto_kw
+              (Earley.empty (fun _default_0  -> Downto));
+           Earley.fsequence to_kw (Earley.empty (fun _default_0  -> Upto))])
       
     let entry_points =
       ([(".mli", (Interface (signature, ocaml_blank)));
