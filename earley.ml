@@ -134,7 +134,7 @@ let map_with_pos:type a b.(buffer -> int -> buffer -> int -> a -> b)
 
 exception KeepPos
 
-let rec map_rule : type a b.?keep_pos:bool -> (a -> b) -> a rule -> b rule
+let rec map_rule : type a b. ?keep_pos:bool -> (a -> b) -> a rule -> b rule
   = fun ?(keep_pos=false) f r ->
   let rec fn : type a b.(a -> b) -> a rule -> b rule
   = fun f r ->
