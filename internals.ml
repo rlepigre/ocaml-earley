@@ -658,7 +658,7 @@ let cns_pos : type a b c.(a -> (b -> c) -> ((a -> b) fpos -> c)) fpos
   = fun b p b' p' a f g -> f (g b p b' p' a)
 
 let cns_ign : type a b c.a -> (b -> c) -> (b -> c)
-  = fun a f g -> f g
+  = fun a f -> f
 
 (** This one for prediction *)
 let combine : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
