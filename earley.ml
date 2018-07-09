@@ -48,6 +48,7 @@ open Internals
 
 type blank = Internals.blank
 type 'a grammar = 'a Internals.grammar
+type 'a fpos = 'a Internals.fpos
 exception Parse_error = Internals.Parse_error
 let warn_merge = Internals.warn_merge
 let debug_lvl = Internals.debug_lvl
@@ -96,12 +97,26 @@ let nonterm name info rules =
   NonTerm{info;rules;name;memo=Container.Ref.create ()}
 
 let next_aux s r = mkrule (Next(compose_info s r, s,r))
+let next_pos_aux s r = mkrule (NextPos(compose_info s r, s,r))
+let next_ign_aux s r = mkrule (NextIgn(compose_info s r, s,r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
   fun (i,rs as g) r -> match rs with
   | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
      next_aux s0 r
   | _ -> next_aux (nonterm (grammar_name ~delim:true g) i rs) r
+
+let next_pos : type a c. a grammar -> (a -> c) fpos rule -> c rule =
+  fun (i,rs as g) r -> match rs with
+  | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
+     next_pos_aux s0 r
+  | _ -> next_pos_aux (nonterm (grammar_name ~delim:true g) i rs) r
+
+let next_ign : type a c. a grammar -> c rule -> c rule =
+  fun (i,rs as g) r -> match rs with
+  | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
+     next_ign_aux s0 r
+  | _ -> next_ign_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
@@ -116,74 +131,6 @@ let mktest name info input =
   Test{input;info;memo=Container.Ref.create ();name}
 
 let mkgrammar s = (grammar_info s, s)
-
-let map_pos:type a b.(a -> b) -> a pos -> b pos = fun f p ->
-  match p with
-  | Idt       -> (try Simple (f idt) with Error -> Error)
-  | Simple a  -> (try Simple (f a) with Error -> Error)
-  | WithPos a -> WithPos (fun b p b' p' -> f (a b p b' p'))
-  | Error     -> Error
-
-let map_with_pos:type a b.(buffer -> int -> buffer -> int -> a -> b)
-                      -> a pos -> b pos =
-  fun f p -> match p with
-  | Idt       -> WithPos (fun b p b' p' -> f b p b' p' idt)
-  | Simple a  -> WithPos (fun b p b' p' -> f b p b' p' a)
-  | WithPos a -> WithPos (fun b p b' p' -> f b p b' p' (a b p b' p'))
-  | Error     -> Error
-
-exception KeepPos
-
-let rec map_rule : type a b.?keep_pos:bool -> (a -> b) -> a rule -> b rule
-  = fun ?(keep_pos=false) f r ->
-  let rec fn : type a b.(a -> b) -> a rule -> b rule
-  = fun f r ->
-    match r.rule with
-    | Empty p     -> if keep_pos then
-                       begin
-                         match p with
-                           WithPos _ -> raise KeepPos
-                         | _ -> ()
-                       end;
-                     emp (map_pos f p)
-    | Next(i,s,r) -> next_aux s (fn (fun g a -> f (g a)) r)
-    | Dep(g)      -> next (mkgrammar [r]) (ems f)
-  in try fn f r with KeepPos -> next (mkgrammar [r]) (ems f)
-
-
-let map_rule_with_pos
-    : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b)
-           -> a rule -> b rule
-  = fun ?(keep_pos=false) f r ->
-  let rec fn : type a b. (buffer -> int -> buffer -> int -> a -> b)
-                    -> a rule -> b rule
-  = fun f r ->
-    match r.rule with
-    | Empty p     -> if keep_pos then
-                       begin
-                         match p with
-                           WithPos _ -> raise KeepPos
-                         | _ -> ()
-                       end;
-                     emp (map_with_pos f p)
-    | Next(i,s,r) -> next_aux s (fn (fun b p b' p' g a -> f b p b' p' (g a)) r)
-    | Dep(g)      -> next (mkgrammar [r])
-                          (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
-  in try fn f r with KeepPos ->
-       next (mkgrammar [r]) (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
-
-let rec map_grammar
-        : type a b.?keep_pos:bool -> (a -> b) -> a grammar -> b grammar
-  = fun ?(keep_pos=false) f (i,l) -> (i, List.map (map_rule ~keep_pos f) l)
-
-let map_grammar_with_pos
-        : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b) ->
-               a grammar -> b grammar =
-  fun ?(keep_pos=false) f (i,l as g) ->
-  if keep_pos && match l with [] | [_] -> false | _ -> true then
-    mkgrammar [next g (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))]
-  else
-    (i, List.map (map_rule_with_pos ~keep_pos f) l)
 
 (** Helper to build a terminal symbol *)
 let solo : string -> ?accept_empty:bool -> Charset.t
@@ -350,12 +297,13 @@ let give_name name (i,_ as g) =
 
 (** Change the action of the grammar by applying a function *)
 let apply : type a b. (a -> b) -> a grammar -> b grammar =
-  fun f g -> map_grammar ~keep_pos:true f g
+  fun f g -> mkgrammar [next g (emp (Simple f))]
 
 (** Idem, with positions *)
-let apply_position : type a b. (buffer -> int -> buffer -> int -> a -> b)
+let apply_position : type a b. (a -> b) fpos
                           -> a grammar -> b grammar =
-  fun f g -> map_grammar_with_pos ~keep_pos:true f g
+  fun f g ->
+    mkgrammar [next g (emp (WithPos f))]
 
 (** Build a tuple with positions *)
 let position g =
@@ -497,17 +445,19 @@ let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool
 (** Parse the empty string *)
 let empty : 'a -> 'a grammar = fun a -> (iempty,[ems a])
 
+let empty_pos : 'a fpos -> 'a grammar
+  = fun f -> (iempty,[emp (WithPos f)])
+
 (** Various wy to make sequence of parsing *)
 let sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
   = fun l1 l2 f ->
-    mkgrammar [next l1 (map_rule (fun b a -> f a b) (grammar_to_rule l2))]
+    mkgrammar [next l1 (next l2 (ems (fun b a -> f a b)))]
 
 let sequence_position : 'a grammar -> 'b grammar
-                        -> (buffer -> int -> buffer -> int -> 'a -> 'b -> 'c)
-                        -> 'c grammar
+                        -> ('a -> 'b -> 'c) fpos -> 'c grammar
   = fun l1 l2 f ->
-    mkgrammar [next l1 (map_rule_with_pos
-              (fun b p b' p' a a' -> f b p b' p' a' a)  (grammar_to_rule l2))]
+  mkgrammar [next l1 (next l2
+    (emp (WithPos (fun b p b' p' a a' -> f b p b' p' a' a))))]
 
 let sequence3 : 'a grammar -> 'b grammar -> 'c grammar
                 -> ('a -> 'b -> 'c -> 'd) -> 'd grammar
@@ -517,17 +467,11 @@ let sequence3 : 'a grammar -> 'b grammar -> 'c grammar
 let fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
   = fun l1 l2 -> mkgrammar [next l1 (grammar_to_rule l2)]
 
-let fsequence_position : 'a grammar
-                       -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
-                       -> 'b grammar
-  = fun l1 l2 ->
-    mkgrammar [next l1 (map_rule_with_pos
-                    (fun b p b' p' f a -> f b p b' p' a) (grammar_to_rule l2))]
+let fsequence_position : 'a grammar -> ('a -> 'b) fpos grammar -> 'b grammar
+  = fun l1 l2 -> mkgrammar [next_pos l1 (grammar_to_rule l2)]
 
-let new_fsequence_position : 'a grammar
-                         -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
-                         -> 'b grammar
-  = fsequence_position
+let fsequence_ignore : 'a grammar -> 'b grammar -> 'b grammar
+  = fun l1 l2 -> mkgrammar [next_ign l1 (grammar_to_rule l2)]
 
 let simple_dependent_sequence
     : 'a grammar -> ('a -> 'b grammar) -> 'b grammar
@@ -552,6 +496,14 @@ let fixpoint :  'a -> ('a -> 'a) grammar -> 'a grammar
       (mkgrammar [ems a; next res (next f1 (idtEmpty ()))]) in
     res
 
+let fixpoint' :  type a b.a -> b grammar -> (b -> a -> a) -> a grammar
+  = fun a f1 f ->
+    let name = grammar_delim_name f1 ^ "*" in
+    let res = declare_grammar name in
+    let _ = set_grammar res
+      (mkgrammar [ems a; next res (next f1 (ems f))]) in
+    res
+
 let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
   = fun a f1 ->
     let name = grammar_delim_name f1 ^ "+" in
@@ -561,32 +513,33 @@ let fixpoint1 :  'a -> ('a -> 'a) grammar -> 'a grammar
        next res (next f1 (idtEmpty ()))]) in
     res
 
-(** General lists with seprator *)
-let list0 g sep =
-  option []
-    (sequence g
-       (apply List.rev
-          (fixpoint []
-             (apply (fun x -> fun y -> x :: y)
-                (sequence sep g
-                   (fun _ -> fun x -> x)))))
-       (fun x -> fun xs -> x :: xs))
+let fixpoint1' :  'a -> 'b grammar -> ('b -> 'a -> 'a) -> 'a grammar
+  = fun a f1 f ->
+    let name = grammar_delim_name f1 ^ "+" in
+    let res = declare_grammar name in
+    let _ = set_grammar res
+      (mkgrammar [next f1 (ems (fun b -> f b a));
+       next res (next f1 (ems f))]) in
+    res
 
+
+(** General lists with seprator *)
 let list1 g sep =
-  sequence g
-    (apply List.rev
-       (fixpoint []
-          (apply (fun x -> fun y -> x :: y)
-             (sequence sep g (fun _ -> fun x -> x)))))
-    (fun x -> fun xs -> x :: xs)
+  fsequence g
+    (apply (fun xs x -> x :: List.rev xs)
+       (fixpoint' []
+                  (fsequence sep (apply (fun x _ -> x) g))
+                  (fun x l -> x::l)))
+
+let list0 g sep =
+  option [] (list1 g sep)
 
 let list2 g sep =
-  sequence g
-    (apply List.rev
-       (fixpoint1 []
-          (apply (fun x -> fun y -> x :: y)
-             (sequence sep g (fun _ -> fun x -> x)))))
-    (fun x -> fun xs -> x :: xs)
+  fsequence g
+    (apply (fun xs x -> x :: List.rev xs)
+       (fixpoint1' []
+                   (fsequence sep (apply (fun x _ -> x) g))
+                   (fun x l -> x::l)))
 
 (** A combinator to change the notion of blank *)
 let change_layout : ?old_blank_before:bool -> ?new_blank_after:bool

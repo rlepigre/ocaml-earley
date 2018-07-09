@@ -123,6 +123,21 @@ val blank_not_in_charset : ?name:string -> charset -> unit grammar
     as a semantic value. Note that this grammar never fails. *)
 val empty : 'a -> 'a grammar
 
+(** type for a function waiting for the start and end positions
+    (i.e. buffer and index) of an item, in general resulting from parsing *)
+type 'a fpos = buffer -> int -> buffer -> int -> 'a
+
+(** [empty_pos v] is similar to the above except that the action
+    wait for the position of a complete sequence build using
+     [fsequence] of [sequence].
+
+     For instance, [sequence_position g1 g2 f] below can be defined
+     as [fsequence g1 (fsequence g2 (empty_pos f'))].
+     where [f' = fun b p b' p' a2 a1 = f b p b' p' a1 a2] to give
+     the result of g1 and g2 in the expected order.
+ *)
+val empty_pos : 'a fpos -> 'a grammar
+
 (** [fail ()] is a grammar that always fail, whatever the input. *)
 val fail : unit -> 'a grammar
 
@@ -294,8 +309,7 @@ val sequence : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) -> 'c grammar
 
     Remark: [sequence g1 g2 f] is equivalent to
     [sequence_position g1 g2 (fun _ _ _ _ -> f)]. *)
-val sequence_position : 'a grammar -> 'b grammar
-  -> (buffer -> int -> buffer -> int -> 'a -> 'b -> 'c)
+val sequence_position : 'a grammar -> 'b grammar -> ('a -> 'b -> 'c) fpos
   -> 'c grammar
 
 (** [fsequence g1 g2] is a grammar that first parses using [g1], and then
@@ -306,13 +320,14 @@ val sequence_position : 'a grammar -> 'b grammar
     [sequence g1 g2 (fun x f -> f x)]. *)
 val fsequence : 'a grammar -> ('a -> 'b) grammar -> 'b grammar
 
-(** [fsequence_position g1 g2] is a grammar that first parses using [g1], and
-    then parses using [g2]. The results of the sequence is then obtained by
-    applying the result of [g1] and position information (see the definition of
-    [sequence_position]) to the result of [g2]. *)
-val fsequence_position : 'a grammar
-  -> (buffer -> int -> buffer -> int -> 'a -> 'b) grammar
-  -> 'b grammar
+(** same as fsequence, but the result of [g2] also receive the position of the
+    result of [g1]. *)
+val fsequence_position : 'a grammar -> ('a -> 'b) fpos grammar -> 'b grammar
+
+
+(** same as fsequence, but the result of [g2] receives nothing, meaning
+    we forget the result of [g1]. *)
+val fsequence_ignore : 'a grammar -> 'b grammar -> 'b grammar
 
 (** [sequence3] is similar to [sequence], but it composes three grammars into
     a sequence.
@@ -353,8 +368,12 @@ val fixpoint : 'a -> ('a -> 'a) grammar -> 'a grammar
     This consumes stack proportinal to the input length ! use revfixpoint ...
 *)
 
+val fixpoint' : 'a -> 'b grammar -> ('b -> 'a -> 'a) -> 'a grammar
+
 val fixpoint1 : 'a -> ('a -> 'a) grammar -> 'a grammar
 (** as [fixpoint] but parses at leat once with the given grammar *)
+
+val fixpoint1' : 'a -> 'b grammar -> ('b -> 'a -> 'a) -> 'a grammar
 
 (** [listN g sep] parses sequences of [g] separated by  [sep] of length at
     least [N], for [N=0,1] or [2]. *)
@@ -373,8 +392,7 @@ val apply : ('a -> 'b) -> 'a grammar -> 'b grammar
 (** [apply_position f g] applies function [f] to the value returned by the
     grammar [g] and the positions at the beginning and at the end of the
     input parsed input. *)
-val apply_position : (buffer -> int -> buffer -> int -> 'a -> 'b)
-  -> 'a grammar -> 'b grammar
+val apply_position : ('a -> 'b) fpos -> 'a grammar -> 'b grammar
 
 (** [position g] tranforms the grammar [g] to add information about the
     position of the parsed text. *)
@@ -387,12 +405,11 @@ val test : ?name:string -> Charset.t ->
            (buffer -> int -> ('a * bool)) -> 'a grammar
 
 (** [blank_test c f] same as above except that [f] is applied to [buf'
-    pos' buf pos] where [(buf', pos')] is the position before then
+    pos' buf pos] where [(buf', pos')] is the position before the
     blank. The charset c should contains all character accepted as at
     the position (buf,pos). This allow to test the presence of blank
     or even to read the blank and return some information *)
-val blank_test : ?name:string -> Charset.t ->
-                 (buffer -> int -> buffer -> int -> ('a * bool)) -> 'a grammar
+val blank_test : ?name:string -> Charset.t -> ('a * bool) fpos -> 'a grammar
 
 (** a test that fails if there is no blank *)
 val with_blank_test : 'a -> 'a grammar

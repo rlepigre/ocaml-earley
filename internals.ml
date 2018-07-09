@@ -64,15 +64,18 @@ type blank = buffer -> int -> buffer * int
 (** Positions *)
 type position = buffer * int
 
+(** type of a function waiting for positions *)
+type 'a fpos = buffer -> int -> buffer -> int -> 'a
+
 (** Type for action with or without position and its combinators *)
 type _ pos =
   | Idt : ('a -> 'a) pos
   | Simple : 'a -> 'a pos
-  | WithPos : (buffer -> int -> buffer -> int -> 'a) -> 'a pos
+  | WithPos : 'a fpos -> 'a pos
   | Error : 'a pos
 
 (** Common combinators, easy from their types *)
-let apply_pos: type a.a pos -> buffer -> int -> buffer -> int -> a =
+let apply_pos: type a.a pos -> a fpos =
   fun f buf col buf' col' ->
     match f with
     | Idt -> idt
@@ -92,7 +95,7 @@ type errpos = (buffer * int) option ref
 type 'a input2 = errpos -> blank -> buffer -> int -> 'a input
 
 (** Type for tests: get also both position and return a boolean and a value *)
-type 'a test  = buffer -> int -> buffer -> int -> 'a * bool
+type 'a test  = ('a * bool) fpos
 
 (** Position record stored in the elements of the earley table.  We
     store the position before and after the blank *)
@@ -109,6 +112,13 @@ let apply_pos_start =
     if eq_pos p1 p2 then apply_pos f buf col buf col
     (** parse something *)
     else apply_pos f buf_ab col_ab buf col
+
+let apply_start =
+  fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
+    (** parse nothing : only position before blank *)
+    if eq_pos p1 p2 then f buf col buf col
+    (** parse something *)
+    else f buf_ab col_ab buf col
 
 (** Type of the information computed on a rule: the boolean tells if
     the grammar can parse an empty string and the charset, the first
@@ -160,6 +170,8 @@ module rec Types : sig
      | Empty : 'a pos -> 'a prerule
      (** Empty rule. *)
      | Next : info * 'a symbol * ('a -> 'c) rule -> 'c prerule
+     | NextPos : info * 'a symbol * ('a -> 'c) fpos rule -> 'c prerule
+     | NextIgn : info * 'a symbol * 'c rule -> 'c prerule
      (** Sequence of a symbol and a rule, with a possible name for debugging,
          the information on the rule, the symbol to read, an action and
          the rest of the rule *)
@@ -223,7 +235,7 @@ module rec Types : sig
      (** Cons cell of the stack with a record similar to D's *)
      | C : { start : pos2
            ; stack : ('c, 'r) stack
-           ; acts  : 'a -> 'b -> 'c (** Here we wait [x:'a] from parents *)
+           ; acts  : ('a -> 'b -> 'c) pos (** Here we wait [x:'a] from parents *)
            ; rest  : 'b rule
            ; full  : 'c rule
            } -> ('a ,'r) element
@@ -332,6 +344,10 @@ let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r -
     | Empty _ -> []
     | Next(_,s,r) ->
        symbol_name s :: fn r
+    | NextPos(_,s,r) ->
+       symbol_name s :: fn r
+    | NextIgn(_,s,r) ->
+       symbol_name s :: fn r
     | Dep _ -> ["DEP"] (* FIXME *)
   in
   String.concat " " (List.filter (fun x -> x <> "") (fn r))
@@ -340,6 +356,8 @@ let grammar_name : type a. ?delim:bool -> a grammar -> string =
   fun ?(delim=true) p1 ->
     match snd p1 with
     | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
+    | [{rule = NextPos(_,s,{rule=Empty _})}] -> symbol_name s
+    | [{rule = NextIgn(_,s,{rule=Empty _})}] -> symbol_name s
     | [] -> "EMPTY"
     | [r] -> rule_name r
     | rs ->
@@ -372,6 +390,8 @@ let any    = Fixpoint.from_val (true, Charset.full)
 let rec rule_info:type a.a rule -> info = fun r ->
   match r.rule with
   | Next(i,_,_) -> i
+  | NextPos(i,_,_) -> i
+  | NextIgn(i,_,_) -> i
   | Empty _ -> iempty
   | Dep(_) -> any
 
@@ -408,6 +428,10 @@ let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
     end;
     match rule.rule with
     | Next(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+                                     (print_rule ?rest) rs
+    | NextPos(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+                                     (print_rule ?rest) rs
+    | NextIgn(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
                                      (print_rule ?rest) rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -553,6 +577,8 @@ let size el = size el (ref [])
 let rec tail_key : type a. a rule -> int = fun rule ->
   match rule.rule with
   | Next(_,_,rest) -> tail_key rest
+  | NextPos(_,_,rest) -> tail_key rest
+  | NextIgn(_,_,rest) -> tail_key rest
   | Empty _ -> rule.adr
   | Dep _ -> rule.adr
 
@@ -628,9 +654,21 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
 (** This one for completion *)
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
+let cns_pos : type a b c.(a -> (b -> c) -> ((a -> b) fpos -> c)) fpos
+  = fun b p b' p' a f g -> f (g b p b' p' a)
+
+let cns_ign : type a b c.a -> (b -> c) -> (b -> c)
+  = fun a f g -> f g
+
 (** This one for prediction *)
-let combine : type a c d.(c -> d) -> a -> (a -> c) -> d =
-  fun acts a f -> acts (f a)
+let combine : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
+  fun acts -> Simple(fun a f -> acts (f a))
+
+let combine_pos : type a c d.(c -> d) -> (a -> (a -> c) fpos -> d) pos =
+  fun acts -> WithPos(fun b p b' p' a f -> acts (f b p b' p' a))
+
+let combine_ign : type a c d.(c -> d) -> (a -> c -> d) pos =
+  fun acts -> Simple(fun a f -> acts f)
 
 (** Exception for parse error, can also be raise by
     Ter2 terminals, but no other terminal handles it *)
@@ -689,6 +727,54 @@ let rec pred_prod_lec
           let c = C {rest=rest2; acts=combine acts; full; start; stack} in
           List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
+       | NextPos(info,NonTerm{rules;memo},rest2) ->
+          if !debug_lvl > 0 then
+            log "Prediction: %a\n%!" print_final elt0;
+          (** Create one final elements for each rule and calls fn if not new *)
+          let rules =
+            try let res = Ref.find tmemo memo in
+                res (** Check if this was done *)
+            with Not_found ->
+	      let rules = List.filter (good c) rules in
+	      Ref.add tmemo memo rules;
+              List.iter
+                (fun rule ->
+                  let start = cur_pos in
+                  let stack = find_stack sct rule in
+                  let elt = final start idt stack rule rule in
+                  let b = add "P" cur_pos c elt elements in
+                  if b then fn elt;
+                ) rules;
+              rules
+          in
+               (** Computes the elements to add in the stack of all created rules *)
+          let c = C {rest=rest2; acts=combine_pos acts; full; start; stack} in
+          List.iter (fun rule -> ignore (add_stack sct rule c)) rules
+
+       | NextIgn(info,NonTerm{rules;memo},rest2) ->
+          if !debug_lvl > 0 then
+            log "Prediction: %a\n%!" print_final elt0;
+          (** Create one final elements for each rule and calls fn if not new *)
+          let rules =
+            try let res = Ref.find tmemo memo in
+                res (** Check if this was done *)
+            with Not_found ->
+	      let rules = List.filter (good c) rules in
+	      Ref.add tmemo memo rules;
+              List.iter
+                (fun rule ->
+                  let start = cur_pos in
+                  let stack = find_stack sct rule in
+                  let elt = final start idt stack rule rule in
+                  let b = add "P" cur_pos c elt elements in
+                  if b then fn elt;
+                ) rules;
+              rules
+          in
+               (** Computes the elements to add in the stack of all created rules *)
+          let c = C {rest=rest2; acts=combine_ign acts; full; start; stack} in
+          List.iter (fun rule -> ignore (add_stack sct rule c)) rules
+
        (** Nothing left to parse in the current rule: completion/production *)
        | Empty(a) ->
           begin try
@@ -707,7 +793,7 @@ let rec pred_prod_lec
                   match element with
                   | C {start; stack=els'; acts; rest; full} ->
                      if good c rest then begin
-                         let acts = acts x in
+                         let acts = apply_pos_start acts start cur_pos x in
                          let elt = final start acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
@@ -727,7 +813,7 @@ let rec pred_prod_lec
                   match element with
                   | C {start; stack=els'; acts; rest; full} ->
                      if good c rest then begin
-                         let acts = acts (Lazy.force x) in
+                         let acts = apply_pos_start acts start cur_pos (Lazy.force x) in
                          let elt = final start acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
@@ -774,6 +860,76 @@ let rec pred_prod_lec
               forward := OrdTbl.add buf col elt !forward
           with Error -> () end
 
+       | NextPos(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
+          begin try
+            if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
+            let {buf; col; buf_ab; col_ab} = cur_pos in
+            let a, buf, col =
+              try
+                match Ref.find tmemo memo with
+                | Some v -> v
+                | None -> raise Error
+              with Not_found ->
+                   try
+                     let res = match t with
+                       | Term{input=f} -> f buf_ab col_ab
+                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
+                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
+                                          if b then (a,buf_ab,col_ab)
+                                          else raise Error
+                       | _ -> assert false
+                     in
+                     Ref.add tmemo memo (Some res); res
+                   with Error ->
+                     Ref.add tmemo memo None; raise Error
+            in
+            let elt = final start (apply_start cns_pos start cur_pos a acts) stack rest full in
+            (** if we read nothing: add immediately to the table *)
+            if buffer_before buf col buf_ab col_ab then
+              begin
+                if good c rest then
+                  let b = add "T" cur_pos c elt elements in
+                  if b then fn elt
+              end
+            else (** otherwise write in the forward table for the next cycles *)
+              forward := OrdTbl.add buf col elt !forward
+          with Error -> () end
+
+       | NextIgn(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
+          begin try
+            if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
+            let {buf; col; buf_ab; col_ab} = cur_pos in
+            let a, buf, col =
+              try
+                match Ref.find tmemo memo with
+                | Some v -> v
+                | None -> raise Error
+              with Not_found ->
+                   try
+                     let res = match t with
+                       | Term{input=f} -> f buf_ab col_ab
+                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
+                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
+                                          if b then (a,buf_ab,col_ab)
+                                          else raise Error
+                       | _ -> assert false
+                     in
+                     Ref.add tmemo memo (Some res); res
+                   with Error ->
+                     Ref.add tmemo memo None; raise Error
+            in
+            let elt = final start (cns_ign a acts) stack rest full in
+            (** if we read nothing: add immediately to the table *)
+            if buffer_before buf col buf_ab col_ab then
+              begin
+                if good c rest then
+                  let b = add "T" cur_pos c elt elements in
+                  if b then fn elt
+              end
+            else (** otherwise write in the forward table for the next cycles *)
+              forward := OrdTbl.add buf col elt !forward
+          with Error -> () end
+
        (** A dependant rule: computes a rule while parsing ! *)
        | Dep(fn_rule) ->
           begin try
@@ -789,7 +945,7 @@ let rec pred_prod_lec
             let rule = fn_rule a in
             if good c rule then
               let elt = C { start; rest = idtEmpty (); full
-                            ; acts = (fun g f -> f (acts (fun _ -> g)))
+                            ; acts = Simple(fun g f -> f (acts (fun _ -> g)))
                             ; stack }
               in
               let stack = add_stack sct rule elt in
