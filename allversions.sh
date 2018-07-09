@@ -10,3 +10,5 @@ for v in $VERSIONS; do
     eval `opam config env`
     make distclean && make && make install
 done
+
+make distclean
