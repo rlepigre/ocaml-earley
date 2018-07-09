@@ -152,7 +152,7 @@ let rec map_rule : type a b. ?keep_pos:bool -> (a -> b) -> a rule -> b rule
 
 
 let map_rule_with_pos
-    : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b)
+    : type a b. ?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b)
            -> a rule -> b rule
   = fun ?(keep_pos=false) f r ->
   let rec fn : type a b. (buffer -> int -> buffer -> int -> a -> b)
@@ -173,11 +173,11 @@ let map_rule_with_pos
        next (mkgrammar [r]) (emp (WithPos (fun b p b' p' a -> f b p b' p' a)))
 
 let rec map_grammar
-        : type a b.?keep_pos:bool -> (a -> b) -> a grammar -> b grammar
+        : type a b. ?keep_pos:bool -> (a -> b) -> a grammar -> b grammar
   = fun ?(keep_pos=false) f (i,l) -> (i, List.map (map_rule ~keep_pos f) l)
 
 let map_grammar_with_pos
-        : type a b.?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b) ->
+        : type a b. ?keep_pos:bool -> (buffer -> int -> buffer -> int -> a -> b) ->
                a grammar -> b grammar =
   fun ?(keep_pos=false) f (i,l as g) ->
   if keep_pos && match l with [] | [_] -> false | _ -> true then
