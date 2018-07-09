@@ -791,10 +791,10 @@ let rec pred_prod_lec
               let complete = fun element ->
                 try
                   match element with
-                  | C {start; stack=els'; acts; rest; full} ->
+                  | C {start=start0; stack=els'; acts; rest; full} ->
                      if good c rest then begin
                          let acts = apply_pos_start acts start cur_pos x in
-                         let elt = final start acts els' rest full in
+                         let elt = final start0 acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
                        end
@@ -811,10 +811,10 @@ let rec pred_prod_lec
               let complete = fun element ->
                 try
                   match element with
-                  | C {start; stack=els'; acts; rest; full} ->
+                  | C {start=start0; stack=els'; acts; rest; full} ->
                      if good c rest then begin
                          let acts = apply_pos_start acts start cur_pos (Lazy.force x) in
-                         let elt = final start acts els' rest full in
+                         let elt = final start0 acts els' rest full in
                          let b = add "C" cur_pos c elt elements in
                          if b then fn elt
                        end
