@@ -96,25 +96,25 @@ let compose3 f g h = compose f (compose g h)
 let nonterm name info rules =
   NonTerm{info;rules;name;memo=Container.Ref.create ()}
 
-let next_aux s r = mkrule (Next(compose_info s r, s,r))
-let next_pos_aux s r = mkrule (NextPos(compose_info s r, s,r))
-let next_ign_aux s r = mkrule (NextIgn(compose_info s r, s,r))
+let next_aux s r = mkrule (Next(compose_info s r, s, Arg r))
+let next_pos_aux s r = mkrule (Next(compose_info s r, s, Pos r))
+let next_ign_aux s r = mkrule (Next(compose_info s r, s, Ign r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
   fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
+  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
      next_aux s0 r
   | _ -> next_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let next_pos : type a c. a grammar -> (a -> c) fpos rule -> c rule =
   fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
+  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
      next_pos_aux s0 r
   | _ -> next_pos_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let next_ign : type a c. a grammar -> c rule -> c rule =
   fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0,{rule = Empty Idt})}] ->
+  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
      next_ign_aux s0 r
   | _ -> next_ign_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
@@ -137,7 +137,7 @@ let solo : string -> ?accept_empty:bool -> Charset.t
            -> 'a input -> 'a grammar
   = fun name ?(accept_empty=false) set s ->
       let j = Fixpoint.from_val (accept_empty,set) in
-      (j, [mkrule (Next(j,mkterm name j s,idtEmpty ()))])
+      (j, [mkrule (Next(j,mkterm name j s, Arg(idtEmpty ())))])
 
 type 'a result = Val of 'a | Exc of exn
 
@@ -148,20 +148,20 @@ let solo2 =
     let s = fun errpos blank b p b' p' ->
       s errpos blank b p b' p'
     in
-    (i, [mkrule (Next(i,mkter2 name i s,idtEmpty ()))])
+    (i, [mkrule (Next(i,mkter2 name i s, Arg (idtEmpty ())))])
 
 (** Combinator for test at current position *)
 let test : ?name:string -> Charset.t
            -> (buffer -> int -> 'a * bool) -> 'a grammar =
   fun ?(name="") set f ->
     let j = Fixpoint.from_val (true,set) in
-    (j, [mkrule (Next(j,mktest name j (fun _ _ -> f),idtEmpty ()))])
+    (j, [mkrule (Next(j,mktest name j (fun _ _ -> f), Arg (idtEmpty ())))])
 
 (** Combinator for test blank before the current position *)
 let blank_test : ?name:string -> Charset.t -> 'a test -> 'a grammar =
   fun ?(name="") set f ->
   let j = Fixpoint.from_val (true,set) in
-  (j, [mkrule (Next(j,mktest name j f,idtEmpty ()))])
+  (j, [mkrule (Next(j,mktest name j f, Arg(idtEmpty ())))])
 
 (** A test that always pass *)
 let success a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
@@ -200,12 +200,12 @@ let declare_grammar name =
     | NonTerm r -> r.info <- j
     | _ -> assert false
   end;
-  mkgrammar [mkrule (Next(j,nt, idtEmpty ()))]
+  mkgrammar [mkrule (Next(j,nt, Arg(idtEmpty ())))]
 
 (** Set the value of a recursive grammar *)
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 (_,rules2) ->
       match snd p1 with
-      | [{rule=Next(_,NonTerm({info} as r),{rule=Empty Idt})}] ->
+      | [{rule=Next(_,NonTerm({info} as r),Arg {rule=Empty Idt})}] ->
          r.rules <- rules2; Fixpoint.update info;
       (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
       | _ -> invalid_arg "set_grammar"
