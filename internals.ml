@@ -169,15 +169,18 @@ module rec Types : sig
    and _ prerule =
      | Empty : 'a pos -> 'a prerule
      (** Empty rule. *)
-     | Next : info * 'a symbol * ('a -> 'c) rule -> 'c prerule
-     | NextPos : info * 'a symbol * ('a -> 'c) fpos rule -> 'c prerule
-     | NextIgn : info * 'a symbol * 'c rule -> 'c prerule
+     | Next : info * 'a symbol * ('a, 'c) next -> 'c prerule
      (** Sequence of a symbol and a rule, with a possible name for debugging,
          the information on the rule, the symbol to read, an action and
          the rest of the rule *)
      | Dep : ('a -> 'b rule) -> ('a -> 'b) prerule
      (** Dependant rule, gives a lot of power! but costly! use only when
          no other solution is possible *)
+
+   and ('a, 'c) next =
+     | Arg : ('a -> 'c) rule -> ('a, 'c) next
+     | Pos : ('a -> 'c) fpos rule -> ('a, 'c) next
+     | Ign : 'c rule -> ('a, 'c) next
 
    (** Each rule holds a container to associate data to the rule in O(1).
        see below the description of the type ('a,'b) pre_stack *)
@@ -342,11 +345,11 @@ let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r -
   let rec fn : type a.a rule -> string list = fun r ->
     match r.rule with
     | Empty _ -> []
-    | Next(_,s,r) ->
+    | Next(_,s,Arg r) ->
        symbol_name s :: fn r
-    | NextPos(_,s,r) ->
+    | Next(_,s,Pos r) ->
        symbol_name s :: fn r
-    | NextIgn(_,s,r) ->
+    | Next(_,s,Ign r) ->
        symbol_name s :: fn r
     | Dep _ -> ["DEP"] (* FIXME *)
   in
@@ -355,9 +358,9 @@ let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r -
 let grammar_name : type a. ?delim:bool -> a grammar -> string =
   fun ?(delim=true) p1 ->
     match snd p1 with
-    | [{rule = Next(_,s,{rule=Empty _})}] -> symbol_name s
-    | [{rule = NextPos(_,s,{rule=Empty _})}] -> symbol_name s
-    | [{rule = NextIgn(_,s,{rule=Empty _})}] -> symbol_name s
+    | [{rule = Next(_,s,Arg{rule=Empty _})}] -> symbol_name s
+    | [{rule = Next(_,s,Pos{rule=Empty _})}] -> symbol_name s
+    | [{rule = Next(_,s,Ign{rule=Empty _})}] -> symbol_name s
     | [] -> "EMPTY"
     | [r] -> rule_name r
     | rs ->
@@ -379,7 +382,7 @@ let grammar_to_rule : type a. ?name:string -> a grammar -> a rule
                                 | Some n -> n in
        mkrule (Next(info,
                     NonTerm{info;rules;name
-                           ;memo=Ref.create ()},idtEmpty ()))
+                           ;memo=Ref.create ()},Arg(idtEmpty ())))
 
 (** Basic constants/functions for rule information *)
 let force  = Fixpoint.force
@@ -390,8 +393,6 @@ let any    = Fixpoint.from_val (true, Charset.full)
 let rec rule_info:type a.a rule -> info = fun r ->
   match r.rule with
   | Next(i,_,_) -> i
-  | NextPos(i,_,_) -> i
-  | NextIgn(i,_,_) -> i
   | Empty _ -> iempty
   | Dep(_) -> any
 
@@ -427,11 +428,11 @@ let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
          | Y -> Printf.fprintf ch "\x1B[31m*\x1B[0m " | N -> ()
     end;
     match rule.rule with
-    | Next(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+    | Next(_,s,Arg rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
                                      (print_rule ?rest) rs
-    | NextPos(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+    | Next(_,s,Pos rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
                                      (print_rule ?rest) rs
-    | NextIgn(_,s,rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
+    | Next(_,s,Ign rs) -> Printf.fprintf ch "%s %a" (symbol_name s)
                                      (print_rule ?rest) rs
     | Dep _ -> Printf.fprintf ch "DEP"
     | Empty _ -> ()
@@ -576,9 +577,9 @@ let size el = size el (ref [])
     to get the key of an element representing a complete parsing *)
 let rec tail_key : type a. a rule -> int = fun rule ->
   match rule.rule with
-  | Next(_,_,rest) -> tail_key rest
-  | NextPos(_,_,rest) -> tail_key rest
-  | NextIgn(_,_,rest) -> tail_key rest
+  | Next(_,_,Arg rest) -> tail_key rest
+  | Next(_,_,Pos rest) -> tail_key rest
+  | Next(_,_,Ign rest) -> tail_key rest
   | Empty _ -> rule.adr
   | Dep _ -> rule.adr
 
@@ -724,55 +725,11 @@ let rec pred_prod_lec
               rules
           in
                (** Computes the elements to add in the stack of all created rules *)
-          let c = C {rest=rest2; acts=combine acts; full; start; stack} in
-          List.iter (fun rule -> ignore (add_stack sct rule c)) rules
-
-       | NextPos(info,NonTerm{rules;memo},rest2) ->
-          if !debug_lvl > 0 then
-            log "Prediction: %a\n%!" print_final elt0;
-          (** Create one final elements for each rule and calls fn if not new *)
-          let rules =
-            try let res = Ref.find tmemo memo in
-                res (** Check if this was done *)
-            with Not_found ->
-	      let rules = List.filter (good c) rules in
-	      Ref.add tmemo memo rules;
-              List.iter
-                (fun rule ->
-                  let start = cur_pos in
-                  let stack = find_stack sct rule in
-                  let elt = final start idt stack rule rule in
-                  let b = add "P" cur_pos c elt elements in
-                  if b then fn elt;
-                ) rules;
-              rules
+          let c = match rest2 with
+            | Arg rest -> C {rest; acts=combine acts; full; start; stack}
+            | Pos rest -> C {rest; acts=combine_pos acts; full; start; stack}
+            | Ign rest -> C {rest; acts=combine_ign acts; full; start; stack}
           in
-               (** Computes the elements to add in the stack of all created rules *)
-          let c = C {rest=rest2; acts=combine_pos acts; full; start; stack} in
-          List.iter (fun rule -> ignore (add_stack sct rule c)) rules
-
-       | NextIgn(info,NonTerm{rules;memo},rest2) ->
-          if !debug_lvl > 0 then
-            log "Prediction: %a\n%!" print_final elt0;
-          (** Create one final elements for each rule and calls fn if not new *)
-          let rules =
-            try let res = Ref.find tmemo memo in
-                res (** Check if this was done *)
-            with Not_found ->
-	      let rules = List.filter (good c) rules in
-	      Ref.add tmemo memo rules;
-              List.iter
-                (fun rule ->
-                  let start = cur_pos in
-                  let stack = find_stack sct rule in
-                  let elt = final start idt stack rule rule in
-                  let b = add "P" cur_pos c elt elements in
-                  if b then fn elt;
-                ) rules;
-              rules
-          in
-               (** Computes the elements to add in the stack of all created rules *)
-          let c = C {rest=rest2; acts=combine_ign acts; full; start; stack} in
           List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
        (** Nothing left to parse in the current rule: completion/production *)
@@ -848,86 +805,25 @@ let rec pred_prod_lec
                    with Error ->
                      Ref.add tmemo memo None; raise Error
             in
-            let elt = final start (cns a acts) stack rest full in
-            (** if we read nothing: add immediately to the table *)
-            if buffer_before buf col buf_ab col_ab then
-              begin
-                if good c rest then
-                  let b = add "T" cur_pos c elt elements in
-                  if b then fn elt
-              end
-            else (** otherwise write in the forward table for the next cycles *)
-              forward := OrdTbl.add buf col elt !forward
-          with Error -> () end
-
-       | NextPos(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
-          begin try
-            if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
-            let {buf; col; buf_ab; col_ab} = cur_pos in
-            let a, buf, col =
-              try
-                match Ref.find tmemo memo with
-                | Some v -> v
-                | None -> raise Error
-              with Not_found ->
-                   try
-                     let res = match t with
-                       | Term{input=f} -> f buf_ab col_ab
-                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
-                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
-                                          if b then (a,buf_ab,col_ab)
-                                          else raise Error
-                       | _ -> assert false
-                     in
-                     Ref.add tmemo memo (Some res); res
-                   with Error ->
-                     Ref.add tmemo memo None; raise Error
-            in
             let empty_parse = buffer_before buf col buf_ab col_ab in
-            let end_pos =
-              if empty_parse then cur_pos else
-                { buf_ab = buf; col_ab = col; buf; col }
+            let elt, gd = match rest with
+              | Arg rest ->
+                 final start (cns a acts) stack rest full
+                , (fun () -> good c rest)
+              | Pos rest ->
+                 let end_pos =
+                   if empty_parse then cur_pos else
+                     { buf_ab = buf; col_ab = col; buf; col }
+                 in
+                 final start (apply_start cns_pos cur_pos end_pos a acts) stack rest full
+                , (fun () -> good c rest)
+              | Ign rest ->
+                 final start (cns_ign a acts) stack rest full
+                , (fun () -> good c rest)
             in
-            let elt = final start (apply_start cns_pos cur_pos end_pos a acts) stack rest full in
-            (** if we read nothing: add immediately to the table *)
             if empty_parse then
               begin
-                if good c rest then
-                  let b = add "T" cur_pos c elt elements in
-                  if b then fn elt
-              end
-            else (** otherwise write in the forward table for the next cycles *)
-              forward := OrdTbl.add buf col elt !forward
-          with Error -> () end
-
-       | NextIgn(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
-          begin try
-            if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
-            let {buf; col; buf_ab; col_ab} = cur_pos in
-            let a, buf, col =
-              try
-                match Ref.find tmemo memo with
-                | Some v -> v
-                | None -> raise Error
-              with Not_found ->
-                   try
-                     let res = match t with
-                       | Term{input=f} -> f buf_ab col_ab
-                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
-                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
-                                          if b then (a,buf_ab,col_ab)
-                                          else raise Error
-                       | _ -> assert false
-                     in
-                     Ref.add tmemo memo (Some res); res
-                   with Error ->
-                     Ref.add tmemo memo None; raise Error
-            in
-            let elt = final start (cns_ign a acts) stack rest full in
-            (** if we read nothing: add immediately to the table *)
-            if buffer_before buf col buf_ab col_ab then
-              begin
-                if good c rest then
+                if gd () then
                   let b = add "T" cur_pos c elt elements in
                   if b then fn elt
               end
