@@ -40,6 +40,14 @@ than Earley, a binary could be produced with the following command.
 ocamlfind ocamlopt -pp pa_ocaml -package earley -linkpkg -o my_project my_project.ml
 ```
 
+## Merlin support
+
+For Merlin to (roughly) recognise our syntax extension, you can add the
+following line to the `.merlin` file of your project.
+```
+FLG -pp pa_ocaml
+```
+
 # Syntax extension
 
 ## Parser expression
