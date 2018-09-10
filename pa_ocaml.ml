@@ -1060,8 +1060,9 @@ let parser eright_member =
 
 let _ = set_grammar let_binding (
   parser
-  | pat:pattern ((_ty,e) as erm):eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
-  (    let loc = merge2 _loc_pat _loc_erm in
+  | pat:pattern erm:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
+  (    let (_ty, e) = erm in
+       let loc = merge2 _loc_pat _loc_erm in
        let pat, e = match _ty with
            None -> (pat, e)
          | Some ty ->
@@ -1209,18 +1210,21 @@ let parser class_field =
   | val_kw virtual_kw mutable_kw ivn:inst_var_name STR(":") te:typexpr ->
       let ivn = id_loc ivn _loc_ivn in
       loc_pcf _loc (Pcf_val (ivn, Mutable, Cfk_virtual te))
-  | method_kw (o,p,mn as t):{override_flag private_flag method_name}
+  | method_kw t:{override_flag private_flag method_name}
     STR(":") te:poly_typexpr CHR('=') e:expression ->
+      let (o,p,mn) = t in
       let e = loc_expr (ghost (merge2 _loc_t _loc)) (Pexp_poly (e, Some te)) in
       loc_pcf _loc (Pcf_method (mn, p, Cfk_concrete(o,e)))
-  | method_kw (o,p,mn as t):{override_flag private_flag method_name}
+  | method_kw t:{override_flag private_flag method_name}
     STR(":") (ids,te):poly_syntax_typexpr CHR('=') e:expression ->
+      let (o,p,mn) = t in
       let _loc_e = merge2 _loc_t _loc in
       let e, poly =  wrap_type_annotation _loc_e ids te e in
       let e = loc_expr (ghost _loc_e) (Pexp_poly (e, Some poly)) in
       loc_pcf _loc (Pcf_method (mn, p, Cfk_concrete(o,e)))
-  | method_kw (o,p,mn as t):{override_flag private_flag method_name} ps:{p:(parameter true) -> p,_loc_p}*
+  | method_kw t:{override_flag private_flag method_name} ps:{p:(parameter true) -> p,_loc_p}*
       te:{STR(":") te:typexpr}? CHR('=') e:expression ->
+      let (o,p,mn) = t in
       if ps = [] && te <> None then give_up ();
       let e =
 	match te with
@@ -1613,8 +1617,9 @@ let parser noelse @b =
   | no_else when b
   | EMPTY when not b
 
-let parser debut lvl alm =
-  (lvl0,no_else,f as s):(left_expr (alm,lvl)) -> ((lvl0,no_else), (f, _loc_s))
+let parser debut lvl alm = s:(left_expr (alm,lvl)) ->
+  let (lvl0, no_else, f) = s in
+  ((lvl0,no_else), (f, _loc_s))
 
 let parser suit lvl alm (lvl0,no_else) =
   | e:(expression_lvl (alm,lvl0)) c:(semicol (alm,lvl)) (noelse no_else) ->
