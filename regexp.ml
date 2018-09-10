@@ -40,8 +40,6 @@
   ======================================================================
 *)
 
-open Input
-
 (* Type of a regular expression. *)
 type regexp =
   | Chr of char                (* Single character.              *)
@@ -202,9 +200,9 @@ let regexp_from_string : string -> regexp * string ref array = fun s ->
   (re, Array.of_list (List.rev !refs))
 
 (* Exception raised when a regexp cannot be parsed. *)
-exception Regexp_error of buffer * int
+exception Regexp_error of Input.buffer * int
 
-let regexp_error : type a. buffer -> int -> a = fun buf pos ->
+let regexp_error : type a. Input.buffer -> int -> a = fun buf pos ->
   raise (Regexp_error(buf, pos))
 
 let string_of_char_list : char list -> string = fun cs ->
@@ -213,16 +211,16 @@ let string_of_char_list : char list -> string = fun cs ->
   Buffer.contents b
 
 (* Input characters according to the given regexp. *)
-let read_regexp : regexp -> buffer -> int -> buffer * int =
+let read_regexp : regexp -> Input.buffer -> int -> Input.buffer * int =
   fun re buf pos ->
     let rec sread_regexp re buf pos cs =
       match re with
       | Chr(ch)    ->
-          let (c, buf, pos) = read buf pos in
+          let (c, buf, pos) = Input.read buf pos in
           if c = ch then (c::cs, buf, pos)
           else regexp_error buf pos
       | Set(chs)   ->
-          let (c, buf, pos) = read buf pos in
+          let (c, buf, pos) = Input.read buf pos in
           if Charset.mem chs c then (c::cs, buf, pos)
           else regexp_error buf pos
       | Seq(r::rs) ->
@@ -263,11 +261,11 @@ let read_regexp : regexp -> buffer -> int -> buffer * int =
     let rec read_regexp re buf pos =
       match re with
       | Chr(ch)    ->
-          let (c, buf, pos) = read buf pos in
+          let (c, buf, pos) = Input.read buf pos in
           if c = ch then (buf, pos)
           else regexp_error buf pos
       | Set(chs)   ->
-          let (c, buf, pos) = read buf pos in
+          let (c, buf, pos) = Input.read buf pos in
           if Charset.mem chs c then (buf, pos)
           else regexp_error buf pos
       | Seq(r::rs) ->

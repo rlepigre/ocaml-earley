@@ -41,7 +41,6 @@
 *)
 
 open Utils
-open Input
 open Internals
 
 (** a few values imported from Internals *)
@@ -59,7 +58,8 @@ let give_up () = raise Error
 
 (** Three predefined blank functions *)
 
-let no_blank : buffer -> int -> buffer * int = fun str pos -> str, pos
+let no_blank : Input.buffer -> int -> Input.buffer * int =
+  fun str pos -> (str, pos)
 
 let blank_regexp : string -> blank =
   fun str ->
@@ -152,7 +152,7 @@ let solo2 =
 
 (** Combinator for test at current position *)
 let test : ?name:string -> Charset.t
-           -> (buffer -> int -> 'a * bool) -> 'a grammar =
+           -> (Input.buffer -> int -> 'a * bool) -> 'a grammar =
   fun ?(name="") set f ->
     let j = Fixpoint.from_val (true,set) in
     (j, [mkrule (Next(j,mktest name j (fun _ _ -> f), Arg (idtEmpty ())))])
@@ -168,11 +168,11 @@ let success a = test ~name:"SUCCESS" Charset.full (fun _ _ -> (a, true))
 
 (** A test that blank exists before the current position *)
 let with_blank_test a = blank_test ~name:"BLANK" Charset.full
-  (fun buf' pos' buf pos -> (a, not (buffer_equal buf' buf) || pos' <> pos))
+  (fun buf' pos' buf pos -> (a, not (Input.buffer_equal buf' buf) || pos' <> pos))
 
 (** A test that blank do not exists before the current position *)
 let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
-  (fun buf' pos' buf pos -> (a, buffer_equal buf' buf && pos' = pos))
+  (fun buf' pos' buf pos -> (a, Input.buffer_equal buf' buf && pos' = pos))
 
 (** Used for unset recursive grammars *)
 let unset : string -> 'a grammar
@@ -287,7 +287,7 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
 let eof : 'a -> 'a grammar
   = fun a ->
     let fn buf pos =
-      if is_empty buf pos then (a,buf,pos) else raise Error
+      if Input.is_empty buf pos then (a,buf,pos) else raise Error
     in
     solo "EOF" (Charset.singleton '\255') fn
 
@@ -308,7 +308,7 @@ let apply_position : type a b. (a -> b) fpos
 (** Build a tuple with positions *)
 let position g =
   apply_position (fun buf pos buf' pos' a ->
-    (filename buf, line_num buf, pos, line_num buf', pos', a)) g
+    (Input.filename buf, Input.line_num buf, pos, Input.line_num buf', pos', a)) g
 
 
 (** An always failing grammar *)
@@ -323,7 +323,7 @@ let char : ?name:string -> char -> 'a -> 'a grammar
     let msg = Printf.sprintf "%C" c in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
-      let c', buf', pos' = read buf pos in
+      let c', buf', pos' = Input.read buf pos in
       if c = c' then (a,buf',pos') else give_up ()
     in
     solo name (Charset.singleton c) fn
@@ -334,7 +334,7 @@ let in_charset : ?name:string -> Charset.t -> char grammar
     let msg = Printf.sprintf "[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
-      let c, buf', pos' = read buf pos in
+      let c, buf', pos' = Input.read buf pos in
       if Charset.mem cs c then (c,buf',pos') else give_up ()
     in
     solo name cs fn
@@ -345,7 +345,7 @@ let not_in_charset : ?name:string -> Charset.t -> unit grammar
     let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
-      let c, buf', pos' = read buf pos in
+      let c, buf', pos' = Input.read buf pos in
       if Charset.mem cs c then ((), false) else ((), true)
     in
     test ~name (Charset.complement cs) fn
@@ -357,7 +357,7 @@ let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
     let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos _ _ =
-      let c, buf', pos' = read buf pos in
+      let c, buf', pos' = Input.read buf pos in
       if Charset.mem cs c then ((), false) else ((), true)
     in
     blank_test ~name (Charset.complement cs) fn
@@ -365,7 +365,7 @@ let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
 (** Accept exactly one char *)
 let any : char grammar
   = let fn buf pos =
-      let c, buf', pos' = read buf pos in
+      let c, buf', pos' = Input.read buf pos in
       if c = '\255' then give_up ();
       (c,buf',pos')
     in
@@ -375,7 +375,7 @@ let any : char grammar
 let debug msg : unit grammar
     = let fn buf pos =
         log "%s file:%s line:%d col:%d\n%!"
-            msg (filename buf) (line_num buf) pos;
+            msg (Input.filename buf) (Input.line_num buf) pos;
         ((), true)
       in
       test ~name:msg Charset.empty fn
@@ -389,7 +389,7 @@ let string : ?name:string -> string -> 'a -> 'a grammar
       let pos = ref pos in
       let len_s = String.length s in
       for i = 0 to len_s - 1 do
-        let c, buf', pos' = read !buf !pos in
+        let c, buf', pos' = Input.read !buf !pos in
         if c <> s.[i] then give_up ();
         buf := buf'; pos := pos'
       done;
@@ -407,11 +407,11 @@ let keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
       let pos = ref pos in
       let len_s = String.length s in
       for i = 0 to len_s - 1 do
-        let c, buf', pos' = read !buf !pos in
+        let c, buf', pos' = Input.read !buf !pos in
         if c <> s.[i] then give_up ();
         buf := buf'; pos := pos'
       done;
-      let c, _, _ = read !buf !pos in
+      let c, _, _ = Input.read !buf !pos in
       if test c then give_up ();
       (a,!buf,!pos)
     in
@@ -438,7 +438,7 @@ let regexp : ?name:string -> string -> string array grammar =
     solo name ~accept_empty charset fn
 
 (** Allow to write any terminal, by supplying a function *)
-let black_box : (buffer -> int -> 'a * buffer * int) -> Charset.t -> bool
+let black_box : (Input.buffer -> int -> 'a * Input.buffer * int) -> Charset.t -> bool
                   -> string -> 'a grammar
   = fun fn set accept_empty name -> solo name ~accept_empty set fn
 
@@ -590,12 +590,12 @@ let greedy : 'a grammar -> 'a grammar
 (** How to call the parser *)
 
 let partial_parse_buffer
-    : type a.a grammar -> blank -> ?blank_after:bool -> buffer -> int
-           -> a * buffer * int
+    : type a.a grammar -> blank -> ?blank_after:bool -> Input.buffer -> int
+           -> a * Input.buffer * int
    = fun g bl ?(blank_after=false) buf pos ->
        parse_buffer_aux blank_after bl g buf pos
 
-let parse_buffer : 'a grammar -> blank -> buffer -> 'a =
+let parse_buffer : 'a grammar -> blank -> Input.buffer -> 'a =
   fun g blank buf ->
     let g = sequence g (eof ()) (fun x _ -> x) in
     let (a, _, _) = partial_parse_buffer g blank buf 0 in
@@ -620,11 +620,11 @@ let handle_exception ?(error=fail_no_parse) f a =
   try f a with Parse_error(buf, pos) ->
     let red fmt = "\027[31m" ^^ fmt ^^ "\027[0m%!" in
     Printf.eprintf (red "Parse error: file %S, line %d, character %d.\n")
-      (filename buf) (line_num buf) (utf8_col_num buf pos);
+      (Input.filename buf) (Input.line_num buf) (Input.utf8_col_num buf pos);
     error ()
 
 (** A module to call a parser with a preprocessor (see Input) *)
-module WithPP(PP : Preprocessor) =
+module WithPP(PP : Input.Preprocessor) =
   struct
     module InPP = Input.WithPP(PP)
 

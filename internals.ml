@@ -41,10 +41,11 @@
 *)
 
 open Utils
-open Input
 open Container
 
+(*
 let _ = Printexc.record_backtrace true
+*)
 
 (** Flags. *)
 let debug_lvl  = ref 0
@@ -59,13 +60,13 @@ exception Error
 let idt x = x
 
 (** A blank function is just a function progressing in a buffer *)
-type blank = buffer -> int -> buffer * int
+type blank = Input.buffer -> int -> Input.buffer * int
 
 (** Positions *)
-type position = buffer * int
+type position = Input.buffer * int
 
 (** type of a function waiting for positions *)
-type 'a fpos = buffer -> int -> buffer -> int -> 'a
+type 'a fpos = Input.buffer -> int -> Input.buffer -> int -> 'a
 
 (** Type for action with or without position and its combinators *)
 type _ pos =
@@ -85,24 +86,24 @@ let apply_pos: type a.a pos -> a fpos =
 
 (** For terminals: get the start position and returns a value with the final
     position *)
-type 'a input = buffer -> int -> 'a * buffer * int
+type 'a input = Input.buffer -> int -> 'a * Input.buffer * int
 
 (** A reference to record the last error useful when a terminal calls another
     parsing *)
-type errpos = (buffer * int) option ref
+type errpos = (Input.buffer * int) option ref
 
 (** Type for Ter2 terminals: get both the position before and after blank *)
-type 'a input2 = errpos -> blank -> buffer -> int -> 'a input
+type 'a input2 = errpos -> blank -> Input.buffer -> int -> 'a input
 
 (** Type for tests: get also both position and return a boolean and a value *)
 type 'a test  = ('a * bool) fpos
 
 (** Position record stored in the elements of the earley table.  We
     store the position before and after the blank *)
-type pos2 = { buf : buffer; col : int; buf_ab  : buffer; col_ab : int }
+type pos2 = {buf : Input.buffer; col : int; buf_ab : Input.buffer; col_ab : int }
 
 (** Some function on pos2 *)
-let eq_pos {buf;col} {buf=buf';col=col'} = col = col' && buffer_equal buf buf'
+let eq_pos p1 p2 = p1.col = p2.col && Input.buffer_equal p1.buf p2.buf
 
 (** Get the position before and after the parsed text annd apply it to
     the combinator *)
@@ -131,7 +132,7 @@ type info = (bool * Charset.t) Fixpoint.t
 type 'a cref = 'a Ref.container
 
 (** a reference to the store the result of reading a terminal *)
-type 'a tref = ('a * buffer * int) option cref
+type 'a tref = ('a * Input.buffer * int) option cref
 
 (** A BNF grammar is a list of rules. The type parameter ['a]
     corresponds to the type of the semantics of the grammar. For
@@ -439,7 +440,7 @@ let rec print_rule : type a b. ?rest:b rule -> out_channel -> a rule -> unit =
 
 let print_pos ch {buf; col; buf_ab; col_ab} =
   Printf.fprintf ch "%5d:%3d-%5d:%3d"
-                 (line_num buf) col (line_num buf_ab) col_ab
+                 (Input.line_num buf) col (Input.line_num buf_ab) col_ab
 
 let print_final pos ch (D {start; rest; full}) =
   if pos then Printf.fprintf ch "%a == " print_pos start;
@@ -483,7 +484,7 @@ type 'a cur = 'a final HK.t
     reading the string with some symbols. We need this table, because two
     terminal symbols could read different length of the input from the
     same point *)
-type 'a reads = 'a final OrdTbl.t ref
+type 'a reads = 'a final Input.OrdTbl.t ref
 
 (** Stack construction. The type below, denotes table associate stack
     to rule. Recall we construct stack for elements whose [end] are the
@@ -566,7 +567,7 @@ let size_tables els forward =
     let adone = ref [] in
     let res = ref 0 in
     Hashtbl.iter (fun _ el -> res := !res + 1 + size el adone) els;
-    OrdTbl.iter forward (fun el -> res := !res + 1 + size el adone);
+    Input.OrdTbl.iter forward (fun el -> res := !res + 1 + size el adone);
     !res
   else 0
 
@@ -593,7 +594,7 @@ let final : type b c r. pos2 -> (b -> c) -> (c, r) stack ->
 let elt_key (D {start={buf;col}; rest; full}) =
   let a = full.adr in
   let b = rest.adr in
-  let c = line_offset buf + col in
+  let c = Input.line_offset buf + col in
   let h = a lxor b lxor c in
   (a,b,h)
 
@@ -601,7 +602,7 @@ let elt_key (D {start={buf;col}; rest; full}) =
 let final_key {buf;col} full =
   let a = full.adr in
   let b = tail_key full in
-  let c = line_offset buf + col in
+  let c = Input.line_offset buf + col in
   let h = a lxor b lxor c in
   (a,b,h)
 
@@ -626,11 +627,11 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
          | Y, Y ->
             if !warn_merge && not (acts == acts') then
               begin
-                let fname = filename s.buf_ab in
-                let ls = line_num s.buf_ab in
-                let lc = utf8_col_num s.buf_ab s.col_ab in
-                let es = line_num pos_final.buf in
-                let ec = utf8_col_num pos_final.buf pos_final.col in
+                let fname = Input.filename s.buf_ab in
+                let ls = Input.line_num s.buf_ab in
+                let lc = Input.utf8_col_num s.buf_ab s.col_ab in
+                let es = Input.line_num pos_final.buf in
+                let ec = Input.utf8_col_num pos_final.buf pos_final.col in
                 log "\027[31mmerging %a at %s %d:%d-%d:%d\027[0m\n%!"
                     print_final_no_pos element fname ls lc es ec
               end;
@@ -805,7 +806,7 @@ let rec pred_prod_lec
                    with Error ->
                      Ref.add tmemo memo None; raise Error
             in
-            let empty_parse = buffer_before buf col buf_ab col_ab in
+            let empty_parse = Input.buffer_before buf col buf_ab col_ab in
             let elt, gd = match rest with
               | Arg rest ->
                  final start (cns a acts) stack rest full
@@ -828,7 +829,7 @@ let rec pred_prod_lec
                   if b then fn elt
               end
             else (** otherwise write in the forward table for the next cycles *)
-              forward := OrdTbl.add buf col elt !forward
+              forward := Input.OrdTbl.add buf col elt !forward
           with Error -> () end
 
        (** A dependant rule: computes a rule while parsing ! *)
@@ -862,7 +863,7 @@ let count = ref 0
 
 (** The main parsing loop *)
 let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
-                            -> buffer -> int -> a * buffer * int =
+                            -> Input.buffer -> int -> a * Input.buffer * int =
   fun ?errpos blank_after blank main buf0 col0 ->
     let internal, errpos = match errpos with
       | None -> (false, ref None)
@@ -872,7 +873,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     let parse_id = incr count; !count in
     (** contruction of the 3 tables *)
     let elements : a cur = HK.create 8 in
-    let forward = ref OrdTbl.empty in
+    let forward = ref Input.OrdTbl.empty in
     let sct = StackContainer.create_table () in
     let tmemo = Ref.create_table () in
     (** contruction of the initial elements and the refs olding the position *)
@@ -929,7 +930,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       (** advance to the next elements *)
       try
          (** pop the next elements and position *)
-         let (new_buf, new_col, l, forward') = OrdTbl.pop !forward in
+         let (new_buf, new_col, l, forward') = Input.OrdTbl.pop !forward in
          todo := l;
          forward := forward';
          (** advance positions *)
@@ -989,6 +990,6 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
 (** Function to call the parser in a terminal *)
 let internal_parse_buffer
     : type a. ?errpos:errpos -> ?blank_after:bool -> blank
-           -> a grammar -> buffer -> int -> a * buffer * int
+           -> a grammar -> Input.buffer -> int -> a * Input.buffer * int
    = fun ?errpos ?(blank_after=false) bl g buf col ->
        parse_buffer_aux ?errpos blank_after bl g buf col
