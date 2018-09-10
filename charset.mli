@@ -65,6 +65,14 @@ val singleton : char -> charset
     between [cmin] and [cmax]. *)
 val range : char -> char -> charset
 
+(** [from_string s] returns the charset corresponding to the description
+    string [s],  which may contain standalone characters (different from
+    ['-'], which is only allowed as first character) or ranges. They are
+    build of start and end characters, separated by ['-']. An example of
+    a valid description is ["-_a-zA-Z0-9"]. Note that [Invalid_argument]
+    is raised in case of ill-formed description. *)
+val from_string : string -> charset
+
 (** [union cs1 cs2] builds a new charset that contins the union  of  the
     characters of [cs1] and [cs2]. *)
 val union : charset -> charset -> charset

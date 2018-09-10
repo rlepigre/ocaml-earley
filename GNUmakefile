@@ -82,7 +82,7 @@ distclean: clean
 uninstall:
 	@(ocamlfind query earley -qo -qe && ocamlfind remove earley) || true
 
-EXPORTED := charset input regexp earley earleyStr
+EXPORTED := charset input regexp earley earleyStr blanks keywords
 MLIS := $(addsuffix .mli,$(addprefix _build/,$(EXPORTED)))
 CMIS := $(MLIS:.mli=.cmi)
 CMXS := $(addprefix _build/,$(IMPLFILES:.ml=.cmx))

@@ -95,6 +95,23 @@ let singleton =
 
 let copy = Array.copy
 
+let from_string s =
+  let rec build cs l =
+    match l with
+    | []                     -> cs
+    | '-' :: '-' :: _        -> invalid_arg "bad charset description"
+    | '-' :: l               -> build (add cs '-') l
+    | _   :: '-' :: '-' :: _ -> invalid_arg "bad charset description"
+    | c1  :: '-' :: c2  :: l -> build (union cs (range c1 c2)) l
+    | c   :: l               -> build (add cs c) l
+  in
+  let string_to_list s =
+    let l = ref [] in
+    String.iter (fun c -> l := c :: !l) s;
+    List.rev !l
+  in
+  build empty (string_to_list s)
+
 let show cs =
   let has_range min max =
     let has_all = ref true in
