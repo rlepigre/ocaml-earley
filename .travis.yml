@@ -31,7 +31,7 @@ before_install:
 install:
   - make install
 script:
-  - if [[ "$OCAML_VERSION" != "4.07.0+trunk" ]]; then
+  - if [[ "$OCAML_VERSION" != "4.07.0" ]]; then
       make tests;
     fi
 os:
