@@ -38,7 +38,7 @@ HLPML=helper.ml helper.mli astextra.ml astextra.mli
 
 .PHONY: cold
 cold:
-	@printf "\e[93mCOMPILING FROM $(BOOTDIR)\e[0m\n"
+	@printf "\033[93mCOMPILING FROM $(BOOTDIR)\033[0m\n"
 	$(Q)cd $(BOOTDIR); \
 	$(OCAMLBUILD) -use-ocamlfind -pkgs $(PACKAGES) $(LINKFLOGS) pa_default.native
 	cp -f $(BOOTDIR)/pa_default.native pa_ocaml
@@ -53,36 +53,36 @@ astextra.ml: $(HELPDIR)/astextra.ml
 	cp $< $@
 
 pa_default.native: $(SRCS) $(ASTML) $(HLPML)
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -use-ocamlfind -pp $(PA_OCAML) -pkgs $(PACKAGES) $(LINKFLOGS) $@
 
 pa_default.byte: $(SRCS) $(ASTML) $(HLPML)
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -use-ocamlfind -pp $(PA_OCAML) -pkgs $(PACKAGES) $(LINKFLAGS) $@
 
 pa_ocaml: pa_default.native
 	cp -f $< $@
 
 earley_ocaml.cma: $(SRCS) $(ASTML) $(HLPML)
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -use-ocamlfind -pp $(PA_OCAML) -pkgs $(PACKAGES) earley_ocaml.cma
 
 earley_ocaml.cmxa: $(SRCS) $(ASTML) $(HLPML)
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -use-ocamlfind -pp $(PA_OCAML) -pkgs $(PACKAGES) earley_ocaml.cmxa
 
 test_parsers.native: earley_ocaml.cmxa test_parsers.ml
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -use-ocamlfind -pp $(PA_OCAML) -pkgs $(PACKAGES) $(LINKFLOGS) $@
 
 $(ASTTOOLS)/pa_eq.native: $(ASTTOOLS)/pa_eq.ml
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -pp "$(PA_OCAML) --ascii" -pkgs $(PACKAGES) $(LINKFLOGS) $@
 	$(Q)cp -f ./pa_eq.native $(ASTTOOLS)/ # avoid rebuild
 
 compare.ml: $(ASTTOOLS)/pa_eq.native $(ASTTOOLS)/generic_eq.ml \
             $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	@printf "\e[93mGENERATING $@\e[0m\n"
+	@printf "\033[93mGENERATING $@\033[0m\n"
 	$(Q)$(PA_OCAML) --ascii $(ASTTOOLS)/generic_eq.ml > $@
 	$(Q)printf "(* asttypes.mli *)\n" >> $@
 	$(Q)./pa_eq.native $(ASTDIR)/asttypes.mli >> $@
@@ -91,13 +91,13 @@ compare.ml: $(ASTTOOLS)/pa_eq.native $(ASTTOOLS)/generic_eq.ml \
 	$(Q)./pa_eq.native $(ASTDIR)/parsetree.mli >> $@
 
 $(ASTTOOLS)/pa_iter.native: $(ASTTOOLS)/pa_iter.ml
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -pp "$(PA_OCAML) --ascii" -pkgs $(PACKAGES) $(LINKFLOGS) $@
 	$(Q)cp -f ./pa_iter.native $(ASTTOOLS)/ # avoid rebuild
 
 iter.ml: $(ASTTOOLS)/pa_iter.native $(ASTTOOLS)/generic_iter.ml \
          $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	@printf "\e[93mGENERATING $@\e[0m\n"
+	@printf "\033[93mGENERATING $@\033[0m\n"
 	$(Q)$(PA_OCAML) --ascii $(ASTTOOLS)/generic_iter.ml > $@
 	$(Q)printf "(* asttypes.mli *)\n" >> $@
 	$(Q)./pa_iter.native $(ASTDIR)/asttypes.mli >> $@
@@ -105,13 +105,13 @@ iter.ml: $(ASTTOOLS)/pa_iter.native $(ASTTOOLS)/generic_iter.ml \
 	$(Q)./pa_iter.native $(ASTDIR)/parsetree.mli >> $@
 
 $(ASTTOOLS)/pa_quote.native: $(ASTTOOLS)/pa_quote.ml
-	@printf "\e[93mBUILDING $@\e[0m\n"
+	@printf "\033[93mBUILDING $@\033[0m\n"
 	$(Q)$(OCAMLBUILD) -pp "$(PA_OCAML) --ascii" -pkgs $(PACKAGES) $(LINKFLOGS) $@
 	$(Q)cp -f ./pa_quote.native $(ASTTOOLS)/ # avoid rebuild
 
 quote.ml: $(ASTTOOLS)/pa_quote.native $(ASTTOOLS)/generic_quote.ml \
           $(ASTDIR)/parsetree.mli $(ASTDIR)/asttypes.mli
-	@printf "\e[93mGENERATING $@\e[0m\n"
+	@printf "\033[93mGENERATING $@\033[0m\n"
 	$(Q)$(PA_OCAML) --ascii $(ASTTOOLS)/generic_quote.ml > $@
 	@printf "(* asttypes.mli *)\n" >> $@
 	$(Q)./pa_quote.native $(ASTDIR)/asttypes.mli >> $@
@@ -120,9 +120,9 @@ quote.ml: $(ASTTOOLS)/pa_quote.native $(ASTTOOLS)/generic_quote.ml \
 
 .PHONY: bootstrap
 bootstrap:
-	@printf "\e[93mBOOTSTRAP\e[0m\n"
+	@printf "\033[93mBOOTSTRAP\033[0m\n"
 	$(Q)if [ ! -d tmp ] ; then mkdir tmp; fi
-	@printf "\e[93mMAIN FILES\e[0m\n"
+	@printf "\033[93mMAIN FILES\033[0m\n"
 	$(Q)export OCAMLVERSION=$(OCAMLVERSION); \
 	     rm -rf tmp/* ;\
 	     $(PA_OCAML) --ascii pa_lexing.ml > tmp/pa_lexing.ml ;\
@@ -136,13 +136,13 @@ bootstrap:
 .PHONY: backup
 backup: BACKUP:=$(BOOTDIR)/$(shell date +%Y-%m-%d-%H-%M-%S)
 backup:
-	$(Q)printf "\e[93mBACKUP $(BOOTDIR) IN $(BACKUP)\e[0m\n"
+	$(Q)printf "\033[93mBACKUP $(BOOTDIR) IN $(BACKUP)\033[0m\n"
 	$(Q)mkdir $(BACKUP)
 	$(Q)cp $(BOOTDIR)/*.ml* $(BACKUP)
 
 .PHONY: new
 new:
-	@printf "\e[93mCREATING FRESH BOOTSTRAP FOR $(OCAMLVERSION)\e[0m\n"
+	@printf "\033[93mCREATING FRESH BOOTSTRAP FOR $(OCAMLVERSION)\033[0m\n"
 	$(Q)make bootstrap
 	$(Q)OCAMLVERSION=$(OCAMLVERSION) make $(ASTML)
 	$(Q)OCAMLVERSION=$(OCAMLVERSION) make $(HLPML)
@@ -154,28 +154,28 @@ new:
 .PHONY: boot
 boot:
 	$(Q)make distclean && make
-	$(Q)printf "\e[93mCOMPILING USING V1\e[0m\n"
+	$(Q)printf "\033[93mCOMPILING USING V1\033[0m\n"
 	$(Q)make
-	$(Q)printf "\e[93mCOMPILING USING V2\e[0m\n"
+	$(Q)printf "\033[93mCOMPILING USING V2\033[0m\n"
 	$(Q)make clean && make
 	$(Q)make bootstrap
-	$(Q)printf "\e[93mHELPER AND ASTTOOLS\e[0m\n"
+	$(Q)printf "\033[93mHELPER AND ASTTOOLS\033[0m\n"
 	$(Q)cp $(ASTML) $(HLPML) tmp/
 	$(Q)touch .fixpoint
 	$(Q)cd tmp/ ; for f in *.ml; do\
                if ! diff -q $$f ../$(BOOTDIR)/$$f; then rm ../.fixpoint; fi ;\
 	     done
 	$(Q)if [ ! -d $(BOOTDIR) ] ; then mkdir $(BOOTDIR); fi
-	$(Q)if [ -f .fixpoint ]; then printf "\e[93mFIXPOINT REACHED\e[0m\n";\
+	$(Q)if [ -f .fixpoint ]; then printf "\033[93mFIXPOINT REACHED\033[0m\n";\
 	     elif [ $(BOOT) -eq 1 ] ; then \
 	       make backup ;\
-	       printf "\e[93mCOPYING TO $(BOOTDIR)\e[0m\n" ; \
+	       printf "\033[93mCOPYING TO $(BOOTDIR)\033[0m\n" ; \
 	       cp -f tmp/*.ml $(BOOTDIR)/ ;\
 	       rm -rf tmp ;\
 	     fi
 
 tests_pa_ocaml/$(OCAMLVERSION)/expected: pa_ocaml
-	@printf "\e[93mCREATING $@\e[0m\n"
+	@printf "\033[93mCREATING $@\033[0m\n"
 	$(Q)./tests_pa_ocaml.sh --no-color > $@
 
 .PHONY: expected
@@ -183,20 +183,20 @@ expected: tests_pa_ocaml/$(OCAMLVERSION)/expected
 
 .PHONY: tests
 tests:
-	@printf "\e[93mTEST FIXPOINT\e[0m\n"
+	@printf "\033[93mTEST FIXPOINT\033[0m\n"
 	$(Q)make BOOT=0 boot
 	$(Q)if [ ! -f .fixpoint ]; then \
-	       printf "\e[93mFIXPOINT NOT REACHED\e[0m\n" ;\
+	       printf "\033[93mFIXPOINT NOT REACHED\033[0m\n" ;\
 	       exit 1; \
 	     fi
-	$(Q)printf "\e[93mREGRESSION TEST\e[0m\n"
+	$(Q)printf "\033[93mREGRESSION TEST\033[0m\n"
 	$(Q)./tests_pa_ocaml.sh --no-color > tests_pa_ocaml/$(OCAMLVERSION)/result
 	$(Q)if ! diff tests_pa_ocaml/$(OCAMLVERSION)/result \
                        tests_pa_ocaml/$(OCAMLVERSION)/expected; then \
-	       printf "\e[93mREGRESSION TESTS FAILED\e[0m\n" ;\
+	       printf "\033[93mREGRESSION TESTS FAILED\033[0m\n" ;\
 	       exit 1;\
 	     fi
-	$(Q)printf "\e[93mNO REGRESSION\e[0m\n"
+	$(Q)printf "\033[93mNO REGRESSION\033[0m\n"
 
 META: GNUmakefile
 	@printf "[GEN] $@\n"
@@ -208,7 +208,7 @@ META: GNUmakefile
 
 .PHONY: clean
 clean:
-	@printf "\e[93mCLEAN\e[0m\n"
+	@printf "\033[93mCLEAN\033[0m\n"
 	$(Q)$(OCAMLBUILD) -clean
 	$(Q)rm -f $(ASTTOOLS)/*.native $(BOOTDIR)/*.native
 	$(Q)cd $(BOOTDIR); $(OCAMLBUILD) -clean
@@ -218,7 +218,7 @@ clean:
 
 .PHONY: distclean
 distclean: clean
-	@printf "\e[93mDISTCLEAN\e[0m\n"
+	@printf "\033[93mDISTCLEAN\033[0m\n"
 	$(Q)rm -f pa_ocaml .fixpoint $(ASTML) $(HLPML)
 	$(Q)rm -f META
 	$(Q)rm -rf tmp
