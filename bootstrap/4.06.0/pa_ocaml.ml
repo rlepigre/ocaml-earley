@@ -3630,7 +3630,7 @@ module Make(Initial:Extension) =
                                         fun pos ->
                                           fun str' ->
                                             fun pos' ->
-                                              fun ((_ty, e) as erm) ->
+                                              fun erm ->
                                                 let _loc_erm =
                                                   locate str pos str' pos' in
                                                 fun str ->
@@ -3641,6 +3641,7 @@ module Make(Initial:Extension) =
                                                           let _loc_pat =
                                                             locate str pos
                                                               str' pos' in
+                                                          let (_ty, e) = erm in
                                                           let loc =
                                                             merge2 _loc_pat
                                                               _loc_erm in
@@ -4412,11 +4413,12 @@ module Make(Initial:Extension) =
                                               fun pos ->
                                                 fun str' ->
                                                   fun pos' ->
-                                                    fun ((o, p, mn) as t) ->
+                                                    fun t ->
                                                       let _loc_t =
                                                         locate str pos str'
                                                           pos' in
                                                       fun _default_0 ->
+                                                        let (o, p, mn) = t in
                                                         let e =
                                                           loc_expr
                                                             (ghost
@@ -4466,16 +4468,16 @@ module Make(Initial:Extension) =
                                                       fun pos ->
                                                         fun str' ->
                                                           fun pos' ->
-                                                            fun
-                                                              ((o, p, mn) as
-                                                                 t)
-                                                              ->
+                                                            fun t ->
                                                               let _loc_t =
                                                                 locate str
                                                                   pos str'
                                                                   pos' in
                                                               fun _default_1
                                                                 ->
+                                                                let (o, p,
+                                                                    mn)
+                                                                  = t in
                                                                 let _loc_e =
                                                                   merge2
                                                                     _loc_t
@@ -4562,10 +4564,7 @@ module Make(Initial:Extension) =
                                                                   fun str' ->
                                                                     fun pos'
                                                                     ->
-                                                                    fun
-                                                                    ((o, p,
-                                                                    mn) as t)
-                                                                    ->
+                                                                    fun t ->
                                                                     let _loc_t
                                                                     =
                                                                     locate
@@ -4574,6 +4573,9 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                     ->
+                                                                    let 
+                                                                    (o, p,
+                                                                    mn) = t in
                                                                     if
                                                                     (ps = [])
                                                                     &&
@@ -6535,8 +6537,9 @@ module Make(Initial:Extension) =
                    fun pos ->
                      fun str' ->
                        fun pos' ->
-                         fun ((lvl0, no_else, f) as s) ->
+                         fun s ->
                            let _loc_s = locate str pos str' pos' in
+                           let (lvl0, no_else, f) = s in
                            ((lvl0, no_else), (f, _loc_s)))))
     let (suit, suit__set__grammar) = Earley.grammar_family "suit"
     let suit __curry__varx0 __curry__varx1 __curry__varx2 =
