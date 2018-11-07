@@ -213,7 +213,7 @@ module Fixpoint :
       let r = ref 0 in
       (fun () -> let x = !r in r := x + 1; x)
 
-    let add_deps r {deps} =
+    let add_deps r {deps;_} =
       match deps with
       | None     -> true
       | Some tbl ->
@@ -221,7 +221,7 @@ module Fixpoint :
           if not (W.mem tbl r) then W.add tbl r;
           false
 
-    let iter_deps fn {deps} =
+    let iter_deps fn {deps;_} =
       match deps with
       | None     -> ()
       | Some tbl -> W.iter (fun v -> fn (Obj.magic v)) tbl
@@ -290,7 +290,7 @@ module Fixpoint :
       begin
         match b.is_ref with
         | None      -> invalid_arg "Fixpoint.update";
-        | Some(a,f) ->
+        | Some(_,f) ->
             let a' = f () in
             ignore (add_deps b a');
             b.is_ref <- Some (a', f)

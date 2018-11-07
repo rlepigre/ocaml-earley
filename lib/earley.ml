@@ -78,20 +78,6 @@ let blank_grammar : unit grammar -> blank -> blank
       debug_lvl := save_debug;
       (buf,pos)
 
-(** composition of actions *)
-let compose:type a b c.(b -> c) pos -> (a -> b) pos -> (a -> c) pos = fun f g ->
-  match f,g with
-  | Error, _ | _, Error-> Error
-  | Idt, _ -> g
-  | _, Idt -> f
-  | Simple f, Simple g  -> Simple(fun x -> f (g x))
-  | Simple f, WithPos g  -> WithPos(fun b p b' p' x -> f (g b p b' p' x))
-  | WithPos f, Simple g  -> WithPos(fun b p b' p' x -> f b p b' p' (g x))
-  | WithPos f, WithPos g -> WithPos(fun b p b' p' x -> f b p b' p'
-                                                         (g b p b' p' x))
-
-let compose3 f g h = compose f (compose g h)
-
 (** Smart constructors for rules *)
 let nonterm name info rules =
   NonTerm{info;rules;name;memo=Container.Ref.create ()}
@@ -101,22 +87,24 @@ let next_pos_aux s r = mkrule (Next(compose_info s r, s, Pos r))
 let next_ign_aux s r = mkrule (Next(compose_info s r, s, Ign r))
 
 let next : type a c. a grammar -> (a -> c) rule -> c rule =
-  fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
-     next_aux s0 r
-  | _ -> next_aux (nonterm (grammar_name ~delim:true g) i rs) r
+  fun ((i,rs) as g) r ->
+    match rs with
+    | [{rule = Next(_,s0, Arg {rule = Empty Idt; _}); _}] ->  next_aux s0 r
+    | _                                                   ->
+        next_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let next_pos : type a c. a grammar -> (a -> c) fpos rule -> c rule =
-  fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
-     next_pos_aux s0 r
-  | _ -> next_pos_aux (nonterm (grammar_name ~delim:true g) i rs) r
+  fun (i,rs as g) r ->
+    match rs with
+    | [{rule = Next(_,s0, Arg {rule = Empty Idt; _}); _}] -> next_pos_aux s0 r
+    | _                                                   ->
+        next_pos_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
-let next_ign : type a c. a grammar -> c rule -> c rule =
-  fun (i,rs as g) r -> match rs with
-  | [{rule = Next(i,s0, Arg {rule = Empty Idt})}] ->
-     next_ign_aux s0 r
-  | _ -> next_ign_aux (nonterm (grammar_name ~delim:true g) i rs) r
+let next_ign : type a c. a grammar -> c rule -> c rule = fun (i,rs as g) r ->
+  match rs with
+  | [{rule = Next(_,s0, Arg {rule = Empty Idt; _}); _}] -> next_ign_aux s0 r
+  | _                                                   ->
+      next_ign_aux (nonterm (grammar_name ~delim:true g) i rs) r
 
 let emp f = mkrule (Empty f)
 let ems f = emp (Simple f)
@@ -133,13 +121,10 @@ let mktest name info input =
 let mkgrammar s = (grammar_info s, s)
 
 (** Helper to build a terminal symbol *)
-let solo : string -> ?accept_empty:bool -> Charset.t
-           -> 'a input -> 'a grammar
-  = fun name ?(accept_empty=false) set s ->
-      let j = Fixpoint.from_val (accept_empty,set) in
-      (j, [mkrule (Next(j,mkterm name j s, Arg(idtEmpty ())))])
-
-type 'a result = Val of 'a | Exc of exn
+let solo : string -> ?accept_empty:bool -> Charset.t -> 'a input
+    -> 'a grammar = fun name ?(accept_empty=false) set s ->
+  let j = Fixpoint.from_val (accept_empty,set) in
+  (j, [mkrule (Next(j,mkterm name j s, Arg(idtEmpty ())))])
 
 (** Function used to call a grammar as a terminal. Its input
     takes more arguments, in particular to record error position *)
@@ -175,25 +160,23 @@ let no_blank_test a = blank_test ~name:"NOBLANK" Charset.full
   (fun buf' pos' buf pos -> (a, Input.buffer_equal buf' buf && pos' = pos))
 
 (** Used for unset recursive grammars *)
-let unset : string -> 'a grammar
-  = fun msg ->
-    let fn buf pos =
-      failwith msg
-    in
-    solo msg Charset.empty fn (* make sure we have the message *)
+let unset : string -> 'a grammar = fun msg ->
+  let fn _ _ = failwith msg in
+  solo msg Charset.empty fn (* make sure we have the message *)
 
 (** Alternatives between many grammars *)
-let rec alternatives : 'a grammar list -> 'a grammar = fun g ->
+let alternatives : 'a grammar list -> 'a grammar = fun g ->
   mkgrammar (List.flatten (List.map snd g))
 
 (** Declare a recusive grammar *)
 let declare_grammar name =
   let g = snd (unset (name ^ " not set")) in
   let nt = nonterm name (Fixpoint.from_val (false, Charset.empty)) g in
-  let j = Fixpoint.from_ref nt
-                            (function
-                             | NonTerm{rules} -> grammar_info rules
-                             | _ -> assert false)
+  let j =
+    Fixpoint.from_ref nt (
+      function
+      | NonTerm{rules; _} -> grammar_info rules
+      | _                 -> assert false)
   in
   begin
     match nt with
@@ -205,7 +188,7 @@ let declare_grammar name =
 (** Set the value of a recursive grammar *)
 let set_grammar : type a.a grammar -> a grammar -> unit = fun p1 (_,rules2) ->
       match snd p1 with
-      | [{rule=Next(_,NonTerm({info} as r),Arg {rule=Empty Idt})}] ->
+      | [{rule=Next(_,NonTerm({info; _} as r),Arg {rule=Empty Idt; _}); _}] ->
          r.rules <- rules2; Fixpoint.update info;
       (*Printf.eprintf "setting %s %b %a\n%!" name ae Charset.print set;*)
       | _ -> invalid_arg "set_grammar"
@@ -244,7 +227,7 @@ let grammar_prio ?(param_to_string=(fun _ -> "<...>")) name =
       g),
   (fun (gs,gp) ->
     let f = fun p ->
-      alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ (gp p))
+      alternatives (List.map snd (List.filter (fun (f,_) -> f p) gs) @ (gp p))
     in
     is_set := Some f;
     EqHashtbl.iter (fun p r ->
@@ -273,7 +256,7 @@ let grammar_prio_family ?(param_to_string=(fun _ -> "<...>")) name =
         EqHashtbl.find tbl2 args
       with Not_found ->
         let g = fun p ->
-            alternatives (List.map snd (List.filter (fun (f,g) -> f p) gs) @ gp p)
+            alternatives (List.map snd (List.filter (fun (f,_) -> f p) gs) @ gp p)
         in
         EqHashtbl.add tbl2 args g;
         g
@@ -312,10 +295,9 @@ let position g =
 
 
 (** An always failing grammar *)
-let fail : unit -> 'a grammar
-  = fun () ->
-    let fn buf pos = raise Error in
-    solo "FAIL" Charset.empty fn
+let fail : unit -> 'a grammar = fun () ->
+  let fn _ _= raise Error in
+  solo "FAIL" Charset.empty fn
 
 (** Accept only one char *)
 let char : ?name:string -> char -> 'a -> 'a grammar
@@ -345,7 +327,7 @@ let not_in_charset : ?name:string -> Charset.t -> unit grammar
     let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos =
-      let c, buf', pos' = Input.read buf pos in
+      let c = Input.get buf pos in
       if Charset.mem cs c then ((), false) else ((), true)
     in
     test ~name (Charset.complement cs) fn
@@ -357,7 +339,7 @@ let blank_not_in_charset : ?name:string -> Charset.t -> unit grammar
     let msg = Printf.sprintf "^[%s]" (Charset.show cs) in
     let name = match name with None -> msg | Some n -> n in
     let fn buf pos _ _ =
-      let c, buf', pos' = Input.read buf pos in
+      let c = Input.get buf pos in
       if Charset.mem cs c then ((), false) else ((), true)
     in
     blank_test ~name (Charset.complement cs) fn

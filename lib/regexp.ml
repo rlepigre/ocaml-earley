@@ -73,8 +73,8 @@ let rec accept_empty = function
   | Set(_)   -> false
   | Seq(l)   -> List.for_all accept_empty l
   | Alt(l)   -> List.exists accept_empty l
-  | Opt(r)   -> true
-  | Str(r)   -> true
+  | Opt(_)   -> true
+  | Str(_)   -> true
   | Pls(r)   -> accept_empty r
   | Sav(r,_) -> accept_empty r
 
@@ -104,12 +104,6 @@ type construction =
 let push x = function
   | Acc l -> Acc (x::l)
   | Par (l1, l2) -> Acc(Alt(x :: l1)::l2)
-
-let push_alt x = function
-  | Acc(Seq l1 :: l2) -> Par(l1,l2)
-  | Acc(x :: l2) -> Par([x], l2)
-  | Acc([]) -> assert false
-  | Par(_) -> assert false
 
 let pop = function
   | Acc l -> l
@@ -170,9 +164,9 @@ let regexp_from_string : string -> regexp * string ref array = fun s ->
     | (stk   , Acc(re::acc), `Str   ::ts) -> build_re stk (Acc(Str re :: acc)) ts
     | (stk   , Acc(re::acc), `Pls   ::ts) -> build_re stk (Acc(Pls re :: acc)) ts
     | (stk   , Acc(re::acc), `Opt   ::ts) -> build_re stk (Acc(Opt re :: acc)) ts
-    | (stk   , _     , `Str   ::_ )
-    | (stk   , _     , `Pls   ::_ )
-    | (stk   , _     , `Opt   ::_ ) ->
+    | (_     , _     , `Str   ::_ )
+    | (_     , _     , `Pls   ::_ )
+    | (_     , _     , `Opt   ::_ ) ->
         invalid_arg "Regexp: modifier error."
     | (stk   , acc    , `Opn   ::ts) -> build_re (pop acc::stk) (Acc []) ts
     | ([]    , _      , `Cls   ::_ ) ->
@@ -186,9 +180,11 @@ let regexp_from_string : string -> regexp * string ref array = fun s ->
         let r = ref "" in refs := r :: !refs;
         build_re stk (Acc(Sav(re,r)::s)) ts
     | (stk   , Acc(re::acc), `Alt   ::ts) -> build_re stk (Par([re],acc)) ts
-    | (stk   , Acc []      , `Alt   ::ts) -> invalid_arg "Regexp: initial bar."
-    | (stk   , Par _       , `Alt   ::ts) -> invalid_arg "Regexp: consecutive bar."
-    | ([]    , acc    , []         ) ->
+    | (_     , Acc []      , `Alt   ::_ ) ->
+        invalid_arg "Regexp: initial bar."
+    | (_     , Par _       , `Alt   ::_ ) ->
+        invalid_arg "Regexp: consecutive bar."
+    | ([]    , acc         , []         ) ->
         begin
           match List.rev (pop acc) with
           | [re] -> re

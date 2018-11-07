@@ -101,7 +101,7 @@ let line (lazy b) = b.data
 let line_length (lazy b) = b.llen
 
 (* Get the utf8 column number corresponding to the given position. *)
-let utf8_col_num (lazy {data}) i =
+let utf8_col_num (lazy {data; _}) i =
   let rec find num pos =
     if pos < i then
       let cc = Char.code data.[pos] in
@@ -273,10 +273,8 @@ module Make(PP : Preprocessor) =
 
 module WithPP(PP : Preprocessor) = GenericInput(Make(PP))
 
-let leq_buf b1 i1 b2 i2 =
-  match (b1, b2) with
-    ({ uid=ident1; }, { uid=ident2; }) ->
-      (ident1 = ident2 && i1 <= i2) || ident1 < ident2
+let leq_buf {uid=ident1; _} i1 {uid=ident2; _} i2 =
+  (ident1 = ident2 && i1 <= i2) || ident1 < ident2
 
 let buffer_before b1 i1 b2 i2 = leq_buf (Lazy.force b1) i1 (Lazy.force b2) i2
 
@@ -340,18 +338,15 @@ module Tbl = struct
 
   let iter : type a. a t -> (a -> unit) -> unit = fun tbl f ->
     let open Container in
-    let fn : type b.a option array -> unit =
-      fun a ->
-        Array.iter (function
-                    | None -> ()
-                    | Some x -> f x) a
+    let fn : a option array -> unit = fun a ->
+      Array.iter (function None -> () | Some x -> f x) a
     in
-    (** FIXME: https://caml.inria.fr/mantis/view.php?id=7636 *)
+    (* FIXME: https://caml.inria.fr/mantis/view.php?id=7636 *)
     iter { Container.f = Obj.magic fn } tbl
 
-  (** Tests for the above FIXME: the type is not abstract ! *)
+  (* Tests for the above FIXME: the type is not abstract ! *)
+  (*
   let test1 : type a b. (a, b) Container.elt -> a = fun x -> x
   let test2 : type a b. a -> (a, b) Container.elt = fun x -> x
-
-
+  *)
 end

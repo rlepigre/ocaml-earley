@@ -108,17 +108,17 @@ let eq_pos p1 p2 = p1.col = p2.col && Input.buffer_equal p1.buf p2.buf
 (** Get the position before and after the parsed text annd apply it to
     the combinator *)
 let apply_pos_start =
-  fun f ({ buf_ab; col_ab } as p1) ({buf;col} as p2) ->
-    (** parse nothing : only position before blank *)
+  fun f ({buf_ab; col_ab; _} as p1) ({buf;col;_} as p2) ->
+    (* parse nothing : only position before blank *)
     if eq_pos p1 p2 then apply_pos f buf col buf col
-    (** parse something *)
+    (* parse something *)
     else apply_pos f buf_ab col_ab buf col
 
 let apply_start =
-  fun f ({ buf_ab; col_ab } as p1) ({ buf; col} as p2) ->
-    (** parse nothing : only position before blank *)
+  fun f ({buf_ab; col_ab; _} as p1) ({buf; col; _} as p2) ->
+    (* parse nothing : only position before blank *)
     if eq_pos p1 p2 then f buf col buf col
-    (** parse something *)
+    (* parse something *)
     else f buf_ab col_ab buf col
 
 (** Type of the information computed on a rule: the boolean tells if
@@ -141,6 +141,7 @@ type 'a tref = ('a * Input.buffer * int) option cref
 module rec Types : sig
   (** The type of a grammar, with its information *)
   type 'a grammar = info * 'a rule list
+
    (** The symbol, a more general concept that terminals *)
    and _ symbol =
      | Term : { input : 'a input;  info : info
@@ -234,15 +235,15 @@ module rec Types : sig
        The action needs to be prametrised by the future position which
        is unknown.  *)
    and (_,_) element =
-     (** End of the stack, with an action to produce the final parser value *)
      | B : ('a -> 'r) pos -> ('a,'r) element
-     (** Cons cell of the stack with a record similar to D's *)
+     (** End of the stack, with an action to produce the final parser value *)
      | C : { start : pos2
            ; stack : ('c, 'r) stack
            ; acts  : ('a -> 'b -> 'c) pos (** Here we wait [x:'a] from parents *)
            ; rest  : 'b rule
            ; full  : 'c rule
            } -> ('a ,'r) element
+     (** Cons cell of the stack with a record similar to D's *)
 
    (** Stack themselves are an acyclic graph of elements (sharing is
        important to be preserved). We need a reference for the stack
@@ -310,8 +311,10 @@ include Types
    (start, rest, full) in the same stack have phisically equal actions.
  *)
 
+(** Counter defined outside [mkrule] due to value restriction. *)
+let count_rule = ref 0
+
 (** A function to build rule from pre_rule *)
-let count_rule = ref 0 (** counet outside because of value restriction *)
 let mkrule : type a. a prerule -> a rule = fun rule ->
   let adr = let c = !count_rule in count_rule := c+1; c in
   { rule; ptr = StackContainer.create (); adr  }
@@ -340,9 +343,9 @@ let idtEmpty : type a.unit -> (a->a) rule = fun () -> mkrule (Empty Idt)
 
 (** Handling of symbol, rule and grammar names *)
 let symbol_name:type a.a symbol -> string  = function
-  | Term{name} | Ter2{name} | Test{name} | NonTerm{name} -> name
+  | Term{name;_} | Ter2{name;_} | Test{name;_} | NonTerm{name;_} -> name
 
-let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r ->
+let rule_name : type a. a rule -> string = fun r ->
   let rec fn : type a.a rule -> string list = fun r ->
     match r.rule with
     | Empty _ -> []
@@ -359,12 +362,12 @@ let rule_name : type a. ?delim:bool -> a rule -> string = fun ?(delim=false) r -
 let grammar_name : type a. ?delim:bool -> a grammar -> string =
   fun ?(delim=true) p1 ->
     match snd p1 with
-    | [{rule = Next(_,s,Arg{rule=Empty _})}] -> symbol_name s
-    | [{rule = Next(_,s,Pos{rule=Empty _})}] -> symbol_name s
-    | [{rule = Next(_,s,Ign{rule=Empty _})}] -> symbol_name s
-    | [] -> "EMPTY"
-    | [r] -> rule_name r
-    | rs ->
+    | [{rule = Next(_,s,Arg{rule=Empty _; _}); _}] -> symbol_name s
+    | [{rule = Next(_,s,Pos{rule=Empty _; _}); _}] -> symbol_name s
+    | [{rule = Next(_,s,Ign{rule=Empty _; _}); _}] -> symbol_name s
+    | []                                           -> "EMPTY"
+    | [r]                                          -> rule_name r
+    | rs                                           ->
        let name = String.concat " | " (List.map rule_name rs) in
        if delim then "{"^name^"}" else name
 
@@ -391,14 +394,14 @@ let iempty = Fixpoint.from_val (true, Charset.empty)
 let any    = Fixpoint.from_val (true, Charset.full)
 
 (** managment of info = accept empty + charset accepted as first char *)
-let rec rule_info:type a.a rule -> info = fun r ->
+let rule_info:type a.a rule -> info = fun r ->
   match r.rule with
   | Next(i,_,_) -> i
   | Empty _ -> iempty
   | Dep(_) -> any
 
-let symbol_info:type a.a symbol -> info  = function
-  | Term{info} | Ter2{info} | Test{info} | NonTerm{info} -> info
+let symbol_info:type a.a symbol -> info = function
+  | Term{info;_} | Ter2{info;_} | Test{info;_} | NonTerm{info;_} -> info
 
 let compose_info i1 i2 =
   let i1 = symbol_info i1 in
@@ -442,7 +445,7 @@ let print_pos ch {buf; col; buf_ab; col_ab} =
   Printf.fprintf ch "%5d:%3d-%5d:%3d"
                  (Input.line_num buf) col (Input.line_num buf_ab) col_ab
 
-let print_final pos ch (D {start; rest; full}) =
+let print_final pos ch (D {start; rest; full; _}) =
   if pos then Printf.fprintf ch "%a == " print_pos start;
   print_rule ~rest ch full;
   let (ae,set) = force (rule_info rest) in
@@ -453,7 +456,7 @@ let print_final ch f = print_final true ch f
 
 let print_element : type a b.out_channel -> (a,b) element -> unit = fun ch el ->
   match el with
-  | C {start; rest; full} ->
+  | C {start; rest; full; _} ->
      Printf.fprintf ch "%a == " print_pos start;
      print_rule ~rest ch full;
      let (ae,set) = force (rule_info rest) in
@@ -532,14 +535,11 @@ let add_stack : type a b. b sct -> a rule -> (a, b) element -> (a, b) stack =
 
 (** [find_stack sct rule] finds the stack to associate to the given rule,
     again the stack is created if needed *)
-let find_stack : type a b. b sct -> a rule -> (a, b) stack =
-  fun sct r ->
-    try
-      let { stack } = StackContainer.find sct r.ptr in stack
-    with Not_found ->
-      let stack = ref [] in
-      StackContainer.add sct r.ptr {stack; hooks=[]};
-      stack
+let find_stack : type a b. b sct -> a rule -> (a, b) stack = fun sct r ->
+  try (StackContainer.find sct r.ptr).stack with Not_found ->
+    let stack = ref [] in
+    StackContainer.add sct r.ptr {stack; hooks=[]};
+    stack
 
 (** Computes the size of an element stack, taking in account sharing *)
 let size : 'a final -> (Obj.t, Obj.t) stack -> int = fun el adone ->
@@ -554,11 +554,11 @@ let size : 'a final -> (Obj.t, Obj.t) stack -> int = fun el adone ->
         res := !res + 1;
         adone := el :: !adone;
         match el with
-        | C {stack} -> fn (cast_elements !stack)
-        | B _   -> ()
+        | C {stack; _} -> fn (cast_elements !stack)
+        | B _          -> ()
       end) els
   in
-  match el with D {stack} -> fn (cast_elements !stack); !res
+  match el with D {stack; _} -> fn (cast_elements !stack); !res
 
 (** Computes the size of the two tables, forward reading and the current
     elements. The other tables do not retain stack pointers *)
@@ -591,7 +591,7 @@ let final : type b c r. pos2 -> (b -> c) -> (c, r) stack ->
     D {start; acts; stack; rest; full }
 
 (** Get the key of an element *)
-let elt_key (D {start={buf;col}; rest; full}) =
+let elt_key (D {start={buf;col;_}; rest; full; _}) =
   let a = full.adr in
   let b = rest.adr in
   let c = Input.line_offset buf + col in
@@ -599,7 +599,7 @@ let elt_key (D {start={buf;col}; rest; full}) =
   (a,b,h)
 
 (** Get the key of the final element when parsing is finished *)
-let final_key {buf;col} full =
+let final_key {buf;col;_} full =
   let a = full.adr in
   let b = tail_key full in
   let c = Input.line_offset buf + col in
@@ -615,14 +615,14 @@ let good c rule =
 let max_stack = ref 0
 
 (** Adds an element in the current table of elements, return true if new *)
-let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
-  = fun msg pos_final c (D { rest } as element) elements ->
+let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool =
+  fun msg pos_final _ (D {rest; _} as element) elements ->
     let key = elt_key element in
     try
       let e = HK.find elements key in
       (match e, element with
          D {start=s; rest; full; stack; acts},
-         D {start=s'; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
+         D {start=_; rest=r'; full=fu'; stack = stack'; acts = acts'} ->
          match eq_rule rest r', eq_rule full fu' with
          | Y, Y ->
             if !warn_merge && not (acts == acts') then
@@ -656,11 +656,11 @@ let add : string -> pos2 -> char -> 'a final -> 'a cur -> bool
 (** This one for completion *)
 let cns : type a b c.a -> (b -> c) -> ((a -> b) -> c) = fun a f g -> f (g a)
 
-let cns_pos : type a b c.(a -> (b -> c) -> ((a -> b) fpos -> c)) fpos
-  = fun b p b' p' a f g -> f (g b p b' p' a)
+let cns_pos : type a b c.(a -> (b -> c) -> ((a -> b) fpos -> c)) fpos =
+  fun b p b' p' a f g -> f (g b p b' p' a)
 
-let cns_ign : type a b c.a -> (b -> c) -> (b -> c)
-  = fun a f -> f
+let cns_ign : type a b c.a -> (b -> c) -> (b -> c) =
+  fun _ f -> f
 
 (** This one for prediction *)
 let combine : type a c d.(c -> d) -> (a -> (a -> c) -> d) pos =
@@ -670,7 +670,7 @@ let combine_pos : type a c d.(c -> d) -> (a -> (a -> c) fpos -> d) pos =
   fun acts -> WithPos(fun b p b' p' a f -> acts (f b p b' p' a))
 
 let combine_ign : type a c d.(c -> d) -> (a -> c -> d) pos =
-  fun acts -> Simple(fun a f -> acts f)
+  fun acts -> Simple(fun _ f -> acts f)
 
 (** Exception for parse error, can also be raise by
     Ter2 terminals, but no other terminal handles it *)
@@ -695,23 +695,22 @@ let update_errpos errpos buf col =
 
    It performs prediction/completion/lecture in a recursive way.
  *)
-let rec pred_prod_lec
-        : type a. errpos -> a final -> a cur -> a reads -> a sct ->
-               tmemo -> blank -> pos2 -> char -> unit =
+let pred_prod_lec : type a. errpos -> a final -> a cur -> a reads
+    -> a sct -> tmemo -> blank -> pos2 -> char -> unit =
   fun errpos elt0 elements forward sct tmemo blank cur_pos c ->
   let rec fn elt0 =
     match elt0 with
     | D {start; acts; stack; rest; full} ->
        match rest.rule with
 
-       (** A non terminal : prediction *)
-       | Next(info,NonTerm{rules;memo},rest2) ->
+       (* A non terminal : prediction *)
+       | Next(_,NonTerm{rules;memo;_},rest2) ->
           if !debug_lvl > 0 then
             log "Prediction: %a\n%!" print_final elt0;
-          (** Create one final elements for each rule and calls fn if not new *)
+          (* Create one final elements for each rule and calls fn if not new *)
           let rules =
             try let res = Ref.find tmemo memo in
-                res (** Check if this was done *)
+                res (* Check if this was done *)
             with Not_found ->
 	      let rules = List.filter (good c) rules in
 	      Ref.add tmemo memo rules;
@@ -725,7 +724,7 @@ let rec pred_prod_lec
                 ) rules;
               rules
           in
-               (** Computes the elements to add in the stack of all created rules *)
+          (* Computes the elements to add in the stack of all created rules *)
           let c = match rest2 with
             | Arg rest -> C {rest; acts=combine acts; full; start; stack}
             | Pos rest -> C {rest; acts=combine_pos acts; full; start; stack}
@@ -733,19 +732,19 @@ let rec pred_prod_lec
           in
           List.iter (fun rule -> ignore (add_stack sct rule c)) rules
 
-       (** Nothing left to parse in the current rule: completion/production *)
+       (* Nothing left to parse in the current rule: completion/production *)
        | Empty(a) ->
           begin try
             if !debug_lvl > 0 then
               log "Completion: %a\n%!" print_final elt0;
-            (** run the action *)
+            (* run the action *)
             let is_empty = eq_pos start cur_pos in
             (* make the action lazy, essatial for rules like "a*" which
                 are quadratic otherwise *)
             if is_empty then (* no thunk if empty, not needed and could break give_up ? *)
               let x = acts (apply_pos_start a start cur_pos) in
-              (** create a new element in the table for each element
-                in the stack *)
+              (* create a new element in the table for each element
+                 in the stack *)
               let complete = fun element ->
                 try
                   match element with
@@ -759,13 +758,13 @@ let rec pred_prod_lec
                   | B _ -> ()
                 with Error -> ()
               in
-              (** use hook if D starts at current position because element might
-                still be added to the stack *)
+              (* use hook if D starts at current position because element
+                 might still be added to the stack *)
               add_stack_hook sct full complete
             else
               let x = Lazy.from_fun (fun () -> acts (apply_pos_start a start cur_pos)) in
-              (** create a new element in the table for each element
-                in the stack *)
+              (* create a new element in the table for each element
+                 in the stack *)
               let complete = fun element ->
                 try
                   match element with
@@ -782,8 +781,8 @@ let rec pred_prod_lec
               List.iter complete !stack;
             with Error -> () end
 
-       (** A terminal, we try to read *)
-       | Next(_,(Term{memo}|Ter2{memo}|Test{memo} as t),rest) ->
+       (* A terminal, we try to read *)
+       | Next(_,(Term{memo;_}|Ter2{memo;_}|Test{memo;_} as t),rest) ->
           begin try
             if !debug_lvl > 0 then log "Read      : %a\n%!" print_final elt0;
             let {buf; col; buf_ab; col_ab} = cur_pos in
@@ -793,18 +792,18 @@ let rec pred_prod_lec
                 | Some v -> v
                 | None -> raise Error
               with Not_found ->
-                   try
-                     let res = match t with
-                       | Term{input=f} -> f buf_ab col_ab
-                       | Ter2{input=f} -> f errpos blank buf col buf_ab col_ab
-                       | Test{input=f} -> let (a,b) = f buf col buf_ab col_ab in
-                                          if b then (a,buf_ab,col_ab)
-                                          else raise Error
-                       | _ -> assert false
-                     in
-                     Ref.add tmemo memo (Some res); res
-                   with Error ->
-                     Ref.add tmemo memo None; raise Error
+                try
+                  let res =
+                    match t with
+                    | Term{input=f;_} -> f buf_ab col_ab
+                    | Ter2{input=f;_} -> f errpos blank buf col buf_ab col_ab
+                    | Test{input=f;_} ->
+                        let (a,b) = f buf col buf_ab col_ab in
+                        if b then (a,buf_ab,col_ab) else raise Error
+                    | _               -> assert false
+                  in
+                  Ref.add tmemo memo (Some res); res
+                with Error -> Ref.add tmemo memo None; raise Error
             in
             let empty_parse = Input.buffer_before buf col buf_ab col_ab in
             let elt, gd = match rest with
@@ -828,11 +827,11 @@ let rec pred_prod_lec
                   let b = add "T" cur_pos c elt elements in
                   if b then fn elt
               end
-            else (** otherwise write in the forward table for the next cycles *)
+            else (* otherwise write in the forward table for the next cycles *)
               forward := Input.OrdTbl.add buf col elt !forward
           with Error -> () end
 
-       (** A dependant rule: computes a rule while parsing ! *)
+       (* A dependant rule: computes a rule while parsing ! *)
        | Dep(fn_rule) ->
           begin try
             if !debug_lvl > 0 then log "dependant rule\n%!";
@@ -869,30 +868,30 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       | None -> (false, ref None)
       | Some e -> (true, e)
     in
-    (** get a fresh parse_id *)
+    (* get a fresh parse_id *)
     let parse_id = incr count; !count in
-    (** contruction of the 3 tables *)
+    (* contruction of the 3 tables *)
     let elements : a cur = HK.create 8 in
     let forward = ref Input.OrdTbl.empty in
     let sct = StackContainer.create_table () in
     let tmemo = Ref.create_table () in
-    (** contruction of the initial elements and the refs olding the position *)
+    (* contruction of the initial elements and the refs olding the position *)
     let main_rule = grammar_to_rule main in
-    (** the key of a final parsing *)
+    (* the key of a final parsing *)
     let s0 : (a, a) stack = ref [B Idt] in
     let start = { buf = buf0; col = col0; buf_ab = buf0; col_ab = col0 } in
     let col = ref col0 and buf = ref buf0 in
     let col' = ref col0 and buf' = ref buf0 in
-    (** the initial elements *)
+    (* the initial elements *)
     let main_key = final_key start main_rule in
     let init = final start idt s0 main_rule main_rule in
-    (** old the last success for partial_parse *)
+    (* old the last success for partial_parse *)
     let last_success = ref [] in
-    (** the list of elements to be treated at the next step *)
+    (* the list of elements to be treated at the next step *)
     let todo = ref [init] in
     if !debug_lvl > 0 then log "STAR=%5d: %a\n%!" parse_id print_pos start;
 
-    (** The function calling the main recursice function above *)
+    (* The function calling the main recursice function above *)
     let one_step l =
       let c,_,_ = Input.read !buf' !col' in
       let cur_pos = { buf = !buf; col = !col
@@ -907,7 +906,7 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
         if add "I" cur_pos c s elements then
           pred_prod_lec errpos s elements forward sct tmemo blank cur_pos c) l;
     in
-    (** Searching a succes *)
+    (* Searching a succes *)
     let search_success () =
       try
         let success = HK.find elements main_key in
@@ -920,24 +919,24 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
       StackContainer.clear sct;
       HK.clear elements;
       Ref.clear tmemo;
-      (** read blanks *)
+      (* read blanks *)
       let buf'', col'' = blank !buf !col in
       buf' := buf''; col' := col'';
-      (** treat the next elements *)
+      (* treat the next elements *)
       one_step !todo;
-      (** search success for internal (partial) parse *)
+      (* search success for internal (partial) parse *)
       if internal then search_success ();
-      (** advance to the next elements *)
+      (* advance to the next elements *)
       try
-         (** pop the next elements and position *)
+         (* pop the next elements and position *)
          let (new_buf, new_col, l, forward') = Input.OrdTbl.pop !forward in
          todo := l;
          forward := forward';
-         (** advance positions *)
+         (* advance positions *)
          col := new_col; buf := new_buf;
        with Not_found -> todo := []
     done;
-    (** search succes at the end for non internal parse *)
+    (* search succes at the end for non internal parse *)
     if not internal then search_success ();
     let parse_error () =
       update_errpos errpos !buf' !col';
@@ -948,10 +947,10 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
     in
     let cur_pos = { buf = !buf; col = !col; buf_ab = !buf'; col_ab = !col' } in
     if !debug_lvl > 0 then log "ENDS=%5d: %a\n%!" parse_id print_pos cur_pos;
-    (** Test if the final element contains a B note, too long code
-        to accomodate GADT *)
-    let rec fn : type a.a final -> a = function
-      | D {stack=s1; rest={rule=Empty f}; acts; full} ->
+    (* Test if the final element contains a B note, too long code
+       to accomodate GADT *)
+    let fn : type a.a final -> a = function
+      | D {stack=s1; rest={rule=Empty f;_}; acts; full; _} ->
          (match eq_rule main_rule full with N -> raise Error | Y ->
            let x = acts (apply_pos f buf0 col0 !buf !col) in
            let gn : type a b. b -> (b,a) element list -> a =
@@ -970,8 +969,8 @@ let parse_buffer_aux : type a. ?errpos:errpos -> bool -> blank -> a grammar
            gn x !s1)
       | _ -> assert false
     in
-    (** Apply the above function to all last success, further position first *)
-    let a, buf, col as result =
+    (* Apply the above function to all last success, further position first *)
+    let result =
       let rec kn = function
         | [] -> parse_error ()
         | (b,p, elt) :: rest ->
