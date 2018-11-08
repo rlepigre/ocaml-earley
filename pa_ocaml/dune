@@ -25,9 +25,9 @@
   (targets compare.ml)
   (action (with-stdout-to compare.ml (progn
     (run pa_ocaml.boot --ascii ../ast_tools/generic_eq.ml)
-    (echo "(* asttypes.mli *)")
+    (echo "(* asttypes.mli *)\n")
     (run pa_eq ../ast_tools/%{ocaml_version}/asttypes.mli)
-    (echo "(* parsetree.mli *)")
+    (echo "(* parsetree.mli *)\n")
     (run pa_eq ../ast_tools/%{ocaml_version}/parsetree.mli))))
   (deps
     ../ast_tools/generic_eq.ml
@@ -38,9 +38,9 @@
   (targets iter.ml)
   (action (with-stdout-to iter.ml (progn
     (run pa_ocaml.boot --ascii ../ast_tools/generic_iter.ml)
-    (echo "(* asttypes.mli *)")
+    (echo "(* asttypes.mli *)\n")
     (run pa_iter ../ast_tools/%{ocaml_version}/asttypes.mli)
-    (echo "(* parsetree.mli *)")
+    (echo "(* parsetree.mli *)\n")
     (run pa_iter ../ast_tools/%{ocaml_version}/parsetree.mli))))
   (deps
     ../ast_tools/generic_iter.ml
@@ -51,9 +51,9 @@
   (targets quote.ml)
   (action (with-stdout-to quote.ml (progn
     (run pa_ocaml.boot --ascii ../ast_tools/generic_quote.ml)
-    (echo "(* asttypes.mli *)")
+    (echo "(* asttypes.mli *)\n")
     (run pa_quote ../ast_tools/%{ocaml_version}/asttypes.mli)
-    (echo "(* parsetree.mli *)")
+    (echo "(* parsetree.mli *)\n")
     (run pa_quote ../ast_tools/%{ocaml_version}/parsetree.mli))))
   (deps
     ../ast_tools/generic_quote.ml
