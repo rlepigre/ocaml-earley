@@ -16,46 +16,46 @@
 (rule
   (targets helper.ml helper.mli astextra.ml astextra.mli)
   (action (progn
-    (copy ../ast_helper/%{ocaml_version}/helper.ml helper.ml)
-    (copy ../ast_helper/helper.mli helper.mli)
-    (copy ../ast_helper/%{ocaml_version}/astextra.ml astextra.ml)
-    (copy ../ast_helper/%{ocaml_version}/astextra.mli astextra.mli))))
+    (copy ../static/helpers/%{ocaml_version}/helper.ml helper.ml)
+    (copy ../static/helpers/helper.mli helper.mli)
+    (copy ../static/helpers/%{ocaml_version}/astextra.ml astextra.ml)
+    (copy ../static/helpers/%{ocaml_version}/astextra.mli astextra.mli))))
 
 (rule
   (targets compare.ml)
   (action (with-stdout-to compare.ml (progn
-    (run pa_ocaml.boot --ascii ../ast_tools/generic_eq.ml)
+    (run pa_ocaml.boot --ascii ../static/tools/generic_eq.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_eq ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (run pa_eq ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_eq ../ast_tools/%{ocaml_version}/parsetree.mli))))
+    (run pa_eq ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
-    ../ast_tools/generic_eq.ml
-    ../ast_tools/%{ocaml_version}/asttypes.mli
-    ../ast_tools/%{ocaml_version}/parsetree.mli))
+    ../static/tools/generic_eq.ml
+    ../static/tools/%{ocaml_version}/asttypes.mli
+    ../static/tools/%{ocaml_version}/parsetree.mli))
 
 (rule
   (targets iter.ml)
   (action (with-stdout-to iter.ml (progn
-    (run pa_ocaml.boot --ascii ../ast_tools/generic_iter.ml)
+    (run pa_ocaml.boot --ascii ../static/tools/generic_iter.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_iter ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (run pa_iter ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_iter ../ast_tools/%{ocaml_version}/parsetree.mli))))
+    (run pa_iter ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
-    ../ast_tools/generic_iter.ml
-    ../ast_tools/%{ocaml_version}/asttypes.mli
-    ../ast_tools/%{ocaml_version}/parsetree.mli))
+    ../static/tools/generic_iter.ml
+    ../static/tools/%{ocaml_version}/asttypes.mli
+    ../static/tools/%{ocaml_version}/parsetree.mli))
 
 (rule
   (targets quote.ml)
   (action (with-stdout-to quote.ml (progn
-    (run pa_ocaml.boot --ascii ../ast_tools/generic_quote.ml)
+    (run pa_ocaml.boot --ascii ../static/tools/generic_quote.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_quote ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (run pa_quote ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_quote ../ast_tools/%{ocaml_version}/parsetree.mli))))
+    (run pa_quote ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
-    ../ast_tools/generic_quote.ml
-    ../ast_tools/%{ocaml_version}/asttypes.mli
-    ../ast_tools/%{ocaml_version}/parsetree.mli))
+    ../static/tools/generic_quote.ml
+    ../static/tools/%{ocaml_version}/asttypes.mli
+    ../static/tools/%{ocaml_version}/parsetree.mli))
