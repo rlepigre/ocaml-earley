@@ -301,7 +301,6 @@ let quote_variance e_loc _loc x = match x with
   | Contravariant -> quote_const e_loc _loc (Ldot(Lident "Asttypes", "Contravariant")) []
   | Invariant -> quote_const e_loc _loc (Ldot(Lident "Asttypes", "Invariant")) []
 
-
 (* parsetree.mli *)
 let quote_constant e_loc _loc x = match x with
   | Pconst_integer(x1,x2) -> quote_const e_loc _loc (Ldot(Lident "Parsetree", "Pconst_integer")) [ quote_string e_loc _loc x1; (quote_option quote_char) e_loc _loc x2;]

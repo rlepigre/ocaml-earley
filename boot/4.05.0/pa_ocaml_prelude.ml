@@ -161,14 +161,14 @@ module Initial =
              | `Type of string Location.loc ] grammar),set_parameter)
       = grammar_family "parameter" 
     let structure = structure_item 
-    let signature = Earley.declare_grammar "signature" 
+    let signature = Earley_parser.Earley.declare_grammar "signature" 
     let _ =
-      Earley.set_grammar signature
-        (Earley.fsequence
-           (Earley.apply (fun f  -> f [])
-              (Earley.fixpoint' (fun l  -> l) signature_item
+      Earley_parser.Earley.set_grammar signature
+        (Earley_parser.Earley.fsequence
+           (Earley_parser.Earley.apply (fun f  -> f [])
+              (Earley_parser.Earley.fixpoint' (fun l  -> l) signature_item
                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
-           (Earley.empty (fun l  -> List.flatten l)))
+           (Earley_parser.Earley.empty (fun l  -> List.flatten l)))
       
     type type_prio =
       | TopType 
@@ -376,9 +376,9 @@ module Initial =
     let union_re l =
       let l = List.map (fun s  -> "\\(" ^ (s ^ "\\)")) l  in
       String.concat "\\|" l 
-    let arrow_re = Earley.declare_grammar "arrow_re" 
+    let arrow_re = Earley_parser.Earley.declare_grammar "arrow_re" 
     let _ =
-      Earley.set_grammar arrow_re
+      Earley_parser.Earley.set_grammar arrow_re
         (Earley_str.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
            "\\(->\\)\\|\\(\226\134\146\\)" (fun groupe  -> groupe 0))
       
@@ -419,85 +419,93 @@ module Initial =
       | _ -> assert false 
     let prefix_prios = [Opp; Prefix] 
     let (infix_symbol,infix_symbol__set__grammar) =
-      Earley.grammar_family "infix_symbol" 
+      Earley_parser.Earley.grammar_family "infix_symbol" 
     let _ =
       infix_symbol__set__grammar
         (fun prio  ->
-           Earley.alternatives
+           Earley_parser.Earley.alternatives
              ((if prio <> Cons
                then
-                 [Earley.fsequence
+                 [Earley_parser.Earley.fsequence
                     (Earley_str.regexp (infix_symb_re prio)
                        (fun groupe  -> groupe 0))
-                    (Earley.fsequence not_special
-                       (Earley.empty
+                    (Earley_parser.Earley.fsequence not_special
+                       (Earley_parser.Earley.empty
                           (fun _default_0  ->
                              fun sym  ->
                                if is_reserved_symb sym then give_up (); sym)))]
                else []) @
                 ((if prio = Cons
                   then
-                    [Earley.fsequence_ignore (Earley.string "::" "::")
-                       (Earley.empty "::")]
+                    [Earley_parser.Earley.fsequence_ignore
+                       (Earley_parser.Earley.string "::" "::")
+                       (Earley_parser.Earley.empty "::")]
                   else []) @ [])))
       
     let (prefix_symbol,prefix_symbol__set__grammar) =
-      Earley.grammar_family "prefix_symbol" 
+      Earley_parser.Earley.grammar_family "prefix_symbol" 
     let _ =
       prefix_symbol__set__grammar
         (fun prio  ->
-           Earley.fsequence
+           Earley_parser.Earley.fsequence
              (Earley_str.regexp (prefix_symb_re prio)
                 (fun groupe  -> groupe 0))
-             (Earley.fsequence not_special
-                (Earley.empty
+             (Earley_parser.Earley.fsequence not_special
+                (Earley_parser.Earley.empty
                    (fun _default_0  ->
                       fun sym  ->
                         if (is_reserved_symb sym) || (sym = "!=")
                         then give_up ();
                         sym))))
       
-    let mutable_flag = Earley.declare_grammar "mutable_flag" 
+    let mutable_flag = Earley_parser.Earley.declare_grammar "mutable_flag" 
     let _ =
-      Earley.set_grammar mutable_flag
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ())
-              (Earley.empty Immutable);
-           Earley.fsequence mutable_kw
-             (Earley.empty (fun _default_0  -> Mutable))])
+      Earley_parser.Earley.set_grammar mutable_flag
+        (Earley_parser.Earley.alternatives
+           [Earley_parser.Earley.fsequence_ignore
+              (Earley_parser.Earley.empty ())
+              (Earley_parser.Earley.empty Immutable);
+           Earley_parser.Earley.fsequence mutable_kw
+             (Earley_parser.Earley.empty (fun _default_0  -> Mutable))])
       
-    let private_flag = Earley.declare_grammar "private_flag" 
+    let private_flag = Earley_parser.Earley.declare_grammar "private_flag" 
     let _ =
-      Earley.set_grammar private_flag
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty Public);
-           Earley.fsequence private_kw
-             (Earley.empty (fun _default_0  -> Private))])
+      Earley_parser.Earley.set_grammar private_flag
+        (Earley_parser.Earley.alternatives
+           [Earley_parser.Earley.fsequence_ignore
+              (Earley_parser.Earley.empty ())
+              (Earley_parser.Earley.empty Public);
+           Earley_parser.Earley.fsequence private_kw
+             (Earley_parser.Earley.empty (fun _default_0  -> Private))])
       
-    let virtual_flag = Earley.declare_grammar "virtual_flag" 
+    let virtual_flag = Earley_parser.Earley.declare_grammar "virtual_flag" 
     let _ =
-      Earley.set_grammar virtual_flag
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty Concrete);
-           Earley.fsequence virtual_kw
-             (Earley.empty (fun _default_0  -> Virtual))])
+      Earley_parser.Earley.set_grammar virtual_flag
+        (Earley_parser.Earley.alternatives
+           [Earley_parser.Earley.fsequence_ignore
+              (Earley_parser.Earley.empty ())
+              (Earley_parser.Earley.empty Concrete);
+           Earley_parser.Earley.fsequence virtual_kw
+             (Earley_parser.Earley.empty (fun _default_0  -> Virtual))])
       
-    let rec_flag = Earley.declare_grammar "rec_flag" 
+    let rec_flag = Earley_parser.Earley.declare_grammar "rec_flag" 
     let _ =
-      Earley.set_grammar rec_flag
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ())
-              (Earley.empty Nonrecursive);
-           Earley.fsequence rec_kw
-             (Earley.empty (fun _default_0  -> Recursive))])
+      Earley_parser.Earley.set_grammar rec_flag
+        (Earley_parser.Earley.alternatives
+           [Earley_parser.Earley.fsequence_ignore
+              (Earley_parser.Earley.empty ())
+              (Earley_parser.Earley.empty Nonrecursive);
+           Earley_parser.Earley.fsequence rec_kw
+             (Earley_parser.Earley.empty (fun _default_0  -> Recursive))])
       
-    let downto_flag = Earley.declare_grammar "downto_flag" 
+    let downto_flag = Earley_parser.Earley.declare_grammar "downto_flag" 
     let _ =
-      Earley.set_grammar downto_flag
-        (Earley.alternatives
-           [Earley.fsequence downto_kw
-              (Earley.empty (fun _default_0  -> Downto));
-           Earley.fsequence to_kw (Earley.empty (fun _default_0  -> Upto))])
+      Earley_parser.Earley.set_grammar downto_flag
+        (Earley_parser.Earley.alternatives
+           [Earley_parser.Earley.fsequence downto_kw
+              (Earley_parser.Earley.empty (fun _default_0  -> Downto));
+           Earley_parser.Earley.fsequence to_kw
+             (Earley_parser.Earley.empty (fun _default_0  -> Upto))])
       
     let entry_points =
       ([(".mli", (Interface (signature, ocaml_blank)));
