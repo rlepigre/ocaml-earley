@@ -19,6 +19,7 @@ for SWITCH in $(ls static/boot); do
 
   # Cleaning up
   make distclean
+  echo ""
 done
 
 # Restore initial switch
