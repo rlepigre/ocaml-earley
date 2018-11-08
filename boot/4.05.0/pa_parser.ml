@@ -1,3 +1,4 @@
+open Earley_parser
 open Asttypes
 open Parsetree
 open Longident
@@ -2483,7 +2484,7 @@ module Ext(In:Extension) =
                                                           Asttypes.txt =
                                                             (Longident.Ldot
                                                                ((Longident.Lident
-                                                                   "EarleyStr"),
+                                                                   "Earley_str"),
                                                                  "regexp"));
                                                           Asttypes.loc = _loc
                                                         });
@@ -2511,7 +2512,7 @@ module Ext(In:Extension) =
                                                           Asttypes.txt =
                                                             (Longident.Ldot
                                                                ((Longident.Lident
-                                                                   "EarleyStr"),
+                                                                   "Earley_str"),
                                                                  "regexp"));
                                                           Asttypes.loc = _loc
                                                         });
@@ -2693,7 +2694,7 @@ module Ext(In:Extension) =
                                                    Asttypes.txt =
                                                      (Longident.Ldot
                                                         ((Longident.Lident
-                                                            "EarleyStr"),
+                                                            "Earley_str"),
                                                           "regexp"));
                                                    Asttypes.loc = _loc
                                                  });

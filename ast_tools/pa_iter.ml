@@ -1,3 +1,5 @@
+open Earley_parser
+
 (* AST of types *)
 type btype =
   | Bool | Int | Char | String | Int32 | Int64 | Nativeint
@@ -84,16 +86,6 @@ let parser any_rec_decl =
   | "open" n:uid                           -> Open n
 
 let parser any_decls = | any_rec_decl*
-
-let blank = Pa_lexing.ocaml_blank
-let parse_file = Earley.parse_file any_decls blank
-let parse_channel = Earley.parse_channel any_decls blank
-
-let parse () =
-  match Array.length Sys.argv with
-  | 1 -> parse_channel stdin
-  | 2 -> parse_file Sys.argv.(1)
-  | _ -> failwith "Wrong number of arguments..."
 
 (* Printer *)
 let rec print_btype ch = function
@@ -184,7 +176,10 @@ let rec print ch = function
 
 (* Main program *)
 let _ =
-  Printf.eprintf "Parsing ... %!";
-  let ast = parse () in
-  Printf.eprintf "[OK - %i]\n%!" (List.length ast);
-  print stdout ast;
+  let ast =
+    match Sys.argv with
+    | [|_|]       -> Earley.parse_channel any_decls Blanks.ocaml_blank stdin
+    | [|_;fname|] -> Earley.parse_file any_decls Blanks.ocaml_blank fname
+    | _           -> failwith "Wrong number of arguments..."
+  in
+  print stdout ast

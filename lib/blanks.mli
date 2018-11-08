@@ -14,3 +14,6 @@ val from_charset : Charset.t -> Earley.blank
     [delim]. The exception [Invalid_argument] when [delim] is empty or when it
     starts with a character of [cs]. *)
 val line_comments : ?blanks:Charset.t -> string -> Earley.blank
+
+exception Bad_ocaml_comment of string * (Input.buffer * int)
+val ocaml_blank : Earley.blank

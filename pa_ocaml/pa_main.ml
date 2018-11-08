@@ -45,6 +45,7 @@
   ======================================================================
 *)
 
+open Earley_parser
 open Pa_ocaml_prelude
 open Pa_ocaml
 open Input

@@ -1,0 +1,61 @@
+(library
+  (name earley_ocaml)
+  (public_name earley.ocaml)
+  (synopsis "Extensible OCaml parser library using Earley")
+  (modules :standard \ pa_default)
+  (preprocess (action (run pa_ocaml.boot %{input-file})))
+  (libraries compiler-libs.common earley.core earley.str))
+
+(executable
+  (name pa_default)
+  (public_name pa_ocaml)
+  (package earley)
+  (modules pa_default)
+  (libraries compiler-libs.common earley.core earley.str earley.ocaml))
+
+(rule
+  (targets helper.ml helper.mli astextra.ml astextra.mli)
+  (action (progn
+    (copy ../ast_helper/%{ocaml_version}/helper.ml helper.ml)
+    (copy ../ast_helper/helper.mli helper.mli)
+    (copy ../ast_helper/%{ocaml_version}/astextra.ml astextra.ml)
+    (copy ../ast_helper/%{ocaml_version}/astextra.mli astextra.mli))))
+
+(rule
+  (targets compare.ml)
+  (action (with-stdout-to compare.ml (progn
+    (run pa_ocaml.boot --ascii ../ast_tools/generic_eq.ml)
+    (echo "(* asttypes.mli *)")
+    (run pa_eq ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (echo "(* parsetree.mli *)")
+    (run pa_eq ../ast_tools/%{ocaml_version}/parsetree.mli))))
+  (deps
+    ../ast_tools/generic_eq.ml
+    ../ast_tools/%{ocaml_version}/asttypes.mli
+    ../ast_tools/%{ocaml_version}/parsetree.mli))
+
+(rule
+  (targets iter.ml)
+  (action (with-stdout-to iter.ml (progn
+    (run pa_ocaml.boot --ascii ../ast_tools/generic_iter.ml)
+    (echo "(* asttypes.mli *)")
+    (run pa_iter ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (echo "(* parsetree.mli *)")
+    (run pa_iter ../ast_tools/%{ocaml_version}/parsetree.mli))))
+  (deps
+    ../ast_tools/generic_iter.ml
+    ../ast_tools/%{ocaml_version}/asttypes.mli
+    ../ast_tools/%{ocaml_version}/parsetree.mli))
+
+(rule
+  (targets quote.ml)
+  (action (with-stdout-to quote.ml (progn
+    (run pa_ocaml.boot --ascii ../ast_tools/generic_quote.ml)
+    (echo "(* asttypes.mli *)")
+    (run pa_quote ../ast_tools/%{ocaml_version}/asttypes.mli)
+    (echo "(* parsetree.mli *)")
+    (run pa_quote ../ast_tools/%{ocaml_version}/parsetree.mli))))
+  (deps
+    ../ast_tools/generic_quote.ml
+    ../ast_tools/%{ocaml_version}/asttypes.mli
+    ../ast_tools/%{ocaml_version}/parsetree.mli))

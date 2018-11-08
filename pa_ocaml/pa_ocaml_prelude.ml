@@ -45,6 +45,7 @@
   ======================================================================
 *)
 
+open Earley_parser
 open Input
 open Earley
 open Asttypes
