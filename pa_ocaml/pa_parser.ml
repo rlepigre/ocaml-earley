@@ -102,22 +102,23 @@ let rec build_action _loc occur_loc ids e =
 let apply_option _loc opt e =
   let fn e f d =
     match d with
-       None   -> <:expr< Earley.$lid:f$ None (Earley.apply (fun x -> Some x) $e$) >>
-    | Some d -> <:expr< Earley.$lid:f$ $d$ $e$ >>
+       None   -> <:expr< Earley_parser.Earley.$lid:f$ None (Earley_parser.Earley.apply (fun x -> Some x) $e$) >>
+    | Some d -> <:expr< Earley_parser.Earley.$lid:f$ $d$ $e$ >>
   in
   let gn e f d =
     match d with
-      None   -> <:expr< Earley.apply (fun f -> f []) (Earley.$lid:(f^"'")$ (fun l -> l) $e$ (fun x f l -> f (x::l))) >>
-    | Some d -> <:expr< Earley.$lid:f$ $d$ $e$ >>
+      None   -> <:expr< Earley_parser.Earley.apply (fun f -> f [])
+        (Earley_parser.Earley.$lid:(f^"'")$ (fun l -> l) $e$ (fun x f l -> f (x::l))) >>
+    | Some d -> <:expr< Earley_parser.Earley.$lid:f$ $d$ $e$ >>
   in
   let kn e = function
     | None   -> e
-    | Some _ -> <:expr< Earley.greedy $e$ >>
+    | Some _ -> <:expr< Earley_parser.Earley.greedy $e$ >>
   in
   match opt with
     `Once -> e
   | `Option(d,g)    -> kn (fn e "option" d) g
-  | `Greedy       -> <:expr< Earley.greedy $e$ >>
+  | `Greedy       -> <:expr< Earley_parser.Earley.greedy $e$ >>
   | `Fixpoint(d,g)  -> kn (gn e "fixpoint" d) g
   | `Fixpoint1(d,g) -> kn (gn e "fixpoint1" d) g
 
@@ -157,7 +158,7 @@ module Ext(In:Extension) = struct
            true, (match cond with
 		 | None -> def a
 		 | Some cond ->
-		    def (<:expr<if $cond$ then $a$ else Earley.fail ()>>))
+		    def (<:expr<if $cond$ then $a$ else Earley_parser.Earley.fail ()>>))
       in
 
       let rec fn ids l = match l with
@@ -167,7 +168,7 @@ module Ext(In:Extension) = struct
 	     | Some _, true -> "empty_pos"
 	     | _ -> "empty"
 	   in
-           <:expr<Earley.$lid:f$ $a$>>
+           <:expr<Earley_parser.Earley.$lid:f$ $a$>>
 	| [`Normal(id,_,e,opt,occur_loc_id)] when
            (match action.pexp_desc with
 	    | Pexp_ident({ txt = Lident id'}) when ids = [] && fst id = id' -> true
@@ -186,10 +187,10 @@ module Ext(In:Extension) = struct
              | _ when fst id = "_" && snd id = None  -> "fsequence_ignore"
              | _            -> "fsequence"
            in
-           <:expr<Earley.$lid:fn$ $e$ $a$>>
+           <:expr<Earley_parser.Earley.$lid:fn$ $e$ $a$>>
       in
       let res = fn [] l in
-      let res = if iter then <:expr<Earley.iter $res$>> else res in
+      let res = if iter then <:expr<Earley_parser.Earley.iter $res$>> else res in
       def, condition, res
 
   let apply_def_cond _loc r =
@@ -197,7 +198,7 @@ module Ext(In:Extension) = struct
     match cond with
       None -> def e
     | Some c ->
-      def <:expr<if $c$ then $e$ else Earley.fail ()>>
+      def <:expr<if $c$ then $e$ else Earley_parser.Earley.fail ()>>
 
   let apply_def_cond_list _loc r acc =
     let (def,cond,e) = build_rule r in
@@ -215,11 +216,11 @@ module Ext(In:Extension) = struct
     (* FIXME: warning if useless @| ? *)
     let ls = List.map snd ls in
     match ls with
-    | [] -> <:expr<Earley.fail ()>>
+    | [] -> <:expr<Earley_parser.Earley.fail ()>>
     | [r] -> apply_def_cond _loc r
     | _::_::_ ->
         let l = List.fold_right (apply_def_cond_list _loc) ls (<:expr<[]>>) in
-        <:expr<Earley.alternatives $l$>>
+        <:expr<Earley_parser.Earley.alternatives $l$>>
 
   let build_prio_alternatives _loc arg ls =
     let l0, l1 = List.partition fst ls in
@@ -247,14 +248,14 @@ module Ext(In:Extension) = struct
             match args,prio with
             | [], None ->
                let r = coer (build_alternatives _loc_r r) in
-               (<:struct<let $pat:pname$ = Earley.declare_grammar $string:name$>>
+               (<:struct<let $pat:pname$ = Earley_parser.Earley.declare_grammar $string:name$>>
                  @ str1,
-                <:struct<let _ = Earley.set_grammar $lid:name$ $r$>> @ str2)
+                <:struct<let _ = Earley_parser.Earley.set_grammar $lid:name$ $r$>> @ str2)
             | _, None ->
                let r = coer (build_alternatives _loc_r r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_family $string:name$>> @str1,
+                 Earley_parser.Earley.grammar_family $string:name$>> @str1,
                 <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)>>
                 @ str2)
 
@@ -262,13 +263,13 @@ module Ext(In:Extension) = struct
                let r = coer (build_prio_alternatives _loc_r prio r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_prio $string:name$>> @ str1,
+                 Earley_parser.Earley.grammar_prio $string:name$>> @ str1,
                 <:struct<let _ = $lid:set_name$ $r$>> @ str2)
             | args, Some prio ->
                let r = coer (build_prio_alternatives _loc_r prio r) in
                let set_name = name ^ "__set__grammar" in
                (<:struct<let ($pat:pname$,$lid:set_name$) =
-                 Earley.grammar_prio_family $string:name$>> @ str1,
+                 Earley_parser.Earley.grammar_prio_family $string:name$>> @ str1,
                 <:struct<let _ = $lid:set_name$ (fun $pat:args_pat$ -> $r$)>>
                  @ str2)
           in
@@ -305,29 +306,29 @@ module Ext(In:Extension) = struct
     | '{' r:glr_rules '}'
      -> (true, build_alternatives _loc_r r)
     | "EOF" oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.eof $from_opt oe <:expr<()>>$ >>)
+     -> (oe <> None, <:expr<Earley_parser.Earley.eof $from_opt oe <:expr<()>>$ >>)
     | "EMPTY" oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.empty $from_opt oe <:expr<()>>$ >>)
+     -> (oe <> None, <:expr<Earley_parser.Earley.empty $from_opt oe <:expr<()>>$ >>)
     | "FAIL" e:expr_arg
-     -> (false, <:expr<Earley.fail $e$>>)
+     -> (false, <:expr<Earley_parser.Earley.fail $e$>>)
     | "DEBUG" e:expr_arg
-     -> (false, <:expr<Earley.debug $e$>>)
+     -> (false, <:expr<Earley_parser.Earley.debug $e$>>)
     | "ANY"
-     -> (true, <:expr<Earley.any>>)
+     -> (true, <:expr<Earley_parser.Earley.any>>)
     | "CHR" e:expr_arg oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.char $e$ $from_opt oe e$>>)
+     -> (oe <> None, <:expr<Earley_parser.Earley.char $e$ $from_opt oe e$>>)
     | c:char_litteral oe:glr_opt_expr
      -> let e = <:expr<$char:c$>> in
-        (oe <> None, <:expr<Earley.char $e$ $from_opt oe e$>>)
+        (oe <> None, <:expr<Earley_parser.Earley.char $e$ $from_opt oe e$>>)
     | "STR" e:expr_arg oe:glr_opt_expr
-     -> (oe <> None, <:expr<Earley.string $e$ $from_opt oe e$>>)
+     -> (oe <> None, <:expr<Earley_parser.Earley.string $e$ $from_opt oe e$>>)
     | "ERROR" e:expr_arg
-     -> (true, <:expr<Earley.error_message (fun () -> $e$)>>)
+     -> (true, <:expr<Earley_parser.Earley.error_message (fun () -> $e$)>>)
     | (s,_):string_litteral oe:glr_opt_expr
      -> if String.length s = 0 then Earley.give_up ();
         let s = <:expr<$string:s$>> in
         let e = from_opt oe s in
-        (oe <> None, <:expr<Earley.string $s$ $e$>>)
+        (oe <> None, <:expr<Earley_parser.Earley.string $s$ $e$>>)
     | "RE" e:expr_arg opt:glr_opt_expr
      -> begin
           let act = <:expr<fun groupe -> $from_opt opt <:expr<groupe 0>>$ >> in
@@ -339,28 +340,28 @@ module Ext(In:Extension) = struct
                   String.sub id 0 (l - 3)
                 else id
               in
-              (true, <:expr<EarleyStr.regexp ~name:$string:id$ $e$ $act$>>)
-          | _ -> (true, <:expr<EarleyStr.regexp $e$ $act$>>)
+              (true, <:expr<Earley_str.regexp ~name:$string:id$ $e$ $act$>>)
+          | _ -> (true, <:expr<Earley_str.regexp $e$ $act$>>)
         end
     | "BLANK" oe:glr_opt_expr
      -> let e = from_opt oe <:expr<()>> in
-        (oe <> None, <:expr<Earley.with_blank_test $e$>>)
+        (oe <> None, <:expr<Earley_parser.Earley.with_blank_test $e$>>)
     | dash oe:glr_opt_expr
      -> let e = from_opt oe <:expr<()>> in
-        (oe <> None, <:expr<Earley.no_blank_test $e$>>)
+        (oe <> None, <:expr<Earley_parser.Earley.no_blank_test $e$>>)
     | s:regexp_litteral oe:glr_opt_expr
      -> let opt = from_opt oe <:expr<groupe 0>> in
         let es = String.escaped s in
         let act = <:expr<fun groupe -> $opt$>> in
-        (true, <:expr<EarleyStr.regexp ~name:$string:es$ $string:s$ $act$>>)
+        (true, <:expr<Earley_str.regexp ~name:$string:es$ $string:s$ $act$>>)
     | s:new_regexp_litteral opt:glr_opt_expr
      -> begin
           let es = String.escaped s in
           let s = "\\(" ^ s ^ "\\)" in
-          let re = <:expr<Earley.regexp ~name:$string:es$ $string:s$>> in
+          let re = <:expr<Earley_parser.Earley.regexp ~name:$string:es$ $string:s$>> in
           match opt with
           | None   -> (true, re)
-          | Some e -> (true, <:expr<Earley.apply (fun group -> $e$) $re$>>)
+          | Some e -> (true, <:expr<Earley_parser.Earley.apply (fun group -> $e$) $re$>>)
         end
     | id:value_path
      -> (true, <:expr<$longident:id$>>)

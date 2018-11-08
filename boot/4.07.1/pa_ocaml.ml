@@ -351,7 +351,7 @@ module Make(Initial:Extension) =
         (Earley.fsequence
            (Earley.option None
               (Earley.apply (fun x -> Some x)
-                 (EarleyStr.regexp "[+-]" (fun groupe -> groupe 0))))
+                 (Earley_str.regexp "[+-]" (fun groupe -> groupe 0))))
            (Earley.empty
               (fun v ->
                  match v with
@@ -845,7 +845,7 @@ module Make(Initial:Extension) =
                   (Earley.fsequence
                      (Earley.option "type"
                         (Earley.fsequence
-                           (EarleyStr.regexp ~name:"[a-z]+" "[a-z]+"
+                           (Earley_str.regexp ~name:"[a-z]+" "[a-z]+"
                               (fun groupe -> groupe 0))
                            (Earley.fsequence_ignore (Earley.no_blank_test ())
                               (Earley.fsequence_ignore (Earley.char ':' ':')
@@ -2304,7 +2304,7 @@ module Make(Initial:Extension) =
                   (Earley.fsequence
                      (Earley.option "pat"
                         (Earley.fsequence
-                           (EarleyStr.regexp ~name:"[a-z]+" "[a-z]+"
+                           (Earley_str.regexp ~name:"[a-z]+" "[a-z]+"
                               (fun groupe -> groupe 0))
                            (Earley.fsequence_ignore (Earley.no_blank_test ())
                               (Earley.fsequence_ignore (Earley.char ':' ':')
@@ -5430,7 +5430,7 @@ module Make(Initial:Extension) =
                   (Earley.fsequence
                      (Earley.option "expr"
                         (Earley.fsequence
-                           (EarleyStr.regexp ~name:"[a-z]+" "[a-z]+"
+                           (Earley_str.regexp ~name:"[a-z]+" "[a-z]+"
                               (fun groupe -> groupe 0))
                            (Earley.fsequence_ignore (Earley.no_blank_test ())
                               (Earley.fsequence_ignore (Earley.char ':' ':')
@@ -7031,7 +7031,7 @@ module Make(Initial:Extension) =
                                           | _ ->
                                               failwith "Bad antiquotation..."))))));
            Earley.fsequence
-             (EarleyStr.regexp ~name:"let" let_re (fun groupe -> groupe 0))
+             (Earley_str.regexp ~name:"let" let_re (fun groupe -> groupe 0))
              (Earley.fsequence rec_flag
                 (Earley.fsequence let_binding
                    (Earley.empty_pos

@@ -16,7 +16,7 @@ let float_num = Earley.declare_grammar "float_num"
 let _ =
   Earley.set_grammar float_num
     (Earley.fsequence
-       (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
+       (Earley_str.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
        (Earley.empty (fun f  -> float_of_string f)))
   
 let prod_sym = Earley.declare_grammar "prod_sym" 

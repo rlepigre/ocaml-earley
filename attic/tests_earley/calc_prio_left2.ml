@@ -8,7 +8,7 @@ type calc_prio =
 let float_re = "[0-9]+\\([.][0-9]+\\)?\\([eE][-+]?[0-9]+\\)?" 
 let float_num =
   Earley.fsequence
-    (EarleyStr.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
+    (Earley_str.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
     (Earley.empty (fun f  -> float_of_string f))
   
 let prod_sym =

@@ -403,7 +403,7 @@ let keyword : ?name:string -> string -> (char -> bool) -> 'a -> 'a grammar
 let option : 'a -> 'a grammar -> 'a grammar
   = fun a (_,l) -> mkgrammar (mkrule (Empty (Simple a))::l)
 
-(** Regexp (use our own regexp, look at EarleyStr for Str regexp support *)
+(** Regexp (use our own regexp, look at [Earley_str] for Str regexp support *)
 let regexp : ?name:string -> string -> string array grammar =
   fun ?name str ->
     let name = match name with None -> String.escaped str | Some n -> n in

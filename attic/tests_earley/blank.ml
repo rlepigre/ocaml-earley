@@ -40,7 +40,7 @@ let _ =
                       [Earley.fsequence_ignore (Earley.char '\n' '\n')
                          (Earley.empty ());
                       Earley.fsequence_ignore
-                        (EarleyStr.regexp ~name:"[^*]\\\\|\\\\([*][^)]\\\\)"
+                        (Earley_str.regexp ~name:"[^*]\\\\|\\\\([*][^)]\\\\)"
                            "[^*]\\|\\([*][^)]\\)" (fun groupe  -> groupe 0))
                         (Earley.empty ())])
                    (fun x  -> fun f  -> fun l  -> f (x :: l))))
@@ -60,7 +60,7 @@ let _ =
   Earley.set_grammar spaces
     (Earley.apply (fun f  -> f [])
        (Earley.fixpoint' (fun l  -> l)
-          (EarleyStr.regexp ~name:"[ \\t\\r]" "[ \t\r]"
+          (Earley_str.regexp ~name:"[ \\t\\r]" "[ \t\r]"
              (fun groupe  -> groupe 0))
           (fun x  -> fun f  -> fun l  -> f (x :: l))))
   
