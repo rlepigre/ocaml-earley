@@ -71,6 +71,8 @@ boot:
 		>> tmp_boot/quote.ml
 	@dune exec -- pa_quote static/tools/$(OCAMLVERSION)/parsetree.mli \
 		>> tmp_boot/quote.ml
-	@# Replace boot directory.
-	@rm -rf boot/$(OCAMLVERSION)
-	@mv tmp_boot boot/$(OCAMLVERSION)
+	@# Backup and replace boot directory.
+	@tar -cf static/boot/$(OCAMLVERSION)_$(shell date +%F_%R).tar \
+		static/boot/$(OCAMLVERSION)
+	@rm -rf static/boot/$(OCAMLVERSION)
+	@mv tmp_boot static/boot/$(OCAMLVERSION)
