@@ -42,8 +42,8 @@
 
 (** Earley support for [Str] regular expressions. *)
 
-open Earley_parser.Input
-open Earley_parser.Earley
+open Earley_core.Input
+open Earley_core.Earley
 
 (** [blank_regexp re] produces a blank function  from  the  regexp  [re] 
     (following the [Str] syntax). There is an important limitation rega-

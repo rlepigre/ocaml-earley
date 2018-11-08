@@ -1,4 +1,4 @@
-open Earley_parser
+open Earley_core
 exception Unclosed_comment of bool * Input.buffer * int 
 let unclosed_comment : type a.(Input.buffer * int) -> a =
   fun (buf,pos)  -> raise (Unclosed_comment (false, buf, pos)) 
@@ -304,29 +304,29 @@ let not_special =
   let cs = ref Charset.empty  in
   String.iter (fun c  -> cs := (Charset.add (!cs) c)) special;
   Earley.blank_not_in_charset ~name:"not_special" (!cs) 
-let ident = Earley_parser.Earley.declare_grammar "ident" 
+let ident = Earley_core.Earley.declare_grammar "ident" 
 let _ =
-  Earley_parser.Earley.set_grammar ident
-    (Earley_parser.Earley.fsequence
+  Earley_core.Earley.set_grammar ident
+    (Earley_core.Earley.fsequence
        (Earley_str.regexp ~name:"[A-Za-z_][a-zA-Z0-9_']*"
           "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe  -> groupe 0))
-       (Earley_parser.Earley.empty
+       (Earley_core.Earley.empty
           (fun id  -> if is_reserved_id id then Earley.give_up (); id)))
   
-let lident = Earley_parser.Earley.declare_grammar "lident" 
+let lident = Earley_core.Earley.declare_grammar "lident" 
 let _ =
-  Earley_parser.Earley.set_grammar lident
-    (Earley_parser.Earley.fsequence
+  Earley_core.Earley.set_grammar lident
+    (Earley_core.Earley.fsequence
        (Earley_str.regexp
           ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
           "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
           (fun groupe  -> groupe 0))
-       (Earley_parser.Earley.empty
+       (Earley_core.Earley.empty
           (fun id  -> if is_reserved_id id then Earley.give_up (); id)))
   
-let uident = Earley_parser.Earley.declare_grammar "uident" 
+let uident = Earley_core.Earley.declare_grammar "uident" 
 let _ =
-  Earley_parser.Earley.set_grammar uident
+  Earley_core.Earley.set_grammar uident
     (Earley_str.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
        (fun groupe  -> groupe 0))
   
@@ -357,15 +357,15 @@ let semi_col = single_char ';'
 let double_semi_col = double_char ';' 
 let single_quote = single_char '\'' 
 let double_quote = double_char '\'' 
-let bool_lit = Earley_parser.Earley.declare_grammar "bool_lit" 
+let bool_lit = Earley_core.Earley.declare_grammar "bool_lit" 
 let _ =
-  Earley_parser.Earley.set_grammar bool_lit
-    (Earley_parser.Earley.alternatives
-       [Earley_parser.Earley.fsequence true_kw
-          (Earley_parser.Earley.empty (fun _default_0  -> "true"));
-       Earley_parser.Earley.fsequence false_kw
-         (Earley_parser.Earley.empty (fun _default_0  -> "false"))] : 
-    string Earley.grammar)
+  Earley_core.Earley.set_grammar bool_lit
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence true_kw
+          (Earley_core.Earley.empty (fun _default_0  -> "true"));
+       Earley_core.Earley.fsequence false_kw
+         (Earley_core.Earley.empty (fun _default_0  -> "false"))] : string
+                                                                    Earley.grammar)
   
 let num_suffix =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z')
@@ -382,13 +382,12 @@ let num_suffix =
                     ((c <> 'e') &&
                        ((c <> 'E') && (not (Charset.mem suffix_cs c)))))))
      in
-  Earley_parser.Earley.alternatives
-    [Earley_parser.Earley.fsequence no_suffix_cs
-       (Earley_parser.Earley.empty (fun _default_0  -> None));
-    Earley_parser.Earley.fsequence_ignore
-      (Earley_parser.Earley.no_blank_test ())
-      (Earley_parser.Earley.fsequence (Earley.in_charset suffix_cs)
-         (Earley_parser.Earley.empty (fun s  -> Some s)))]
+  Earley_core.Earley.alternatives
+    [Earley_core.Earley.fsequence no_suffix_cs
+       (Earley_core.Earley.empty (fun _default_0  -> None));
+    Earley_core.Earley.fsequence_ignore (Earley_core.Earley.no_blank_test ())
+      (Earley_core.Earley.fsequence (Earley.in_charset suffix_cs)
+         (Earley_core.Earley.empty (fun s  -> Some s)))]
   
 let int_litteral =
   (let int_re =
@@ -398,10 +397,10 @@ let int_litteral =
        "[0][bB][01][01_]*";
        "[0-9][0-9_]*"]
       in
-   Earley_parser.Earley.fsequence
+   Earley_core.Earley.fsequence
      (Earley_str.regexp ~name:"int" int_re (fun groupe  -> groupe 0))
-     (Earley_parser.Earley.fsequence num_suffix
-        (Earley_parser.Earley.empty
+     (Earley_core.Earley.fsequence num_suffix
+        (Earley_core.Earley.empty
            (fun _default_0  -> fun i  -> (i, _default_0)))) : (string * char
                                                                 option)
                                                                 Earley.grammar)
@@ -412,10 +411,10 @@ let float_litteral =
        ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
        "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"]
       in
-   Earley_parser.Earley.fsequence
+   Earley_core.Earley.fsequence
      (Earley_str.regexp ~name:"float" float_re (fun groupe  -> groupe 0))
-     (Earley_parser.Earley.fsequence num_suffix
-        (Earley_parser.Earley.empty
+     (Earley_core.Earley.fsequence num_suffix
+        (Earley_core.Earley.empty
            (fun _default_0  -> fun f  -> (f, _default_0)))) : (string * char
                                                                 option)
                                                                 Earley.grammar)
@@ -424,11 +423,11 @@ let escaped_char =
   (let char_dec = "[0-9][0-9][0-9]"  in
    let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]"  in
    let char_esc = "[\\\\\\\"\\'ntbrs ]"  in
-   Earley_parser.Earley.alternatives
-     [Earley_parser.Earley.fsequence
+   Earley_core.Earley.alternatives
+     [Earley_core.Earley.fsequence
         (Earley_str.regexp ~name:"char_esc" char_esc
            (fun groupe  -> groupe 0))
-        (Earley_parser.Earley.empty
+        (Earley_core.Earley.empty
            (fun e  ->
               match e.[0] with
               | 'n' -> '\n'
@@ -437,37 +436,37 @@ let escaped_char =
               | 'r' -> '\r'
               | 's' -> ' '
               | c -> c));
-     Earley_parser.Earley.fsequence
+     Earley_core.Earley.fsequence
        (Earley_str.regexp ~name:"char_dec" char_dec (fun groupe  -> groupe 0))
-       (Earley_parser.Earley.empty (fun e  -> char_of_int (int_of_string e)));
-     Earley_parser.Earley.fsequence
+       (Earley_core.Earley.empty (fun e  -> char_of_int (int_of_string e)));
+     Earley_core.Earley.fsequence
        (Earley_str.regexp ~name:"char_hex" char_hex (fun groupe  -> groupe 0))
-       (Earley_parser.Earley.empty
+       (Earley_core.Earley.empty
           (fun e  -> char_of_int (int_of_string ("0" ^ e))))] : char
                                                                   Earley.grammar)
   
 let char_litteral =
   (let char_reg = "[^\\\\\\']"  in
    let single_char =
-     Earley_parser.Earley.alternatives
-       [Earley_parser.Earley.fsequence_ignore
-          (Earley_parser.Earley.char '\\' '\\')
-          (Earley_parser.Earley.fsequence escaped_char
-             (Earley_parser.Earley.empty (fun e  -> e)));
-       Earley_parser.Earley.fsequence
+     Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore
+          (Earley_core.Earley.char '\\' '\\')
+          (Earley_core.Earley.fsequence escaped_char
+             (Earley_core.Earley.empty (fun e  -> e)));
+       Earley_core.Earley.fsequence
          (Earley_str.regexp ~name:"char_reg" char_reg
             (fun groupe  -> groupe 0))
-         (Earley_parser.Earley.empty (fun c  -> c.[0]))]
+         (Earley_core.Earley.empty (fun c  -> c.[0]))]
       in
    Earley.no_blank_layout
-     (Earley_parser.Earley.fsequence_ignore single_quote
-        (Earley_parser.Earley.fsequence single_char
-           (Earley_parser.Earley.fsequence_ignore
-              (Earley_parser.Earley.no_blank_test ())
-              (Earley_parser.Earley.fsequence_ignore
-                 (Earley_parser.Earley.char '\'' '\'')
-                 (Earley_parser.Earley.empty (fun c  -> c)))))) : char
-                                                                    Earley.grammar)
+     (Earley_core.Earley.fsequence_ignore single_quote
+        (Earley_core.Earley.fsequence single_char
+           (Earley_core.Earley.fsequence_ignore
+              (Earley_core.Earley.no_blank_test ())
+              (Earley_core.Earley.fsequence_ignore
+                 (Earley_core.Earley.char '\'' '\'')
+                 (Earley_core.Earley.empty (fun c  -> c)))))) : char
+                                                                  Earley.grammar)
   
 let quoted_string =
   (let f buf pos =
@@ -496,63 +495,63 @@ let quoted_string =
   (string * string option) Earley.grammar) 
 let normal_string =
   (let single_char =
-     Earley_parser.Earley.alternatives
-       [Earley_parser.Earley.fsequence_ignore
-          (Earley_parser.Earley.char '\\' '\\')
-          (Earley_parser.Earley.fsequence_ignore
-             (Earley_parser.Earley.no_blank_test ())
-             (Earley_parser.Earley.fsequence escaped_char
-                (Earley_parser.Earley.empty (fun e  -> e))));
-       Earley_parser.Earley.fsequence Earley_parser.Earley.any
-         (Earley_parser.Earley.empty
+     Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore
+          (Earley_core.Earley.char '\\' '\\')
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.no_blank_test ())
+             (Earley_core.Earley.fsequence escaped_char
+                (Earley_core.Earley.empty (fun e  -> e))));
+       Earley_core.Earley.fsequence Earley_core.Earley.any
+         (Earley_core.Earley.empty
             (fun c  -> if (c = '"') || (c = '\\') then Earley.give_up (); c))]
       in
-   Earley_parser.Earley.fsequence_ignore (Earley_parser.Earley.char '"' '"')
-     (Earley_parser.Earley.fsequence
-        (Earley_parser.Earley.apply (fun f  -> f [])
-           (Earley_parser.Earley.fixpoint' (fun l  -> l) single_char
+   Earley_core.Earley.fsequence_ignore (Earley_core.Earley.char '"' '"')
+     (Earley_core.Earley.fsequence
+        (Earley_core.Earley.apply (fun f  -> f [])
+           (Earley_core.Earley.fixpoint' (fun l  -> l) single_char
               (fun x  -> fun f  -> fun l  -> f (x :: l))))
-        (Earley_parser.Earley.fsequence
-           (Earley_parser.Earley.apply (fun f  -> f [])
-              (Earley_parser.Earley.fixpoint' (fun l  -> l)
-                 (Earley_parser.Earley.fsequence_ignore
-                    (Earley_parser.Earley.string "\\\n" "\\\n")
-                    (Earley_parser.Earley.fsequence_ignore
-                       (Earley_parser.Earley.greedy
+        (Earley_core.Earley.fsequence
+           (Earley_core.Earley.apply (fun f  -> f [])
+              (Earley_core.Earley.fixpoint' (fun l  -> l)
+                 (Earley_core.Earley.fsequence_ignore
+                    (Earley_core.Earley.string "\\\n" "\\\n")
+                    (Earley_core.Earley.fsequence_ignore
+                       (Earley_core.Earley.greedy
                           (Earley_str.regexp "[ \t]*"
                              (fun groupe  -> groupe 0)))
-                       (Earley_parser.Earley.fsequence
-                          (Earley_parser.Earley.apply (fun f  -> f [])
-                             (Earley_parser.Earley.fixpoint' (fun l  -> l)
+                       (Earley_core.Earley.fsequence
+                          (Earley_core.Earley.apply (fun f  -> f [])
+                             (Earley_core.Earley.fixpoint' (fun l  -> l)
                                 single_char
                                 (fun x  -> fun f  -> fun l  -> f (x :: l))))
-                          (Earley_parser.Earley.empty
+                          (Earley_core.Earley.empty
                              (fun _default_0  -> _default_0)))))
                  (fun x  -> fun f  -> fun l  -> f (x :: l))))
-           (Earley_parser.Earley.fsequence_ignore
-              (Earley_parser.Earley.char '"' '"')
-              (Earley_parser.Earley.empty
+           (Earley_core.Earley.fsequence_ignore
+              (Earley_core.Earley.char '"' '"')
+              (Earley_core.Earley.empty
                  (fun css  ->
                     fun cs  -> cs_to_string (List.flatten (cs :: css))))))) : 
   string Earley.grammar) 
 let string_litteral =
   (let string_litteral =
-     Earley_parser.Earley.alternatives
+     Earley_core.Earley.alternatives
        [quoted_string;
-       Earley_parser.Earley.fsequence normal_string
-         (Earley_parser.Earley.empty (fun s  -> (s, None)))]
+       Earley_core.Earley.fsequence normal_string
+         (Earley_core.Earley.empty (fun s  -> (s, None)))]
       in
    Earley.no_blank_layout string_litteral : (string * string option)
                                               Earley.grammar)
   
 let regexp =
   let regexp_char =
-    Earley_parser.Earley.alternatives
-      [Earley_parser.Earley.fsequence_ignore
-         (Earley_parser.Earley.char '\\' '\\')
-         (Earley_parser.Earley.fsequence
+    Earley_core.Earley.alternatives
+      [Earley_core.Earley.fsequence_ignore
+         (Earley_core.Earley.char '\\' '\\')
+         (Earley_core.Earley.fsequence
             (Earley_str.regexp "[ntbrs\\\\()|]" (fun groupe  -> groupe 0))
-            (Earley_parser.Earley.empty
+            (Earley_core.Earley.empty
                (fun e  ->
                   match e.[0] with
                   | 'n' -> "\n"
@@ -566,34 +565,33 @@ let regexp =
                   | '|' -> "\\|"
                   | _ -> assert false)));
       Earley_str.regexp "[^'\\\\]" (fun groupe  -> groupe 0);
-      Earley_parser.Earley.fsequence_ignore single_quote
-        (Earley_parser.Earley.empty "'")]
+      Earley_core.Earley.fsequence_ignore single_quote
+        (Earley_core.Earley.empty "'")]
      in
-  Earley_parser.Earley.fsequence
-    (Earley_parser.Earley.apply (fun f  -> f [])
-       (Earley_parser.Earley.fixpoint' (fun l  -> l) regexp_char
+  Earley_core.Earley.fsequence
+    (Earley_core.Earley.apply (fun f  -> f [])
+       (Earley_core.Earley.fixpoint' (fun l  -> l) regexp_char
           (fun x  -> fun f  -> fun l  -> f (x :: l))))
-    (Earley_parser.Earley.empty (fun cs  -> String.concat "" cs))
+    (Earley_core.Earley.empty (fun cs  -> String.concat "" cs))
   
 let regexp_litteral =
-  (Earley_parser.Earley.fsequence_ignore double_quote
-     (Earley_parser.Earley.fsequence_ignore
-        (Earley_parser.Earley.no_blank_test ())
-        (Earley_parser.Earley.fsequence
+  (Earley_core.Earley.fsequence_ignore double_quote
+     (Earley_core.Earley.fsequence_ignore
+        (Earley_core.Earley.no_blank_test ())
+        (Earley_core.Earley.fsequence
            (Earley.no_blank_layout
-              (Earley_parser.Earley.fsequence regexp
-                 (Earley_parser.Earley.fsequence_ignore
-                    (Earley_parser.Earley.string "''" "''")
-                    (Earley_parser.Earley.empty
-                       (fun _default_0  -> _default_0)))))
-           (Earley_parser.Earley.empty (fun _default_0  -> _default_0)))) : 
+              (Earley_core.Earley.fsequence regexp
+                 (Earley_core.Earley.fsequence_ignore
+                    (Earley_core.Earley.string "''" "''")
+                    (Earley_core.Earley.empty (fun _default_0  -> _default_0)))))
+           (Earley_core.Earley.empty (fun _default_0  -> _default_0)))) : 
   string Earley.grammar) 
 let new_regexp_litteral =
   (Earley.no_blank_layout
-     (Earley_parser.Earley.fsequence_ignore
-        (Earley_parser.Earley.string "{#" "{#")
-        (Earley_parser.Earley.fsequence regexp
-           (Earley_parser.Earley.fsequence_ignore
-              (Earley_parser.Earley.string "#}" "#}")
-              (Earley_parser.Earley.empty (fun _default_0  -> _default_0))))) : 
+     (Earley_core.Earley.fsequence_ignore
+        (Earley_core.Earley.string "{#" "{#")
+        (Earley_core.Earley.fsequence regexp
+           (Earley_core.Earley.fsequence_ignore
+              (Earley_core.Earley.string "#}" "#}")
+              (Earley_core.Earley.empty (fun _default_0  -> _default_0))))) : 
   string Earley.grammar) 

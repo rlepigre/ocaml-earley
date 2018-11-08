@@ -45,7 +45,7 @@
   ======================================================================
 *)
 
-open Earley_parser
+open Earley_core
 open Input
 open Earley
 open Asttypes

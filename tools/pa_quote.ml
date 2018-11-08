@@ -1,6 +1,6 @@
 (* AST of types *)
 
-open Earley_parser
+open Earley_core
 
 type btype =
   | Bool | Int | Char | String | Int32 | Int64 | Nativeint

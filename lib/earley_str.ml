@@ -40,7 +40,7 @@
   ======================================================================
 *)
 
-open Earley_parser
+open Earley_core
 open Earley
 
 let blank_regexp s =

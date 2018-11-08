@@ -1,4 +1,4 @@
-open Earley_parser
+open Earley_core
 
 (* AST of types *)
 type btype =

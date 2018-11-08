@@ -1,5 +1,5 @@
 (library
- (name earley_parser)
+ (name earley_core)
  (public_name earley.core)
  (synopsis "Earley parser combinator library")
  (modules :standard \ earley_str)
@@ -11,4 +11,4 @@
  (public_name earley.str)
  (modules earley_str)
  (wrapped false)
- (libraries earley_parser str))
+ (libraries earley_core str))
