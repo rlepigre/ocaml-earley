@@ -156,7 +156,7 @@ let exp_glr_fun _loc f =
   loc_expr _loc
     (Pexp_ident
        (id_loc (Ldot ((Ldot ((Lident "Earley_core"), "Earley")), f)) _loc))
-
+  
 let exp_glrstr_fun _loc f =
   loc_expr _loc (Pexp_ident (id_loc (Ldot ((Lident "Earley_str"), f)) _loc)) 
 let exp_list_fun _loc f =
