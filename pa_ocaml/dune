@@ -26,10 +26,11 @@
   (action (with-stdout-to compare.ml (progn
     (run pa_ocaml.boot --ascii ../static/tools/generic_eq.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_eq ../static/tools/%{ocaml_version}/asttypes.mli)
+    (run ../tools/pa_eq.exe ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_eq ../static/tools/%{ocaml_version}/parsetree.mli))))
+    (run ../tools/pa_eq.exe ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
+    ../tools/pa_eq.exe
     ../static/tools/generic_eq.ml
     ../static/tools/%{ocaml_version}/asttypes.mli
     ../static/tools/%{ocaml_version}/parsetree.mli))
@@ -39,10 +40,11 @@
   (action (with-stdout-to iter.ml (progn
     (run pa_ocaml.boot --ascii ../static/tools/generic_iter.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_iter ../static/tools/%{ocaml_version}/asttypes.mli)
+    (run ../tools/pa_iter.exe ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_iter ../static/tools/%{ocaml_version}/parsetree.mli))))
+    (run ../tools/pa_iter.exe ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
+    ../tools/pa_iter.exe
     ../static/tools/generic_iter.ml
     ../static/tools/%{ocaml_version}/asttypes.mli
     ../static/tools/%{ocaml_version}/parsetree.mli))
@@ -52,10 +54,11 @@
   (action (with-stdout-to quote.ml (progn
     (run pa_ocaml.boot --ascii ../static/tools/generic_quote.ml)
     (echo "(* asttypes.mli *)\n")
-    (run pa_quote ../static/tools/%{ocaml_version}/asttypes.mli)
+    (run ../tools/pa_quote.exe ../static/tools/%{ocaml_version}/asttypes.mli)
     (echo "(* parsetree.mli *)\n")
-    (run pa_quote ../static/tools/%{ocaml_version}/parsetree.mli))))
+    (run ../tools/pa_quote.exe ../static/tools/%{ocaml_version}/parsetree.mli))))
   (deps
+    ../tools/pa_quote.exe
     ../static/tools/generic_quote.ml
     ../static/tools/%{ocaml_version}/asttypes.mli
     ../static/tools/%{ocaml_version}/parsetree.mli))

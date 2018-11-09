@@ -1,23 +1,17 @@
 (executable
   (name pa_eq)
-  (public_name pa_eq)
-  (package earley)
   (modules pa_eq)
   (preprocess (action (run pa_ocaml.boot %{input-file})))
   (libraries compiler-libs.common earley.core earley.str))
 
 (executable
   (name pa_iter)
-  (public_name pa_iter)
-  (package earley)
   (modules pa_iter)
   (preprocess (action (run pa_ocaml.boot %{input-file})))
   (libraries compiler-libs.common earley.core earley.str))
 
 (executable
   (name pa_quote)
-  (public_name pa_quote)
-  (package earley)
   (modules pa_quote)
   (preprocess (action (run pa_ocaml.boot %{input-file})))
   (libraries compiler-libs.common earley.core earley.str))
