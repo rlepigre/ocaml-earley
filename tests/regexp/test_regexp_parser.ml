@@ -1,4 +1,4 @@
-open Input.Regexp
+open Earley_core.Regexp
 
 let _ =
   let (re, _) = regexp_from_string Sys.argv.(1) in

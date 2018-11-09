@@ -6,3 +6,5 @@ The tests in this directory are organized as follows:
    are already preprocessed).
  - Folder `calc_yacc` contains an `ocamlyacc` implementation (not compiled and
    tested) that can be used for comparing performances.
+ - Folder `regexp` contains tests related to regular expressions together with
+   some performance comparison with native `Str` (10 times faster).
