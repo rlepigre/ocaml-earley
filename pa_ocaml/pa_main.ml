@@ -167,8 +167,10 @@ module OCamlPP : Preprocessor =
 module PP = Earley.WithPP(OCamlPP)
 
 module Start(Main : Extension) = struct
-  let anon_fun s = file := Some s
-  let _ = Arg.parse Main.spec anon_fun (Printf.sprintf "usage: %s [options] file" Sys.argv.(0))
+  let _ =
+    let anon_fun s = file := Some s in
+    let usage = Printf.sprintf "usage: %s [options] file" Sys.argv.(0) in
+    Arg.parse Main.spec anon_fun usage
 
   let _ = Main.before_parse_hook ()
 

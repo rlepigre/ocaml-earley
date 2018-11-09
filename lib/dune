@@ -7,7 +7,7 @@
  (libraries unix))
 
 (library
- (name earley_str_regexp)
+ (name earley_str)
  (public_name earley.str)
  (modules earley_str)
  (wrapped false)

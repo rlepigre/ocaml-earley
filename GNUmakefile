@@ -19,6 +19,14 @@ distclean: clean
 tests:
 	@dune runtest
 
+.PHONY: install
+install: all
+	@dune install
+
+.PHONY: uninstall
+uninstall: all
+	@dune uninstall
+
 VERSION = $(shell ocamlc -version | sed s/+.*//)
 
 .PHONY: boot
