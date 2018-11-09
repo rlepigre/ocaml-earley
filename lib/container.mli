@@ -1,4 +1,4 @@
-(** This library provide a type [ Container.t ], which can be used as a
+(** This library provide a type [Container.t], which can be used as a
     list of polymorphic references.
 
     Another way to see it, is map with access time in O(N) where
@@ -6,33 +6,33 @@
     there are very few table at the same time.
 
     The typical use case is to have a record with a field of type
-    [ Container.t ]. Then when you want to store some information in
-    that field of type [ a ], you create with [ Container.create_table ],
-    a value of type [ a Container.table ]. The with [ Container.add ]
-    and [ Container.find ], you can store value in your field of
-    type [ Container.t ] }
+    [Container.t]. Then when you want to store some information in
+    that field of type [a], you create with [Container.create_table],
+    a value of type [a Container.table]. The with [Container.add]
+    and [Container.find], you can store value in your field of
+    type [Container.t].
 
     More precisely, consider the following type for oriented graphs:
-{|
+{[
     type node = { name: string;
                   mutable next: node list;
                   ptrs : Container.t }
     type graph = node list (* at least on node per component *)
-|}
+]}
     If you want to traverse the graphe, you create a table
     to associate a boolean to each note:
-{|
+{[
     let iter graph f =
       let visited : bool Container.table = Container.create_table 101 in
       ....
       (* the table is automatically freed when visited is collected *)
-|}
+]}
     If you want to compute the distance between two nodes:
-{|
+{[
     let distance a b =
       let distance_to_a : int Container.table = Container.create_table 101 in
       ....
-|}
+]}
 
     The functorial interface is useful when you have a parametric
     type.  Considier a record type [ 'a t ] to which you want to

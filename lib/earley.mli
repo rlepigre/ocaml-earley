@@ -149,8 +149,8 @@ val fail : unit -> 'a grammar
     characters that are accepted as first character by [fn], and no
     less. The boolean [accept_empty] must be true if the function
     accept the empty string. The [name] argument is used for reference
-    in error messages. Note that the functon [fn] should use [give_up
-    ()] in case of a parse error.
+    in error messages. Note that the functon [fn] should use [give_up ()]
+    in case of a parse error.
 
     WARNING: fn must return a triple (x,b,p) when (b,p) is normalized,
     which means 0 <= p < Input.line_num b. You can use Input.normalize to
@@ -288,14 +288,13 @@ val warn_merge : bool ref
     messages. *)
 val keep_all_names : bool ref
 
-
-
+(** {2 Greedy combinator} *)
 
 (** [greedy g] parses g in a greedy way: only the longest match is considered.
     Still ambigous if the longest match is not unique *)
 val greedy : 'a grammar -> 'a grammar
 
-(** {Sequencing combinators} *)
+(** {2 Sequencing combinators} *)
 
 (** [sequence g1 g2 f] is a grammar that first parses using [g1], and then
     parses using [g2]. The results of the sequence is then obtained by applying
@@ -404,8 +403,8 @@ val position : 'a grammar -> (string * int * int * int * int * 'a) grammar
 val test : ?name:string -> Charset.t ->
            (buffer -> int -> ('a * bool)) -> 'a grammar
 
-(** [blank_test c f] same as above except that [f] is applied to [buf'
-    pos' buf pos] where [(buf', pos')] is the position before the
+(** [blank_test c f] same as above except that [f] is applied to
+    [buf' pos' buf pos] where [(buf', pos')] is the position before the
     blank. The charset c should contains all character accepted as at
     the position (buf,pos). This allow to test the presence of blank
     or even to read the blank and return some information *)

@@ -190,27 +190,26 @@ module rec Types : sig
                  ; ptr : 'a StackContainer.container
                  ; adr : int }
 
-   (** Type of an active element of the earley table.  In a
-       description of earley, each table element is [(start, end, done
-       * rest)] meaning we parsed the string from [start] to [end]
-       with the rule [done] and it remains to parse [rest]. The '*'
-       therefore denotes the current position. Earley is basically a
-       dynamic algorithm producing all possible elements.
+   (** Type of an active element of the earley table. In a description of
+       earley, each table element is [(start, end, done * rest)] meaning we
+       parsed the string from [start] to [end] with the rule [done] and it
+       remains to parse [rest]. The [*] therefore denotes the current
+       position. Earley is basically a dynamic algorithm producing all
+       possible elements.
 
        We depart from this representation in two ways:
 
        - we do not represent [done], we keep the whole whole rule:
          [full = done rest]
 
-       - we never keep [end]. It is only used when we finish parsing
-         of a rule and we have an element [(start, end, done * Empty)]
-         then, we look for other elements of the form [(start', end',
-         done' * rest')] where [end' = start], [rest' = nonterm' rest'']
-         and [nonterm'] is a non terminal containing the [done]
-         rule. We represent this situation by a stack in the element
-         [(start, end, done * Empty)], which is maintained to lists
-         all the elements satisfying the above property (no more, no
-         less, each element only once)
+       - we never keep [end]. It is only used when we finish parsing of a
+         rule and we have an element [(start, end, done * Empty)] then, we
+         look for other elements of the form [(start', end', done' * rest')]
+         where [end' = start], [rest' = nonterm' rest''] and [nonterm'] is a
+         non terminal containing the [done] rule. We represent this situation
+         by a stack in the element [(start, end, done * Empty)], which is
+         maintained to lists all the elements satisfying the above property
+         (no more, no less, each element only once)
 
          The type ['a final] represent an element of the earley table
          where [end] is the current position in the string being parsed.
@@ -262,10 +261,10 @@ module rec Types : sig
       position". An important point: new stack elements are
       constructed when the stack position is the current position.
 
-      Moreover, when we add a point from an element (start, end, rest, full)
-      to a stack (which is therefore at position [start], we have [start =
-      end] and [rest = full]. The rule has not parsed anything! This is the
-      "prediction" phase of earley.
+      Moreover, when we add a point from an element [(start, end, rest, full)]
+      to a stack (which is therefore at position [start], we have
+      [start = end] and [rest = full]. The rule has not parsed anything! This
+      is the "prediction" phase of earley.
 
       To do this construction, we use the record below with a hook
       that we run on all elements added to that stack.  This record is
