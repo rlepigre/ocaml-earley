@@ -1,3 +1,4 @@
+open Earley_core
 open Asttypes
 open Parsetree
 open Longident
@@ -458,7 +459,10 @@ let apply_option _loc opt e =
                     (Parsetree.Pexp_ident
                        {
                          Asttypes.txt =
-                           (Longident.Ldot ((Longident.Lident "Earley"), f));
+                           (Longident.Ldot
+                              ((Longident.Ldot
+                                  ((Longident.Lident "Earley_core"),
+                                    "Earley")), f));
                          Asttypes.loc = _loc
                        });
                   Parsetree.pexp_loc = _loc;
@@ -485,8 +489,9 @@ let apply_option _loc opt e =
                                   {
                                     Asttypes.txt =
                                       (Longident.Ldot
-                                         ((Longident.Lident "Earley"),
-                                           "apply"));
+                                         ((Longident.Ldot
+                                             ((Longident.Lident "Earley_core"),
+                                               "Earley")), "apply"));
                                     Asttypes.loc = _loc
                                   });
                              Parsetree.pexp_loc = _loc;
@@ -553,7 +558,10 @@ let apply_option _loc opt e =
                     (Parsetree.Pexp_ident
                        {
                          Asttypes.txt =
-                           (Longident.Ldot ((Longident.Lident "Earley"), f));
+                           (Longident.Ldot
+                              ((Longident.Ldot
+                                  ((Longident.Lident "Earley_core"),
+                                    "Earley")), f));
                          Asttypes.loc = _loc
                        });
                   Parsetree.pexp_loc = _loc;
@@ -575,7 +583,9 @@ let apply_option _loc opt e =
                        {
                          Asttypes.txt =
                            (Longident.Ldot
-                              ((Longident.Lident "Earley"), "apply"));
+                              ((Longident.Ldot
+                                  ((Longident.Lident "Earley_core"),
+                                    "Earley")), "apply"));
                          Asttypes.loc = _loc
                        });
                   Parsetree.pexp_loc = _loc;
@@ -636,8 +646,9 @@ let apply_option _loc opt e =
                                   {
                                     Asttypes.txt =
                                       (Longident.Ldot
-                                         ((Longident.Lident "Earley"),
-                                           (f ^ "'")));
+                                         ((Longident.Ldot
+                                             ((Longident.Lident "Earley_core"),
+                                               "Earley")), (f ^ "'")));
                                     Asttypes.loc = _loc
                                   });
                              Parsetree.pexp_loc = _loc;
@@ -837,7 +848,10 @@ let apply_option _loc opt e =
                     (Parsetree.Pexp_ident
                        {
                          Asttypes.txt =
-                           (Longident.Ldot ((Longident.Lident "Earley"), f));
+                           (Longident.Ldot
+                              ((Longident.Ldot
+                                  ((Longident.Lident "Earley_core"),
+                                    "Earley")), f));
                          Asttypes.loc = _loc
                        });
                   Parsetree.pexp_loc = _loc;
@@ -860,7 +874,9 @@ let apply_option _loc opt e =
                        {
                          Asttypes.txt =
                            (Longident.Ldot
-                              ((Longident.Lident "Earley"), "greedy"));
+                              ((Longident.Ldot
+                                  ((Longident.Lident "Earley_core"),
+                                    "Earley")), "greedy"));
                          Asttypes.loc = _loc
                        });
                   Parsetree.pexp_loc = _loc;
@@ -883,7 +899,9 @@ let apply_option _loc opt e =
                      {
                        Asttypes.txt =
                          (Longident.Ldot
-                            ((Longident.Lident "Earley"), "greedy"));
+                            ((Longident.Ldot
+                                ((Longident.Lident "Earley_core"), "Earley")),
+                              "greedy"));
                        Asttypes.loc = _loc
                      });
                 Parsetree.pexp_loc = _loc;
@@ -953,8 +971,10 @@ module Ext(In:Extension) =
                                                  {
                                                    Asttypes.txt =
                                                      (Longident.Ldot
-                                                        ((Longident.Lident
-                                                            "Earley"),
+                                                        ((Longident.Ldot
+                                                            ((Longident.Lident
+                                                                "Earley_core"),
+                                                              "Earley")),
                                                           "fail"));
                                                    Asttypes.loc = _loc
                                                  });
@@ -999,7 +1019,9 @@ module Ext(In:Extension) =
                            {
                              Asttypes.txt =
                                (Longident.Ldot
-                                  ((Longident.Lident "Earley"), f));
+                                  ((Longident.Ldot
+                                      ((Longident.Lident "Earley_core"),
+                                        "Earley")), f));
                              Asttypes.loc = _loc
                            });
                       Parsetree.pexp_loc = _loc;
@@ -1034,7 +1056,9 @@ module Ext(In:Extension) =
                            {
                              Asttypes.txt =
                                (Longident.Ldot
-                                  ((Longident.Lident "Earley"), fn));
+                                  ((Longident.Ldot
+                                      ((Longident.Lident "Earley_core"),
+                                        "Earley")), fn));
                              Asttypes.loc = _loc
                            });
                       Parsetree.pexp_loc = _loc;
@@ -1057,7 +1081,9 @@ module Ext(In:Extension) =
                          {
                            Asttypes.txt =
                              (Longident.Ldot
-                                ((Longident.Lident "Earley"), "iter"));
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Earley_core"),
+                                      "Earley")), "iter"));
                            Asttypes.loc = _loc
                          });
                     Parsetree.pexp_loc = _loc;
@@ -1088,8 +1114,10 @@ module Ext(In:Extension) =
                                        {
                                          Asttypes.txt =
                                            (Longident.Ldot
-                                              ((Longident.Lident "Earley"),
-                                                "fail"));
+                                              ((Longident.Ldot
+                                                  ((Longident.Lident
+                                                      "Earley_core"),
+                                                    "Earley")), "fail"));
                                          Asttypes.loc = _loc
                                        });
                                   Parsetree.pexp_loc = _loc;
@@ -1317,7 +1345,9 @@ module Ext(In:Extension) =
                          {
                            Asttypes.txt =
                              (Longident.Ldot
-                                ((Longident.Lident "Earley"), "fail"));
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Earley_core"),
+                                      "Earley")), "fail"));
                            Asttypes.loc = _loc
                          });
                     Parsetree.pexp_loc = _loc;
@@ -1361,7 +1391,9 @@ module Ext(In:Extension) =
                          {
                            Asttypes.txt =
                              (Longident.Ldot
-                                ((Longident.Lident "Earley"), "alternatives"));
+                                ((Longident.Ldot
+                                    ((Longident.Lident "Earley_core"),
+                                      "Earley")), "alternatives"));
                            Asttypes.loc = _loc
                          });
                     Parsetree.pexp_loc = _loc;
@@ -1463,8 +1495,10 @@ module Ext(In:Extension) =
                                                   {
                                                     Asttypes.txt =
                                                       (Longident.Ldot
-                                                         ((Longident.Lident
-                                                             "Earley"),
+                                                         ((Longident.Ldot
+                                                             ((Longident.Lident
+                                                                 "Earley_core"),
+                                                               "Earley")),
                                                            "declare_grammar"));
                                                     Asttypes.loc = _loc
                                                   });
@@ -1503,8 +1537,10 @@ module Ext(In:Extension) =
                                                    {
                                                      Asttypes.txt =
                                                        (Longident.Ldot
-                                                          ((Longident.Lident
-                                                              "Earley"),
+                                                          ((Longident.Ldot
+                                                              ((Longident.Lident
+                                                                  "Earley_core"),
+                                                                "Earley")),
                                                             "set_grammar"));
                                                      Asttypes.loc = _loc
                                                    });
@@ -1570,8 +1606,10 @@ module Ext(In:Extension) =
                                                   {
                                                     Asttypes.txt =
                                                       (Longident.Ldot
-                                                         ((Longident.Lident
-                                                             "Earley"),
+                                                         ((Longident.Ldot
+                                                             ((Longident.Lident
+                                                                 "Earley_core"),
+                                                               "Earley")),
                                                            "grammar_family"));
                                                     Asttypes.loc = _loc
                                                   });
@@ -1670,8 +1708,10 @@ module Ext(In:Extension) =
                                                   {
                                                     Asttypes.txt =
                                                       (Longident.Ldot
-                                                         ((Longident.Lident
-                                                             "Earley"),
+                                                         ((Longident.Ldot
+                                                             ((Longident.Lident
+                                                                 "Earley_core"),
+                                                               "Earley")),
                                                            "grammar_prio"));
                                                     Asttypes.loc = _loc
                                                   });
@@ -1760,8 +1800,10 @@ module Ext(In:Extension) =
                                                   {
                                                     Asttypes.txt =
                                                       (Longident.Ldot
-                                                         ((Longident.Lident
-                                                             "Earley"),
+                                                         ((Longident.Ldot
+                                                             ((Longident.Lident
+                                                                 "Earley_core"),
+                                                               "Earley")),
                                                            "grammar_prio_family"));
                                                     Asttypes.loc = _loc
                                                   });
@@ -1966,30 +2008,36 @@ module Ext(In:Extension) =
               Parsetree.pstr_loc = _loc
             }] @ str2)
       
-    let glr_sequence = Earley.declare_grammar "glr_sequence" 
-    let glr_opt_expr = Earley.declare_grammar "glr_opt_expr" 
-    let glr_option = Earley.declare_grammar "glr_option" 
-    let glr_ident = Earley.declare_grammar "glr_ident" 
-    let glr_left_member = Earley.declare_grammar "glr_left_member" 
-    let glr_let = Earley.declare_grammar "glr_let" 
-    let glr_cond = Earley.declare_grammar "glr_cond" 
+    let glr_sequence = Earley_core.Earley.declare_grammar "glr_sequence" 
+    let glr_opt_expr = Earley_core.Earley.declare_grammar "glr_opt_expr" 
+    let glr_option = Earley_core.Earley.declare_grammar "glr_option" 
+    let glr_ident = Earley_core.Earley.declare_grammar "glr_ident" 
+    let glr_left_member =
+      Earley_core.Earley.declare_grammar "glr_left_member" 
+    let glr_let = Earley_core.Earley.declare_grammar "glr_let" 
+    let glr_cond = Earley_core.Earley.declare_grammar "glr_cond" 
     let (glr_action,glr_action__set__grammar) =
-      Earley.grammar_family "glr_action" 
-    let (glr_rule,glr_rule__set__grammar) = Earley.grammar_family "glr_rule" 
+      Earley_core.Earley.grammar_family "glr_action" 
+    let (glr_rule,glr_rule__set__grammar) =
+      Earley_core.Earley.grammar_family "glr_rule" 
     let (glr_at_rule,glr_at_rule__set__grammar) =
-      Earley.grammar_family "glr_at_rule" 
-    let glr_rules = Earley.declare_grammar "glr_rules" 
+      Earley_core.Earley.grammar_family "glr_at_rule" 
+    let glr_rules = Earley_core.Earley.declare_grammar "glr_rules" 
     let _ =
-      Earley.set_grammar glr_sequence
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.string "(" "(")
-              (Earley.fsequence expression
-                 (Earley.fsequence_ignore (Earley.string ")" ")")
-                    (Earley.empty (fun e  -> (true, e)))));
-           Earley.fsequence_ignore (Earley.char '{' '{')
-             (Earley.fsequence_position glr_rules
-                (Earley.fsequence_ignore (Earley.char '}' '}')
-                   (Earley.empty
+      Earley_core.Earley.set_grammar glr_sequence
+        (Earley_core.Earley.alternatives
+           [Earley_core.Earley.fsequence_ignore
+              (Earley_core.Earley.string "(" "(")
+              (Earley_core.Earley.fsequence expression
+                 (Earley_core.Earley.fsequence_ignore
+                    (Earley_core.Earley.string ")" ")")
+                    (Earley_core.Earley.empty (fun e  -> (true, e)))));
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '{' '{')
+             (Earley_core.Earley.fsequence_position glr_rules
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.char '}' '}')
+                   (Earley_core.Earley.empty
                       (fun str  ->
                          fun pos  ->
                            fun str'  ->
@@ -1997,9 +2045,10 @@ module Ext(In:Extension) =
                                fun r  ->
                                  let _loc_r = locate str pos str' pos'  in
                                  (true, (build_alternatives _loc_r r))))));
-           Earley.fsequence_ignore (Earley.string "EOF" "EOF")
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "EOF" "EOF")
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2019,8 +2068,11 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"), "eof"));
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
+                                                        "eof"));
                                                  Asttypes.loc = _loc
                                                });
                                           Parsetree.pexp_loc = _loc;
@@ -2044,9 +2096,10 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence_ignore (Earley.string "EMPTY" "EMPTY")
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "EMPTY" "EMPTY")
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2066,8 +2119,11 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"), "empty"));
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
+                                                        "empty"));
                                                  Asttypes.loc = _loc
                                                });
                                           Parsetree.pexp_loc = _loc;
@@ -2091,9 +2147,10 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence_ignore (Earley.string "FAIL" "FAIL")
-             (Earley.fsequence expr_arg
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "FAIL" "FAIL")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2113,8 +2170,11 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"), "fail"));
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
+                                                        "fail"));
                                                  Asttypes.loc = _loc
                                                });
                                           Parsetree.pexp_loc = _loc;
@@ -2123,9 +2183,10 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence_ignore (Earley.string "DEBUG" "DEBUG")
-             (Earley.fsequence expr_arg
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "DEBUG" "DEBUG")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2145,8 +2206,11 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"), "debug"));
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
+                                                        "debug"));
                                                  Asttypes.loc = _loc
                                                });
                                           Parsetree.pexp_loc = _loc;
@@ -2155,8 +2219,9 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence_ignore (Earley.string "ANY" "ANY")
-             (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "ANY" "ANY")
+             (Earley_core.Earley.empty_pos
                 (fun __loc__start__buf  ->
                    fun __loc__start__pos  ->
                      fun __loc__end__buf  ->
@@ -2172,16 +2237,19 @@ module Ext(In:Extension) =
                                   {
                                     Asttypes.txt =
                                       (Longident.Ldot
-                                         ((Longident.Lident "Earley"), "any"));
+                                         ((Longident.Ldot
+                                             ((Longident.Lident "Earley_core"),
+                                               "Earley")), "any"));
                                     Asttypes.loc = _loc
                                   });
                              Parsetree.pexp_loc = _loc;
                              Parsetree.pexp_attributes = []
                            })));
-           Earley.fsequence_ignore (Earley.string "CHR" "CHR")
-             (Earley.fsequence expr_arg
-                (Earley.fsequence glr_opt_expr
-                   (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "CHR" "CHR")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.fsequence glr_opt_expr
+                   (Earley_core.Earley.empty_pos
                       (fun __loc__start__buf  ->
                          fun __loc__start__pos  ->
                            fun __loc__end__buf  ->
@@ -2202,8 +2270,10 @@ module Ext(In:Extension) =
                                                     {
                                                       Asttypes.txt =
                                                         (Longident.Ldot
-                                                           ((Longident.Lident
-                                                               "Earley"),
+                                                           ((Longident.Ldot
+                                                               ((Longident.Lident
+                                                                   "Earley_core"),
+                                                                 "Earley")),
                                                              "char"));
                                                       Asttypes.loc = _loc
                                                     });
@@ -2216,9 +2286,9 @@ module Ext(In:Extension) =
                                        Parsetree.pexp_loc = _loc;
                                        Parsetree.pexp_attributes = []
                                      })))));
-           Earley.fsequence char_litteral
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence char_litteral
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2240,8 +2310,10 @@ module Ext(In:Extension) =
                                                  {
                                                    Asttypes.txt =
                                                      (Longident.Ldot
-                                                        ((Longident.Lident
-                                                            "Earley"),
+                                                        ((Longident.Ldot
+                                                            ((Longident.Lident
+                                                                "Earley_core"),
+                                                              "Earley")),
                                                           "char"));
                                                    Asttypes.loc = _loc
                                                  });
@@ -2254,10 +2326,11 @@ module Ext(In:Extension) =
                                     Parsetree.pexp_loc = _loc;
                                     Parsetree.pexp_attributes = []
                                   }))));
-           Earley.fsequence_ignore (Earley.string "STR" "STR")
-             (Earley.fsequence expr_arg
-                (Earley.fsequence glr_opt_expr
-                   (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "STR" "STR")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.fsequence glr_opt_expr
+                   (Earley_core.Earley.empty_pos
                       (fun __loc__start__buf  ->
                          fun __loc__start__pos  ->
                            fun __loc__end__buf  ->
@@ -2278,8 +2351,10 @@ module Ext(In:Extension) =
                                                     {
                                                       Asttypes.txt =
                                                         (Longident.Ldot
-                                                           ((Longident.Lident
-                                                               "Earley"),
+                                                           ((Longident.Ldot
+                                                               ((Longident.Lident
+                                                                   "Earley_core"),
+                                                                 "Earley")),
                                                              "string"));
                                                       Asttypes.loc = _loc
                                                     });
@@ -2292,9 +2367,10 @@ module Ext(In:Extension) =
                                        Parsetree.pexp_loc = _loc;
                                        Parsetree.pexp_attributes = []
                                      })))));
-           Earley.fsequence_ignore (Earley.string "ERROR" "ERROR")
-             (Earley.fsequence expr_arg
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "ERROR" "ERROR")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2314,8 +2390,10 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"),
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
                                                         "error_message"));
                                                  Asttypes.loc = _loc
                                                });
@@ -2348,9 +2426,9 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence string_litteral
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence string_litteral
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2375,8 +2453,10 @@ module Ext(In:Extension) =
                                                   {
                                                     Asttypes.txt =
                                                       (Longident.Ldot
-                                                         ((Longident.Lident
-                                                             "Earley"),
+                                                         ((Longident.Ldot
+                                                             ((Longident.Lident
+                                                                 "Earley_core"),
+                                                               "Earley")),
                                                            "string"));
                                                     Asttypes.loc = _loc
                                                   });
@@ -2388,10 +2468,11 @@ module Ext(In:Extension) =
                                      Parsetree.pexp_loc = _loc;
                                      Parsetree.pexp_attributes = []
                                    })))));
-           Earley.fsequence_ignore (Earley.string "RE" "RE")
-             (Earley.fsequence expr_arg
-                (Earley.fsequence glr_opt_expr
-                   (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "RE" "RE")
+             (Earley_core.Earley.fsequence expr_arg
+                (Earley_core.Earley.fsequence glr_opt_expr
+                   (Earley_core.Earley.empty_pos
                       (fun __loc__start__buf  ->
                          fun __loc__start__pos  ->
                            fun __loc__end__buf  ->
@@ -2524,9 +2605,10 @@ module Ext(In:Extension) =
                                            Parsetree.pexp_loc = _loc;
                                            Parsetree.pexp_attributes = []
                                          })))));
-           Earley.fsequence_ignore (Earley.string "BLANK" "BLANK")
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "BLANK" "BLANK")
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2560,8 +2642,10 @@ module Ext(In:Extension) =
                                                {
                                                  Asttypes.txt =
                                                    (Longident.Ldot
-                                                      ((Longident.Lident
-                                                          "Earley"),
+                                                      ((Longident.Ldot
+                                                          ((Longident.Lident
+                                                              "Earley_core"),
+                                                            "Earley")),
                                                         "with_blank_test"));
                                                  Asttypes.loc = _loc
                                                });
@@ -2571,9 +2655,9 @@ module Ext(In:Extension) =
                                   Parsetree.pexp_loc = _loc;
                                   Parsetree.pexp_attributes = []
                                 }))));
-           Earley.fsequence dash
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence dash
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2608,8 +2692,10 @@ module Ext(In:Extension) =
                                                  {
                                                    Asttypes.txt =
                                                      (Longident.Ldot
-                                                        ((Longident.Lident
-                                                            "Earley"),
+                                                        ((Longident.Ldot
+                                                            ((Longident.Lident
+                                                                "Earley_core"),
+                                                              "Earley")),
                                                           "no_blank_test"));
                                                    Asttypes.loc = _loc
                                                  });
@@ -2619,9 +2705,9 @@ module Ext(In:Extension) =
                                     Parsetree.pexp_loc = _loc;
                                     Parsetree.pexp_attributes = []
                                   }))));
-           Earley.fsequence regexp_litteral
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence regexp_litteral
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2708,9 +2794,9 @@ module Ext(In:Extension) =
                                     Parsetree.pexp_loc = _loc;
                                     Parsetree.pexp_attributes = []
                                   }))));
-           Earley.fsequence new_regexp_litteral
-             (Earley.fsequence glr_opt_expr
-                (Earley.empty_pos
+           Earley_core.Earley.fsequence new_regexp_litteral
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf  ->
                       fun __loc__start__pos  ->
                         fun __loc__end__buf  ->
@@ -2733,8 +2819,10 @@ module Ext(In:Extension) =
                                                  {
                                                    Asttypes.txt =
                                                      (Longident.Ldot
-                                                        ((Longident.Lident
-                                                            "Earley"),
+                                                        ((Longident.Ldot
+                                                            ((Longident.Lident
+                                                                "Earley_core"),
+                                                              "Earley")),
                                                           "regexp"));
                                                    Asttypes.loc = _loc
                                                  });
@@ -2761,8 +2849,10 @@ module Ext(In:Extension) =
                                                      {
                                                        Asttypes.txt =
                                                          (Longident.Ldot
-                                                            ((Longident.Lident
-                                                                "Earley"),
+                                                            ((Longident.Ldot
+                                                                ((Longident.Lident
+                                                                    "Earley_core"),
+                                                                  "Earley")),
                                                               "apply"));
                                                        Asttypes.loc = _loc
                                                      });
@@ -2799,8 +2889,8 @@ module Ext(In:Extension) =
                                         Parsetree.pexp_loc = _loc;
                                         Parsetree.pexp_attributes = []
                                       }))));
-           Earley.fsequence value_path
-             (Earley.empty_pos
+           Earley_core.Earley.fsequence value_path
+             (Earley_core.Earley.empty_pos
                 (fun __loc__start__buf  ->
                    fun __loc__start__pos  ->
                      fun __loc__end__buf  ->
@@ -2821,47 +2911,62 @@ module Ext(In:Extension) =
                              })))])
       
     let _ =
-      Earley.set_grammar glr_opt_expr
-        (Earley.option None
-           (Earley.apply (fun x  -> Some x)
-              (Earley.fsequence_ignore (Earley.char '[' '[')
-                 (Earley.fsequence expression
-                    (Earley.fsequence_ignore (Earley.char ']' ']')
-                       (Earley.empty (fun _default_0  -> _default_0)))))))
+      Earley_core.Earley.set_grammar glr_opt_expr
+        (Earley_core.Earley.option None
+           (Earley_core.Earley.apply (fun x  -> Some x)
+              (Earley_core.Earley.fsequence_ignore
+                 (Earley_core.Earley.char '[' '[')
+                 (Earley_core.Earley.fsequence expression
+                    (Earley_core.Earley.fsequence_ignore
+                       (Earley_core.Earley.char ']' ']')
+                       (Earley_core.Earley.empty
+                          (fun _default_0  -> _default_0)))))))
       
     let _ =
-      Earley.set_grammar glr_option
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ()) (Earley.empty `Once);
-           Earley.fsequence_ignore (Earley.char '*' '*')
-             (Earley.fsequence glr_opt_expr
-                (Earley.fsequence
-                   (Earley.option None
-                      (Earley.apply (fun x  -> Some x) (Earley.char '$' '$')))
-                   (Earley.empty (fun g  -> fun e  -> `Fixpoint (e, g)))));
-           Earley.fsequence_ignore (Earley.char '+' '+')
-             (Earley.fsequence glr_opt_expr
-                (Earley.fsequence
-                   (Earley.option None
-                      (Earley.apply (fun x  -> Some x) (Earley.char '$' '$')))
-                   (Earley.empty (fun g  -> fun e  -> `Fixpoint1 (e, g)))));
-           Earley.fsequence_ignore (Earley.char '?' '?')
-             (Earley.fsequence glr_opt_expr
-                (Earley.fsequence
-                   (Earley.option None
-                      (Earley.apply (fun x  -> Some x) (Earley.char '$' '$')))
-                   (Earley.empty (fun g  -> fun e  -> `Option (e, g)))));
-           Earley.fsequence_ignore (Earley.char '$' '$')
-             (Earley.empty `Greedy)])
+      Earley_core.Earley.set_grammar glr_option
+        (Earley_core.Earley.alternatives
+           [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+              (Earley_core.Earley.empty `Once);
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '*' '*')
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x  -> Some x)
+                         (Earley_core.Earley.char '$' '$')))
+                   (Earley_core.Earley.empty
+                      (fun g  -> fun e  -> `Fixpoint (e, g)))));
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '+' '+')
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x  -> Some x)
+                         (Earley_core.Earley.char '$' '$')))
+                   (Earley_core.Earley.empty
+                      (fun g  -> fun e  -> `Fixpoint1 (e, g)))));
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '?' '?')
+             (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x  -> Some x)
+                         (Earley_core.Earley.char '$' '$')))
+                   (Earley_core.Earley.empty
+                      (fun g  -> fun e  -> `Option (e, g)))));
+           Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '$' '$')
+             (Earley_core.Earley.empty `Greedy)])
       
     let _ =
-      Earley.set_grammar glr_ident
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ())
-              (Earley.empty (None, ("_", None)));
-           Earley.fsequence (pattern_lvl (true, ConstrPat))
-             (Earley.fsequence_ignore (Earley.char ':' ':')
-                (Earley.empty
+      Earley_core.Earley.set_grammar glr_ident
+        (Earley_core.Earley.alternatives
+           [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+              (Earley_core.Earley.empty (None, ("_", None)));
+           Earley_core.Earley.fsequence (pattern_lvl (true, ConstrPat))
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.char ':' ':')
+                (Earley_core.Earley.empty
                    (fun p  ->
                       match p.ppat_desc with
                       | Ppat_alias (p,{ txt = id }) ->
@@ -2872,13 +2977,13 @@ module Ext(In:Extension) =
                       | _ -> ((Some true), ("_", (Some p))))))])
       
     let _ =
-      Earley.set_grammar glr_left_member
-        (Earley.apply (fun f  -> f [])
-           (Earley.fixpoint1' (fun l  -> l)
-              (Earley.fsequence glr_ident
-                 (Earley.fsequence glr_sequence
-                    (Earley.fsequence glr_option
-                       (Earley.empty
+      Earley_core.Earley.set_grammar glr_left_member
+        (Earley_core.Earley.apply (fun f  -> f [])
+           (Earley_core.Earley.fixpoint1' (fun l  -> l)
+              (Earley_core.Earley.fsequence glr_ident
+                 (Earley_core.Earley.fsequence glr_sequence
+                    (Earley_core.Earley.fsequence glr_option
+                       (Earley_core.Earley.empty
                           (fun opt  ->
                              fun ((cst,s) as _default_0)  ->
                                fun ((cst',id) as _default_1)  ->
@@ -2889,16 +2994,16 @@ module Ext(In:Extension) =
               (fun x  -> fun f  -> fun l  -> f (x :: l))))
       
     let _ =
-      Earley.set_grammar glr_let
-        (Earley.alternatives
-           [Earley.fsequence_ignore (Earley.empty ())
-              (Earley.empty (fun x  -> x));
-           Earley.fsequence let_kw
-             (Earley.fsequence rec_flag
-                (Earley.fsequence let_binding
-                   (Earley.fsequence in_kw
-                      (Earley.fsequence glr_let
-                         (Earley.empty_pos
+      Earley_core.Earley.set_grammar glr_let
+        (Earley_core.Earley.alternatives
+           [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+              (Earley_core.Earley.empty (fun x  -> x));
+           Earley_core.Earley.fsequence let_kw
+             (Earley_core.Earley.fsequence rec_flag
+                (Earley_core.Earley.fsequence let_binding
+                   (Earley_core.Earley.fsequence in_kw
+                      (Earley_core.Earley.fsequence glr_let
+                         (Earley_core.Earley.empty_pos
                             (fun __loc__start__buf  ->
                                fun __loc__start__pos  ->
                                  fun __loc__end__buf  ->
@@ -2918,39 +3023,42 @@ module Ext(In:Extension) =
                                                    (l x)))))))])
       
     let _ =
-      Earley.set_grammar glr_cond
-        (Earley.option None
-           (Earley.apply (fun x  -> Some x)
-              (Earley.fsequence_ignore when_kw
-                 (Earley.fsequence expression (Earley.empty (fun e  -> e))))))
+      Earley_core.Earley.set_grammar glr_cond
+        (Earley_core.Earley.option None
+           (Earley_core.Earley.apply (fun x  -> Some x)
+              (Earley_core.Earley.fsequence_ignore when_kw
+                 (Earley_core.Earley.fsequence expression
+                    (Earley_core.Earley.empty (fun e  -> e))))))
       
     let _ =
       glr_action__set__grammar
         (fun alm  ->
-           Earley.alternatives
-             [Earley.fsequence_ignore (Earley.empty ())
-                (Earley.empty Default);
-             Earley.fsequence_ignore (Earley.string "->>" "->>")
-               (Earley.fsequence (glr_rule alm)
-                  (Earley.empty
+           Earley_core.Earley.alternatives
+             [Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.empty ())
+                (Earley_core.Earley.empty Default);
+             Earley_core.Earley.fsequence_ignore
+               (Earley_core.Earley.string "->>" "->>")
+               (Earley_core.Earley.fsequence (glr_rule alm)
+                  (Earley_core.Earley.empty
                      (fun r  ->
                         let (a,b,c) = build_rule r  in DepSeq (a, b, c))));
-             Earley.fsequence arrow_re
-               (Earley.fsequence
+             Earley_core.Earley.fsequence arrow_re
+               (Earley_core.Earley.fsequence
                   (if alm then expression else expression_lvl (Let, Seq))
-                  (Earley.fsequence no_semi
-                     (Earley.empty
+                  (Earley_core.Earley.fsequence no_semi
+                     (Earley_core.Earley.empty
                         (fun _default_0  ->
                            fun action  -> fun _default_1  -> Normal action))))])
       
     let _ =
       glr_rule__set__grammar
         (fun alm  ->
-           Earley.fsequence glr_let
-             (Earley.fsequence glr_left_member
-                (Earley.fsequence glr_cond
-                   (Earley.fsequence (glr_action alm)
-                      (Earley.empty_pos
+           Earley_core.Earley.fsequence glr_let
+             (Earley_core.Earley.fsequence glr_left_member
+                (Earley_core.Earley.fsequence glr_cond
+                   (Earley_core.Earley.fsequence (glr_action alm)
+                      (Earley_core.Earley.empty_pos
                          (fun __loc__start__buf  ->
                             fun __loc__start__pos  ->
                               fun __loc__end__buf  ->
@@ -3006,60 +3114,73 @@ module Ext(In:Extension) =
     let _ =
       glr_at_rule__set__grammar
         (fun alm  ->
-           Earley.fsequence
-             (Earley.option None
-                (Earley.apply (fun x  -> Some x)
-                   (Earley.alternatives
-                      [Earley.fsequence_ignore (Earley.char '[' '[')
-                         (Earley.fsequence_ignore (Earley.char '@' '@')
-                            (Earley.fsequence_ignore
-                               (Earley.string "unshared" "unshared")
-                               (Earley.fsequence_ignore (Earley.char ']' ']')
-                                  (Earley.empty ()))));
-                      Earley.fsequence_ignore (Earley.char '@' '@')
-                        (Earley.empty ())])))
-             (Earley.fsequence (glr_rule alm)
-                (Earley.empty (fun r  -> fun a  -> ((a <> None), r)))))
+           Earley_core.Earley.fsequence
+             (Earley_core.Earley.option None
+                (Earley_core.Earley.apply (fun x  -> Some x)
+                   (Earley_core.Earley.alternatives
+                      [Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.char '[' '[')
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.char '@' '@')
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.string "unshared"
+                                  "unshared")
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.char ']' ']')
+                                  (Earley_core.Earley.empty ()))));
+                      Earley_core.Earley.fsequence_ignore
+                        (Earley_core.Earley.char '@' '@')
+                        (Earley_core.Earley.empty ())])))
+             (Earley_core.Earley.fsequence (glr_rule alm)
+                (Earley_core.Earley.empty
+                   (fun r  -> fun a  -> ((a <> None), r)))))
       
     let _ =
-      Earley.set_grammar glr_rules
-        (Earley.fsequence
-           (Earley.option None
-              (Earley.apply (fun x  -> Some x) (Earley.char '|' '|')))
-           (Earley.fsequence
-              (Earley.apply (fun f  -> f [])
-                 (Earley.fixpoint' (fun l  -> l)
-                    (Earley.fsequence (glr_at_rule false)
-                       (Earley.fsequence_ignore (Earley.char '|' '|')
-                          (Earley.empty (fun r  -> r))))
+      Earley_core.Earley.set_grammar glr_rules
+        (Earley_core.Earley.fsequence
+           (Earley_core.Earley.option None
+              (Earley_core.Earley.apply (fun x  -> Some x)
+                 (Earley_core.Earley.char '|' '|')))
+           (Earley_core.Earley.fsequence
+              (Earley_core.Earley.apply (fun f  -> f [])
+                 (Earley_core.Earley.fixpoint' (fun l  -> l)
+                    (Earley_core.Earley.fsequence (glr_at_rule false)
+                       (Earley_core.Earley.fsequence_ignore
+                          (Earley_core.Earley.char '|' '|')
+                          (Earley_core.Earley.empty (fun r  -> r))))
                     (fun x  -> fun f  -> fun l  -> f (x :: l))))
-              (Earley.fsequence (glr_at_rule true)
-                 (Earley.empty
+              (Earley_core.Earley.fsequence (glr_at_rule true)
+                 (Earley_core.Earley.empty
                     (fun r  -> fun rs  -> fun _default_0  -> r :: rs)))))
       
-    let glr_binding = Earley.declare_grammar "glr_binding" 
+    let glr_binding = Earley_core.Earley.declare_grammar "glr_binding" 
     let _ =
-      Earley.set_grammar glr_binding
-        (Earley.fsequence lident
-           (Earley.fsequence
-              (Earley.apply (fun f  -> f [])
-                 (Earley.fixpoint' (fun l  -> l) pattern
+      Earley_core.Earley.set_grammar glr_binding
+        (Earley_core.Earley.fsequence lident
+           (Earley_core.Earley.fsequence
+              (Earley_core.Earley.apply (fun f  -> f [])
+                 (Earley_core.Earley.fixpoint' (fun l  -> l) pattern
                     (fun x  -> fun f  -> fun l  -> f (x :: l))))
-              (Earley.fsequence
-                 (Earley.option None
-                    (Earley.apply (fun x  -> Some x)
-                       (Earley.fsequence_ignore (Earley.char '@' '@')
-                          (Earley.fsequence pattern
-                             (Earley.empty (fun _default_0  -> _default_0))))))
-                 (Earley.fsequence
-                    (Earley.option None
-                       (Earley.apply (fun x  -> Some x)
-                          (Earley.fsequence_ignore (Earley.char ':' ':')
-                             (Earley.fsequence typexpr
-                                (Earley.empty (fun _default_0  -> _default_0))))))
-                    (Earley.fsequence_ignore (Earley.char '=' '=')
-                       (Earley.fsequence_position glr_rules
-                          (Earley.empty
+              (Earley_core.Earley.fsequence
+                 (Earley_core.Earley.option None
+                    (Earley_core.Earley.apply (fun x  -> Some x)
+                       (Earley_core.Earley.fsequence_ignore
+                          (Earley_core.Earley.char '@' '@')
+                          (Earley_core.Earley.fsequence pattern
+                             (Earley_core.Earley.empty
+                                (fun _default_0  -> _default_0))))))
+                 (Earley_core.Earley.fsequence
+                    (Earley_core.Earley.option None
+                       (Earley_core.Earley.apply (fun x  -> Some x)
+                          (Earley_core.Earley.fsequence_ignore
+                             (Earley_core.Earley.char ':' ':')
+                             (Earley_core.Earley.fsequence typexpr
+                                (Earley_core.Earley.empty
+                                   (fun _default_0  -> _default_0))))))
+                    (Earley_core.Earley.fsequence_ignore
+                       (Earley_core.Earley.char '=' '=')
+                       (Earley_core.Earley.fsequence_position glr_rules
+                          (Earley_core.Earley.empty
                              (fun str  ->
                                 fun pos  ->
                                   fun str'  ->
@@ -3075,20 +3196,21 @@ module Ext(In:Extension) =
                                                   (name, args, prio, ty,
                                                     _loc_r, r)))))))))
       
-    let glr_bindings = Earley.declare_grammar "glr_bindings" 
+    let glr_bindings = Earley_core.Earley.declare_grammar "glr_bindings" 
     let _ =
-      Earley.set_grammar glr_bindings
-        (Earley.alternatives
-           [Earley.fsequence and_kw
-              (Earley.fsequence
-                 (Earley.option []
-                    (Earley.fsequence let_binding
-                       (Earley.fsequence_ignore and_kw
-                          (Earley.empty (fun _default_0  -> _default_0)))))
-                 (Earley.fsequence parser_kw
-                    (Earley.fsequence glr_binding
-                       (Earley.fsequence glr_bindings
-                          (Earley.empty
+      Earley_core.Earley.set_grammar glr_bindings
+        (Earley_core.Earley.alternatives
+           [Earley_core.Earley.fsequence and_kw
+              (Earley_core.Earley.fsequence
+                 (Earley_core.Earley.option []
+                    (Earley_core.Earley.fsequence let_binding
+                       (Earley_core.Earley.fsequence_ignore and_kw
+                          (Earley_core.Earley.empty
+                             (fun _default_0  -> _default_0)))))
+                 (Earley_core.Earley.fsequence parser_kw
+                    (Earley_core.Earley.fsequence glr_binding
+                       (Earley_core.Earley.fsequence glr_bindings
+                          (Earley_core.Earley.empty
                              (fun l  ->
                                 fun b  ->
                                   fun _default_0  ->
@@ -3096,20 +3218,22 @@ module Ext(In:Extension) =
                                       fun _default_1  ->
                                         (List.map (fun b  -> `Caml b) cs) @
                                           (b :: l)))))));
-           Earley.fsequence
-             (Earley.option []
-                (Earley.fsequence_ignore and_kw
-                   (Earley.fsequence let_binding
-                      (Earley.empty (fun _default_0  -> _default_0)))))
-             (Earley.empty (fun cs  -> List.map (fun b  -> `Caml b) cs))])
+           Earley_core.Earley.fsequence
+             (Earley_core.Earley.option []
+                (Earley_core.Earley.fsequence_ignore and_kw
+                   (Earley_core.Earley.fsequence let_binding
+                      (Earley_core.Earley.empty
+                         (fun _default_0  -> _default_0)))))
+             (Earley_core.Earley.empty
+                (fun cs  -> List.map (fun b  -> `Caml b) cs))])
       
     let extra_structure =
       let p =
-        Earley.fsequence let_kw
-          (Earley.fsequence parser_kw
-             (Earley.fsequence glr_binding
-                (Earley.fsequence glr_bindings
-                   (Earley.empty_pos
+        Earley_core.Earley.fsequence let_kw
+          (Earley_core.Earley.fsequence parser_kw
+             (Earley_core.Earley.fsequence glr_binding
+                (Earley_core.Earley.fsequence glr_bindings
+                   (Earley_core.Earley.empty_pos
                       (fun __loc__start__buf  ->
                          fun __loc__start__pos  ->
                            fun __loc__end__buf  ->
@@ -3127,33 +3251,36 @@ module Ext(In:Extension) =
       p :: extra_structure 
     let extra_prefix_expressions =
       let p =
-        Earley.fsequence
-          (Earley.alternatives
-             [Earley.fsequence_ignore function_kw
-                (Earley.fsequence pattern
-                   (Earley.fsequence_ignore (Earley.char '@' '@')
-                      (Earley.fsequence pattern
-                         (Earley.fsequence_ignore arrow_re
-                            (Earley.fsequence_ignore parser_kw
-                               (Earley.empty
+        Earley_core.Earley.fsequence
+          (Earley_core.Earley.alternatives
+             [Earley_core.Earley.fsequence_ignore function_kw
+                (Earley_core.Earley.fsequence pattern
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.char '@' '@')
+                      (Earley_core.Earley.fsequence pattern
+                         (Earley_core.Earley.fsequence_ignore arrow_re
+                            (Earley_core.Earley.fsequence_ignore parser_kw
+                               (Earley_core.Earley.empty
                                   (fun prio  ->
                                      fun arg  -> ([arg], (Some prio)))))))));
-             Earley.fsequence_ignore parser_kw (Earley.empty ([], None));
-             Earley.fsequence_ignore fun_kw
-               (Earley.fsequence
-                  (Earley.apply (fun f  -> f [])
-                     (Earley.fixpoint' (fun l  -> l)
+             Earley_core.Earley.fsequence_ignore parser_kw
+               (Earley_core.Earley.empty ([], None));
+             Earley_core.Earley.fsequence_ignore fun_kw
+               (Earley_core.Earley.fsequence
+                  (Earley_core.Earley.apply (fun f  -> f [])
+                     (Earley_core.Earley.fixpoint' (fun l  -> l)
                         (pattern_lvl (false, AtomPat))
                         (fun x  -> fun f  -> fun l  -> f (x :: l))))
-                  (Earley.fsequence_ignore (Earley.char '@' '@')
-                     (Earley.fsequence pattern
-                        (Earley.fsequence_ignore arrow_re
-                           (Earley.fsequence_ignore parser_kw
-                              (Earley.empty
+                  (Earley_core.Earley.fsequence_ignore
+                     (Earley_core.Earley.char '@' '@')
+                     (Earley_core.Earley.fsequence pattern
+                        (Earley_core.Earley.fsequence_ignore arrow_re
+                           (Earley_core.Earley.fsequence_ignore parser_kw
+                              (Earley_core.Earley.empty
                                  (fun prio  ->
                                     fun args  -> (args, (Some prio)))))))))])
-          (Earley.fsequence_position glr_rules
-             (Earley.empty_pos
+          (Earley_core.Earley.fsequence_position glr_rules
+             (Earley_core.Earley.empty_pos
                 (fun __loc__start__buf  ->
                    fun __loc__start__pos  ->
                      fun __loc__end__buf  ->

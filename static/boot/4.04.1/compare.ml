@@ -74,7 +74,6 @@ let eq_variance c1 c2 =
   | Contravariant, Contravariant -> true
   | Invariant, Invariant -> true
   | _, _ -> false
-
 (* parsetree.mli *)
 let eq_constant c1 c2 =
   match c1, c2 with

@@ -65,7 +65,6 @@ let iter_variance c1 =
   | Contravariant -> ()
   | Invariant -> ()
 
-
 (* parsetree.mli *)
 let iter_constant c1 =
   match c1 with
