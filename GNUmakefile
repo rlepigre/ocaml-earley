@@ -11,7 +11,7 @@ distclean: clean
 	@find . -name "*~" -exec rm {} \;
 	@rm -rf tmp_boot
 
-OCAMLVERSION = $(shell ocamlc -version | sed s/+.*//)
+VERSION = $(shell ocamlc -version | sed s/+.*//)
 
 .PHONY: boot
 boot:
@@ -37,42 +37,41 @@ boot:
 	@sed -i 's/open Earley_ocaml//g' tmp_boot/pa_default.ml
 	@# Copy the [static/helpers] files.
 	@cp static/helpers/helper.mli tmp_boot/helper.mli
-	@cp static/helpers/$(OCAMLVERSION)/* tmp_boot/
+	@cp static/helpers/$(VERSION)/* tmp_boot/
 	@# Generate [compare.ml].
 	@dune exec -- pa_ocaml --ascii static/tools/generic_eq.ml \
 		> tmp_boot/compare.ml
 	@echo "(* asttypes.mli *)" \
 		>> tmp_boot/compare.ml
-	@dune exec -- pa_eq static/tools/$(OCAMLVERSION)/asttypes.mli \
+	@dune exec -- pa_eq static/tools/$(VERSION)/asttypes.mli \
 		>> tmp_boot/compare.ml
 	@echo "(* parsetree.mli *)" \
 		>> tmp_boot/compare.ml
-	@dune exec -- pa_eq static/tools/$(OCAMLVERSION)/parsetree.mli \
+	@dune exec -- pa_eq static/tools/$(VERSION)/parsetree.mli \
 		>> tmp_boot/compare.ml
 	@# Generate [iter.ml].
 	@dune exec -- pa_ocaml --ascii static/tools/generic_iter.ml \
 		> tmp_boot/iter.ml
 	@echo "(* asttypes.mli *)" \
 		>> tmp_boot/iter.ml
-	@dune exec -- pa_iter static/tools/$(OCAMLVERSION)/asttypes.mli \
+	@dune exec -- pa_iter static/tools/$(VERSION)/asttypes.mli \
 		>> tmp_boot/iter.ml
 	@echo "(* parsetree.mli *)" \
 		>> tmp_boot/iter.ml
-	@dune exec -- pa_iter static/tools/$(OCAMLVERSION)/parsetree.mli \
+	@dune exec -- pa_iter static/tools/$(VERSION)/parsetree.mli \
 		>> tmp_boot/iter.ml
 	@# Generate [quote.ml].
 	@dune exec -- pa_ocaml --ascii static/tools/generic_quote.ml \
 		> tmp_boot/quote.ml
 	@echo "(* asttypes.mli *)" \
 		>> tmp_boot/quote.ml
-	@dune exec -- pa_quote static/tools/$(OCAMLVERSION)/asttypes.mli \
+	@dune exec -- pa_quote static/tools/$(VERSION)/asttypes.mli \
 		>> tmp_boot/quote.ml
 	@echo "(* parsetree.mli *)" \
 		>> tmp_boot/quote.ml
-	@dune exec -- pa_quote static/tools/$(OCAMLVERSION)/parsetree.mli \
+	@dune exec -- pa_quote static/tools/$(VERSION)/parsetree.mli \
 		>> tmp_boot/quote.ml
 	@# Backup and replace boot directory.
-	@tar -cf static/boot/$(OCAMLVERSION)_$(shell date +%F_%R).tar \
-		static/boot/$(OCAMLVERSION)
-	@rm -rf static/boot/$(OCAMLVERSION)
-	@mv tmp_boot static/boot/$(OCAMLVERSION)
+	@tar -cf ./$(VERSION)_$(shell date +%F_%R).tar static/boot/$(VERSION)
+	@rm -rf static/boot/$(VERSION)
+	@mv tmp_boot static/boot/$(VERSION)
