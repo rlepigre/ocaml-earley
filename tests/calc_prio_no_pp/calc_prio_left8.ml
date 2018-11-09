@@ -1,3 +1,4 @@
+open Earley_core
 open Generate_calc
 open Earley
 type calc_prio =
@@ -26,9 +27,10 @@ let sum_sym =
 let extra = ref [] 
 let extra_expression p =
   Earley.alternatives (List.map (fun g  -> g p) (!extra)) 
-let (expr,expr__set__grammar) = Earley.grammar_prio "expr" 
+let (expr_aux,expr_aux__set__grammar) = Earley.grammar_prio "expr_aux" 
+let (expr,expr__set__grammar) = Earley.grammar_family "expr" 
 let _ =
-  expr__set__grammar
+  expr_aux__set__grammar
     ([(((fun p  -> p <= Sum)),
         (Earley.fsequence (expr Sum)
            (Earley.fsequence sum_sym
@@ -56,6 +58,10 @@ let _ =
           (Earley.fsequence pro_sym
              (Earley.fsequence (expr Pow)
                 (Earley.empty (fun e'  -> fun fn  -> fun e  -> fn e e'))))))],
-      (fun p  -> [extra_expression p]))
+      (fun p  -> []))
+  
+let _ =
+  expr__set__grammar
+    (fun p  -> Earley.alternatives [expr_aux p; extra_expression p])
   
 let _ = run (expr Sum) 

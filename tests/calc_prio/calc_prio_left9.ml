@@ -1,5 +1,5 @@
 open Generate_calc
-open Earley
+open Earley_core.Earley
 
 type calc_prio = Sum | Pro | Pow | Atm
 
@@ -23,7 +23,7 @@ let sum_sym = parser
 
 let extra = ref []
 let extra_expression p =
-  Earley.alternatives (List.map (fun g  -> g p) (!extra))
+  Earley_core.Earley.alternatives (List.map (fun g  -> g p) (!extra))
 
 let parser expr @p =
   |@ (extra_expression p)

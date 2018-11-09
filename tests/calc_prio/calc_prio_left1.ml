@@ -1,4 +1,4 @@
-open Earley
+open Earley_core.Earley
 open Generate_calc
 open Common
 

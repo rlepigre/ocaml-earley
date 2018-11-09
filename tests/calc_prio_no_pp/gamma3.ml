@@ -1,3 +1,4 @@
+open Earley_core
 open Earley
 let gamma3 = Earley.declare_grammar "gamma3" 
 let _ =

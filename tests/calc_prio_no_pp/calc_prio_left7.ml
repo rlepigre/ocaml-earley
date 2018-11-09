@@ -1,3 +1,4 @@
+open Earley_core
 open Generate_calc
 open Earley
 type calc_prio =

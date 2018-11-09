@@ -1,4 +1,4 @@
-open Earley
+open Earley_core.Earley
 
 let parser g = {' ' | '\n' | '\t' | '\r'}* -> ()
 

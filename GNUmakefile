@@ -11,6 +11,10 @@ distclean: clean
 	@find . -name "*~" -exec rm {} \;
 	@rm -rf tmp_boot
 
+.PHONY: tests
+tests:
+	@dune runtest
+
 VERSION = $(shell ocamlc -version | sed s/+.*//)
 
 .PHONY: boot

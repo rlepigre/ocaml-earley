@@ -1,3 +1,4 @@
+open Earley_core
 open Earley
 open Common
 
@@ -40,7 +41,7 @@ let _  = Arg.parse spec
 		   (fun _ -> raise (Arg.Bad "extra arguments"))
 		   "run unit tests on decap combinators"
 
-let _ = Printf.eprintf "Testing {a|b|c}\n%!"
+let _ = Printf.printf "Testing {a|b|c}\n%!"
 
 let a = char 'a' ['a']
 let b = char 'b' ['b']
@@ -61,7 +62,7 @@ let _ = test_one abc "a"
 let _ = test_one abc "b"
 let _ = test_one abc "c"
 
-let _ = Printf.eprintf "Testing a*\n%!"
+let _ = Printf.printf "Testing a*\n%!"
 
 let astar = fixpoint [] a'
 
@@ -72,7 +73,7 @@ let _ = test_one astar "aaa"
 let _ = test_one astar "aaaa"
 let _ = test_one astar "aaaaa"
 
-let _ = Printf.eprintf "Testing a+\n%!"
+let _ = Printf.printf "Testing a+\n%!"
 
 let aplus = fixpoint1 [] a'
 
@@ -83,7 +84,7 @@ let _ = test_one aplus "aaa"
 let _ = test_one aplus "aaaa"
 let _ = test_one aplus "aaaaa"
 
-let _ = Printf.eprintf "Testing abc*\n%!"
+let _ = Printf.printf "Testing abc*\n%!"
 
 let abcstar = fixpoint [] abc'
 
@@ -97,7 +98,7 @@ let _ = test_one abcstar "abccba"
 
 let abcplus = fixpoint1 [] abc'
 
-let _ = Printf.eprintf "Testing abc+\n%!"
+let _ = Printf.printf "Testing abc+\n%!"
 
 let _ = test_one ~must_fail:true abcplus ""
 let _ = test_one abcplus "a"
@@ -107,7 +108,7 @@ let _ = test_one abcplus "abca"
 let _ = test_one abcplus "acbab"
 let _ = test_one abcplus "abccba"
 
-let _ = Printf.eprintf "Testing a*(right)\n%!"
+let _ = Printf.printf "Testing a*(right)\n%!"
 
 let astar2 = declare_grammar "astar2"
 let _ = set_grammar astar2 (alternatives [empty []; sequence a astar2 (fun x l -> l @ x)])
@@ -119,7 +120,7 @@ let _ = test_one astar2 "aaa"
 let _ = test_one astar2 "aaaa"
 let _ = test_one astar2 "aaaaa"
 (*
-let _ = Printf.eprintf "Testing b(a*)(dep)\n%!"
+let _ = Printf.printf "Testing b(a*)(dep)\n%!"
 
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives
@@ -133,7 +134,7 @@ let _ = test_one astar3 "baaa"
 let _ = test_one astar3 "baaaa"
 let _ = test_one astar3 "baaaaa"
 *)
-let _ = Printf.eprintf "Testing b(a*)(right)\n%!"
+let _ = Printf.printf "Testing b(a*)(right)\n%!"
 
 let astar3 = declare_grammar "astar3"
 let _ = set_grammar astar3 (alternatives [empty []; sequence astar3 a (fun x l -> l @ x)])
@@ -145,7 +146,7 @@ let _ = test_one astar3 "aaa"
 let _ = test_one astar3 "aaaa"
 let _ = test_one astar3 "aaaaa"
 
-let _ = Printf.eprintf "Testing ab?\n%!"
+let _ = Printf.printf "Testing ab?\n%!"
 
 let abo = sequence a (option [] b) (fun x y -> y @ x)
 
@@ -153,7 +154,7 @@ let _ = test_one abo "a"
 let _ = test_one abo "ab"
 let _ = test_one ~must_fail:true abo "b"
 
-let _ = Printf.eprintf "Testing ab?c\n%!"
+let _ = Printf.printf "Testing ab?c\n%!"
 
 let aboc = sequence abo c (fun x l -> l @ x)
 
@@ -161,7 +162,7 @@ let _ = test_one aboc "ac"
 let _ = test_one aboc "abc"
 let _ = test_one ~must_fail:true aboc "bc"
 
-let _ = Printf.eprintf "Testing apply ab?\n%!"
+let _ = Printf.printf "Testing apply ab?\n%!"
 
 let abo' = apply (fun x -> x) abo
 
@@ -169,7 +170,7 @@ let _ = test_one abo' "a"
 let _ = test_one abo' "ab"
 let _ = test_one ~must_fail:true abo' "b"
 
-let _ = Printf.eprintf "Testing apply (ab?)*\n%!"
+let _ = Printf.printf "Testing apply (ab?)*\n%!"
 
 let abostar = fixpoint [] (apply (fun x l -> x @ l) abo)
 
@@ -180,7 +181,7 @@ let _ = test_one abostar "aab"
 let _ = test_one abostar "aba"
 let _ = test_one abostar "abab"
 
-let _ = Printf.eprintf "two mutually recursive grammars test ...%!"
+let _ = Printf.printf "two mutually recursive grammars test ...%!"
 
 let a = char 'a' 'a'
 let b = char 'b' 'b'
@@ -218,12 +219,12 @@ and genmutrec2b suffix n =
   else suffix
 
 let _ = test genmutrec2a mutrec2a (test_cases (6, 8, 10))
-let _ = Printf.eprintf "1%!"
+let _ = Printf.printf "1%!"
 let _ = test genmutrec2b mutrec2b (test_cases (6, 8, 10))
-let _ = Printf.eprintf "2 OK\n%!"
+let _ = Printf.printf "2 OK\n%!"
 
 let _ = warn_merge := false
-let _ = Printf.eprintf "three mutually recursive grammars test ...%!"
+let _ = Printf.printf "three mutually recursive grammars test ...%!"
 
 let mutrec3a = declare_grammar "mutrec3a"
 let mutrec3b = declare_grammar "mutrec3b"
@@ -265,13 +266,13 @@ and genmutrec3c suffix n =
 
 
 let _ = test genmutrec3a mutrec3a (test_cases (5, 7, 9))
-let _ = Printf.eprintf "1%!"
+let _ = Printf.printf "1%!"
 let _ = test genmutrec3b mutrec3b (test_cases (5, 7, 9))
-let _ = Printf.eprintf "2%!"
+let _ = Printf.printf "2%!"
 let _ = test genmutrec3c mutrec3c (test_cases (5, 7, 9))
-let _ = Printf.eprintf "3 OK\n%!"
+let _ = Printf.printf "3 OK\n%!"
 
-let _ = Printf.eprintf "three mutually bi-recursive grammars test ...%!"
+let _ = Printf.printf "three mutually bi-recursive grammars test ...%!"
 
 let mutbirec3a = declare_grammar "mutbirec3a"
 let mutbirec3b = declare_grammar "mutbirec3b"
@@ -329,11 +330,11 @@ and genmutbirec3c suffix n =
   else suffix
 
 let _ = test genmutbirec3a mutbirec3a (test_cases (3, 4, 5))
-let _ = Printf.eprintf "1%!"
+let _ = Printf.printf "1%!"
 let _ = test genmutbirec3b mutbirec3b (test_cases (3, 4, 5))
-let _ = Printf.eprintf "2%!"
+let _ = Printf.printf "2%!"
 let _ = test genmutbirec3c mutbirec3c (test_cases (3, 4, 5))
-let _ = Printf.eprintf "3 OK\n%!"
+let _ = Printf.printf "3 OK\n%!"
 
 let gA = declare_grammar "gA" and gB = declare_grammar "gB"
 
@@ -364,10 +365,10 @@ and gengB suffix n =
 	res := gengA ("b"^^(gengA suffix i)) j @ !res
       done;
     !res
-let _ = Printf.eprintf "two mutually recursive grammars that revealed bugs ...%!"
+let _ = Printf.printf "two mutually recursive grammars that revealed bugs ...%!"
 
 let _ = test gengA gA (test_cases (7, 11, 13))
-let _ = Printf.eprintf "gA%!"
+let _ = Printf.printf "gA%!"
 let _ = test gengB gB (test_cases (7, 11, 13))
-let _ = Printf.eprintf "gB%!"
-let _ = Printf.eprintf " OK%!\n"
+let _ = Printf.printf "gB%!"
+let _ = Printf.printf " OK%!\n"

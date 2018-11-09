@@ -1,5 +1,5 @@
 open Generate_calc
-open Earley
+open Earley_core.Earley
 
 type calc_prio = Sum | Pro | Pow | Atm
 

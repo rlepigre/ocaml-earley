@@ -1,4 +1,4 @@
-open Earley
+open Earley_core.Earley
 open Generate_calc
 
 type calc_prio = Sum | Prod | Pow | Atom

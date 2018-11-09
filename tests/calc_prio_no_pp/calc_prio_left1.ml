@@ -1,3 +1,4 @@
+open Earley_core
 open Earley
 open Generate_calc
 open Common
