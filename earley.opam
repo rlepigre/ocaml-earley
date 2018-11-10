@@ -6,7 +6,7 @@ authors: [ "Christophe Raffalli <christophe@raffalli.eu>"
 homepage: "https://github.com/rlepigre/ocaml-earley"
 license: "CeCILL-B_V1"
 dev-repo: "git+https://github.com/rlepigre/ocaml-earley.git"
-doc: "https://rlepigre.github.io/earley-ocaml/"
+doc: "https://rlepigre.github.io/ocaml-earley/"
 build: [
   [make]
   [make "tests" "TESTS=--full"] {with-test}
