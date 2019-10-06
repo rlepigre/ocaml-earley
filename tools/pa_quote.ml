@@ -1,7 +1,6 @@
-(* AST of types *)
-
 open Earley_core
 
+(* AST of types *)
 type btype =
   | Bool | Int | Char | String | Int32 | Int64 | Nativeint
   | Option of btype
@@ -27,11 +26,14 @@ type item =
 type ast = item list
 
 (* Parser *)
-let reserved = [ "bool"; "int32"; "int64"; "int"; "char"; "string"; "nativeint" ]
+let reserved =
+  [ "bool"; "int32"; "int64"; "int"; "char"; "string"; "nativeint" ]
 
-let parser lid = | s : ''[a-z][_a-z]*'' -> if List.mem s reserved then Earley.give_up (); s
-let parser uid = | RE("[A-Z][_a-zA-Z0-9]*")
-let parser arg = | '\'' - RE("[a-z]+")
+let parser lid =
+  s:''[a-z][_a-z]*'' -> if List.mem s reserved then Earley.give_up (); s
+
+let parser uid = RE("[A-Z][_a-zA-Z0-9]*")
+let parser arg = '\'' - RE("[a-z]+")
 
 let parser base_type p_auth =
   | t:(base_type false) "option"                  -> Option t
@@ -39,7 +41,8 @@ let parser base_type p_auth =
   | t:(base_type false) "loc"                     -> Loc t
   | t:(base_type false) "class_infos"             -> Class_infos t
   | t:(base_type false) "include_infos"           -> Include_infos t
-  | t:(base_type false) ts:{'*' (base_type false)}+ when p_auth -> Prod (t :: ts)
+  | t:(base_type false) ts:{'*' (base_type false)}+
+                                      when p_auth -> Prod (t :: ts)
   | "bool"                                        -> Bool
   | "int"                                         -> Int
   | "char"                                        -> Char
@@ -54,28 +57,21 @@ let parser base_type p_auth =
   | "Longident.t"                                 -> Longident_t
   | '(' (base_type true) ')'
 
-
 let base_type = base_type true
 
-let parser cdecl =
-  | c:uid t:{"of" base_type}? ->
-      begin
-        let ts =
-          match t with
-          | None           -> []
-          | Some (Prod ts) -> ts
-          | Some t         -> [t]
-        in (c, ts)
-      end
+let parser cdecl = c:uid t:{"of" base_type}? ->
+  let ts =
+    match t with
+    | None           -> []
+    | Some (Prod ts) -> ts
+    | Some t         -> [t]
+  in (c, ts)
 
-let parser csdecl =
-  | '|'? c:cdecl cs:{'|' cdecl}* -> c::cs
+let parser csdecl = '|'? c:cdecl cs:{'|' cdecl}* -> c::cs
 
-let parser field =
-  | lid ':' base_type
+let parser field = lid ':' base_type
 
-let parser fields =
-  | f:field fs:{';' field}* ';'? -> f::fs
+let parser fields = f:field fs:{';' field}* ';'? -> f::fs
 
 let parser any_decl =
   | n:lid '=' b:base_type                                      -> Syn (n,b)
@@ -86,21 +82,21 @@ let parser any_rec_decl =
   | "type" t:any_decl ts:{"and" any_decl}* -> Type (t::ts)
   | "open" n:uid                           -> Open n
 
-let parser any_decls = | any_rec_decl*
+let parser any_decls = any_rec_decl*
 
 let modname =
-   match Array.length Sys.argv with
+  match Array.length Sys.argv with
   | 1 -> fun id -> Printf.sprintf "(Lident \"%s\")" id
   | 2 -> let s = Filename.chop_extension (Filename.basename Sys.argv.(1)) in
-	 assert (String.length s > 0);
-	 let f = s.[0] in
-	 let s =
+         assert (String.length s > 0);
+	       let f = s.[0] in
+	       let s =
            if f >= 'a' && f <= 'z' then (
-	     let f' = Char.chr (Char.code f - Char.code 'a' + Char.code 'A') in
-	     String.make 1 f' ^ String.sub s 1 (String.length s - 1))
+	         let f' = Char.chr (Char.code f - Char.code 'a' + Char.code 'A') in
+	         String.make 1 f' ^ String.sub s 1 (String.length s - 1))
            else s
          in
-	 fun id -> Printf.sprintf "(Ldot(Lident \"%s\", \"%s\"))" s id
+	       fun id -> Printf.sprintf "(Ldot(Lident \"%s\", \"%s\"))" s id
   | _ -> failwith "Wrong number of arguments..."
 
 (* Printer *)
@@ -168,57 +164,70 @@ let print_type ch = function
       in
       List.iter f cl
   | Rec (a,n,fl) ->
-     let is_location = match fl with
-	 (desc,_)::(loc,_)::_ when String.length desc > 5 && String.length loc > 4 &&
-	     String.sub desc (String.length desc - 5) 5 = "_desc" &&
-			     String.sub loc (String.length loc - 4) 4 = "_loc" ->
-	  let name =
-	      try String.sub desc 0 (String.length desc - 5) with _ -> assert false
-	  in
-	  Some (desc,loc,name)
-       | [("txt",_); ("loc",_)] ->
-	  Some("txt","loc","loc")
+     let is_location =
+       match fl with
+       | (desc,_)::(loc,_)::_
+           when String.length desc > 5 && String.length loc  > 4
+             && String.sub desc (String.length desc - 5) 5 = "_desc"
+             && String.sub loc (String.length loc - 4) 4 = "_loc" ->
+         let name =
+           try String.sub desc 0 (String.length desc - 5)
+           with _ -> assert false
+         in
+         Some (desc,loc,name)
+       | [("txt",_); ("loc",_)] -> Some("txt","loc","loc")
        | _ -> None
      in
-     let prefix = match is_location with
-	 None -> ""
-       | Some (desc,loc,name) ->
-	  Printf.sprintf "if is_antiquotation r.%s then try (Hashtbl.find anti_table r.%s) Quote_%s with Not_found -> failwith \"antiquotation not in a quotation\" else\n"
-	    loc loc name
+     let prefix =
+       match is_location with
+       | None                -> ""
+       | Some(desc,loc,name) ->
+         Printf.sprintf "if is_antiquotation r.%s then \
+                         try (Hashtbl.find anti_table r.%s) Quote_%s \
+                         with Not_found -> \
+                         failwith \"antiquotation not in a quotation\" else\n"
+                        loc loc name
      in
-     let suffix = match is_location with
-	 None -> ""
+     let suffix =
+       match is_location with
+       | None                 -> ""
        | Some (desc,loc,name) ->
-	  Printf.sprintf "and %s_antiquotation _loc f %s= let _loc = make_antiquotation _loc in Hashtbl.add anti_table _loc f; %s _loc (dummy_%s)\n"
-	    name
-	    (if name = "loc" then "dummy_txt " else "")
-	    (if name = "loc" then "loc_id" else "loc_"^name)
-	    (if name = "loc" then "txt" else name)
-      in
-      (match a with
+         Printf.sprintf "and %s_antiquotation _loc f %s = \
+                         let _loc = make_antiquotation _loc in \
+                         Hashtbl.add anti_table _loc f; %s _loc (dummy_%s)\n"
+                         name
+                         (if name = "loc" then "dummy_txt " else "")
+                         (if name = "loc" then "loc_id" else "loc_"^name)
+                         (if name = "loc" then "txt" else name)
+     in
+     begin
+       match a with
        | None   -> fprintf ch "quote_%s e_loc _loc r = %s" n prefix
        | Some a ->
            fprintf ch "quote_%s : 'a. (expression -> Location.t -> 'a -> expression) ->" n;
            fprintf ch " expression -> Location.t -> 'a %s -> expression =\n" n;
-           fprintf ch "  fun quote_%s e_loc _loc r -> %s\n  " a prefix);
-      fprintf ch "  quote_record e_loc _loc [\n";
-      let f (l, t) =
-        fprintf ch "   (%s, %a e_loc _loc r.%s) ;\n" (modname l) print_btype t l
-      in
-      List.iter f fl;
-      fprintf ch "  ]\n%s" suffix
+           fprintf ch "  fun quote_%s e_loc _loc r -> %s\n  " a prefix
+     end;
+     fprintf ch "  quote_record e_loc _loc [\n";
+     let f (l, t) =
+       fprintf ch "   (%s, %a e_loc _loc r.%s) ;\n"
+         (modname l) print_btype t l
+     in
+     List.iter f fl;
+     fprintf ch "  ]\n%s" suffix
 
-let print_types ch = function
-  | []      -> assert false
-  | [x]     -> Printf.fprintf ch "let %a\n" print_type x
-  | x :: xs -> Printf.fprintf ch "let rec %a\n" print_type x;
-               let f t = Printf.fprintf ch "and %a\n" print_type t in
-               List.iter f xs
-
-let rec print ch = function
-  | []           -> ()
-  | Open _ :: xs -> print ch xs
-  | Type l :: xs -> print_types ch l; print ch xs
+let rec print ch elts =
+  match elts with
+  | []                   -> ()
+  | Open _       :: elts -> print ch elts
+  | Type []      :: elts -> assert false
+  | Type [x]     :: elts ->
+      Printf.fprintf ch "let %a\n" print_type x;
+      print ch elts
+  | Type (x::xs) :: elts ->
+      Printf.fprintf ch "let rec %a\n" print_type x;
+      List.iter (Printf.fprintf ch "and %a\n" print_type) xs;
+      print ch elts
 
 (* Main program *)
 let _ =

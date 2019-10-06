@@ -132,10 +132,14 @@ let quote_apply : expression -> Location.t -> Longident.t -> expression list -> 
 	       | l -> Pa_ast.exp_apply _loc (Pa_ast.exp_lident _loc s) l)
 
 let quote_const : expression -> Location.t -> Longident.t -> expression list -> expression =
-  (fun _ _loc s l ->
-    match l with [] -> Pa_ast.exp_const _loc s None
-                | [x] -> Pa_ast.exp_const _loc s (Some x)
-                | l -> Pa_ast.exp_const _loc s (Some (Pa_ast.exp_tuple _loc l)))
+  fun _ loc s l ->
+    let arg =
+      match l with
+      | []  -> None
+      | [x] -> Some x
+      | l   -> Some (Helper.Exp.tuple ~loc l)
+    in
+    Helper.Exp.construct ~loc (id_loc s loc) arg
 
 let lexing s = Ldot(Lident "Lexing", s)
 let location s = Ldot(Lident "Location", s)

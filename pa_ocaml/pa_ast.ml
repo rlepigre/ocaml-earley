@@ -61,7 +61,6 @@ let pcty_loc ?(attributes=[]) _loc desc = { pcty_desc = desc; pcty_loc = _loc; p
 let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
 let mexpr_loc ?(attributes=[]) _loc desc = { pmod_desc = desc; pmod_loc = _loc; pmod_attributes = attributes }
 let mtyp_loc ?(attributes=[]) _loc desc = { pmty_desc = desc; pmty_loc = _loc; pmty_attributes = attributes }
-let pexp_construct(a,b) = Pexp_construct(a,b)
 let pexp_fun(label, opt, pat, expr) =
   Pexp_fun(label,opt,pat,expr)
 
@@ -72,7 +71,7 @@ let no_ghost loc =
   Location.({loc with loc_ghost = false})
 
 let de_ghost e =
-  loc_expr (no_ghost e.pexp_loc) e.pexp_desc
+  Helper.Exp.mk ~loc:(no_ghost e.pexp_loc) e.pexp_desc
 
 let id_loc txt loc = { txt; loc }
 let loc_id loc txt = { txt; loc }
@@ -87,8 +86,8 @@ let rec merge = function
        | [loc] -> loc
        | l2::ls when Location.(l2.loc_start = l2.loc_end) -> fn ls
        | l2::ls ->
-	  Location.(
-	   {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
+          Location.(
+           {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
      in fn ls
 
 let merge2 l1 l2 =
@@ -103,17 +102,13 @@ let const_int s = Pconst_integer(string_of_int s,None)
 let const_int32 s = Pconst_integer(Int32.to_string s, Some 'l')
 let const_int64 s = Pconst_integer(Int64.to_string s, Some 'L')
 let const_nativeint s = Pconst_integer(Nativeint.to_string s, Some 'n')
-let exp_string _loc s = loc_expr _loc (Pexp_constant (const_string s))
-let exp_int _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (string_of_int i,None)))
-let exp_char _loc c = loc_expr _loc (Pexp_constant (Pconst_char c))
-let exp_float _loc f = loc_expr _loc (Pexp_constant (Pconst_float (f,None)))
-let exp_int32 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int32.to_string i,Some 'l')))
-let exp_int64 _loc i = loc_expr _loc (Pexp_constant (Pconst_integer (Int64.to_string i,Some 'L')))
-let exp_nativeint _loc i = loc_expr _loc (Pexp_constant (Pconst_integer(Nativeint.to_string i,Some 'n')))
-
-let exp_const _loc c es =
-  let c = id_loc c _loc in
-  loc_expr _loc (pexp_construct(c, es))
+let exp_string loc s = Helper.Exp.constant ~loc (const_string s)
+let exp_int loc i = Helper.Exp.constant ~loc (const_int i)
+let exp_char loc c = Helper.Exp.constant ~loc (Pconst_char c)
+let exp_float loc f = Helper.Exp.constant ~loc (Pconst_float (f,None))
+let exp_int32 loc i = Helper.Exp.constant ~loc (Pconst_integer (Int32.to_string i,Some 'l'))
+let exp_int64 loc i = Helper.Exp.constant ~loc (Pconst_integer (Int64.to_string i,Some 'L'))
+let exp_nativeint loc i = Helper.Exp.constant ~loc (Pconst_integer(Nativeint.to_string i,Some 'n'))
 
 let exp_record _loc fs =
   let f (l, e) = (id_loc l _loc, e) in
@@ -122,11 +117,11 @@ let exp_record _loc fs =
 
 let exp_None _loc =
   let cnone = id_loc (Lident "None") _loc in
-  loc_expr _loc (pexp_construct(cnone, None))
+  loc_expr _loc (Pexp_construct(cnone, None))
 
 let exp_Some _loc a =
   let csome = id_loc (Lident "Some") _loc in
-  loc_expr _loc (pexp_construct(csome, Some a))
+  loc_expr _loc (Pexp_construct(csome, Some a))
 
 let exp_option _loc = function
   | None   -> exp_None _loc
@@ -134,7 +129,7 @@ let exp_option _loc = function
 
 let exp_unit _loc =
   let cunit = id_loc (Lident "()") _loc in
-  loc_expr _loc (pexp_construct(cunit, None))
+  loc_expr _loc (Pexp_construct(cunit, None))
 
 let exp_tuple _loc l =
   match l with
@@ -148,21 +143,21 @@ let exp_array _loc l =
 
 let exp_Nil _loc =
   let cnil = id_loc (Lident "[]") _loc in
-  loc_expr _loc (pexp_construct(cnil, None))
+  loc_expr _loc (Pexp_construct(cnil, None))
 
 let exp_true _loc =
   let ctrue = id_loc (Lident "true") _loc in
-  loc_expr _loc (pexp_construct(ctrue, None))
+  loc_expr _loc (Pexp_construct(ctrue, None))
 
 let exp_false _loc =
   let cfalse = id_loc (Lident "false") _loc in
-  loc_expr _loc (pexp_construct(cfalse, None))
+  loc_expr _loc (Pexp_construct(cfalse, None))
 
 let exp_bool _loc b =
   if b then exp_true _loc else exp_false _loc
 
 let exp_Cons _loc a l =
-  loc_expr _loc (pexp_construct(id_loc (Lident "::") _loc, Some (exp_tuple _loc [a;l])))
+  loc_expr _loc (Pexp_construct(id_loc (Lident "::") _loc, Some (exp_tuple _loc [a;l])))
 
 let exp_list _loc l =
   List.fold_right (exp_Cons _loc) l (exp_Nil _loc)
@@ -234,9 +229,6 @@ let exp_location_fun _loc f =
 let exp_Cons_fun _loc =
   exp_fun _loc "x" (exp_fun _loc "l" (exp_Cons _loc (exp_ident _loc "x") (exp_ident _loc "l")))
 
-let exp_Cons_rev_fun _loc =
-  exp_fun _loc "x" (exp_fun _loc "l" (exp_Cons _loc (exp_ident _loc "x") (exp_apply _loc (exp_list_fun _loc "rev") [exp_ident _loc "l"])))
-
 let exp_apply_fun _loc =
   exp_fun _loc "a" (exp_fun _loc "f" (exp_apply _loc (exp_ident _loc "f") [exp_ident _loc "a"]))
 
@@ -244,55 +236,10 @@ let ppat_alias _loc p id =
   if id = "_" then p else
     loc_pat _loc (Ppat_alias (p, (id_loc (id) _loc)))
 
-let constructor_declaration ?(attributes=[]) _loc name args res =
-  { pcd_name = name; pcd_args = args; pcd_res = res; pcd_attributes = attributes; pcd_loc = _loc }
-let label_declaration ?(attributes=[]) _loc name mut ty =
-  { pld_name = name; pld_mutable = mut; pld_type = ty; pld_attributes = attributes; pld_loc = _loc }
-type tpar = Joker of Location.t | Name of string loc
-let params_map params =
-  let fn (name, var) =
-    match name with
-    | Joker _loc -> (loc_typ _loc Ptyp_any, var)
-    | Name name -> (loc_typ name.loc (Ptyp_var name.txt), var)
-  in
-  List.map fn params
-let type_declaration ?(attributes=[]) _loc name params cstrs kind priv manifest =
-  let params = params_map params in
-  {
-    ptype_name = name;
-    ptype_params = params;
-    ptype_cstrs = cstrs;
-    ptype_kind = kind;
-    ptype_private = priv;
-    ptype_manifest = manifest;
-    ptype_attributes = attributes;
-    ptype_loc = _loc;
-  }
-  let class_type_declaration ?(attributes=[]) _loc name params virt expr =
-    let params = params_map params in
-      { pci_params = params
-      ; pci_virt = virt
-      ; pci_name = name
-      ; pci_expr = expr
-      ; pci_attributes = attributes
-      ; pci_loc = _loc }
-  let pstr_eval e = Pstr_eval(e, [])
-  let psig_value ?(attributes=[]) _loc name ty prim =
-    Psig_value { pval_name = name; pval_type = ty ; pval_prim = prim ; pval_attributes = attributes; pval_loc = _loc }
-  let value_binding ?(attributes=[]) _loc pat expr =
-    { pvb_pat = pat; pvb_expr = expr; pvb_attributes = attributes; pvb_loc = _loc }
-  let module_binding _loc name mt me =
-    let me = match mt with None -> me | Some mt -> mexpr_loc _loc (Pmod_constraint(me,mt)) in
-    { pmb_name = name; pmb_expr = me; pmb_attributes = []; pmb_loc = _loc }
-  let module_declaration ?(attributes=[]) _loc name mt =
-    { pmd_name = name; pmd_type = mt; pmd_attributes = attributes; pmd_loc = _loc }
-  let ppat_construct(a,b) = Ppat_construct(a,b)
-  let pexp_constraint(a,b) = Pexp_constraint(a,b)
-  let pexp_coerce(a,b,c) = Pexp_coerce(a,b,c)
-  let pexp_assertfalse _loc = loc_expr _loc (Pexp_assert(loc_expr _loc (pexp_construct({ txt = Lident "false"; loc = _loc}, None))))
-  let make_case = fun pat expr guard -> { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
-  let pexp_function cases =
-    Pexp_function (cases)
+let ppat_construct(a,b) = Ppat_construct(a,b)
+let make_case = fun pat expr guard -> { pc_lhs = pat; pc_rhs = expr; pc_guard = guard }
+let pexp_function cases =
+   Pexp_function (cases)
 
 let pat_unit _loc =
   let unt = id_loc (Lident "()") _loc in
