@@ -60,16 +60,29 @@ type action =
   | Normal  of expression
   | DepSeq  of ((expression -> expression) * expression option * expression)
 
-let occur id e =
-  Iter.do_local_ident := (fun s -> if s = id then raise Exit);
-  try
-    (match e with
-    | Default -> ()
-    | Normal e -> Iter.iter_expression e;
-    | DepSeq (_,e1,e2) -> Iter.iter_option Iter.iter_expression e1; Iter.iter_expression e2);
-    false
-  with
-    Exit -> true
+let occur_expr id e =
+  let open Ast_iterator in
+  let iter_Pexp_ident fn e =
+    let expr iterator e =
+      match e.pexp_desc with
+      | Pexp_ident(lid) -> fn lid
+      | _               -> default_iterator.expr iterator e
+    in
+    expr {default_iterator with expr} e
+  in
+  let fn lid =
+    match lid.txt with
+    | Lident(s) -> if s = id then raise Exit
+    | _         -> ()
+  in
+  try iter_Pexp_ident fn e; false with Exit -> true
+
+let occur id action =
+  match action with
+  | Default               -> false
+  | Normal(e)             -> occur_expr id e
+  | DepSeq(_,None    ,e ) -> occur_expr id e
+  | DepSeq(_,Some(e1),e2) -> occur_expr id e1 || occur_expr id e2
 
 let find_locate () =
   try Some(Exp.ident {txt = Lident(Sys.getenv "LOCATE"); loc = Location.none})

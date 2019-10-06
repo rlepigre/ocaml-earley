@@ -9,7 +9,6 @@
   (targets
     astextra.ml
     astextra.mli
-    compare.ml
     helper.ml
     helper.mli
     iter.ml
@@ -24,7 +23,6 @@
   (action (progn
     (copy ../static/boot/%{ocaml_version}/astextra.ml astextra.ml)
     (copy ../static/boot/%{ocaml_version}/astextra.mli astextra.mli)
-    (copy ../static/boot/%{ocaml_version}/compare.ml compare.ml)
     (copy ../static/boot/%{ocaml_version}/helper.ml helper.ml)
     (copy ../static/boot/%{ocaml_version}/helper.mli helper.mli)
     (copy ../static/boot/%{ocaml_version}/iter.ml iter.ml)
