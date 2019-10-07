@@ -55,28 +55,6 @@ boot: all
 	@# Copy the [static/helpers] files.
 	@cp static/helpers/helper.mli tmp_boot/helper.mli
 	@cp static/helpers/$(VERSION)/* tmp_boot/
-	@# Generate [compare.ml].
-	@_build/install/default/bin/pa_ocaml --ascii static/tools/generic_eq.ml \
-		> tmp_boot/compare.ml
-	@echo "(* asttypes.mli *)" \
-		>> tmp_boot/compare.ml
-	@_build/default/tools/pa_eq.exe static/tools/$(VERSION)/asttypes.mli \
-		>> tmp_boot/compare.ml
-	@echo "(* parsetree.mli *)" \
-		>> tmp_boot/compare.ml
-	@_build/default/tools/pa_eq.exe static/tools/$(VERSION)/parsetree.mli \
-		>> tmp_boot/compare.ml
-	@# Generate [iter.ml].
-	@_build/install/default/bin/pa_ocaml --ascii static/tools/generic_iter.ml \
-		> tmp_boot/iter.ml
-	@echo "(* asttypes.mli *)" \
-		>> tmp_boot/iter.ml
-	@_build/default/tools/pa_iter.exe static/tools/$(VERSION)/asttypes.mli \
-		>> tmp_boot/iter.ml
-	@echo "(* parsetree.mli *)" \
-		>> tmp_boot/iter.ml
-	@_build/default/tools/pa_iter.exe static/tools/$(VERSION)/parsetree.mli \
-		>> tmp_boot/iter.ml
 	@# Generate [quote.ml].
 	@_build/install/default/bin/pa_ocaml --ascii static/tools/generic_quote.ml \
 		> tmp_boot/quote.ml
