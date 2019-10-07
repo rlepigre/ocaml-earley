@@ -14,7 +14,7 @@ type str = string with_loc
 type attrs = attribute list
 
 let default_loc = Ast_helper.default_loc
-val with_default_loc = Ast_helper.with_default_loc
+let with_default_loc = Ast_helper.with_default_loc
  
 module Const = Ast_helper.Const
 
@@ -149,14 +149,24 @@ module Cstr = Ast_helper.Cstr
 
 module Rf =
   struct
-    let mk ?loc ?attrs _ = assert false (* FIXME *)
-    let tag ?loc ?attrs _ _ _ = assert false (* FIXME *)
-    let inherit_ ?loc _ = assert false (* FIXME *)
+    let mk ?loc ?attrs _ =
+      not_supported loc
+
+    let tag ?loc ?attrs _ _ _ =
+      not_supported loc
+
+    let inherit_ ?loc _ =
+      not_supported loc
   end
 
 module Of =
   struct
-    let mk ?loc ?attrs _ = assert false (* FIXME *)
-    val tag ?loc ?attrs _ _ = assert false (* FIXME *)
-    val inherit_ ?loc _ = assert false (* FIXME *)
+    let mk ?loc ?attrs _ =
+      not_supported loc
+
+    let tag ?loc ?attrs _ _ =
+      not_supported loc
+
+    let inherit_ ?loc _ =
+      not_supported loc
   end
