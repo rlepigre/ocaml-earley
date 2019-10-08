@@ -10,8 +10,14 @@ open Longident
 open Pa_lexing
 open Helper
 include Pa_ocaml_prelude
+let pa_ast s = Ldot ((Lident "Pa_ast"), s)
 let ghost : Location.t -> Location.t =
   fun loc -> let open Location in { loc with loc_ghost = true }
+let de_ghost : expression -> expression =
+  fun e ->
+    Helper.Exp.mk
+      ~loc:(let open Location in { (e.pexp_loc) with loc_ghost = false })
+      e.pexp_desc
 module Make(Initial:Extension) =
   struct
     include Initial
@@ -990,11 +996,12 @@ module Make(Initial:Extension) =
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "typ_tuple")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "typ_tuple"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | _ -> give_up () in
                                                 Quote.ptyp_antiquotation _loc
                                                   f)))))))));
@@ -2595,69 +2602,74 @@ module Make(Initial:Extension) =
                                                       let e =
                                                         quote_const e_loc
                                                           _loc
-                                                          (parsetree
-                                                             "Ppat_constant")
-                                                          [quote_apply e_loc
-                                                             _loc
-                                                             (pa_ast
-                                                                "const_bool")
-                                                             [e]] in
+                                                          ((parsetree
+                                                              "Ppat_constant"),
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               ((pa_ast
+                                                                   "const_bool"),
+                                                                 [e])]) in
                                                       generic_antiquote
                                                         (locate _loc e)
                                                   | "int" ->
                                                       let e =
                                                         quote_const e_loc
                                                           _loc
-                                                          (parsetree
-                                                             "Ppat_constant")
-                                                          [quote_apply e_loc
-                                                             _loc
-                                                             (pa_ast
-                                                                "const_int")
-                                                             [e]] in
+                                                          ((parsetree
+                                                              "Ppat_constant"),
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               ((pa_ast
+                                                                   "const_int"),
+                                                                 [e])]) in
                                                       generic_antiquote
                                                         (locate _loc e)
                                                   | "string" ->
                                                       let e =
                                                         quote_const e_loc
                                                           _loc
-                                                          (parsetree
-                                                             "Ppat_constant")
-                                                          [quote_apply e_loc
-                                                             _loc
-                                                             (pa_ast
-                                                                "const_string")
-                                                             [e]] in
+                                                          ((parsetree
+                                                              "Ppat_constant"),
+                                                            [quote_apply
+                                                               e_loc _loc
+                                                               ((pa_ast
+                                                                   "const_string"),
+                                                                 [e])]) in
                                                       generic_antiquote
                                                         (locate _loc e)
                                                   | "list" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast "pat_list")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           quote_location_t
-                                                             e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "pat_list"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             quote_location_t
+                                                               e_loc _loc
+                                                               _loc;
+                                                             e]))
                                                   | "tuple" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "pat_tuple")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "pat_tuple"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "array" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "pat_array")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "pat_array"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | _ -> give_up () in
                                                 Quote.ppat_antiquotation _loc
                                                   f)))))))));
@@ -3019,9 +3031,35 @@ module Make(Initial:Extension) =
                                              let _loc_c =
                                                locate str pos str' pos' in
                                              fun _default_0 ->
-                                               fun ps ->
-                                                 Pa_ast.pat_list _loc _loc_c
-                                                   ps)))))));
+                                               fun l ->
+                                                 let nil =
+                                                   Location.mkloc
+                                                     (Lident "[]")
+                                                     (ghost _loc_c) in
+                                                 let hd =
+                                                   match l with
+                                                   | [] -> assert false
+                                                   | x::_ -> x in
+                                                 let cons x xs =
+                                                   let cloc =
+                                                     ghost
+                                                       (merge2 x.ppat_loc
+                                                          _loc) in
+                                                   let c =
+                                                     Location.mkloc
+                                                       (Lident "::") cloc in
+                                                   let loc =
+                                                     if x == hd
+                                                     then _loc
+                                                     else cloc in
+                                                   Pat.construct ~loc c
+                                                     (Some
+                                                        (Pat.tuple ~loc:cloc
+                                                           [x; xs])) in
+                                                 List.fold_right cons l
+                                                   (Pat.construct
+                                                      ~loc:(ghost _loc_c) nil
+                                                      None))))))));
          (((fun _ -> true)),
            (Earley_core.Earley.fsequence_ignore
               (Earley_core.Earley.char '[' '[')
@@ -3768,7 +3806,7 @@ module Make(Initial:Extension) =
         | (`Type name, _loc') ->
             Exp.newtype ~loc:(merge2 _loc' _loc) name acc in
       let e = List.fold_left f e (List.rev params) in
-      if gh then e else Pa_ast.de_ghost e
+      if gh then e else de_ghost e
     [@@@ocaml.text
       " FIXME OCAML: should be ghost, or above should not be ghost "]
     let apply_params_cls ?(gh= false)  _loc params e =
@@ -5660,7 +5698,7 @@ module Make(Initial:Extension) =
                                      fun e' ->
                                        fun e ->
                                          fun (_l, _) ->
-                                           Pa_ast.de_ghost
+                                           de_ghost
                                              (bigarray_set
                                                 (ghost
                                                    (merge2 e'.pexp_loc _l))
@@ -5868,79 +5906,90 @@ module Make(Initial:Extension) =
                                                       let e =
                                                         quote_const e_loc
                                                           _loc
-                                                          (parsetree
-                                                             "Pexp_ident")
-                                                          [quote_loc _loc e] in
+                                                          ((parsetree
+                                                              "Pexp_ident"),
+                                                            [quote_loc _loc e]) in
                                                       generic_antiquote
                                                         (locate _loc e)
                                                   | "bool" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast "exp_bool")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_bool"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "int" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast "exp_int")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast "exp_int"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "float" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "exp_float")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_float"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "string" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "exp_string")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_string"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "char" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast "exp_char")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_char"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "list" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast "exp_list")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_list"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "tuple" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "exp_tuple")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_tuple"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | "array" ->
                                                       generic_antiquote
                                                         (quote_apply e_loc
                                                            _loc
-                                                           (pa_ast
-                                                              "exp_array")
-                                                           [quote_location_t
-                                                              e_loc _loc _loc;
-                                                           e])
+                                                           ((pa_ast
+                                                               "exp_array"),
+                                                             [quote_location_t
+                                                                e_loc _loc
+                                                                _loc;
+                                                             e]))
                                                   | _ -> give_up () in
                                               Quote.pexp_antiquotation _loc f)))))))));
          (((fun lvl -> lvl <= Atom)),
@@ -7540,31 +7589,38 @@ module Make(Initial:Extension) =
                                                   (Location.mkloc
                                                      (Lident "_loc") _loc) in
                                               quote_apply e_loc _loc
-                                                (pa_ast "loc_str")
-                                                [quote_location_t e_loc _loc
-                                                   _loc;
-                                                quote_const e_loc _loc
-                                                  (parsetree "Pstr_include")
-                                                  [quote_record e_loc _loc
-                                                     [((parsetree "pincl_loc"),
-                                                        (quote_location_t
-                                                           e_loc _loc _loc));
-                                                     ((parsetree
-                                                         "pincl_attributes"),
-                                                       (quote_list
-                                                          quote_attribute
-                                                          e_loc _loc []));
-                                                     ((parsetree "pincl_mod"),
-                                                       (quote_apply e_loc
-                                                          _loc
-                                                          (pa_ast "mexpr_loc")
-                                                          [quote_location_t
-                                                             e_loc _loc _loc;
-                                                          quote_const e_loc
-                                                            _loc
-                                                            (parsetree
-                                                               "Pmod_structure")
-                                                            [e]]))]]]
+                                                ((pa_ast "loc_str"),
+                                                  [quote_location_t e_loc
+                                                     _loc _loc;
+                                                  quote_const e_loc _loc
+                                                    ((parsetree
+                                                        "Pstr_include"),
+                                                      [quote_record e_loc
+                                                         _loc
+                                                         [((parsetree
+                                                              "pincl_loc"),
+                                                            (quote_location_t
+                                                               e_loc _loc
+                                                               _loc));
+                                                         ((parsetree
+                                                             "pincl_attributes"),
+                                                           (quote_list
+                                                              quote_attribute
+                                                              e_loc _loc []));
+                                                         ((parsetree
+                                                             "pincl_mod"),
+                                                           (quote_apply e_loc
+                                                              _loc
+                                                              ((pa_ast
+                                                                  "mexpr_loc"),
+                                                                [quote_location_t
+                                                                   e_loc _loc
+                                                                   _loc;
+                                                                quote_const
+                                                                  e_loc _loc
+                                                                  ((parsetree
+                                                                    "Pmod_structure"),
+                                                                    [e])])))]])])
                                           | _ ->
                                               failwith "Bad antiquotation..."))))));
            Earley_core.Earley.fsequence

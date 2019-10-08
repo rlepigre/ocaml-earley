@@ -30,7 +30,7 @@ let find_locate () =
   try
     Some
       (Exp.ident
-         { txt = (Lident (Sys.getenv "LOCATE")); loc = Location.none })
+         (let open Location in mkloc (Lident (Sys.getenv "LOCATE")) none))
   with | Not_found -> None
 let mkpatt _loc (id, p) =
   match p with
