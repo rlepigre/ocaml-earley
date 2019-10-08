@@ -145,8 +145,8 @@ let print_type ch = function
       fprintf ch "quote_%s e_loc _loc x = match x with\n" n;
       let f (c, ts) =
         match ts with
-        | []  -> fprintf ch "  | %s -> quote_const e_loc _loc %s []\n" c (modname c)
-        | [t] -> fprintf ch "  | %s(x) -> quote_const e_loc _loc %s [%a e_loc _loc x]\n" c (modname c)
+        | []  -> fprintf ch "  | %s -> quote_const e_loc _loc (%s, [])\n" c (modname c)
+        | [t] -> fprintf ch "  | %s(x) -> quote_const e_loc _loc (%s, [%a e_loc _loc x])\n" c (modname c)
                    print_btype t
         | _   ->
             let len = List.length ts in
@@ -156,11 +156,11 @@ let print_type ch = function
             in
             let xs = List.rev (build_list "x" len) in
             let cxs = "(" ^ (String.concat "," xs) ^ ")" in
-            fprintf ch "  | %s%s -> quote_const e_loc _loc %s [" c cxs (modname c);
+            fprintf ch "  | %s%s -> quote_const e_loc _loc (%s, [" c cxs (modname c);
             let txs = zip ts xs in
             let f (t,x) = Printf.fprintf ch " %a e_loc _loc %s;" print_btype t x in
             List.iter f txs;
-            fprintf ch "]\n"
+            fprintf ch "])\n"
       in
       List.iter f cl
   | Rec (a,n,fl) ->

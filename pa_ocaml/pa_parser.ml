@@ -85,11 +85,12 @@ let occur id action =
   | DepSeq(_,Some(e1),e2) -> occur_expr id e1 || occur_expr id e2
 
 let find_locate () =
-  try Some(Exp.ident {txt = Lident(Sys.getenv "LOCATE"); loc = Location.none})
+  try Some(Exp.ident Location.(mkloc (Lident(Sys.getenv "LOCATE")) none))
   with Not_found -> None
 
-let mkpatt _loc (id,p) =  match p with
-    None -> <:pat<$lid:id$>>
+let mkpatt _loc (id, p) =
+  match p with
+  | None   -> <:pat<$lid:id$>>
   | Some p -> <:pat<$p$ as $lid:id$>>
 
 let rec build_action _loc occur_loc ids e =
@@ -165,35 +166,35 @@ module Ext(In:Extension) = struct
 
   let build_rule (_loc,occur_loc,def, l, condition, action) =
       let iter, action = match action with
-	| Normal a -> false, a
-	| Default -> false, default_action _loc l
-	| DepSeq(def, cond, a) ->
+        | Normal a -> false, a
+        | Default -> false, default_action _loc l
+        | DepSeq(def, cond, a) ->
            true, (match cond with
-		 | None -> def a
-		 | Some cond ->
-		    def (<:expr<if $cond$ then $a$ else Earley_core.Earley.fail ()>>))
+                 | None -> def a
+                 | Some cond ->
+                    def (<:expr<if $cond$ then $a$ else Earley_core.Earley.fail ()>>))
       in
 
       let rec fn ids l = match l with
-	| [] ->
+        | [] ->
            let a = build_action _loc occur_loc ids action in
-	   let f = match find_locate (), occur_loc with
-	     | Some _, true -> "empty_pos"
-	     | _ -> "empty"
-	   in
+           let f = match find_locate (), occur_loc with
+             | Some _, true -> "empty_pos"
+             | _ -> "empty"
+           in
            <:expr<Earley_core.Earley.$lid:f$ $a$>>
-	| [`Normal(id,_,e,opt,occur_loc_id)] when
+        | [`Normal(id,_,e,opt,occur_loc_id)] when
            (match action.pexp_desc with
-	    | Pexp_ident({ txt = Lident id'}) when ids = [] && fst id = id' -> true
-	    | _ -> false)
+            | Pexp_ident({ txt = Lident id'}) when ids = [] && fst id = id' -> true
+            | _ -> false)
           ->
            assert (not occur_loc);
            assert (not occur_loc_id);
-	   let e = apply_option _loc opt e in
+           let e = apply_option _loc opt e in
            <:expr<$e$>>
 
-	| `Normal(id,_,e,opt,occur_loc_id) :: ls ->
-	   let e = apply_option _loc opt e in
+        | `Normal(id,_,e,opt,occur_loc_id) :: ls ->
+           let e = apply_option _loc opt e in
            let a = fn ((id,occur_loc_id)::ids) ls in
            let fn = match find_locate (), occur_loc_id with
              | Some _, true -> "fsequence_position"

@@ -21,20 +21,6 @@
     (copy ../static/helpers/%{ocaml_version}/astextra.ml astextra.ml)
     (copy ../static/helpers/%{ocaml_version}/astextra.mli astextra.mli))))
 
-;(rule
-;  (targets iter.ml)
-;  (action (with-stdout-to iter.ml (progn
-;    (run pa_ocaml.boot --ascii ../static/tools/generic_iter.ml)
-;    (echo "(* asttypes.mli *)\n")
-;    (run ../tools/pa_iter.exe ../static/tools/%{ocaml_version}/asttypes.mli)
-;    (echo "(* parsetree.mli *)\n")
-;    (run ../tools/pa_iter.exe ../static/tools/%{ocaml_version}/parsetree.mli))))
-;  (deps
-;    ../tools/pa_iter.exe
-;    ../static/tools/generic_iter.ml
-;    ../static/tools/%{ocaml_version}/asttypes.mli
-;    ../static/tools/%{ocaml_version}/parsetree.mli))
-
 (rule
   (targets quote.ml)
   (action (with-stdout-to quote.ml (progn

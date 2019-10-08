@@ -1,17 +1,19 @@
 open Asttypes
 open Parsetree
 open Longident
-open Pa_ast
 
-let loc_ptyp = loc_typ
-let loc_ppat = loc_pat
-let loc_pexp = loc_expr
-let loc_pcty = pcty_loc
-let loc_pctf = pctf_loc
-let loc_pmty = mtyp_loc
-let loc_pmod = mexpr_loc
-let loc_psig = loc_sig
-let loc_pstr = loc_str
+let loc_id   loc x = Location.mkloc x loc
+let loc_ptyp loc x = Helper.Typ.mk ~loc x
+let loc_ppat loc x = Helper.Pat.mk ~loc x
+let loc_pexp loc x = Helper.Exp.mk ~loc x
+let loc_pcty loc x = Helper.Cty.mk ~loc x
+let loc_pctf loc x = Helper.Ctf.mk ~loc x
+let loc_pmty loc x = Helper.Mty.mk ~loc x
+let loc_pmod loc x = Helper.Mod.mk ~loc x
+let loc_psig loc x = Helper.Sig.mk ~loc x
+let loc_pstr loc x = Helper.Str.mk ~loc x
+let loc_pcl  loc x = Helper.Cl.mk  ~loc x
+let loc_pcf  loc x = Helper.Cf.mk  ~loc x
 
 type quotation =
   | Quote_pexp
@@ -28,8 +30,13 @@ type quotation =
   | Quote_loc
   | Quote_cases
 
-let dummy_pexp   = (exp_ident Location.none "$Antiquotation$").pexp_desc
-let dummy_ppat   = (pat_ident Location.none "$Antiquotation$").ppat_desc
+let dummy_pexp =
+  let lid = Location.(mkloc (Lident "$Antiquotation$") none) in
+  (Helper.Exp.ident lid).pexp_desc
+
+let dummy_ppat =
+  (Helper.Pat.var Location.(mkloc "$Antiquotation$" none)).ppat_desc
+
 let dummy_ptyp   = Obj.magic (Some None)
 let dummy_pcty   = Obj.magic (Some None)
 let dummy_pctf   = Obj.magic (Some None)
@@ -38,17 +45,24 @@ let dummy_pcf    = Obj.magic (Some None)
 let dummy_pmty   = Obj.magic (Some None)
 let dummy_pmod   = Obj.magic (Some None)
 let dummy_loc d  = d
-let dummy_psig   = Psig_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
-			       popen_override = Fresh;
-			       popen_loc = Location.none;
-			       popen_attributes = [] }
-let dummy_pstr   = Pstr_open { popen_lid = id_loc (Lident "$Antiquotation$")  Location.none;
-			       popen_override = Fresh;
-			       popen_loc = Location.none;
-			       popen_attributes = [] }
+let dummy_psig   =
+  Psig_open
+    { popen_lid        = Location.(mkloc (Lident "$Antiquotation$") none)
+    ; popen_override   = Fresh
+    ; popen_loc        = Location.none
+    ; popen_attributes = [] }
+let dummy_pstr   =
+  Pstr_open
+    { popen_lid        = Location.(mkloc (Lident "$Antiquotation$") none)
+    ; popen_override   = Fresh
+    ; popen_loc        = Location.none
+    ; popen_attributes = [] }
 
-let anti_table = (Hashtbl.create 101 : (Location.t, quotation -> expression) Hashtbl.t)
-let string_anti_table = (Hashtbl.create 101 : (string,expression) Hashtbl.t)
+let anti_table : (Location.t, quotation -> expression) Hashtbl.t =
+  Hashtbl.create 101
+
+let string_anti_table : (string, expression) Hashtbl.t =
+  Hashtbl.create 101
 
 let make_antiquotation loc =
   let open Lexing in
@@ -76,113 +90,111 @@ let is_list_antiquotation l =
      else None
   | _ -> None
 
-(* Generic functions *)
-let quote_bool : expression -> Location.t -> bool -> expression = fun _ ->
-  Pa_ast.exp_bool
-
-let quote_int : expression -> Location.t -> int -> expression = fun _ ->
-  Pa_ast.exp_int
-
-let quote_int32 : expression -> Location.t -> int32 -> expression = fun _ ->
-  Pa_ast.exp_int32
-
-let quote_int64 : expression -> Location.t -> int64 -> expression = fun _ ->
-  Pa_ast.exp_int64
-
-let quote_nativeint : expression -> Location.t -> nativeint -> expression = fun _ ->
-  Pa_ast.exp_nativeint
-
-let quote_char : expression -> Location.t -> char -> expression = fun _ ->
-  Pa_ast.exp_char
-
-let anti_string_prefix = "string antiquotation\000"
-let quote_string : expression -> Location.t -> string -> expression = fun _ loc s ->
-  try Hashtbl.find string_anti_table s
-  with Not_found -> Pa_ast.exp_string loc s
-let string_antiquotation _loc e =
-  let key = anti_string_prefix ^ Marshal.to_string _loc [] in
-  Hashtbl.add string_anti_table key e;
-  key
-
-let quote_option : 'a. (expression -> Location.t -> 'a -> expression) -> expression -> Location.t -> 'a option -> expression =
-  fun qe e_loc _loc eo ->
-    let e =
-      match eo with
-      | None   -> None
-      | Some e -> Some (qe e_loc _loc e)
-    in Pa_ast.exp_option _loc e
-
-let quote_list : 'a. (expression -> Location.t -> 'a -> expression) -> expression -> Location.t -> 'a list -> expression =
-  fun qe e_loc _loc el ->
-    match is_list_antiquotation el with
-    | Some(loc,qtyp) ->
-       (try (Hashtbl.find anti_table loc) qtyp with Not_found ->
-         failwith "antiquotation not in a quotation")
-    | None ->
-       let el = List.map (qe e_loc _loc) el in
-       Pa_ast.exp_list _loc el
-
-let quote_tuple : expression -> Location.t -> expression list -> expression = fun _ ->
-  Pa_ast.exp_tuple
-
-let quote_apply : expression -> Location.t -> Longident.t -> expression list -> expression =
-  (fun _ _loc s l ->
-    match l with [] -> Pa_ast.exp_lident _loc s
-               | [x] -> Pa_ast.exp_apply1 _loc (Pa_ast.exp_lident _loc s) x
-	       | l -> Pa_ast.exp_apply _loc (Pa_ast.exp_lident _loc s) l)
-
-let quote_const : expression -> Location.t -> Longident.t -> expression list -> expression =
-  fun _ loc s l ->
-    let arg =
-      match l with
-      | []  -> None
-      | [x] -> Some x
-      | l   -> Some (Helper.Exp.tuple ~loc l)
-    in
-    Helper.Exp.construct ~loc (id_loc s loc) arg
-
-let lexing s = Ldot(Lident "Lexing", s)
-let location s = Ldot(Lident "Location", s)
+let lexing    s = Ldot(Lident "Lexing"   , s)
+let location  s = Ldot(Lident "Location" , s)
 let longident s = Ldot(Lident "Longident", s)
 let parsetree s = Ldot(Lident "Parsetree", s)
-let asttypes s = Ldot(Lident "Asttypes", s)
-let pa_ast s = Ldot(Lident "Pa_ast", s)
+let asttypes  s = Ldot(Lident "Asttypes" , s)
 
-let rec quote_longident : expression -> Location.t -> Longident.t -> expression =
-  fun e_loc _loc l ->
+type 'a quote = expression -> Location.t -> 'a -> expression
+
+(* Generic functions *)
+let quote_int : int quote = fun _ loc i ->
+  Helper.Exp.constant ~loc (Helper.Const.int i)
+
+let quote_int32 : int32 quote = fun _ loc i ->
+  Helper.Exp.constant ~loc (Helper.Const.int32 ~suffix:'l' i)
+
+let quote_int64 : int64 quote = fun _ loc i ->
+  Helper.Exp.constant ~loc (Helper.Const.int64 ~suffix:'L' i)
+
+let quote_nativeint : nativeint quote = fun _ loc i ->
+  Helper.Exp.constant ~loc (Helper.Const.nativeint ~suffix:'n' i)
+
+let quote_char : char quote = fun _ loc c ->
+  Helper.Exp.constant ~loc (Helper.Const.char c)
+
+let quote_string : string quote = fun _ loc s ->
+  try Hashtbl.find string_anti_table s
+  with Not_found -> Helper.Exp.constant ~loc (Helper.Const.string s)
+
+let quote_bool : bool quote = fun _ loc b ->
+  let b = if b then "true" else "false" in
+  Helper.Exp.construct ~loc (Location.mkloc (Lident b) loc) None
+
+let string_antiquotation loc e =
+  let key = "string antiquotation\000" ^ Marshal.to_string loc [] in
+  Hashtbl.add string_anti_table key e; key
+
+let quote_list : 'a quote -> 'a list quote = fun qe e_loc _loc el ->
+  let exp_list loc es =
+    let open Helper in
+    let nil = Exp.construct ~loc (Location.mkloc (Lident "[]") loc) None in
+    let cns hd tl =
+      let arg = Exp.tuple ~loc [hd; tl] in
+      Exp.construct ~loc (Location.mkloc (Lident "::") loc) (Some arg)
+    in
+    List.fold_right cns es nil
+  in
+  match is_list_antiquotation el with
+  | None         -> exp_list _loc (List.map (qe e_loc _loc) el)
+  | Some(loc,qt) -> try Hashtbl.find anti_table loc qt with Not_found ->
+                      failwith "antiquotation not in a quotation"
+
+let quote_tuple : expression list quote = fun _ loc l ->
+  Helper.Exp.tuple ~loc l
+
+let quote_record : (Longident.t * expression) list quote = fun _ loc l ->
+  let fn (id, e) = (Location.mkloc id loc, e) in
+  Helper.Exp.record ~loc (List.map fn l) None
+
+let quote_apply : (Longident.t * expression list) quote = fun _ loc (s, l) ->
+  let e = Helper.Exp.ident ~loc (Location.mkloc s loc) in
+  match l with
+  | [] -> e
+  | _  -> Helper.Exp.apply ~loc e (List.map (fun e -> (Nolabel, e)) l)
+
+let quote_const : (Longident.t * expression list) quote = fun _ loc (s, l) ->
+  let arg =
     match l with
-    | Lident s       -> let s = quote_string e_loc _loc s in
-                        quote_const e_loc _loc (longident "Lident") [s]
-    | Ldot (l, s)    -> let l = quote_longident e_loc _loc l in
-                        let s = quote_string e_loc _loc s in
-                        quote_const e_loc _loc (longident "Ldot") [l; s]
-    | Lapply (l, l') -> let l = quote_longident e_loc _loc l in
-                        let l' = quote_longident e_loc _loc l' in
-                        quote_const e_loc _loc (longident "Lapply") [l; l']
+    | []  -> None
+    | [x] -> Some x
+    | l   -> Some (Helper.Exp.tuple ~loc l)
+  in
+  Helper.Exp.construct ~loc (Location.mkloc s loc) arg
 
-let quote_record : expression -> Location.t -> (Longident.t * expression) list -> expression = fun _ ->
-  Pa_ast.exp_record
+let quote_option : 'a quote -> 'a option quote = fun qe e_loc loc eo ->
+  match eo with
+  | None   -> let none = Location.mkloc (Lident "None") loc in
+              Helper.Exp.construct ~loc none None
+  | Some e -> let some = Location.mkloc (Lident "Some") loc in
+              Helper.Exp.construct ~loc some (Some (qe e_loc loc e))
 
-let quote_position : expression -> Location.t -> Lexing.position -> expression =
-  (fun e_loc _loc {Lexing.pos_fname = pfn; Lexing.pos_lnum = ln; Lexing.pos_bol = bl; Lexing.pos_cnum = pcn} ->
-    let pfn = quote_string e_loc _loc pfn in
-    let ln  = quote_int e_loc _loc ln in
-    let bl  = quote_int e_loc _loc bl in
-    let pcn = quote_int e_loc _loc pcn in
-    quote_record e_loc _loc
-      [(lexing "pos_fname",pfn); (lexing "pos_lnum",ln); (lexing "pos_bol",bl); (lexing "pos_cnum",pcn)])
+let rec quote_longident : Longident.t quote = fun e_loc loc l ->
+  match l with
+  | Lident(s)     -> let s = quote_string e_loc loc s in
+                     quote_const e_loc loc (longident "Lident", [s])
+  | Ldot(l,s)     -> let l = quote_longident e_loc loc l in
+                     let s = quote_string e_loc loc s in
+                     quote_const e_loc loc (longident "Ldot", [l; s])
+  | Lapply(l1,l2) -> let l1 = quote_longident e_loc loc l1 in
+                     let l2 = quote_longident e_loc loc l2 in
+                     quote_const e_loc loc (longident "Lapply", [l1; l2])
 
-(* forget the original location of the quotation *)
+let quote_position : Lexing.position quote = fun e_loc loc pos ->
+  quote_record e_loc loc
+    [ (lexing "pos_fname", quote_string e_loc loc pos.Lexing.pos_fname)
+    ; (lexing "pos_lnum" , quote_int    e_loc loc pos.Lexing.pos_lnum )
+    ; (lexing "pos_bol"  , quote_int    e_loc loc pos.Lexing.pos_bol  )
+    ; (lexing "pos_cnum" , quote_int    e_loc loc pos.Lexing.pos_cnum ) ]
 
+(* Forget the original location of the quotation. *)
 let quote_parser_position = ref false
 
-let quote_location_t : expression -> Location.t -> Location.t -> expression =
-  (fun e_loc _loc {Location.loc_start = ls; Location.loc_end = le; Location.loc_ghost = g} ->
-    if !quote_parser_position then
-      begin
-	let ls = quote_position e_loc _loc ls in
-	let le = quote_position e_loc _loc le in
-	let g  = quote_bool e_loc _loc g in
-	quote_record e_loc _loc [(location "loc_start",ls); (location "loc_end",le); (location "loc_ghost",g)]
-      end
-    else e_loc)
+let quote_location_t : Location.t quote = fun e_loc loc l ->
+  if !quote_parser_position then
+    quote_record e_loc loc
+      [ (location "loc_start", quote_position e_loc loc l.Location.loc_start)
+      ; (location "loc_end"  , quote_position e_loc loc l.Location.loc_end  )
+      ; (location "loc_ghost", quote_bool     e_loc loc l.Location.loc_ghost)]
+  else e_loc
