@@ -1,0 +1,6 @@
+(test
+  (name quotations)
+  (modules quotations)
+  (preprocess (action (run pa_ocaml %{input-file})))
+  (libraries compiler-libs.common earley.core earley.str earley.ocaml)
+  (action (ignore-outputs (run ./quotations.exe))))
