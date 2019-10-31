@@ -46,6 +46,7 @@
 *)
 
 open Earley_core
+open Earley_helpers
 open Asttypes
 open Parsetree
 open Longident
@@ -144,7 +145,10 @@ let default_action _loc l =
   let l = List.map (function `Normal((id,_),_,_,_,_) -> <:expr<$lid:id$>>
                            | _ -> assert false) l
   in
-  <:expr<$tuple:l$>>
+  match l with
+  | []  -> <:expr<()>>
+  | [e] -> e
+  | _   -> <:expr<$tuple:l$>>
 
 let from_opt ov d = match ov with None -> d | Some v -> v
 
@@ -257,7 +261,12 @@ module Ext(In:Extension) = struct
             | None -> f
             | Some ty -> <:expr<($f$ : $ty$)>>
           in
-          let args_pat =<:pat< $tuple:args$ >> in
+          let args_pat =
+            match args with
+            | []  -> <:pat<()>>
+            | [p] -> p
+            | _   -> <:pat<$tuple:args$>>
+          in
           let (str1,str2) =
             match args,prio with
             | [], None ->
@@ -294,9 +303,15 @@ module Ext(In:Extension) = struct
               let rec currify acc n = function
                   [] ->
                   begin
+                    let acc =
+                      match List.rev acc with
+                      | []  -> <:expr<()>>
+                      | [e] -> e
+                      | l   -> <:expr<$tuple:l$>>
+                    in
                     match prio with
-                    | None -> <:expr<$lid:name$ $tuple:List.rev acc$ >>
-                    | Some _ -> <:expr<fun __curry__prio -> $lid:name$ $tuple:List.rev acc$ __curry__prio >>
+                    | None   -> <:expr<$lid:name$ $acc$ >>
+                    | Some _ -> <:expr<fun __curry__prio -> $lid:name$ $acc$ __curry__prio >>
                   end
                 | a::l ->
                    let v = "__curry__varx"^string_of_int n in

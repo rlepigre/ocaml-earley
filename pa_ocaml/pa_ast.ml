@@ -1,6 +1,7 @@
 open Asttypes
 open Parsetree
 open Longident
+open Earley_helpers
 
 let exp_string loc s    = Helper.Exp.constant ~loc (Helper.Const.string s)
 let exp_char loc c      = Helper.Exp.constant ~loc (Helper.Const.char c)

@@ -1,6 +1,7 @@
 open Asttypes
 open Parsetree
 open Longident
+open Earley_helpers
 
 let loc_id   loc x = Location.mkloc x loc
 let loc_ptyp loc x = Helper.Typ.mk ~loc x

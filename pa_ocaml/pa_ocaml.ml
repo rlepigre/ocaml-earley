@@ -46,6 +46,7 @@
 *)
 
 open Earley_core
+open Earley_helpers
 open Input
 open Earley
 open Charset
@@ -446,7 +447,7 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
          match aq with
             | "type"  -> generic_antiquote Quote_ptyp _loc e
             | "tuple" -> generic_antiquote Quote_ptyp _loc
-                           <:expr<Earley_ocaml.Helper.Typ.tuple
+                           <:expr<Earley_helpers.Helper.Typ.tuple
                               ~loc:$quote_location_t e_loc _loc _loc$ $e$>>
             | _       -> give_up ()
        in
@@ -860,26 +861,26 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
                          let loc = $quote_location_t e_loc _loc _loc$ in
                          let id = if $e$ then "true" else "false" in
                          let id = Location.mkloc (Longident.Lident id) loc in
-                         Earley_ocaml.Helper.Pat.construct ~loc id None
+                         Earley_helpers.Helper.Pat.construct ~loc id None
                        >>
          | "int"    -> generic_antiquote Quote_ppat _loc <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         let i = Earley_ocaml.Helper.Const.int $e$ in
-                         Earley_ocaml.Helper.Pat.constant ~loc i
+                         let i = Earley_helpers.Helper.Const.int $e$ in
+                         Earley_helpers.Helper.Pat.constant ~loc i
                        >>
          | "string" -> generic_antiquote Quote_ppat _loc <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         let s = Earley_ocaml.Helper.Const.string $e$ in
-                         Earley_ocaml.Helper.Pat.constant ~loc s
+                         let s = Earley_helpers.Helper.Const.string $e$ in
+                         Earley_helpers.Helper.Pat.constant ~loc s
                        >>
          | "list"   -> generic_antiquote Quote_ppat _loc <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
                          let n = Location.mkloc (Longident.Lident "[]") loc in
                          let n =
-                           Earley_ocaml.Helper.Pat.construct ~loc n None
+                           Earley_helpers.Helper.Pat.construct ~loc n None
                          in
                          let c x xs =
-                           let open Earley_ocaml.Helper in
+                           let open Earley_helpers.Helper in
                            let c = Location.mkloc (Longident.Lident "::") loc in
                            let a = Pat.tuple ~loc [x;xs] in
                            Pat.construct ~loc c (Some a)
@@ -888,11 +889,11 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
                        >>
          | "tuple"  -> generic_antiquote Quote_ppat _loc <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         Earley_ocaml.Helper.Pat.tuple ~loc $e$
+                         Earley_helpers.Helper.Pat.tuple ~loc $e$
                        >>
          | "array"  -> generic_antiquote Quote_ppat _loc <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         Earley_ocaml.Helper.Pat.array ~loc $e$
+                         Earley_helpers.Helper.Pat.array ~loc $e$
                        >>
          | _        -> give_up ()
       in
@@ -1629,43 +1630,43 @@ let parser right_expression @lvl =
       | "expr"      -> generic_antiquote e
       | "longident" -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         Earley_ocaml.Helper.Exp.ident ~loc (Location.mkloc $e$ loc)
+                         Earley_helpers.Helper.Exp.ident ~loc (Location.mkloc $e$ loc)
                        >>
       | "bool"      -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
                          let id = if $e$ then "true" else "false" in
                          let id = Location.mkloc (Longident.Lident id) loc in
-                         Earley_ocaml.Helper.Exp.construct ~loc id None
+                         Earley_helpers.Helper.Exp.construct ~loc id None
                        >>
       | "int"       -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         let i = Earley_ocaml.Helper.Const.int $e$ in
-                         Earley_ocaml.Helper.Exp.constant ~loc i
+                         let i = Earley_helpers.Helper.Const.int $e$ in
+                         Earley_helpers.Helper.Exp.constant ~loc i
                        >>
       | "float"     -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
                          let f = string_of_float $e$ in
-                         let f = Earley_ocaml.Helper.Const.float f in
-                         Earley_ocaml.Helper.Exp.constant ~loc f
+                         let f = Earley_helpers.Helper.Const.float f in
+                         Earley_helpers.Helper.Exp.constant ~loc f
                        >>
       | "string"    -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         let s = Earley_ocaml.Helper.Const.string $e$ in
-                         Earley_ocaml.Helper.Exp.constant ~loc s
+                         let s = Earley_helpers.Helper.Const.string $e$ in
+                         Earley_helpers.Helper.Exp.constant ~loc s
                        >>
       | "char"      -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         let c = Earley_ocaml.Helper.Const.char $e$ in
-                         Earley_ocaml.Helper.Exp.constant ~loc c
+                         let c = Earley_helpers.Helper.Const.char $e$ in
+                         Earley_helpers.Helper.Exp.constant ~loc c
                        >>
       | "list"      -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
                          let n = Location.mkloc (Longident.Lident "[]") loc in
                          let n =
-                           Earley_ocaml.Helper.Exp.construct ~loc n None
+                           Earley_helpers.Helper.Exp.construct ~loc n None
                          in
                          let c x xs =
-                           let open Earley_ocaml.Helper in
+                           let open Earley_helpers.Helper in
                            let c = Location.mkloc (Longident.Lident "::") loc in
                            let a = Exp.tuple ~loc [x;xs] in
                            Exp.construct ~loc c (Some a)
@@ -1674,11 +1675,12 @@ let parser right_expression @lvl =
                        >>
       | "tuple"     -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         Earley_ocaml.Helper.Exp.tuple ~loc $e$
+                         assert (List.length $e$ > 1);
+                         Earley_helpers.Helper.Exp.tuple ~loc $e$
                        >>
       | "array"     -> generic_antiquote <:expr<
                          let loc = $quote_location_t e_loc _loc _loc$ in
-                         Earley_ocaml.Helper.Exp.array ~loc $e$
+                         Earley_helpers.Helper.Exp.array ~loc $e$
                        >>
       | _           -> give_up ()
     in
@@ -1868,8 +1870,8 @@ let parser structure_item_base =
         <:expr<
           let loc = $quote_location_t e_loc _loc _loc$ in
           let attr = $quote_list quote_attribute e_loc _loc []$ in
-          let pincl_mod = Earley_ocaml.Helper.Mod.structure ~loc $e$ in
-          Earley_ocaml.Helper.Str.include_ ~loc
+          let pincl_mod = Earley_helpers.Helper.Mod.structure ~loc $e$ in
+          Earley_helpers.Helper.Str.include_ ~loc
             Parsetree.{pincl_loc = loc; pincl_attributes = attr; pincl_mod}
         >>
      | _ -> failwith "Bad antiquotation..." (* FIXME:add location *))

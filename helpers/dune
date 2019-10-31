@@ -1,0 +1,17 @@
+(library
+ (name earley_helpers)
+ (public_name earley.helpers)
+ (modules :standard)
+ (libraries compiler-libs.common))
+
+(rule
+  (targets
+    astextra.ml
+    astextra.mli
+    helper.ml
+    helper.mli)
+  (action (progn
+    (copy ../static/helpers/%{ocaml_version}/astextra.ml astextra.ml)
+    (copy ../static/helpers/%{ocaml_version}/astextra.mli astextra.mli)
+    (copy ../static/helpers/%{ocaml_version}/helper.ml helper.ml)
+    (copy ../static/helpers/helper.mli helper.mli))))
