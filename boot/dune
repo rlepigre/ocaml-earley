@@ -7,7 +7,6 @@
 
 (rule
   (targets
-    pa_ast.ml
     pa_default.ml
     pa_lexing.ml
     pa_main.ml
@@ -16,7 +15,6 @@
     pa_parser.ml
     quote.ml)
   (action (progn
-    (copy ../static/boot/%{ocaml_version}/pa_ast.ml pa_ast.ml)
     (copy ../static/boot/%{ocaml_version}/pa_default.ml pa_default.ml)
     (copy ../static/boot/%{ocaml_version}/pa_lexing.ml pa_lexing.ml)
     (copy ../static/boot/%{ocaml_version}/pa_main.ml pa_main.ml)

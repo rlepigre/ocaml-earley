@@ -36,8 +36,6 @@ boot: all
 	@rm -rf tmp_boot
 	@mkdir tmp_boot
 	@# Preprocess the [pa_*] files.
-	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_ast.ml \
-		> tmp_boot/pa_ast.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_default.ml \
 		> tmp_boot/pa_default.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_lexing.ml \
