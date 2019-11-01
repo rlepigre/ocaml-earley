@@ -1,4 +1,5 @@
 open Earley_core
+open Earley_helpers
 open Input
 open Earley
 open Asttypes

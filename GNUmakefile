@@ -52,9 +52,6 @@ boot: all
 		> tmp_boot/pa_parser.ml
 	@# Erase [open Earley_ocaml] from [tmp_boot/pa_default.ml]
 	@sed -i 's/open Earley_ocaml//g' tmp_boot/pa_default.ml
-	@# Copy the [static/helpers] files.
-	@cp static/helpers/helper.mli tmp_boot/helper.mli
-	@cp static/helpers/$(VERSION)/* tmp_boot/
 	@# Generate [quote.ml].
 	@_build/install/default/bin/pa_ocaml --ascii static/tools/generic_quote.ml \
 		> tmp_boot/quote.ml

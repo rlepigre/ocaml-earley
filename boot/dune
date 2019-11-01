@@ -3,14 +3,10 @@
   (public_name pa_ocaml.boot)
   (package earley)
   (modules :standard)
-  (libraries compiler-libs.common earley.core earley.str))
+  (libraries compiler-libs.common earley.core earley.str earley.helpers))
 
 (rule
   (targets
-    astextra.ml
-    astextra.mli
-    helper.ml
-    helper.mli
     pa_ast.ml
     pa_default.ml
     pa_lexing.ml
@@ -20,10 +16,6 @@
     pa_parser.ml
     quote.ml)
   (action (progn
-    (copy ../static/boot/%{ocaml_version}/astextra.ml astextra.ml)
-    (copy ../static/boot/%{ocaml_version}/astextra.mli astextra.mli)
-    (copy ../static/boot/%{ocaml_version}/helper.ml helper.ml)
-    (copy ../static/boot/%{ocaml_version}/helper.mli helper.mli)
     (copy ../static/boot/%{ocaml_version}/pa_ast.ml pa_ast.ml)
     (copy ../static/boot/%{ocaml_version}/pa_default.ml pa_default.ml)
     (copy ../static/boot/%{ocaml_version}/pa_lexing.ml pa_lexing.ml)

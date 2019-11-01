@@ -1,6 +1,7 @@
 open Asttypes
 open Parsetree
 open Longident
+open Earley_helpers
 let loc_id loc x = Location.mkloc x loc
 let loc_ptyp loc x = Helper.Typ.mk ~loc x
 let loc_ppat loc x = Helper.Pat.mk ~loc x
@@ -27,6 +28,16 @@ type quotation =
   | Quote_pstr 
   | Quote_loc 
   | Quote_cases 
+let generic_antiquote q_exp err_loc e q =
+  if q = q_exp
+  then e
+  else
+    (let msg =
+       Format.fprintf Format.str_formatter
+         "%a: unexpected kind of antiquotation" Location.print_compact
+         err_loc;
+       Format.flush_str_formatter () in
+     failwith msg)
 let dummy_pexp =
   let lid = let open Location in mkloc (Lident "$Antiquotation$") none in
   (Helper.Exp.ident lid).pexp_desc

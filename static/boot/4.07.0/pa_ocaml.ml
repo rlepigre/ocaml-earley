@@ -1,4 +1,5 @@
 open Earley_core
+open Earley_helpers
 open Input
 open Earley
 open Charset
@@ -10,7 +11,11 @@ open Longident
 open Pa_lexing
 open Helper
 include Pa_ocaml_prelude
-let pa_ast s = Ldot ((Lident "Pa_ast"), s)
+let merge2 l1 l2 =
+  let loc_start = l1.Location.loc_start
+  and loc_end = l2.Location.loc_end in
+  let open Location in
+    { loc_start; loc_end; loc_ghost = (l1.loc_ghost && l2.loc_ghost) }
 let ghost : Location.t -> Location.t =
   fun loc -> let open Location in { loc with loc_ghost = true }
 let de_ghost : expression -> expression =
@@ -124,16 +129,6 @@ module Make(Initial:Extension) =
       (exp,
         (Typ.poly ~loc:(ghost loc) types
            (Typ.varify_constructors types core_type)))
-    type tree =
-      | Node of tree * tree 
-      | Leaf of string 
-    let string_of_tree (t : tree) =
-      (let b = Buffer.create 101 in
-       let rec fn =
-         function
-         | Leaf s -> Buffer.add_string b s
-         | Node (a, b) -> (fn a; fn b) in
-       fn t; Buffer.contents b : string)
     let label_name = lident
     let ty_label = Earley_core.Earley.declare_grammar "ty_label"
     let _ =
@@ -169,11 +164,9 @@ module Make(Initial:Extension) =
               (Earley_core.Earley.empty
                  (fun ln ->
                     fun o -> if o = None then Labelled ln else Optional ln))))
-    let list_antiquotation _loc e =
-      let open Quote in
-        let generic_antiquote e =
-          function | Quote_loc -> e | _ -> failwith "invalid antiquotation" in
-        make_list_antiquotation _loc Quote_loc (generic_antiquote e)
+    let list_antiquotation loc e =
+      let e = Quote.generic_antiquote Quote.Quote_loc loc e in
+      Quote.make_list_antiquotation loc Quote.Quote_loc e
     let operator_name =
       alternatives ((prefix_symbol Prefix) ::
         (List.map infix_symbol infix_prios))
@@ -977,34 +970,63 @@ module Make(Initial:Extension) =
                                               __loc__end__buf __loc__end__pos in
                                           fun e ->
                                             fun aq ->
-                                              let open Quote in
-                                                let e_loc =
-                                                  Exp.ident ~loc:_loc
-                                                    (Location.mkloc
-                                                       (Lident "_loc") _loc) in
-                                                let generic_antiquote e =
-                                                  function
-                                                  | Quote_ptyp -> e
-                                                  | _ ->
-                                                      failwith
-                                                        "invalid antiquotation" in
-                                                let f =
+                                              let e_loc_lid =
+                                                Location.mkloc
+                                                  (Lident "_loc") _loc in
+                                              let e_loc =
+                                                Exp.ident ~loc:_loc e_loc_lid in
+                                              let f =
+                                                let open Quote in
                                                   match aq with
                                                   | "type" ->
-                                                      generic_antiquote e
+                                                      generic_antiquote
+                                                        Quote_ptyp _loc e
                                                   | "tuple" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "typ_tuple"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        Quote_ptyp _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_apply
+                                                               ({
+                                                                  Parsetree.pexp_desc
+                                                                    =
+                                                                    (
+                                                                    Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Typ")),
+                                                                    "tuple"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                  Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                  Parsetree.pexp_attributes
+                                                                    = []
+                                                                },
+                                                                 [((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    (
+                                                                    quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc));
+                                                                 (Asttypes.Nolabel,
+                                                                   e)]));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | _ -> give_up () in
-                                                Quote.ptyp_antiquotation _loc
-                                                  f)))))))));
+                                              Quote.ptyp_antiquotation _loc f)))))))));
          (((fun _ -> true)),
            (Earley_core.Earley.fsequence_ignore
               (Earley_core.Earley.string "'" "'")
@@ -2574,102 +2596,1752 @@ module Make(Initial:Extension) =
                                                   Exp.ident ~loc:_loc
                                                     (Location.mkloc
                                                        (Lident "_loc") _loc) in
-                                                let locate _loc e =
-                                                  quote_record e_loc _loc
-                                                    [((parsetree "ppat_desc"),
-                                                       e);
-                                                    ((parsetree "ppat_loc"),
-                                                      (quote_location_t e_loc
-                                                         _loc _loc));
-                                                    ((parsetree
-                                                        "ppat_attributes"),
-                                                      (quote_attributes e_loc
-                                                         _loc []))] in
-                                                let generic_antiquote e =
-                                                  function
-                                                  | Quote_ppat -> e
-                                                  | _ ->
-                                                      failwith
-                                                        ("invalid antiquotation type ppat expected at "
-                                                           ^
-                                                           (string_location
-                                                              _loc)) in
                                                 let f =
                                                   match aq with
                                                   | "pat" ->
-                                                      generic_antiquote e
+                                                      generic_antiquote
+                                                        Quote_ppat _loc e
                                                   | "bool" ->
-                                                      let e =
-                                                        quote_const e_loc
-                                                          _loc
-                                                          ((parsetree
-                                                              "Ppat_constant"),
-                                                            [quote_apply
-                                                               e_loc _loc
-                                                               ((pa_ast
-                                                                   "const_bool"),
-                                                                 [e])]) in
                                                       generic_antiquote
-                                                        (locate _loc e)
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "id";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ifthenelse
+                                                                    (e,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("true",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("false",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "id";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "id");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "id");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "None");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "int" ->
-                                                      let e =
-                                                        quote_const e_loc
-                                                          _loc
-                                                          ((parsetree
-                                                              "Ppat_constant"),
-                                                            [quote_apply
-                                                               e_loc _loc
-                                                               ((pa_ast
-                                                                   "const_int"),
-                                                                 [e])]) in
                                                       generic_antiquote
-                                                        (locate _loc e)
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "i";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "int"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "i");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "string" ->
-                                                      let e =
-                                                        quote_const e_loc
-                                                          _loc
-                                                          ((parsetree
-                                                              "Ppat_constant"),
-                                                            [quote_apply
-                                                               e_loc _loc
-                                                               ((pa_ast
-                                                                   "const_string"),
-                                                                 [e])]) in
                                                       generic_antiquote
-                                                        (locate _loc e)
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "s";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "string"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "s");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "list" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "pat_list"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             quote_location_t
-                                                               e_loc _loc
-                                                               _loc;
-                                                             e]))
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "n";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("[]",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "n";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "n");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "None");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "c";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_fun
+                                                                    (Asttypes.Nolabel,
+                                                                    None,
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "x";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_fun
+                                                                    (Asttypes.Nolabel,
+                                                                    None,
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "xs";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_open
+                                                                    (Asttypes.Fresh,
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "c";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("::",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "a";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Pat"),
+                                                                    "tuple"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "::");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_tuple
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "x");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "::");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_tuple
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "xs");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "[]");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }]);
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }]);
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Pat"),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "c");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "Some");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "a");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "List"),
+                                                                    "fold_right"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "c");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e);
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "n");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "tuple" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "pat_tuple"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "tuple"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "array" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "pat_array"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        Quote_ppat _loc
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Pat")),
+                                                                    "array"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | _ -> give_up () in
                                                 Quote.ppat_antiquotation _loc
                                                   f)))))))));
@@ -3410,7 +5082,9 @@ module Make(Initial:Extension) =
                     Parsetree.pexp_attributes = []
                   },
                    [(Asttypes.Nolabel, arr);
-                   (Asttypes.Nolabel, (Pa_ast.exp_array _loc coords))]));
+                   (Asttypes.Nolabel,
+                     ((let loc = _loc in
+                       Earley_helpers.Helper.Exp.array ~loc coords)))]));
             Parsetree.pexp_loc = _loc;
             Parsetree.pexp_attributes = []
           }
@@ -3511,7 +5185,9 @@ module Make(Initial:Extension) =
                     Parsetree.pexp_attributes = []
                   },
                    [(Asttypes.Nolabel, arr);
-                   (Asttypes.Nolabel, (Pa_ast.exp_array _loc coords));
+                   (Asttypes.Nolabel,
+                     ((let loc = _loc in
+                       Earley_helpers.Helper.Exp.array ~loc coords)));
                    (Asttypes.Nolabel, newval)]));
             Parsetree.pexp_loc = _loc;
             Parsetree.pexp_attributes = []
@@ -3935,17 +5611,11 @@ module Make(Initial:Extension) =
                                                 fun aq ->
                                                   fun dol ->
                                                     let open Quote in
-                                                      let generic_antiquote e
-                                                        =
-                                                        function
-                                                        | Quote_loc -> e
-                                                        | _ ->
-                                                            failwith
-                                                              "invalid antiquotation" in
                                                       let f =
                                                         match aq with
                                                         | "bindings" ->
                                                             generic_antiquote
+                                                              Quote_loc _loc
                                                               e
                                                         | _ -> give_up () in
                                                       make_list_antiquotation
@@ -5871,125 +7541,2422 @@ module Make(Initial:Extension) =
                                                     Exp.ident ~loc:_loc
                                                       (Location.mkloc
                                                          (Lident "_loc") _loc) in
-                                                  let locate _loc e =
-                                                    quote_record e_loc _loc
-                                                      [((parsetree
-                                                           "pexp_desc"), e);
-                                                      ((parsetree "pexp_loc"),
-                                                        (quote_location_t
-                                                           e_loc _loc _loc));
-                                                      ((parsetree
-                                                          "pexp_attributes"),
-                                                        (quote_attributes
-                                                           e_loc _loc []))] in
-                                                  let generic_antiquote e =
-                                                    function
-                                                    | Quote_pexp -> e
-                                                    | _ ->
-                                                        failwith
-                                                          "Bad antiquotation..." in
-                                                  let quote_loc _loc e =
-                                                    quote_record e_loc _loc
-                                                      [((Ldot
-                                                           ((Lident
-                                                               "Asttypes"),
-                                                             "txt")), e);
-                                                      ((Ldot
-                                                          ((Lident "Asttypes"),
-                                                            "loc")),
-                                                        (quote_location_t
-                                                           e_loc _loc _loc))] in
+                                                  let generic_antiquote =
+                                                    generic_antiquote
+                                                      Quote_pexp _loc in
                                                   match aq with
                                                   | "expr" ->
                                                       generic_antiquote e
                                                   | "longident" ->
-                                                      let e =
-                                                        quote_const e_loc
-                                                          _loc
-                                                          ((parsetree
-                                                              "Pexp_ident"),
-                                                            [quote_loc _loc e]) in
                                                       generic_antiquote
-                                                        (locate _loc e)
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "ident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e);
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "bool" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_bool"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "id";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ifthenelse
+                                                                    (e,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("true",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("false",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "id";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "id");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "id");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "None");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "int" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast "exp_int"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "i";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "int"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "i");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "float" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_float"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "f";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "string_of_float");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "f";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "float"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "f");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "f");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "string" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_string"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "s";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "string"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "s");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "char" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_char"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "c";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Const")),
+                                                                    "char"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "constant"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "c");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "list" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_list"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "n";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("[]",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "n";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "n");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "None");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "c";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_fun
+                                                                    (Asttypes.Nolabel,
+                                                                    None,
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "x";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_fun
+                                                                    (Asttypes.Nolabel,
+                                                                    None,
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "xs";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_open
+                                                                    (Asttypes.Fresh,
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "c";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Location"),
+                                                                    "mkloc"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Longident"),
+                                                                    "Lident"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_string
+                                                                    ("::",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "a";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Exp"),
+                                                                    "tuple"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "::");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_tuple
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "x");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "::");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_tuple
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "xs");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "[]");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    }, None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }]);
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }]);
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Exp"),
+                                                                    "construct"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "c");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_construct
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "Some");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    (Some
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "a");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "List"),
+                                                                    "fold_right"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "c");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e);
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "n");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "tuple" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_tuple"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_sequence
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_assert
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    ">");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "List"),
+                                                                    "length"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_constant
+                                                                    (Parsetree.Pconst_integer
+                                                                    ("1",
+                                                                    None)));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "tuple"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | "array" ->
                                                       generic_antiquote
-                                                        (quote_apply e_loc
-                                                           _loc
-                                                           ((pa_ast
-                                                               "exp_array"),
-                                                             [quote_location_t
-                                                                e_loc _loc
-                                                                _loc;
-                                                             e]))
+                                                        {
+                                                          Parsetree.pexp_desc
+                                                            =
+                                                            (Parsetree.Pexp_let
+                                                               (Asttypes.Nonrecursive,
+                                                                 [{
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_location_t
+                                                                    e_loc
+                                                                    _loc _loc);
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                  }],
+                                                                 {
+                                                                   Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Exp")),
+                                                                    "array"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                   Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                   Parsetree.pexp_attributes
+                                                                    = []
+                                                                 }));
+                                                          Parsetree.pexp_loc
+                                                            = _loc;
+                                                          Parsetree.pexp_attributes
+                                                            = []
+                                                        }
                                                   | _ -> give_up () in
                                               Quote.pexp_antiquotation _loc f)))))))));
          (((fun lvl -> lvl <= Atom)),
@@ -7588,39 +11555,329 @@ module Make(Initial:Extension) =
                                                 Exp.ident ~loc:_loc
                                                   (Location.mkloc
                                                      (Lident "_loc") _loc) in
-                                              quote_apply e_loc _loc
-                                                ((pa_ast "loc_str"),
-                                                  [quote_location_t e_loc
-                                                     _loc _loc;
-                                                  quote_const e_loc _loc
-                                                    ((parsetree
-                                                        "Pstr_include"),
-                                                      [quote_record e_loc
-                                                         _loc
-                                                         [((parsetree
-                                                              "pincl_loc"),
+                                              {
+                                                Parsetree.pexp_desc =
+                                                  (Parsetree.Pexp_let
+                                                     (Asttypes.Nonrecursive,
+                                                       [{
+                                                          Parsetree.pvb_pat =
+                                                            {
+                                                              Parsetree.ppat_desc
+                                                                =
+                                                                (Parsetree.Ppat_var
+                                                                   {
+                                                                    Asttypes.txt
+                                                                    = "loc";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                   });
+                                                              Parsetree.ppat_loc
+                                                                = _loc;
+                                                              Parsetree.ppat_attributes
+                                                                = []
+                                                            };
+                                                          Parsetree.pvb_expr
+                                                            =
                                                             (quote_location_t
                                                                e_loc _loc
-                                                               _loc));
-                                                         ((parsetree
-                                                             "pincl_attributes"),
-                                                           (quote_list
-                                                              quote_attribute
-                                                              e_loc _loc []));
-                                                         ((parsetree
-                                                             "pincl_mod"),
-                                                           (quote_apply e_loc
-                                                              _loc
-                                                              ((pa_ast
-                                                                  "mexpr_loc"),
-                                                                [quote_location_t
-                                                                   e_loc _loc
-                                                                   _loc;
-                                                                quote_const
-                                                                  e_loc _loc
-                                                                  ((parsetree
-                                                                    "Pmod_structure"),
-                                                                    [e])])))]])])
+                                                               _loc);
+                                                          Parsetree.pvb_attributes
+                                                            = [];
+                                                          Parsetree.pvb_loc =
+                                                            _loc
+                                                        }],
+                                                       {
+                                                         Parsetree.pexp_desc
+                                                           =
+                                                           (Parsetree.Pexp_let
+                                                              (Asttypes.Nonrecursive,
+                                                                [{
+                                                                   Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    = "attr";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                   Parsetree.pvb_expr
+                                                                    =
+                                                                    (quote_list
+                                                                    quote_attribute
+                                                                    e_loc
+                                                                    _loc []);
+                                                                   Parsetree.pvb_attributes
+                                                                    = [];
+                                                                   Parsetree.pvb_loc
+                                                                    = _loc
+                                                                 }],
+                                                                {
+                                                                  Parsetree.pexp_desc
+                                                                    =
+                                                                    (
+                                                                    Parsetree.Pexp_let
+                                                                    (Asttypes.Nonrecursive,
+                                                                    [
+                                                                    {
+                                                                    Parsetree.pvb_pat
+                                                                    =
+                                                                    {
+                                                                    Parsetree.ppat_desc
+                                                                    =
+                                                                    (Parsetree.Ppat_var
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    "pincl_mod";
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.ppat_loc
+                                                                    = _loc;
+                                                                    Parsetree.ppat_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_expr
+                                                                    =
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Mod")),
+                                                                    "structure"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    e)]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    };
+                                                                    Parsetree.pvb_attributes
+                                                                    = [];
+                                                                    Parsetree.pvb_loc
+                                                                    = _loc
+                                                                    }],
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_apply
+                                                                    ({
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Ldot
+                                                                    ((Longident.Lident
+                                                                    "Earley_helpers"),
+                                                                    "Helper")),
+                                                                    "Str")),
+                                                                    "include_"));
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    },
+                                                                    [
+                                                                    ((Asttypes.Labelled
+                                                                    "loc"),
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    (Asttypes.Nolabel,
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_open
+                                                                    (Asttypes.Fresh,
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "Parsetree");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_record
+                                                                    ([
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "pincl_loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "loc");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "pincl_attributes");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "attr");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    });
+                                                                    ({
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "pincl_mod");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    },
+                                                                    {
+                                                                    Parsetree.pexp_desc
+                                                                    =
+                                                                    (Parsetree.Pexp_ident
+                                                                    {
+                                                                    Asttypes.txt
+                                                                    =
+                                                                    (Longident.Lident
+                                                                    "pincl_mod");
+                                                                    Asttypes.loc
+                                                                    = _loc
+                                                                    });
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })],
+                                                                    None));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    })]));
+                                                                    Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                    Parsetree.pexp_attributes
+                                                                    = []
+                                                                    }));
+                                                                  Parsetree.pexp_loc
+                                                                    = _loc;
+                                                                  Parsetree.pexp_attributes
+                                                                    = []
+                                                                }));
+                                                         Parsetree.pexp_loc =
+                                                           _loc;
+                                                         Parsetree.pexp_attributes
+                                                           = []
+                                                       }));
+                                                Parsetree.pexp_loc = _loc;
+                                                Parsetree.pexp_attributes =
+                                                  []
+                                              }
                                           | _ ->
                                               failwith "Bad antiquotation..."))))));
            Earley_core.Earley.fsequence

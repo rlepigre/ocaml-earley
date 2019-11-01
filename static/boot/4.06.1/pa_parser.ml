@@ -1,4 +1,5 @@
 open Earley_core
+open Earley_helpers
 open Asttypes
 open Parsetree
 open Longident
@@ -930,7 +931,20 @@ let default_action _loc l =
              Parsetree.pexp_attributes = []
            }
        | _ -> assert false) l in
-  Pa_ast.exp_tuple _loc l
+  match l with
+  | [] ->
+      {
+        Parsetree.pexp_desc =
+          (Parsetree.Pexp_construct
+             ({ Asttypes.txt = (Longident.Lident "()"); Asttypes.loc = _loc },
+               None));
+        Parsetree.pexp_loc = _loc;
+        Parsetree.pexp_attributes = []
+      }
+  | e::[] -> e
+  | _ ->
+      let loc = _loc in
+      (assert ((List.length l) > 1); Earley_helpers.Helper.Exp.tuple ~loc l)
 let from_opt ov d = match ov with | None -> d | Some v -> v
 let dash =
   let fn str pos =
@@ -1461,7 +1475,22 @@ module Ext(In:Extension) =
                     Parsetree.pexp_loc = _loc;
                     Parsetree.pexp_attributes = []
                   } in
-            let args_pat = Pa_ast.pat_tuple _loc args in
+            let args_pat =
+              match args with
+              | [] ->
+                  {
+                    Parsetree.ppat_desc =
+                      (Parsetree.Ppat_construct
+                         ({
+                            Asttypes.txt = (Longident.Lident "()");
+                            Asttypes.loc = _loc
+                          }, None));
+                    Parsetree.ppat_loc = _loc;
+                    Parsetree.ppat_attributes = []
+                  }
+              | p::[] -> p
+              | _ ->
+                  let loc = _loc in Earley_helpers.Helper.Pat.tuple ~loc args in
             let (str1, str2) =
               match (args, prio) with
               | ([], None) ->
@@ -1493,7 +1522,12 @@ module Ext(In:Extension) =
                                              Parsetree.pexp_attributes = []
                                            },
                                             [(Asttypes.Nolabel,
-                                               (Pa_ast.exp_string _loc name))]));
+                                               ((let loc = _loc in
+                                                 let s =
+                                                   Earley_helpers.Helper.Const.string
+                                                     name in
+                                                 Earley_helpers.Helper.Exp.constant
+                                                   ~loc s)))]));
                                      Parsetree.pexp_loc = _loc;
                                      Parsetree.pexp_attributes = []
                                    };
@@ -1604,7 +1638,12 @@ module Ext(In:Extension) =
                                              Parsetree.pexp_attributes = []
                                            },
                                             [(Asttypes.Nolabel,
-                                               (Pa_ast.exp_string _loc name))]));
+                                               ((let loc = _loc in
+                                                 let s =
+                                                   Earley_helpers.Helper.Const.string
+                                                     name in
+                                                 Earley_helpers.Helper.Exp.constant
+                                                   ~loc s)))]));
                                      Parsetree.pexp_loc = _loc;
                                      Parsetree.pexp_attributes = []
                                    };
@@ -1706,7 +1745,12 @@ module Ext(In:Extension) =
                                              Parsetree.pexp_attributes = []
                                            },
                                             [(Asttypes.Nolabel,
-                                               (Pa_ast.exp_string _loc name))]));
+                                               ((let loc = _loc in
+                                                 let s =
+                                                   Earley_helpers.Helper.Const.string
+                                                     name in
+                                                 Earley_helpers.Helper.Exp.constant
+                                                   ~loc s)))]));
                                      Parsetree.pexp_loc = _loc;
                                      Parsetree.pexp_attributes = []
                                    };
@@ -1798,7 +1842,12 @@ module Ext(In:Extension) =
                                              Parsetree.pexp_attributes = []
                                            },
                                             [(Asttypes.Nolabel,
-                                               (Pa_ast.exp_string _loc name))]));
+                                               ((let loc = _loc in
+                                                 let s =
+                                                   Earley_helpers.Helper.Const.string
+                                                     name in
+                                                 Earley_helpers.Helper.Exp.constant
+                                                   ~loc s)))]));
                                      Parsetree.pexp_loc = _loc;
                                      Parsetree.pexp_attributes = []
                                    };
@@ -1860,6 +1909,25 @@ module Ext(In:Extension) =
                   let rec currify acc n =
                     function
                     | [] ->
+                        let acc =
+                          match List.rev acc with
+                          | [] ->
+                              {
+                                Parsetree.pexp_desc =
+                                  (Parsetree.Pexp_construct
+                                     ({
+                                        Asttypes.txt =
+                                          (Longident.Lident "()");
+                                        Asttypes.loc = _loc
+                                      }, None));
+                                Parsetree.pexp_loc = _loc;
+                                Parsetree.pexp_attributes = []
+                              }
+                          | e::[] -> e
+                          | l ->
+                              let loc = _loc in
+                              (assert ((List.length l) > 1);
+                               Earley_helpers.Helper.Exp.tuple ~loc l) in
                         (match prio with
                          | None ->
                              {
@@ -1875,10 +1943,7 @@ module Ext(In:Extension) =
                                             });
                                        Parsetree.pexp_loc = _loc;
                                        Parsetree.pexp_attributes = []
-                                     },
-                                      [(Asttypes.Nolabel,
-                                         (Pa_ast.exp_tuple _loc
-                                            (List.rev acc)))]));
+                                     }, [(Asttypes.Nolabel, acc)]));
                                Parsetree.pexp_loc = _loc;
                                Parsetree.pexp_attributes = []
                              }
@@ -1913,9 +1978,7 @@ module Ext(In:Extension) =
                                                 Parsetree.pexp_attributes =
                                                   []
                                               },
-                                               [(Asttypes.Nolabel,
-                                                  (Pa_ast.exp_tuple _loc
-                                                     (List.rev acc)));
+                                               [(Asttypes.Nolabel, acc);
                                                (Asttypes.Nolabel,
                                                  {
                                                    Parsetree.pexp_desc =
@@ -2274,7 +2337,10 @@ module Ext(In:Extension) =
                                 __loc__end__buf __loc__end__pos in
                             fun oe ->
                               fun c ->
-                                let e = Pa_ast.exp_char _loc c in
+                                let e =
+                                  let loc = _loc in
+                                  let c = Earley_helpers.Helper.Const.char c in
+                                  Earley_helpers.Helper.Exp.constant ~loc c in
                                 ((oe <> None),
                                   {
                                     Parsetree.pexp_desc =
@@ -2413,7 +2479,11 @@ module Ext(In:Extension) =
                               fun ((s, _) as _default_0) ->
                                 if (String.length s) = 0
                                 then Earley.give_up ();
-                                (let s = Pa_ast.exp_string _loc s in
+                                (let s =
+                                   let loc = _loc in
+                                   let s =
+                                     Earley_helpers.Helper.Const.string s in
+                                   Earley_helpers.Helper.Exp.constant ~loc s in
                                  let e = from_opt oe s in
                                  ((oe <> None),
                                    {
@@ -2544,8 +2614,12 @@ module Ext(In:Extension) =
                                                      = []
                                                  },
                                                   [((Asttypes.Labelled "name"),
-                                                     (Pa_ast.exp_string _loc
-                                                        id));
+                                                     ((let loc = _loc in
+                                                       let s =
+                                                         Earley_helpers.Helper.Const.string
+                                                           id in
+                                                       Earley_helpers.Helper.Exp.constant
+                                                         ~loc s)));
                                                   (Asttypes.Nolabel, e);
                                                   (Asttypes.Nolabel, act)]));
                                            Parsetree.pexp_loc = _loc;
@@ -2752,9 +2826,19 @@ module Ext(In:Extension) =
                                             Parsetree.pexp_attributes = []
                                           },
                                            [((Asttypes.Labelled "name"),
-                                              (Pa_ast.exp_string _loc es));
+                                              ((let loc = _loc in
+                                                let s =
+                                                  Earley_helpers.Helper.Const.string
+                                                    es in
+                                                Earley_helpers.Helper.Exp.constant
+                                                  ~loc s)));
                                            (Asttypes.Nolabel,
-                                             (Pa_ast.exp_string _loc s));
+                                             ((let loc = _loc in
+                                               let s =
+                                                 Earley_helpers.Helper.Const.string
+                                                   s in
+                                               Earley_helpers.Helper.Exp.constant
+                                                 ~loc s)));
                                            (Asttypes.Nolabel, act)]));
                                     Parsetree.pexp_loc = _loc;
                                     Parsetree.pexp_attributes = []
@@ -2794,9 +2878,19 @@ module Ext(In:Extension) =
                                             Parsetree.pexp_attributes = []
                                           },
                                            [((Asttypes.Labelled "name"),
-                                              (Pa_ast.exp_string _loc es));
+                                              ((let loc = _loc in
+                                                let s =
+                                                  Earley_helpers.Helper.Const.string
+                                                    es in
+                                                Earley_helpers.Helper.Exp.constant
+                                                  ~loc s)));
                                            (Asttypes.Nolabel,
-                                             (Pa_ast.exp_string _loc s))]));
+                                             ((let loc = _loc in
+                                               let s =
+                                                 Earley_helpers.Helper.Const.string
+                                                   s in
+                                               Earley_helpers.Helper.Exp.constant
+                                                 ~loc s)))]));
                                     Parsetree.pexp_loc = _loc;
                                     Parsetree.pexp_attributes = []
                                   } in
@@ -2864,14 +2958,9 @@ module Ext(In:Extension) =
                              __loc__end__buf __loc__end__pos in
                          fun id ->
                            (true,
-                             {
-                               Parsetree.pexp_desc =
-                                 (Parsetree.Pexp_ident
-                                    { Asttypes.txt = id; Asttypes.loc = _loc
-                                    });
-                               Parsetree.pexp_loc = _loc;
-                               Parsetree.pexp_attributes = []
-                             })))])
+                             (let loc = _loc in
+                              Earley_helpers.Helper.Exp.ident ~loc
+                                (Location.mkloc id loc)))))])
     let _ =
       Earley_core.Earley.set_grammar glr_opt_expr
         (Earley_core.Earley.option None
