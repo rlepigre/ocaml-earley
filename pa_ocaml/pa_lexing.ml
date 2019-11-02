@@ -46,6 +46,7 @@
 *)
 
 open Earley_core
+open Asttypes
 
 (****************************************************************************
  * OCaml comments.                                                          *
@@ -248,6 +249,26 @@ let sig_kw         = key_word "sig"
 let lazy_kw        = key_word "lazy"
 let parser_kw      = key_word "parser"
 let cached_kw      = key_word "cached"
+
+let parser mutable_flag =
+  | mutable_kw -> Mutable
+  | EMPTY      -> Immutable
+
+let parser private_flag =
+  | private_kw -> Private
+  | EMPTY      -> Public
+
+let parser virtual_flag =
+  | virtual_kw -> Virtual
+  | EMPTY      -> Concrete
+
+let parser rec_flag =
+  | rec_kw -> Recursive
+  | EMPTY  -> Nonrecursive
+
+let parser downto_flag =
+  | to_kw     -> Upto
+  | downto_kw -> Downto
 
 let no_keyword s =
   let len = String.length s in

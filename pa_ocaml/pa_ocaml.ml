@@ -47,19 +47,365 @@
 
 open Earley_core
 open Earley_helpers
-open Input
 open Earley
-open Charset
-open Ast_helper
 open Astextra
 open Asttypes
 open Parsetree
 open Longident
 open Pa_lexing
 open Helper
-include Pa_ocaml_prelude
+
+(** [lexing_position str pos] transforms an [Input.buffer] and position into a
+    lexing position (used in the OCaml parse tree). *)
+let lexing_position : Input.buffer -> int -> Lexing.position = fun buf pos ->
+  let pos_fname = Input.filename buf in
+  let pos_lnum  = Input.line_num buf in
+  let pos_bol   = Input.line_offset buf in
+  let pos_cnum  = pos_bol + pos in
+  Lexing.{pos_fname; pos_lnum; pos_cnum; pos_bol}
+
+(** [locate] is an Earley location function. *)
+let locate : Input.buffer -> int -> Input.buffer -> int -> Location.t =
+    fun buf1 pos1 buf2 pos2 ->
+  let loc_start = lexing_position buf1 pos1 in
+  let loc_end   = lexing_position buf2 pos2 in
+  Location.{loc_start; loc_end; loc_ghost = false}
 
 #define LOCATE locate
+
+(** Priority levels for expressions. *)
+module ExpPrio = struct
+  type t =
+    | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append | Cons | Sum | Prod
+    | Pow | Opp | App | Dash | Dot | Prefix | Atom
+
+  let to_string : t -> string = fun p ->
+    match p with
+    | Seq    -> "Seq"    | If   -> "If"   | Aff  -> "Aff"  | Tupl   -> "Tupl"
+    | Disj   -> "Disj"   | Conj -> "Conj" | Eq   -> "Eq"   | Append -> "Append"
+    | Cons   -> "Cons"   | Sum  -> "Sum"  | Prod -> "Prod" | Pow    -> "Pow"
+    | Opp    -> "Opp"    | App  -> "App"  | Dash -> "Dash" | Dot    -> "Dot"
+    | Prefix -> "Prefix" | Atom -> "Atom"
+
+  let next : t -> t = fun p ->
+    match p with
+    | Seq    -> If   | If   -> Aff  | Aff  -> Tupl   | Tupl   -> Disj
+    | Disj   -> Conj | Conj -> Eq   | Eq   -> Append | Append -> Cons
+    | Cons   -> Sum  | Sum  -> Prod | Prod -> Pow    | Pow    -> Opp
+    | Opp    -> App  | App  -> Dash | Dash -> Dot    | Dot    -> Prefix
+    | Prefix -> Atom | Atom -> Atom
+end
+
+module TypPrio = struct
+  type t = TopType | As | Arr | ProdType | DashType | AppType | AtomType
+
+  let to_string : t -> string = fun p ->
+    match p with
+    | TopType  -> "TopType"  | As       -> "As"       | Arr     -> "Arr"
+    | ProdType -> "ProdType" | DashType -> "DashType" | AppType -> "AppType"
+    | AtomType -> "AtomType"
+
+  let next : t -> t = fun p ->
+    match p with
+    | TopType  -> As       | As       -> Arr     | Arr     -> ProdType
+    | ProdType -> DashType | DashType -> AppType | AppType -> AtomType
+    | AtomType -> AtomType
+end
+
+module PatPrio = struct
+  type t = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
+
+  let top : t = AltPat
+
+  let to_string : t -> string = fun p ->
+    match p with
+    | AltPat    -> "AltPat"    | TupPat  -> "TupPat"  | ConsPat -> "ConsPat"
+    | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
+
+  let next : t -> t = fun p ->
+    match p with
+    | AltPat    -> TupPat  | TupPat  -> ConsPat | ConsPat -> ConstrPat
+    | ConstrPat -> AtomPat | AtomPat -> assert false (* ??? *)
+end
+
+open ExpPrio
+open TypPrio
+open PatPrio
+
+(****************************************************************************
+ * Gestion of attachment of ocamldoc comments                               *
+ ****************************************************************************)
+
+let debug_attach = ref false
+
+let mk_attrib loc txt contents =
+  let str = Const.string contents in
+  ({txt; loc = Location.none}, PStr [Str.eval ~loc (Exp.constant ~loc str)])
+
+
+let attach_attrib =
+  let tbl_s = Hashtbl.create 31 in
+  let tbl_e = Hashtbl.create 31 in
+  fun loc acc ->
+    let open Location in
+    let open Lexing in
+    if !debug_attach then Printf.eprintf "enter attach\n%!";
+    let rec fn acc res = function
+      | [] -> res
+
+      | (start,end_,contents,_ as c)::rest ->
+         let start' = loc.loc_start in
+         let lend = Input.line_num (fst end_) in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+         if !debug_attach then Printf.eprintf "start [%d,%d] [%d,...]\n%!"
+                        (Input.line_num (fst start)) lend start'.pos_lnum;
+         (** Attach comments before only if on the previous line*)
+         if start'.pos_lnum > lend && start'.pos_lnum - lend <= 1
+         then (
+           if !debug_attach then Printf.eprintf "attach backward %s\n%!" contents;
+           ocamldoc_comments := List.rev_append acc rest;
+           if contents <> "" then mk_attrib loc "ocaml.doc" contents::res else res)
+         else
+           fn (c::acc) res rest
+    in
+    let rec gn acc res = function
+      | [] -> List.rev res
+
+      | (start,end_,contents,lstart as c)::rest ->
+         let end' = loc.loc_end in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+         if !debug_attach then Printf.eprintf "end[%d,%d] [...,%d]\n%!"
+           lstart (Input.line_num (fst end_)) end'.pos_lnum;
+         if lstart >= end'.pos_lnum && lstart - end'.pos_lnum  <= 1
+         then (
+           if !debug_attach then Printf.eprintf "attach forward %s\n%!" contents;
+           ocamldoc_comments := List.rev_append rest acc;
+           if contents <> "" then mk_attrib loc "ocaml.doc" contents :: res else res)
+         else
+           gn (c::acc) res rest
+    in
+    (*    Printf.eprintf "attach_attrib [%d,%d]\n%!" loc.loc_start.pos_lnum  loc.loc_end.pos_lnum;*)
+    let l2 =
+      try Hashtbl.find tbl_e (loc.loc_start, loc.loc_end)
+      with Not_found ->
+        let res = gn [] [] (List.rev !ocamldoc_comments) in
+        Hashtbl.add tbl_e (loc.loc_start, loc.loc_end) res;
+        res
+    in
+    let l1 =
+      try Hashtbl.find tbl_s loc.loc_start
+      with Not_found ->
+        let res = fn [] [] !ocamldoc_comments in
+        Hashtbl.add tbl_s loc.loc_start res;
+        res
+    in
+    l1 @ acc @ l2
+
+let attach_gen build =
+  let tbl = Hashtbl.create 31 in
+  fun loc ->
+    let open Location in
+    let open Lexing in
+    let rec fn acc res = function
+      | [] -> ocamldoc_comments := List.rev acc; res
+
+      | (start,end_,contents,_ as c)::rest ->
+         let start' = loc.loc_start in
+         let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
+         if !debug_attach then Printf.eprintf "sig/str [%d,%d] [%d,...]\n%!"
+           (Input.line_num (fst start)) (Input.line_num (fst end_)) start'.pos_lnum;
+           if Input.line_num (fst end_) < start'.pos_lnum - 1 then
+             begin
+               if !debug_attach then
+                 Printf.eprintf "attach ocaml.text %s\n%!" contents;
+               fn acc (build loc (mk_attrib loc "ocaml.text" contents)
+                       :: res) rest
+             end
+         else
+           fn (c::acc) res rest
+    in
+    if !debug_attach then Printf.eprintf "enter attach sig/str [%d,...] %d\n%!"
+                     loc.loc_start.pos_lnum (List.length !ocamldoc_comments);
+    try Hashtbl.find tbl loc.loc_start
+    with Not_found ->
+      let res = fn [] [] !ocamldoc_comments in
+      Hashtbl.add tbl loc.loc_start res;
+      res
+
+let attach_sig =
+  attach_gen (fun loc a  -> Sig.attribute ~loc a)
+
+let attach_str =
+  attach_gen (fun loc a  -> Str.attribute ~loc a)
+
+(****** START OF OLD PA_OCAML_PRELUDE ******)
+
+(* Some references for the handling of command-line arguments. *)
+type entry = FromExt | Impl | Intf
+
+let entry : entry ref         = ref FromExt
+let fast  : bool ref          = ref false
+let file  : string option ref = ref None
+let ascii : bool ref          = ref false
+
+let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
+  let open Lexing in
+  Printf.fprintf ch "Position %d:%d to %d:%d%!"
+    s.pos_lnum (s.pos_cnum - s.pos_bol)
+    e.pos_lnum (e.pos_cnum - e.pos_bol)
+
+let string_location {Location.loc_start = s ; Location.loc_end = e} =
+  let open Lexing in
+  Printf.sprintf "Position %d:%d to %d:%d%!"
+    s.pos_lnum (s.pos_cnum - s.pos_bol)
+    e.pos_lnum (e.pos_cnum - e.pos_bol)
+
+(* OCaml grammar entry points. *)
+type entry_point =
+  | Implementation of Parsetree.structure_item list grammar * blank
+  | Interface      of Parsetree.signature_item list grammar * blank
+
+(* Initial parser module, starting point of the functorial interface. *)
+module Initial = struct
+
+(* Default command line arguments. *)
+let spec : (Arg.key * Arg.spec * Arg.doc) list =
+  [ ( "--ascii"
+    , Arg.Set ascii,
+      "Output ASCII text instead of serialized AST." )
+  ; ( "--impl"
+    , Arg.Unit (fun () -> entry := Impl)
+    , "Treat file as an implementation." )
+  ; ( "--intf"
+    , Arg.Unit (fun () -> entry := Intf)
+    , "Treat file as an interface." )
+  ; ( "--unsafe"
+    , Arg.Set fast
+    , "Use unsafe functions for arrays (more efficient)." )
+  ; ( "--position-from-parser"
+    , Arg.Set Quote.quote_parser_position
+    , "Report position from quotation in parser (for debugging quotations)." )
+  ; ( "--debug"
+    , Arg.Set_int Earley.debug_lvl
+    , "Sets the value of \"Earley.debug_lvl\"." )
+  ; ( "--debug-attach"
+    , Arg.Set debug_attach
+    , "Debug ocamldoc comments attachment." ) ]
+
+(* Function to be run before parsing. *)
+let before_parse_hook : unit -> unit = fun () -> ()
+
+type alm = NoMatch | Match | Let
+let allow_match : alm -> bool = fun alm -> alm = Match
+let allow_let   : alm -> bool = fun alm -> alm <> NoMatch
+
+let ((expression_lvl : alm * ExpPrio.t -> expression grammar), set_expression_lvl) =
+  let param_to_string (b, p) =
+    let base = match b with NoMatch -> "" | Match -> "m_" | Let -> "l_" in
+    base ^ ExpPrio.to_string p
+  in
+  grammar_family ~param_to_string "expression_lvl"
+let expression = expression_lvl (Match, Seq)
+let structure_item : structure_item list grammar =
+  declare_grammar "structure_item"
+let signature_item : signature_item list grammar =
+  declare_grammar "signature_item"
+let (parameter : bool -> [`Arg of arg_label * expression option * pattern
+                           | `Type of string Location.loc ]
+                             grammar), set_parameter =
+  grammar_family "parameter"
+
+let structure = structure_item
+
+let parser signature = l:signature_item* -> List.flatten l
+
+let (typexpr_lvl_raw : (bool * TypPrio.t) -> core_type grammar), set_typexpr_lvl =
+  let param_to_string (_, p) = TypPrio.to_string p in
+  grammar_prio ~param_to_string "typexpr_lvl"
+let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
+let typexpr_nopar = typexpr_lvl_raw (false, TopType)
+let typexpr = typexpr_lvl TopType
+let (pattern_lvl : bool * PatPrio.t -> pattern grammar), set_pattern_lvl =
+  let param_to_string (_, p) = PatPrio.to_string p in
+  grammar_prio ~param_to_string "pattern_lvl"
+let pattern : pattern grammar = pattern_lvl (true, PatPrio.top)
+
+let let_binding : value_binding list grammar = declare_grammar "let_binding"
+let class_body : class_structure grammar = declare_grammar "class_body"
+let class_expr : class_expr grammar = declare_grammar "class_expr"
+let value_path : Longident.t grammar = declare_grammar "value_path"
+let extra_expressions = ([] : (alm * ExpPrio.t -> expression grammar) list)
+let extra_prefix_expressions = ([] : (expression grammar) list)
+let extra_types = ([] : (TypPrio.t -> core_type grammar) list)
+let extra_patterns = ([] : (bool * PatPrio.t -> pattern grammar) list)
+let extra_structure = ([] : structure_item list grammar list)
+let extra_signature = ([] : signature_item list grammar list)
+
+type record_field = Longident.t Asttypes.loc * Parsetree.expression
+
+let constr_decl_list : constructor_declaration list grammar = declare_grammar "constr_decl_list"
+let field_decl_list : label_declaration list grammar = declare_grammar "field_decl_list"
+let record_list : record_field list grammar = declare_grammar "record_list"
+let match_cases : case list grammar = declare_grammar "match_cases"
+let module_expr : module_expr grammar = declare_grammar "module_expr"
+let module_type : module_type grammar = declare_grammar "module_type"
+
+let parse_string' g e' =
+  try parse_string g ocaml_blank e' with e ->
+    Printf.eprintf "Error in quotation: %s\n%!" e'; raise e
+
+(****************************************************************************
+ * Basic syntactic elements (identifiers and litterals)                      *
+ ****************************************************************************)
+let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
+
+let infix_symb_re prio =
+  match prio with
+  | Prod -> union_re ["[/%][!$%&*+./:<=>?@^|~-]*";
+                      "[*]\\([!$%&+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*\\)?";
+                        "mod\\b"; "land\\b"; "lor\\b"; "lxor\\b"]
+  | Sum -> "[+-][!$%&*+./:<=>?@^|~-]*"
+  | Append -> "[@^][!$%&*+./:<=>?@^|~-]*"
+  | Cons -> "::"
+  | Aff -> union_re [":=[!$%&*+./:<=>?@^|~-]*";
+                     "<-[!$%&*+./:<=>?@^|~-]*"]
+  | Eq -> union_re ["[<][!$%&*+./:<=>?@^|~]?[!$%&*+./:<=>?@^|~-]*";
+                    "[&][!$%*+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*";
+                    "|[!$%&*+./:<=>?@^~-][!$%&*+./:<=>?@^|~-]*";
+                    "[=>$][!$%&*+./:<=>?@^|~-]*"; "!="]
+  | Conj -> union_re ["[&][&][!$%&*+./:<=>?@^|~-]*"; "[&]"]
+  | Disj -> union_re ["or\\b"; "||[!$%&*+./:<=>?@^|~-]*"]
+  | Pow -> union_re ["lsl\\b"; "lsr\\b"; "asr\\b"; "[*][*][!$%&*+./:<=>?@^|~-]*"]
+  | _ -> assert false
+
+let infix_prios = [ Prod; Sum; Append; Cons; Aff; Eq; Conj; Disj; Pow]
+
+let prefix_symb_re prio =
+  match prio with
+  | Opp    -> union_re ["-[.]?"; "+[.]?"]
+  | Prefix -> union_re ["[!][!$%&*+./:<=>?@^|~-]*"; "[~?][!$%&*+./:<=>?@^|~-]+"]
+  | _      -> assert false
+
+let parser infix_symbol prio =
+  | "::"                                   when prio =  Cons -> "::"
+  | sym:RE(infix_symb_re prio) not_special when prio <> Cons ->
+      if is_reserved_symb sym then give_up (); sym
+
+let parser prefix_symbol prio = sym:RE(prefix_symb_re prio) not_special ->
+  if is_reserved_symb sym || sym = "!=" then give_up (); sym
+
+(****************************************************************************
+ * Several flags                                                            *
+ ****************************************************************************)
+
+let entry_points : (string * entry_point) list =
+   [ ".mli", Interface      (signature, ocaml_blank)
+   ;  ".ml", Implementation (structure, ocaml_blank) ]
+end
+
+module type Extension = module type of Initial
+
+(****** END OF OLD PA_OCAML_PRELUDE ******)
 
 let merge2 l1 l2 =
   let loc_start = l1.Location.loc_start and loc_end = l2.Location.loc_end in
@@ -293,14 +639,12 @@ let parser poly_typexpr =
        te
 
 let parser poly_syntax_typexpr =
-  | type_kw ids:{id:typeconstr_name -> Location.mkloc id _loc_id}+ '.' te:typexpr ->
-       (ids, te)
+  | _:type_kw ids:{id:typeconstr_name -> Location.mkloc id _loc_id}+
+    '.' te:typexpr
 
 let parser method_type =
-  | mn:method_name ':' pte:poly_typexpr ->
-       Otag(mn, [], pte)
-  | ty:(typexpr_lvl (next_type_prio DashType)) ->
-       Oinherit(ty)
+  | mn:method_name ':' pte:poly_typexpr      -> Otag(mn, [], pte)
+  | ty:(typexpr_lvl (TypPrio.next DashType)) -> Oinherit(ty)
 
 let parser tag_spec =
   | tn:tag_name te:{_:of_kw '&'? typexpr}? ->
@@ -389,15 +733,15 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
        when allow_par
     -> { te with ptyp_attributes = at }
 
-  | ln:ty_opt_label te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | ln:ty_opt_label te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc ln te te'
 
-  | ln:label_name ':' te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | ln:label_name ':' te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc (Labelled ln) te te'
 
-  | te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc Nolabel te te'
 
@@ -493,13 +837,13 @@ let parser constr_decl with_bar =
                in
                (Pcstr_tuple tes, None)
              | of_kw '{' fds:field_decl_list '}' -> (Pcstr_record fds, None)
-             | ':' tes:{te:(typexpr_lvl (next_type_prio ProdType))
-                        tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
-                        arrow_re -> (te::tes)}?[[]]
-                   te:(typexpr_lvl (next_type_prio Arr)) ->
+             | ':' tes:{te:(typexpr_lvl (TypPrio.next ProdType))
+                        tes:{_:'*' (typexpr_lvl (TypPrio.next ProdType))}*
+                        "->" -> (te::tes)}?[[]]
+                   te:(typexpr_lvl (TypPrio.next Arr)) ->
                 (Pcstr_tuple tes, Some te)
-             | ':' '{' fds:field_decl_list '}' arrow_re
-                   te:(typexpr_lvl (next_type_prio Arr)) ->
+             | ':' '{' fds:field_decl_list '}' "->"
+                   te:(typexpr_lvl (TypPrio.next Arr)) ->
                 (Pcstr_record fds, Some te)
              } a:post_item_attributes
         -> let name = Location.mkloc cn _loc_cn in
@@ -830,14 +1174,14 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
       end
 
   | p :(pattern_lvl (true , AltPat)) '|'
-    p':(pattern_lvl (false, next_pat_prio AltPat)) when lvl <= AltPat ->
+    p':(pattern_lvl (false, PatPrio.next AltPat)) when lvl <= AltPat ->
       Pat.or_ ~loc:_loc p p'
 
-  | ps:{ (pattern_lvl (true , next_pat_prio TupPat)) _:','}+
-       p:(pattern_lvl (false, next_pat_prio TupPat)) when lvl <= TupPat ->
+  | ps:{ (pattern_lvl (true , PatPrio.next TupPat)) _:','}+
+       p:(pattern_lvl (false, PatPrio.next TupPat)) when lvl <= TupPat ->
       Pat.tuple ~loc:_loc (ps @ [p])
 
-  | p :(pattern_lvl (true , next_pat_prio ConsPat)) c:"::"
+  | p :(pattern_lvl (true , PatPrio.next ConsPat)) c:"::"
     p':(pattern_lvl (false, ConsPat)) when lvl <= ConsPat ->
       let cons = Location.mkloc (Lident "::") _loc_c in
       let args = Pat.tuple ~loc:(ghost _loc) [p; p'] in
@@ -981,13 +1325,13 @@ let parser constructor =
 let parser argument =
   | '~' id:lident no_colon ->
         (Labelled id, Exp.ident ~loc:_loc_id (Location.mkloc (Lident id) _loc_id))
-  | id:ty_label e:(expression_lvl (NoMatch ,next_exp App)) ->
+  | id:ty_label e:(expression_lvl (NoMatch ,ExpPrio.next App)) ->
        (id, e)
   | '?' id:lident ->
        (Optional id, Exp.ident ~loc:_loc_id (Location.mkloc (Lident id) _loc_id))
-  | id:ty_opt_label e:(expression_lvl (NoMatch, next_exp App)) ->
+  | id:ty_opt_label e:(expression_lvl (NoMatch, ExpPrio.next App)) ->
        (id, e)
-  | e:(expression_lvl (NoMatch, next_exp App)) ->
+  | e:(expression_lvl (NoMatch, ExpPrio.next App)) ->
        (Nolabel, e)
 
 let _ = set_parameter (fun allow_new_type ->
@@ -1109,7 +1453,7 @@ let _ = set_grammar let_binding (
   )
 
 let parser match_case alm lvl =
-  | pat:pattern  guard:{_:when_kw expression}? arrow_re
+  | pat:pattern  guard:{_:when_kw expression}? "->"
       e:{(expression_lvl (alm, lvl)) | "." -> Exp.unreachable ~loc:_loc ()} ->
   Exp.case pat ?guard e
 
@@ -1126,20 +1470,20 @@ let parser type_coercion =
   | STR(":>") t':typexpr -> (None, Some t')
 
 let parser expression_list =
-  | l:{ e:(expression_lvl (NoMatch, next_exp Seq)) _:semi_col -> (e, _loc_e)}*
-    e:(expression_lvl (Match, next_exp Seq)) semi_col? ->
+  | l:{ e:(expression_lvl (NoMatch, ExpPrio.next Seq)) _:semi_col -> (e, _loc_e)}*
+    e:(expression_lvl (Match, ExpPrio.next Seq)) semi_col? ->
       l @ [e,_loc_e]
   | EMPTY -> []
 
 let parser record_item =
-  | f:field '=' e:(expression_lvl (NoMatch, next_exp Seq)) ->
+  | f:field '=' e:(expression_lvl (NoMatch, ExpPrio.next Seq)) ->
       (Location.mkloc f _loc_f, e)
   | f:lident ->
       let id = Location.mkloc (Lident f) _loc_f in
       (id, Exp.ident ~loc:_loc_f id)
 
 let parser last_record_item =
-  | f:field '=' e:(expression_lvl (Match, next_exp Seq)) ->
+  | f:field '=' e:(expression_lvl (Match, ExpPrio.next Seq)) ->
       (Location.mkloc f _loc_f,e)
   | f:lident ->
       let id = Location.mkloc (Lident f) _loc_f in
@@ -1157,7 +1501,7 @@ let _ = set_grammar record_list (
  ****************************************************************************)
 
 let parser obj_item =
-  | v:inst_var_name CHR('=') e:(expression_lvl (Match, next_exp Seq)) (* FIXME match always allowed ?*)
+  | v:inst_var_name CHR('=') e:(expression_lvl (Match, ExpPrio.next Seq)) (* FIXME match always allowed ?*)
      -> (Location.mkloc v _loc_v, e)
 
 (* Class expression *)
@@ -1173,7 +1517,7 @@ let parser class_expr_base =
       Cl.mk ~loc:_loc ce.pcl_desc
   | STR("(") ce:class_expr STR(":") ct:class_type STR(")") ->
       Cl.constraint_ ~loc:_loc ce ct
-  | fun_kw ps:{p:(parameter false) -> (p, _loc)}+ arrow_re ce:class_expr ->
+  | fun_kw ps:{p:(parameter false) -> (p, _loc)}+ "->" ce:class_expr ->
       apply_params_cls _loc ps ce
   | let_kw r:rec_flag lbs:let_binding in_kw ce:class_expr ->
       Cl.let_ ~loc:_loc r lbs ce
@@ -1303,7 +1647,7 @@ let parser extra_expressions_grammar c =
 let structure_item_simple = declare_grammar "structure_item_simple"
 
 let parser left_expr @(alm,lvl) =
-  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re
+  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* "->"
     when allow_let alm && lvl < App ->
       (Seq, false, (fun e (_loc,_) -> Exp.mk ~loc:_loc (apply_params _loc l e).pexp_desc))
 
@@ -1332,20 +1676,20 @@ let parser left_expr @(alm,lvl) =
     } _:in_kw when allow_let alm && lvl < App
     -> (Seq, false, f)
 
-  | if_kw c:expression then_kw e:(expression_lvl (Match, next_exp Seq)) else_kw
+  | if_kw c:expression then_kw e:(expression_lvl (Match, ExpPrio.next Seq)) else_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, false, (fun e' (_loc,_) -> <:expr< if $c$ then $e$ else $e'$>>))
+    -> (ExpPrio.next Seq, false, (fun e' (_loc,_) -> <:expr< if $c$ then $e$ else $e'$>>))
 
   | if_kw c:expression then_kw
        when (allow_let alm || lvl = If) && lvl < App
-    -> (next_exp Seq, true, (fun e (_loc,_) ->  <:expr< if $c$ then $e$>>))
+    -> (ExpPrio.next Seq, true, (fun e (_loc,_) ->  <:expr< if $c$ then $e$>>))
 
-  | ls:{(expression_lvl (NoMatch, next_exp Seq)) _:semi_col }+ when lvl <= Seq ->
-       (next_exp Seq, false, (fun e' (_,_l) ->
+  | ls:{(expression_lvl (NoMatch, ExpPrio.next Seq)) _:semi_col }+ when lvl <= Seq ->
+       (ExpPrio.next Seq, false, (fun e' (_,_l) ->
         mk_seq _l e' ls))
 
   | v:inst_var_name STR("<-") when lvl <= Aff
-    -> (next_exp Aff, false, (fun e (_l,_) ->
+    -> (ExpPrio.next Aff, false, (fun e (_l,_) ->
           Exp.setinstvar ~loc:_l (Location.mkloc v _loc_v) e))
 
   | e':(expression_lvl (NoMatch, Dot)) '.'
@@ -1369,17 +1713,17 @@ let parser left_expr @(alm,lvl) =
 
         } "<-"
       when lvl <= Aff
-    -> (next_exp Aff, false, f e')
+    -> (ExpPrio.next Aff, false, f e')
 
-  | l:{(expression_lvl (NoMatch, next_exp Tupl)) _:',' }+
+  | l:{(expression_lvl (NoMatch, ExpPrio.next Tupl)) _:',' }+
       when lvl <= Tupl ->
-       (next_exp Tupl, false, (fun e' (_l,_) -> Exp.tuple ~loc:_l (l@[e'])))
+       (ExpPrio.next Tupl, false, (fun e' (_l,_) -> Exp.tuple ~loc:_l (l@[e'])))
 
   | assert_kw when lvl <= App ->
-      (next_exp App, false, (fun e (_l,_) -> Exp.assert_ ~loc:_l e))
+      (ExpPrio.next App, false, (fun e (_l,_) -> Exp.assert_ ~loc:_l e))
 
   | lazy_kw when lvl <= App ->
-      (next_exp App, false, (fun e (_l,_) -> Exp.lazy_ ~loc:_l e))
+      (ExpPrio.next App, false, (fun e (_l,_) -> Exp.lazy_ ~loc:_l e))
 
   | (prefix_expr Opp) when lvl <= Opp
   | (prefix_expr Prefix) when lvl <= Prefix
@@ -1401,18 +1745,18 @@ and infix_expr lvl =
   if assoc lvl = Left then
     parser
       e':(expression_lvl (NoMatch, lvl)) op:(infix_symbol lvl) ->
-         (next_exp lvl, false,
+         (ExpPrio.next lvl, false,
           fun e (_l,_) -> mk_binary_op _l e' op _loc_op e)
          else if assoc lvl = NoAssoc then
     parser
-      e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl) ->
-         (next_exp lvl, false,
+      e':(expression_lvl (NoMatch, ExpPrio.next lvl)) op:(infix_symbol lvl) ->
+         (ExpPrio.next lvl, false,
           fun e (_l,_) -> mk_binary_op _l e' op _loc_op e)
   else
     parser
-      ls:{e':(expression_lvl (NoMatch, next_exp lvl)) op:(infix_symbol lvl)
+      ls:{e':(expression_lvl (NoMatch, ExpPrio.next lvl)) op:(infix_symbol lvl)
              -> (_loc,e',op,_loc_op) }+ ->
-         (next_exp lvl, false,
+         (ExpPrio.next lvl, false,
           fun e (_l,_) ->
           List.fold_right
             (fun (_loc_e,e',op,_loc_op) acc
@@ -1477,7 +1821,7 @@ let parser right_expression @lvl =
            Exp.construct ~loc:_loc cunit None
       end
 
-  | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl <= App ->
+  | f:(expression_lvl (NoMatch, ExpPrio.next App)) l:argument+ when lvl <= App ->
       begin
         match (f.pexp_desc, l) with
         | (Pexp_construct(c,None), [Nolabel, a]) ->
@@ -1552,9 +1896,9 @@ let parser right_expression @lvl =
   | '$' - c:uident when lvl <= Atom ->
       begin
         match c with
-        | "FILE" -> let str = (start_pos _loc).Lexing.pos_fname in
+        | "FILE" -> let str = (_loc.loc_start).Lexing.pos_fname in
                     Exp.constant ~loc:_loc (Const.string str)
-        | "LINE" -> let i = (start_pos _loc).Lexing.pos_lnum in
+        | "LINE" -> let i = (_loc.loc_start).Lexing.pos_lnum in
                     Exp.constant ~loc:_loc (Const.int i)
         | _      ->
             try
@@ -1693,7 +2037,7 @@ let parser semicol @(alm, lvl) =
 
 let parser noelse @b =
   | no_else when b
-  | EMPTY when not b
+  | EMPTY   when not b
 
 let parser debut lvl alm = s:(left_expr (alm,lvl)) ->
   let (lvl0, no_else, f) = s in
@@ -1708,17 +2052,10 @@ let parser suit lvl alm (lvl0,no_else) =
         f e (_l, _loc_c)
 
 let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
-
   | e:(extra_expressions_grammar c) (semicol (alm,lvl)) -> e
-
   | (Earley.dependent_sequence (debut lvl alm) (suit lvl alm))
-
   | r:(right_expression lvl) (semicol (alm,lvl)) -> r
-
-  | r:prefix_expression (semicol (alm,lvl)) when allow_match alm -> r
-  )
-
-
+  | r:prefix_expression (semicol (alm,lvl)) when allow_match alm -> r )
 
 (****************************************************************************
  * Module expressions (module implementations)                              *
@@ -1731,7 +2068,7 @@ let parser module_expr_base =
     {end_kw ->  pop_comments ()} ->
       Mod.structure ~loc:_loc ms
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
-    arrow_re me:module_expr ->
+    "->" me:module_expr ->
       Mod.functor_ ~loc:_loc mn mt me
   | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
       begin
@@ -1746,7 +2083,6 @@ let parser module_expr_base =
         | Some pt -> Exp.constraint_ ~loc:(ghost _loc) e pt
       in
       Mod.unpack ~loc:_loc e
-(*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_expr (start_pos _loc_dol).Lexing.pos_cnum e*)
 
 let _ = set_grammar module_expr (
   parser m:module_expr_base l:{'(' m:module_expr ')' -> (_loc, m)}* ->
@@ -1761,12 +2097,11 @@ let parser module_type_base =
     {end_kw -> pop_comments () } ->
       Mty.signature ~loc:_loc ms
   | functor_kw '(' mn:module_name mt:{':' mt:module_type}? ')'
-    arrow_re me:module_type no_with ->
+    "->" me:module_type no_with ->
       Mty.functor_ ~loc:_loc mn mt me
   | '(' module_type ')'
   | module_kw type_kw of_kw me:module_expr ->
       Mty.typeof_ ~loc:_loc me
-(*  | dol:CHR('$') - e:(expression_lvl App) - CHR('$') -> push_pop_module_type (start_pos _loc_dol).Lexing.pos_cnum e*)
 
 let parser mod_constraint =
   | t:type_kw tf:typedef_in_constraint ->

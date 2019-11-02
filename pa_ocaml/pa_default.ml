@@ -47,7 +47,7 @@
 
 open Earley_ocaml
 
-module ParserExt = Pa_parser.Ext(Pa_ocaml_prelude.Initial)
+module ParserExt = Pa_parser.Ext(Pa_ocaml.Initial)
 module Default = Pa_ocaml.Make(ParserExt)
 
 module M = Pa_main.Start(Default)
