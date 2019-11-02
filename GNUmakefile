@@ -36,20 +36,18 @@ boot: all
 	@rm -rf tmp_boot
 	@mkdir tmp_boot
 	@# Preprocess the [pa_*] files.
-	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_default.ml \
-		> tmp_boot/pa_default.ml
+	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/main.ml \
+		> tmp_boot/main.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_lexing.ml \
 		> tmp_boot/pa_lexing.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_main.ml \
 		> tmp_boot/pa_main.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_ocaml.ml \
 		> tmp_boot/pa_ocaml.ml
-	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_ocaml_prelude.ml \
-		> tmp_boot/pa_ocaml_prelude.ml
 	@_build/install/default/bin/pa_ocaml --ascii pa_ocaml/pa_parser.ml \
 		> tmp_boot/pa_parser.ml
-	@# Erase [open Earley_ocaml] from [tmp_boot/pa_default.ml]
-	@sed -i 's/open Earley_ocaml//g' tmp_boot/pa_default.ml
+	@# Erase [open Earley_ocaml] from [tmp_boot/main.ml]
+	@sed -i 's/open Earley_ocaml//g' tmp_boot/main.ml
 	@# Generate [quote.ml].
 	@_build/install/default/bin/pa_ocaml --ascii static/tools/generic_quote.ml \
 		> tmp_boot/quote.ml

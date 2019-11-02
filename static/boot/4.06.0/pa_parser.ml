@@ -3,7 +3,7 @@ open Earley_helpers
 open Asttypes
 open Parsetree
 open Longident
-open Pa_ocaml_prelude
+open Pa_ocaml
 open Pa_lexing
 open Helper
 type action =
@@ -958,7 +958,7 @@ let dash =
 module Ext(In:Extension) =
   struct
     include In
-    let expr_arg = expression_lvl (NoMatch, (next_exp App))
+    let expr_arg = expression_lvl (NoMatch, (ExpPrio.next App))
     let build_rule (_loc, occur_loc, def, l, condition, action) =
       let (iter, action) =
         match action with
@@ -3087,13 +3087,13 @@ module Ext(In:Extension) =
                   (Earley_core.Earley.empty
                      (fun r ->
                         let (a, b, c) = build_rule r in DepSeq (a, b, c))));
-             Earley_core.Earley.fsequence arrow_re
+             Earley_core.Earley.fsequence_ignore
+               (Earley_core.Earley.string "->" "->")
                (Earley_core.Earley.fsequence
                   (if alm then expression else expression_lvl (Let, Seq))
                   (Earley_core.Earley.fsequence no_semi
                      (Earley_core.Earley.empty
-                        (fun _default_0 ->
-                           fun action -> fun _default_1 -> Normal action))))])
+                        (fun _default_0 -> fun action -> Normal action))))])
     let _ =
       glr_rule__set__grammar
         (fun alm ->
@@ -3291,7 +3291,8 @@ module Ext(In:Extension) =
                    (Earley_core.Earley.fsequence_ignore
                       (Earley_core.Earley.char '@' '@')
                       (Earley_core.Earley.fsequence pattern
-                         (Earley_core.Earley.fsequence_ignore arrow_re
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string "->" "->")
                             (Earley_core.Earley.fsequence_ignore parser_kw
                                (Earley_core.Earley.empty
                                   (fun prio ->
@@ -3307,7 +3308,8 @@ module Ext(In:Extension) =
                   (Earley_core.Earley.fsequence_ignore
                      (Earley_core.Earley.char '@' '@')
                      (Earley_core.Earley.fsequence pattern
-                        (Earley_core.Earley.fsequence_ignore arrow_re
+                        (Earley_core.Earley.fsequence_ignore
+                           (Earley_core.Earley.string "->" "->")
                            (Earley_core.Earley.fsequence_ignore parser_kw
                               (Earley_core.Earley.empty
                                  (fun prio -> fun args -> (args, (Some prio)))))))))])

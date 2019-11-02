@@ -1,4 +1,5 @@
 open Earley_core
+open Asttypes
 exception Unclosed_comment of bool * Input.buffer * int 
 let unclosed_comment : type a. (Input.buffer * int) -> a =
   fun (buf, pos) -> raise (Unclosed_comment (false, buf, pos))
@@ -152,6 +153,46 @@ let sig_kw = key_word "sig"
 let lazy_kw = key_word "lazy"
 let parser_kw = key_word "parser"
 let cached_kw = key_word "cached"
+let mutable_flag = Earley_core.Earley.declare_grammar "mutable_flag"
+let _ =
+  Earley_core.Earley.set_grammar mutable_flag
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+          (Earley_core.Earley.empty Immutable);
+       Earley_core.Earley.fsequence mutable_kw
+         (Earley_core.Earley.empty (fun _default_0 -> Mutable))])
+let private_flag = Earley_core.Earley.declare_grammar "private_flag"
+let _ =
+  Earley_core.Earley.set_grammar private_flag
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+          (Earley_core.Earley.empty Public);
+       Earley_core.Earley.fsequence private_kw
+         (Earley_core.Earley.empty (fun _default_0 -> Private))])
+let virtual_flag = Earley_core.Earley.declare_grammar "virtual_flag"
+let _ =
+  Earley_core.Earley.set_grammar virtual_flag
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+          (Earley_core.Earley.empty Concrete);
+       Earley_core.Earley.fsequence virtual_kw
+         (Earley_core.Earley.empty (fun _default_0 -> Virtual))])
+let rec_flag = Earley_core.Earley.declare_grammar "rec_flag"
+let _ =
+  Earley_core.Earley.set_grammar rec_flag
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+          (Earley_core.Earley.empty Nonrecursive);
+       Earley_core.Earley.fsequence rec_kw
+         (Earley_core.Earley.empty (fun _default_0 -> Recursive))])
+let downto_flag = Earley_core.Earley.declare_grammar "downto_flag"
+let _ =
+  Earley_core.Earley.set_grammar downto_flag
+    (Earley_core.Earley.alternatives
+       [Earley_core.Earley.fsequence downto_kw
+          (Earley_core.Earley.empty (fun _default_0 -> Downto));
+       Earley_core.Earley.fsequence to_kw
+         (Earley_core.Earley.empty (fun _default_0 -> Upto))])
 let no_keyword s =
   let len = String.length s in
   let rec fn i buf pos =

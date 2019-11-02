@@ -2,17 +2,17 @@
   (name earley_ocaml)
   (public_name earley.ocaml)
   (synopsis "Extensible OCaml parser library using Earley")
-  (modules :standard \ pa_default)
+  (modules :standard \ main)
   (preprocess (action (run pa_ocaml.boot %{input-file})))
   (libraries
     compiler-libs.common
     earley.core earley.str earley.helpers))
 
 (executable
-  (name pa_default)
+  (name main)
   (public_name pa_ocaml)
   (package earley)
-  (modules pa_default)
+  (modules main)
   (libraries
     compiler-libs.common
     earley.core earley.str earley.ocaml earley.helpers))

@@ -1,9 +1,8 @@
+[@@@ocaml.text " Standard entry point for a parser. "]
 open Earley_core
-open Pa_ocaml_prelude
 open Pa_ocaml
 open Input
 open Earley
-open Format
 open Pa_lexing
 let define_directive =
   Str.regexp "[ \t]*define[ \t]*\\([^ \t]*\\)[ \t]*\\([^ \n\t\r]*\\)[ \t]*"
@@ -113,56 +112,57 @@ module OCamlPP : Preprocessor =
     let check_final st name =
       match st with | [] -> () | _ -> pp_error name "unclosed conditionals"
   end 
-module PP = (Earley.WithPP)(OCamlPP)
+[@@@ocaml.text " Our preprocessor with \"ifdef\"-like directives. "]
 module Start(Main:Extension) =
   struct
     let _ =
-      let anon_fun s = file := (Some s) in
-      let usage = Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)) in
+      let anon_fun s =
+        match !file with
+        | None -> file := (Some s)
+        | Some _ -> raise (Arg.Bad "more than one file was given") in
+      let usage = Printf.sprintf "Usage: %s [OPTION]* FILE" (Sys.argv.(0)) in
       Arg.parse Main.spec anon_fun usage
     let _ = Main.before_parse_hook ()
     let entry =
       match ((!entry), (!file)) with
-      | (FromExt, Some s) ->
-          let rec fn =
-            function
-            | (ext, res)::l ->
-                if Filename.check_suffix s ext then res else fn l
-            | [] ->
-                (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
-          fn Main.entry_points
-      | (FromExt, None) -> Implementation (Main.structure, ocaml_blank)
       | (Intf, _) -> Interface (Main.signature, ocaml_blank)
       | (Impl, _) -> Implementation (Main.structure, ocaml_blank)
+      | (FromExt, None) -> Implementation (Main.structure, ocaml_blank)
+      | (FromExt, Some s) ->
+          let rec fn l =
+            match l with
+            | (ext, p)::l when Filename.check_suffix s ext -> p
+            | (_, _)::l -> fn l
+            | [] ->
+                (Printf.eprintf "I don't know what to do with [%s]...\n%!" s;
+                 exit 1) in
+          fn Main.entry_points
+    module PP = (Earley.WithPP)(OCamlPP)
     let ast =
       let (filename, ch) =
         match !file with
         | None -> ("stdin", stdin)
-        | Some name -> (name, (open_in name)) in
+        | Some file -> (file, (open_in file)) in
       let run () =
         match entry with
-        | Implementation (g, blank) ->
-            `Struct (PP.parse_channel ~filename g blank ch)
-        | Interface (g, blank) ->
-            `Sig (PP.parse_channel ~filename g blank ch) in
+        | Implementation (g, bl) -> `Imp (PP.parse_channel ~filename g bl ch)
+        | Interface (g, bl) -> `Sig (PP.parse_channel ~filename g bl ch) in
       Earley.handle_exception run ()
     let _ =
       if !ascii
       then
-        ((match ast with
-          | `Struct ast -> Pprintast.structure Format.std_formatter ast
-          | `Sig ast -> Pprintast.signature Format.std_formatter ast);
-         Format.print_newline ())
+        match ast with
+        | `Imp ast -> Format.printf "%a\n%!" Pprintast.structure ast
+        | `Sig ast -> Format.printf "%a\n%!" Pprintast.signature ast
       else
         (let magic =
            match ast with
-           | `Struct _ -> Config.ast_impl_magic_number
+           | `Imp _ -> Config.ast_impl_magic_number
            | `Sig _ -> Config.ast_intf_magic_number in
          output_string stdout magic;
          output_value stdout
            (match !file with | None -> "" | Some name -> name);
          (match ast with
-          | `Struct ast -> output_value stdout ast
-          | `Sig ast -> output_value stdout ast);
-         close_out stdout)
+          | `Imp ast -> (output_value stdout ast; close_out stdout)
+          | `Sig ast -> (output_value stdout ast; close_out stdout)))
   end
