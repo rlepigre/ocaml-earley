@@ -73,6 +73,45 @@ let locate : Input.buffer -> int -> Input.buffer -> int -> Location.t =
 
 #define LOCATE locate
 
+(** Type representing the parsing mode. *)
+type entry =
+  | FromExt (** Proceed according to the extension.        *)
+  | Impl    (** Treat the input file as an implementation. *)
+  | Intf    (** Treat the input file as an interface.      *)
+
+(** [entry] is the current parsing mode. *)
+let entry : entry ref = ref FromExt
+
+(** [file] is the name of the file being parsed (not set in this file). *)
+let file  : string option ref = ref None
+
+(** [ascii] if true, parsing is ASCII, and binary otherwise. *)
+let ascii : bool ref = ref false
+
+(** [debug_attributes] enables debuging mode for attribute attachement. *)
+let debug_attributes = ref false
+
+(** [initial_spec] is the default (minimal) command line argument config. *)
+let initial_spec : (Arg.key * Arg.spec * Arg.doc) list =
+  [ ( "--ascii"
+    , Arg.Set ascii
+    , "Output ASCII text instead of serialized AST." )
+  ; ( "--impl"
+    , Arg.Unit (fun () -> entry := Impl)
+    , "Treat file as an implementation." )
+  ; ( "--intf"
+    , Arg.Unit (fun () -> entry := Intf)
+    , "Treat file as an interface." )
+  ; ( "--debug"
+    , Arg.Set_int Earley.debug_lvl
+    , "Sets the value of \"Earley.debug_lvl\"." )
+  ; ( "--debug-quotations"
+    , Arg.Set Quote.quote_parser_position
+    , "Report position from quotation in parser (for debugging quotations)." )
+  ; ( "--debug-attributes"
+    , Arg.Set debug_attributes
+    , "Debug ocamldoc comments attachment." ) ]
+
 (** Priority levels for expressions. *)
 module ExpPrio = struct
   type t =
@@ -136,8 +175,6 @@ open PatPrio
  * Gestion of attachment of ocamldoc comments                               *
  ****************************************************************************)
 
-let debug_attach = ref false
-
 let mk_attrib loc txt contents =
   let str = Const.string contents in
   ({txt; loc = Location.none}, PStr [Str.eval ~loc (Exp.constant ~loc str)])
@@ -149,7 +186,7 @@ let attach_attrib =
   fun loc acc ->
     let open Location in
     let open Lexing in
-    if !debug_attach then Printf.eprintf "enter attach\n%!";
+    if !debug_attributes then Printf.eprintf "enter attach\n%!";
     let rec fn acc res = function
       | [] -> res
 
@@ -157,12 +194,12 @@ let attach_attrib =
          let start' = loc.loc_start in
          let lend = Input.line_num (fst end_) in
          let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-         if !debug_attach then Printf.eprintf "start [%d,%d] [%d,...]\n%!"
+         if !debug_attributes then Printf.eprintf "start [%d,%d] [%d,...]\n%!"
                         (Input.line_num (fst start)) lend start'.pos_lnum;
          (** Attach comments before only if on the previous line*)
          if start'.pos_lnum > lend && start'.pos_lnum - lend <= 1
          then (
-           if !debug_attach then Printf.eprintf "attach backward %s\n%!" contents;
+           if !debug_attributes then Printf.eprintf "attach backward %s\n%!" contents;
            ocamldoc_comments := List.rev_append acc rest;
            if contents <> "" then mk_attrib loc "ocaml.doc" contents::res else res)
          else
@@ -174,11 +211,11 @@ let attach_attrib =
       | (start,end_,contents,lstart as c)::rest ->
          let end' = loc.loc_end in
          let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-         if !debug_attach then Printf.eprintf "end[%d,%d] [...,%d]\n%!"
+         if !debug_attributes then Printf.eprintf "end[%d,%d] [...,%d]\n%!"
            lstart (Input.line_num (fst end_)) end'.pos_lnum;
          if lstart >= end'.pos_lnum && lstart - end'.pos_lnum  <= 1
          then (
-           if !debug_attach then Printf.eprintf "attach forward %s\n%!" contents;
+           if !debug_attributes then Printf.eprintf "attach forward %s\n%!" contents;
            ocamldoc_comments := List.rev_append rest acc;
            if contents <> "" then mk_attrib loc "ocaml.doc" contents :: res else res)
          else
@@ -212,11 +249,11 @@ let attach_gen build =
       | (start,end_,contents,_ as c)::rest ->
          let start' = loc.loc_start in
          let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
-         if !debug_attach then Printf.eprintf "sig/str [%d,%d] [%d,...]\n%!"
+         if !debug_attributes then Printf.eprintf "sig/str [%d,%d] [%d,...]\n%!"
            (Input.line_num (fst start)) (Input.line_num (fst end_)) start'.pos_lnum;
            if Input.line_num (fst end_) < start'.pos_lnum - 1 then
              begin
-               if !debug_attach then
+               if !debug_attributes then
                  Printf.eprintf "attach ocaml.text %s\n%!" contents;
                fn acc (build loc (mk_attrib loc "ocaml.text" contents)
                        :: res) rest
@@ -224,7 +261,7 @@ let attach_gen build =
          else
            fn (c::acc) res rest
     in
-    if !debug_attach then Printf.eprintf "enter attach sig/str [%d,...] %d\n%!"
+    if !debug_attributes then Printf.eprintf "enter attach sig/str [%d,...] %d\n%!"
                      loc.loc_start.pos_lnum (List.length !ocamldoc_comments);
     try Hashtbl.find tbl loc.loc_start
     with Not_found ->
@@ -232,21 +269,10 @@ let attach_gen build =
       Hashtbl.add tbl loc.loc_start res;
       res
 
-let attach_sig =
-  attach_gen (fun loc a  -> Sig.attribute ~loc a)
-
-let attach_str =
-  attach_gen (fun loc a  -> Str.attribute ~loc a)
+let attach_sig = attach_gen (fun loc a  -> Sig.attribute ~loc a)
+let attach_str = attach_gen (fun loc a  -> Str.attribute ~loc a)
 
 (****** START OF OLD PA_OCAML_PRELUDE ******)
-
-(* Some references for the handling of command-line arguments. *)
-type entry = FromExt | Impl | Intf
-
-let entry : entry ref         = ref FromExt
-let fast  : bool ref          = ref false
-let file  : string option ref = ref None
-let ascii : bool ref          = ref false
 
 let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
   let open Lexing in
@@ -269,28 +295,7 @@ type entry_point =
 module Initial = struct
 
 (* Default command line arguments. *)
-let spec : (Arg.key * Arg.spec * Arg.doc) list =
-  [ ( "--ascii"
-    , Arg.Set ascii,
-      "Output ASCII text instead of serialized AST." )
-  ; ( "--impl"
-    , Arg.Unit (fun () -> entry := Impl)
-    , "Treat file as an implementation." )
-  ; ( "--intf"
-    , Arg.Unit (fun () -> entry := Intf)
-    , "Treat file as an interface." )
-  ; ( "--unsafe"
-    , Arg.Set fast
-    , "Use unsafe functions for arrays (more efficient)." )
-  ; ( "--position-from-parser"
-    , Arg.Set Quote.quote_parser_position
-    , "Report position from quotation in parser (for debugging quotations)." )
-  ; ( "--debug"
-    , Arg.Set_int Earley.debug_lvl
-    , "Sets the value of \"Earley.debug_lvl\"." )
-  ; ( "--debug-attach"
-    , Arg.Set debug_attach
-    , "Debug ocamldoc comments attachment." ) ]
+let spec : (Arg.key * Arg.spec * Arg.doc) list = initial_spec
 
 (* Function to be run before parsing. *)
 let before_parse_hook : unit -> unit = fun () -> ()
@@ -1279,11 +1284,9 @@ let prefix_prio s =
   if s = "-" || s = "-." || s = "+" || s = "+." then Opp else Prefix
 
 let array_function loc str name =
-  let name = if !fast then "unsafe_" ^ name else name in
   Exp.ident ~loc (Location.mkloc (Ldot(Lident str, name)) loc)
 
 let bigarray_function loc str name =
-  let name = if !fast then "unsafe_" ^ name else name in
   let lid = Ldot(Ldot(Lident "Bigarray", str), name) in
   Exp.ident ~loc (Location.mkloc lid loc)
 
@@ -1293,28 +1296,26 @@ let untuplify exp =
   | _             -> [exp]
 
 let bigarray_get _loc arr arg =
-  let get = if !fast then "unsafe_get" else "get" in
   match untuplify arg with
   | [c1] ->
-      <:expr<Bigarray.Array1.$lid:get$ $arr$ $c1$ >>
+      <:expr<Bigarray.Array1.$lid:"get"$ $arr$ $c1$ >>
   | [c1;c2] ->
-      <:expr<Bigarray.Array2.$lid:get$ $arr$ $c1$ $c2$ >>
+      <:expr<Bigarray.Array2.$lid:"get"$ $arr$ $c1$ $c2$ >>
   | [c1;c2;c3] ->
-      <:expr<Bigarray.Array3.$lid:get$ $arr$ $c1$ $c2$ $c3$ >>
+      <:expr<Bigarray.Array3.$lid:"get"$ $arr$ $c1$ $c2$ $c3$ >>
   | coords ->
-      <:expr<Bigarray.Genarray.$lid:get$ $arr$ $array:coords$ >>
+      <:expr<Bigarray.Genarray.$lid:"get"$ $arr$ $array:coords$ >>
 
 let bigarray_set _loc arr arg newval =
-  let set = if !fast then "unsafe_set" else "set" in
   match untuplify arg with
   | [c1] ->
-      <:expr<Bigarray.Array1.$lid:set$ $arr$ $c1$ $newval$>>
+      <:expr<Bigarray.Array1.$lid:"set"$ $arr$ $c1$ $newval$>>
   | [c1;c2] ->
-      <:expr<Bigarray.Array2.$lid:set$ $arr$ $c1$ $c2$ $newval$>>
+      <:expr<Bigarray.Array2.$lid:"set"$ $arr$ $c1$ $c2$ $newval$>>
   | [c1;c2;c3] ->
-      <:expr<Bigarray.Array3.$lid:set$ $arr$ $c1$ $c2$ $c3$ $newval$>>
+      <:expr<Bigarray.Array3.$lid:"set"$ $arr$ $c1$ $c2$ $c3$ $newval$>>
   | coords ->
-      <:expr<Bigarray.Genarray.$lid:set$ $arr$ $array:coords$ $newval$ >>
+      <:expr<Bigarray.Genarray.$lid:"set"$ $arr$ $array:coords$ $newval$ >>
 
 let parser constructor =
   | m:{ m:module_path STR"." }? id:{id:uident -> id | b:bool_lit -> b } ->
