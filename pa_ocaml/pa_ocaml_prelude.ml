@@ -96,165 +96,137 @@ type entry_point =
   | Interface      of Parsetree.signature_item list grammar * blank
 
 (* Initial parser module, starting point of the functorial interface. *)
-module Initial =
-  struct
+module Initial = struct
 
-    let debug_attach = ref false
+let debug_attach = ref false
 
-    (* Default command line arguments. *)
-    let spec : (Arg.key * Arg.spec * Arg.doc) list =
-      [ ("--ascii", Arg.Set ascii,
-          "Output ASCII text instead of serialized AST.")
-      ; ("--impl", Arg.Unit (fun () -> entry := Impl),
-          "Treat file as an implementation.")
-      ; ("--intf", Arg.Unit (fun () -> entry := Intf),
-          "Treat file as an interface.")
-      ; ("--unsafe", Arg.Set fast,
-          "Use unsafe functions for arrays (more efficient).")
-      ; ("--position-from-parser", Arg.Set Quote.quote_parser_position,
-          "Report position from quotation in parser (usefull to debug quotation).")
-      ; ("--debug", Arg.Set_int Earley.debug_lvl,
-          "Sets the value of \"Earley.debug_lvl\".")
-      ; ("--debug-attach", Arg.Set debug_attach,
-          "Debug ocamldoc comments attachment.") ]
+(* Default command line arguments. *)
+let spec : (Arg.key * Arg.spec * Arg.doc) list =
+  [ ( "--ascii"
+    , Arg.Set ascii,
+      "Output ASCII text instead of serialized AST." )
+  ; ( "--impl"
+    , Arg.Unit (fun () -> entry := Impl)
+    , "Treat file as an implementation." )
+  ; ( "--intf"
+    , Arg.Unit (fun () -> entry := Intf)
+    , "Treat file as an interface." )
+  ; ( "--unsafe"
+    , Arg.Set fast
+    , "Use unsafe functions for arrays (more efficient)." )
+  ; ( "--position-from-parser"
+    , Arg.Set Quote.quote_parser_position
+    , "Report position from quotation in parser (for debugging quotations)." )
+  ; ( "--debug"
+    , Arg.Set_int Earley.debug_lvl
+    , "Sets the value of \"Earley.debug_lvl\"." )
+  ; ( "--debug-attach"
+    , Arg.Set debug_attach
+    , "Debug ocamldoc comments attachment." ) ]
 
-    (* Function to be run before parsing. *)
-    let before_parse_hook : unit -> unit = fun () -> ()
+(* Function to be run before parsing. *)
+let before_parse_hook : unit -> unit = fun () -> ()
 
 type expression_prio =
-  | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append
-  | Cons | Sum | Prod | Pow | Opp | App | Dash | Dot | Prefix | Atom
+  | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append | Cons | Sum | Prod
+  | Pow | Opp | App | Dash | Dot | Prefix | Atom
 
-let expression_prios =
-  [ Seq ; Aff ; Tupl ; Disj ; Conj ; Eq ; Append
-  ; Cons ; Sum ; Prod ; Pow ; Opp ; App ; Dash ; Dot ; Prefix ; Atom]
+let expression_prio_to_string : expression_prio -> string = fun lvl ->
+  match lvl with
+  | Seq    -> "Seq"    | If   -> "If"   | Aff  -> "Aff"  | Tupl   -> "Tupl"
+  | Disj   -> "Disj"   | Conj -> "Conj" | Eq   -> "Eq"   | Append -> "Append"
+  | Cons   -> "Cons"   | Sum  -> "Sum"  | Prod -> "Prod" | Pow    -> "Pow"
+  | Opp    -> "Opp"    | App  -> "App"  | Dash -> "Dash" | Dot    -> "Dot"
+  | Prefix -> "Prefix" | Atom -> "Atom"
 
 let next_exp = function
-  | Seq -> If
-  | If -> Aff
-  | Aff -> Tupl
-  | Tupl -> Disj
-  | Disj -> Conj
-  | Conj -> Eq
-  | Eq -> Append
-  | Append -> Cons
-  | Cons -> Sum
-  | Sum -> Prod
-  | Prod -> Pow
-  | Pow -> Opp
-  | Opp -> App
-  | App -> Dash
-  | Dash -> Dot
-  | Dot -> Prefix
-  | Prefix -> Atom
-  | Atom -> Atom
+  | Seq    -> If   | If   -> Aff  | Aff  -> Tupl   | Tupl   -> Disj
+  | Disj   -> Conj | Conj -> Eq   | Eq   -> Append | Append -> Cons
+  | Cons   -> Sum  | Sum  -> Prod | Prod -> Pow    | Pow    -> Opp
+  | Opp    -> App  | App  -> Dash | Dash -> Dot    | Dot    -> Prefix
+  | Prefix -> Atom | Atom -> Atom
 
 type alm =
-    NoMatch | Match | Let
+  | NoMatch | Match | Let
 
-let allow_match = function
-  | Match -> true
-  | _ -> false
+let allow_match : alm -> bool = fun alm -> alm = Match
+let allow_let   : alm -> bool = fun alm -> alm <> NoMatch
 
-let allow_let = function
-  | Match | Let -> true
-  | _ -> false
+let string_exp (b, lvl) =
+  let base = match b with NoMatch -> "" | Match -> "m_" | Let -> "l_" in
+  base ^ expression_prio_to_string lvl
 
-let string_exp (b,lvl) =
-  (match b with NoMatch -> "" | Match -> "m_" | Let -> "l_"
-  ) ^
-  (match lvl with
-  | Seq -> "Seq"
-  | If -> "If"
-  | Aff -> "Aff"
-  | Tupl -> "Tupl"
-  | Disj -> "Disj"
-  | Conj -> "Conj"
-  | Eq -> "Eq"
-  | Append -> "Append"
-  | Cons -> "Cons"
-  | Sum -> "Sum"
-  | Prod -> "Prod"
-  | Pow -> "Pow"
-  | Opp -> "Opp"
-  | App -> "App"
-  | Dash -> "Dash"
-  | Dot -> "Dot"
-  | Prefix -> "Prefix"
-  | Atom -> "Atom")
-
-
-  let ((expression_lvl : alm * expression_prio -> expression grammar)
+let ((expression_lvl : alm * expression_prio -> expression grammar)
       , set_expression_lvl)
     = grammar_family ~param_to_string:string_exp "expression_lvl"
-  let expression = expression_lvl (Match, Seq)
-  let structure_item : structure_item list grammar
-    = declare_grammar "structure_item"
-  let signature_item : signature_item list grammar
-    = declare_grammar "signature_item"
-  let (parameter : bool -> [`Arg of arg_label * expression option * pattern
+let expression = expression_lvl (Match, Seq)
+let structure_item : structure_item list grammar
+  = declare_grammar "structure_item"
+let signature_item : signature_item list grammar
+  = declare_grammar "signature_item"
+let (parameter : bool -> [`Arg of arg_label * expression option * pattern
                            | `Type of string Location.loc ]
                              grammar), set_parameter = grammar_family "parameter"
 
-  let structure = structure_item
+let structure = structure_item
 
-  let parser signature =
-      l : {s:signature_item}* -> List.flatten l
+let parser signature =
+    l : {s:signature_item}* -> List.flatten l
 
-  type type_prio = TopType | As | Arr | ProdType | DashType | AppType | AtomType
+type type_prio = TopType | As | Arr | ProdType | DashType | AppType | AtomType
 
-  let type_prios = [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
-  let type_prio_to_string (_, lvl) = match lvl with
-    | TopType -> "TopType" | As -> "As" | Arr -> "Arr" | ProdType -> "ProdType"
-    | DashType -> "DashType" | AppType -> "AppType" | AtomType -> "AtomType"
-  let next_type_prio = function
-    | TopType -> As
-    | As -> Arr
-    | Arr -> ProdType
-    | ProdType -> DashType
-    | DashType -> AppType
-    | AppType -> AtomType
-    | AtomType -> AtomType
+let type_prios = [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
+let type_prio_to_string (_, lvl) = match lvl with
+  | TopType -> "TopType" | As -> "As" | Arr -> "Arr" | ProdType -> "ProdType"
+  | DashType -> "DashType" | AppType -> "AppType" | AtomType -> "AtomType"
+let next_type_prio = function
+  | TopType -> As
+  | As -> Arr
+  | Arr -> ProdType
+  | ProdType -> DashType
+  | DashType -> AppType
+  | AppType -> AtomType
+  | AtomType -> AtomType
 
-  let (typexpr_lvl_raw : (bool * type_prio) -> core_type grammar), set_typexpr_lvl =
-    grammar_prio ~param_to_string:type_prio_to_string "typexpr_lvl"
-  let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
-  let typexpr_nopar = typexpr_lvl_raw (false, TopType)
-  let typexpr = typexpr_lvl TopType
-  type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
-  let topPat = AltPat
-  let pat_prio_to_string (_, lvl) = match lvl with
-    | AltPat -> "AltPat" | TupPat -> "TupPat" | ConsPat -> "ConsPat"
-    | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
-  let next_pat_prio = function
-    | AltPat -> TupPat
-    | TupPat -> ConsPat
-    | ConsPat -> ConstrPat
-    | ConstrPat -> AtomPat
-    | AtomPat -> assert false
-  let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl =
-    grammar_prio ~param_to_string:pat_prio_to_string "pattern_lvl"
-  let pattern = pattern_lvl (true,topPat)
+let (typexpr_lvl_raw : (bool * type_prio) -> core_type grammar), set_typexpr_lvl =
+  grammar_prio ~param_to_string:type_prio_to_string "typexpr_lvl"
+let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
+let typexpr_nopar = typexpr_lvl_raw (false, TopType)
+let typexpr = typexpr_lvl TopType
+type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
+let topPat = AltPat
+let pat_prio_to_string (_, lvl) = match lvl with
+  | AltPat -> "AltPat" | TupPat -> "TupPat" | ConsPat -> "ConsPat"
+  | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
+let next_pat_prio = function
+  | AltPat -> TupPat
+  | TupPat -> ConsPat
+  | ConsPat -> ConstrPat
+  | ConstrPat -> AtomPat
+  | AtomPat -> assert false
+let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl =
+  grammar_prio ~param_to_string:pat_prio_to_string "pattern_lvl"
+let pattern = pattern_lvl (true,topPat)
 
-  let let_binding : value_binding list grammar = declare_grammar "let_binding"
-  let class_body : class_structure grammar = declare_grammar "class_body"
-  let class_expr : class_expr grammar = declare_grammar "class_expr"
-  let value_path : Longident.t grammar = declare_grammar "value_path"
-  let extra_expressions = ([] : (alm * expression_prio -> expression grammar) list)
-  let extra_prefix_expressions = ([] : (expression grammar) list)
-  let extra_types = ([] : (type_prio -> core_type grammar) list)
-  let extra_patterns = ([] : (bool * pattern_prio -> pattern grammar) list)
-  let extra_structure = ([] : structure_item list grammar list)
-  let extra_signature = ([] : signature_item list grammar list)
+let let_binding : value_binding list grammar = declare_grammar "let_binding"
+let class_body : class_structure grammar = declare_grammar "class_body"
+let class_expr : class_expr grammar = declare_grammar "class_expr"
+let value_path : Longident.t grammar = declare_grammar "value_path"
+let extra_expressions = ([] : (alm * expression_prio -> expression grammar) list)
+let extra_prefix_expressions = ([] : (expression grammar) list)
+let extra_types = ([] : (type_prio -> core_type grammar) list)
+let extra_patterns = ([] : (bool * pattern_prio -> pattern grammar) list)
+let extra_structure = ([] : structure_item list grammar list)
+let extra_signature = ([] : signature_item list grammar list)
 
-  type record_field = Longident.t Asttypes.loc * Parsetree.expression
+type record_field = Longident.t Asttypes.loc * Parsetree.expression
 
-  let constr_decl_list : constructor_declaration list grammar = declare_grammar "constr_decl_list"
-  let field_decl_list : label_declaration list grammar = declare_grammar "field_decl_list"
-  let record_list : record_field list grammar = declare_grammar "record_list"
-  let match_cases : case list grammar = declare_grammar "match_cases"
-  let module_expr : module_expr grammar = declare_grammar "module_expr"
-  let module_type : module_type grammar = declare_grammar "module_type"
+let constr_decl_list : constructor_declaration list grammar = declare_grammar "constr_decl_list"
+let field_decl_list : label_declaration list grammar = declare_grammar "field_decl_list"
+let record_list : record_field list grammar = declare_grammar "record_list"
+let match_cases : case list grammar = declare_grammar "match_cases"
+let module_expr : module_expr grammar = declare_grammar "module_expr"
+let module_type : module_type grammar = declare_grammar "module_type"
 
 let parse_string' g e' =
   try
@@ -448,8 +420,6 @@ let entry_points : (string * entry_point) list =
 end
 
 module type Extension = module type of Initial
-
-module type FExt = functor (E:Extension) -> Extension
 
 include Initial
 
