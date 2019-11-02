@@ -1,8 +1,9 @@
+(** Standard entry point for a parser. *)
+
 open Earley_core
 open Pa_ocaml
 open Input
 open Earley
-open Format
 open Pa_lexing
 
 let define_directive =
@@ -72,107 +73,114 @@ let test_directive fname num line =
     Printf.eprintf "file: %s, line %d: unknown #if directive\n%!" fname num;
     exit 1)
 
+(** Our preprocessor with "ifdef"-like directives. *)
+module OCamlPP : Preprocessor = struct
+  type state = bool list
 
-module OCamlPP : Preprocessor =
-  struct
-    type state = bool list
+  let initial_state = []
 
-    let initial_state = []
+  let active : state -> bool = fun st -> not (List.mem false st)
 
-    let active : state -> bool = fun st -> not (List.mem false st)
+  let update st name lnum line =
+    if line <> "" && line.[0] = '#' then
+      if Str.string_match define_directive line 1 && active st then
+        let macro_name = Str.matched_group 1 line in
+        let value = Str.matched_group 2 line in
+        Unix.putenv macro_name value;
+        (st, name, lnum, false)
+      else if Str.string_match if_directive line 1 then
+        (test_directive name lnum line :: st, name, lnum, false)
+      else if Str.string_match elif_directive line 1 then
+        match st with
+        | []      -> pp_error name "unexpected elif directive"
+        | _ :: st -> (test_directive name lnum line :: st, name, lnum, false)
+      else if Str.string_match else_directive line 1 then
+        match st with
+        | []      -> pp_error name "unexpected else directive"
+        | b :: st -> (not b :: st, name, lnum, false)
+      else if Str.string_match endif_directive line 1 then
+        match st with
+        | []      -> pp_error name "unexpected endif directive"
+        | _ :: st -> (st, name, lnum, false)
+      else if Str.string_match line_num_directive line 1 then
+        let lnum = int_of_string (Str.matched_group 1 line) in
+        let name = try Str.matched_group 3 line with Not_found -> name in
+        (st, name, lnum, false)
+      else
+        (st, name, lnum, active st)
+    else (st, name, lnum, active st)
 
-    let update st name lnum line =
-      if line <> "" && line.[0] = '#' then
-        if Str.string_match define_directive line 1 && active st then
-          let macro_name = Str.matched_group 1 line in
-          let value = Str.matched_group 2 line in
-          Unix.putenv macro_name value;
-          (st, name, lnum, false)
-        else if Str.string_match if_directive line 1 then
-          (test_directive name lnum line :: st, name, lnum, false)
-        else if Str.string_match elif_directive line 1 then
-          match st with
-          | []      -> pp_error name "unexpected elif directive"
-          | _ :: st -> (test_directive name lnum line :: st, name, lnum, false)
-        else if Str.string_match else_directive line 1 then
-          match st with
-          | []      -> pp_error name "unexpected else directive"
-          | b :: st -> (not b :: st, name, lnum, false)
-        else if Str.string_match endif_directive line 1 then
-          match st with
-          | []      -> pp_error name "unexpected endif directive"
-          | _ :: st -> (st, name, lnum, false)
-        else if Str.string_match line_num_directive line 1 then
-          let lnum = int_of_string (Str.matched_group 1 line) in
-          let name = try Str.matched_group 3 line with Not_found -> name in
-          (st, name, lnum, false)
-        else
-          (st, name, lnum, active st)
-      else (st, name, lnum, active st)
+  let check_final st name =
+    match st with
+    | [] -> ()
+    | _  -> pp_error name "unclosed conditionals"
+end
 
-    let check_final st name =
-      match st with
-      | [] -> ()
-      | _  -> pp_error name "unclosed conditionals"
-  end
-
-module PP = Earley.WithPP(OCamlPP)
-
+(** Function used to run an extension (simply apply the function). *)
 module Start(Main : Extension) = struct
+  (* Parsing command line arguments. *)
   let _ =
-    let anon_fun s = file := Some s in
-    let usage = Printf.sprintf "usage: %s [options] file" Sys.argv.(0) in
+    let anon_fun s =
+      match !file with
+      | None   -> file := Some s
+      | Some _ -> raise (Arg.Bad "more than one file was given")
+    in
+    let usage = Printf.sprintf "Usage: %s [OPTION]* FILE" Sys.argv.(0) in
     Arg.parse Main.spec anon_fun usage
 
+  (* Run hooks. *)
   let _ = Main.before_parse_hook ()
 
+  (* Build entry point from file name and configuration. *)
   let entry =
-    match !entry, !file with
-    | FromExt, Some s ->
-      let rec fn = function
-        | (ext, res)::l -> if Filename.check_suffix s ext then res else fn l
-        | [] -> eprintf "Don't know what to do with file %s\n%!" s; exit 1
-      in
-      fn Main.entry_points
-    | FromExt, None -> Implementation (Main.structure, ocaml_blank)
-    | Intf, _       -> Interface      (Main.signature, ocaml_blank)
-    | Impl, _       -> Implementation (Main.structure, ocaml_blank)
+    match (!entry, !file) with
+    | (Intf   , _      ) -> Interface      (Main.signature, ocaml_blank)
+    | (Impl   , _      ) -> Implementation (Main.structure, ocaml_blank)
+    | (FromExt, None   ) -> Implementation (Main.structure, ocaml_blank)
+    | (FromExt, Some(s)) ->
+        let rec fn l =
+          match l with
+          | (ext, p)::l when Filename.check_suffix s ext -> p
+          | (_  , _)::l                                  -> fn l
+          | []                                           ->
+              Printf.eprintf "I don't know what to do with [%s]...\n%!" s;
+              exit 1
+        in
+        fn Main.entry_points
 
+  (* We are going to use a preprocessor. *)
+  module PP = Earley.WithPP(OCamlPP)
+
+  (* Parse to obtain the AST. *)
   let ast =
-    (* read the whole file with a buffer ...
-       to be able to read stdin *)
-    let filename, ch = match !file with
-        None -> "stdin", stdin
-      | Some name ->
-         name, open_in name
+    let (filename, ch) =
+      match !file with
+      | None       -> ("stdin", stdin       )
+      | Some(file) -> (file   , open_in file)
     in
     let run () =
       match entry with
-      | Implementation (g, blank) -> `Struct (PP.parse_channel ~filename g blank ch)
-      | Interface      (g, blank) -> `Sig    (PP.parse_channel ~filename g blank ch)
+      | Implementation(g, bl) -> `Imp(PP.parse_channel ~filename g bl ch)
+      | Interface     (g, bl) -> `Sig(PP.parse_channel ~filename g bl ch)
     in
     Earley.handle_exception run ()
 
+  (* Do the printing. *)
   let _ =
     if !ascii then begin
-      begin
+      match ast with
+      | `Imp(ast) -> Format.printf "%a\n%!" Pprintast.structure ast
+      | `Sig(ast) -> Format.printf "%a\n%!" Pprintast.signature ast
+      end
+    else
+      let magic =
         match ast with
-        | `Struct ast -> Pprintast.structure Format.std_formatter ast;
-        | `Sig ast -> Pprintast.signature Format.std_formatter ast;
-      end;
-      Format.print_newline ()
-    end else begin
-      let magic = match ast with
-        | `Struct _ -> Config.ast_impl_magic_number
-        | `Sig _ -> Config.ast_intf_magic_number
+        | `Imp(_) -> Config.ast_impl_magic_number
+        | `Sig(_) -> Config.ast_intf_magic_number
       in
       output_string stdout magic;
       output_value stdout (match !file with None -> "" | Some name -> name);
-      begin
-        match ast with
-        | `Struct ast -> output_value stdout ast
-        | `Sig ast -> output_value stdout ast
-      end;
-      close_out stdout
-    end
+      match ast with
+      | `Imp ast -> output_value stdout ast; close_out stdout
+      | `Sig ast -> output_value stdout ast; close_out stdout
 end
