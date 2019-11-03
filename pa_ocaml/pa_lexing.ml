@@ -1,62 +1,68 @@
 open Earley_core
 open Asttypes
 
-(****************************************************************************
- * OCaml comments.                                                          *
- ****************************************************************************)
+(** Representation of a buffer with a specific position. *)
+type buf_pos = Input.buffer * int
 
-(*
- * The exception [Unclosed_comment(is_string, buf, pos)] is raised when
- * the comment (resp. string litteral in a comment) at position [pos] in
- * [buf] is not closed.
- *)
+(** {2 Comments and documentation comments} *)
+
+(** Exception [Unclosed_comment(in_str, buf, pos)] is raised when a comment at
+    is not closed properly at position [pos] in buffer [buf]. Note that if the
+    [in_str] is set to [true] then the problem is due to an unclosed string in
+    a comment. *)
 exception Unclosed_comment of bool * Input.buffer * int
 
-let unclosed_comment : type a. (Input.buffer * int) -> a =
-  fun (buf, pos) -> raise (Unclosed_comment (false, buf, pos))
+(** [unclosed_comment ~in_str (buf, pos)] signals an unclodes comment. *)
+let unclosed_comment : ?in_str:bool -> buf_pos -> 'a =
+  fun ?(in_str=false) (buf, pos) -> raise (Unclosed_comment(in_str, buf, pos))
 
-let unclosed_comment_string : type a. (Input.buffer * int) -> a =
-  fun (buf, pos) -> raise (Unclosed_comment (true, buf, pos))
+(** Representation of a documentation comment. *)
+type doc_comment =
+  { doc_start : buf_pos
+  ; doc_end   : buf_pos
+  ; doc_text  : string
+  ; doc_nl    : int }
 
-(*
- * Characters to be ignored by OCaml's blank function:
- *   - ' ', '\t', '\r', '\n',
- *   - everything between "(*" and "*)" (ocaml-like comments).
- * Remarks on what is allowed inside an ocaml-like comment:
- *   - nested comments,
- *   - arbitrary string litterals (including those containing "(*" or
- *     "*)" (note that string litterals need to be closed.
- *)
-let ocamldoc_comments = ref []
-let ocamldoc_stack = ref []
+(** [doc_comments] holds documentation comments that have already been parsed,
+    but only at the current level. *)
+let doc_comments : doc_comment list ref = ref []
 
-let push_comments () =
-  (*Printf.eprintf "push %d comments\n%!" (List.length !ocamldoc_comments);*)
-  ocamldoc_stack := !ocamldoc_comments :: !ocamldoc_stack;
-  ocamldoc_comments := []
+(** [doc_stack] is used to store documentation comment contexts that are in an
+    outer scope (e.g., a parrent module). *)
+let doc_stack : doc_comment list list ref = ref []
 
-let pop_comments () =
-  match !ocamldoc_stack with
-  | [] -> assert false
-  | cs::ls ->
-     (*Printf.eprintf "push %d comments\n%!" (List.length cs);*)
-     ocamldoc_comments := !ocamldoc_comments @ cs;
-     ocamldoc_stack := ls
+(** [push_comments ()] pushes the current documentation comments to the stack,
+    and reinitialises the current comments. This function is used whenever the
+    parser enters the scope of a new module/signature definition. *)
+let push_comments : unit -> unit = fun _ ->
+  doc_stack := !doc_comments :: !doc_stack; doc_comments := []
 
-let ocaml_blank buf pos =
-  let ocamldoc = ref false in
-  let ocamldoc_buf = Buffer.create 1024 in
+(** [pop_comments ()] pops back the documentation comments stored in the stack
+    (thus overwriting the currently stored documentation comments).  Note that
+    this function is used when getting out of a module definition. *)
+let pop_comments : unit -> unit = fun _ ->
+  match !doc_stack with
+  | []       -> assert false (* Does not happen: always well-bracketed. *)
+  | c::stack -> doc_comments := !doc_comments @ c; doc_stack := stack
+
+(** [ocaml_blank buf pos] is the Earley blank function for OCaml, that ignores
+    blanks starting at buffer [buf] and position [pos]. The ignored characters
+    include [' '], ['\t'], ['\r'], ['\n'], everything enclosed between  ["(*"]
+    and ["*)"] (multi-line comments). Multi-line comments can contain (nested)
+    multi-line comments,  as well as valid string litterals (including strings
+    such as ["(*"] or ["*)"]). *)
+let ocaml_blank : Earley.blank = fun buf pos ->
+  let odoc = ref false in
+  let odoc_buf = Buffer.create 1024 in
   let new_line = ref false in
   let previous_newline = ref (Input.line_num buf) in
-  let rec fn state stack prev curr =
-    let (buf, pos) = curr in
+  let rec fn state stack prev ((buf, pos) as curr) =
     let (c, buf', pos') = Input.read buf pos in
-    if !ocamldoc then Buffer.add_char ocamldoc_buf c;
+    if !odoc then Buffer.add_char odoc_buf c;
     let next = (buf', pos') in
     let count_newline () =
-      if !new_line then (
-        previous_newline := Input.line_num buf');
-      new_line:=true;
+      if !new_line then previous_newline := Input.line_num buf';
+      new_line := true;
     in
     match (state, stack, c) with
     (* Basic blancs. *)
@@ -67,17 +73,13 @@ let ocaml_blank buf pos =
     (* Comment opening. *)
     | (`Ini      , _   , '('     ) -> fn (`Opn(curr)) stack curr next
     | (`Ini      , []  , _       ) -> curr
-    | (`Opn(p)   , _   , '*'     ) ->
-       (if stack = [] then
-	 let (c, buf', pos') = Input.read buf' pos' in
-	 let (c',_,_) = Input.read buf' pos' in
-	 if c = '*' && c' <> '*' then (
-	   ocamldoc := true;
-	   fn `Cls (p::stack) curr (buf',pos'))
-	 else
-	   fn `Ini (p::stack) curr next
-	else
-	   fn `Ini (p::stack) curr next)
+    | (`Opn(p)   , []  , '*'     ) ->
+        (* Potential documentation comment. *)
+        let (c1, buf', pos') = Input.read buf' pos' in
+        let is_doc = c1 = '*' && Input.get buf' pos' <> '*' in
+        if is_doc then (odoc := true; fn `Cls [p] curr (buf', pos'))
+        else fn `Ini [p] curr next
+    | (`Opn(p)   , _   , '*'     ) -> fn `Ini (p::stack) curr next
     | (`Opn(_)   , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '('     ) -> fn (`Opn(curr)) stack curr next
@@ -88,53 +90,55 @@ let ocaml_blank buf pos =
     | (`Str(_)   , _::_, '"'     ) -> fn `Ini stack curr next
     | (`Str(p)   , _::_, '\\'    ) -> fn (`Esc(p)) stack curr next
     | (`Esc(p)   , _::_, _       ) -> fn (`Str(p)) stack curr next
-    | (`Str(p)   , _::_, '\255'  ) -> unclosed_comment_string p
+    | (`Str(p)   , _::_, '\255'  ) -> unclosed_comment ~in_str:true p
     | (`Str(_)   , _::_, _       ) -> fn state stack curr next
     | (`Str(_)   , []  , _       ) -> assert false (* Impossible. *)
     | (`Esc(_)   , []  , _       ) -> assert false (* Impossible. *)
     (* Delimited string litteral in a comment. *)
     | (`Ini      , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next
-    | (`SOp(l,p) , _::_, 'a'..'z')
-    | (`SOp(l,p) , _::_, '_'     ) -> fn (`SOp(c::l,p)) stack curr next
-    | (`SOp(_,_) , p::_, '\255'  ) -> unclosed_comment p
-    | (`SOp(l,p) , _::_, '|'     ) -> fn (`SIn(List.rev l,p)) stack curr next
-    | (`SOp(_,_) , _::_, _       ) -> fn `Ini stack curr next
-    | (`SIn(l,p) , _::_, '|'     ) -> fn (`SCl(l,(l,p))) stack curr next
-    | (`SIn(_,p) , _::_, '\255'  ) -> unclosed_comment_string p
-    | (`SIn(_,_) , _::_, _       ) -> fn state stack curr next
+    | (`SOp(l ,p), _::_, 'a'..'z')
+    | (`SOp(l ,p), _::_, '_'     ) -> fn (`SOp(c::l,p)) stack curr next
+    | (`SOp(_ ,_), p::_, '\255'  ) -> unclosed_comment p
+    | (`SOp(l ,p), _::_, '|'     ) -> fn (`SIn(List.rev l,p)) stack curr next
+    | (`SOp(_ ,_), _::_, _       ) -> fn `Ini stack curr next
+    | (`SIn(l ,p), _::_, '|'     ) -> fn (`SCl(l,(l,p))) stack curr next
+    | (`SIn(_ ,p), _::_, '\255'  ) -> unclosed_comment ~in_str:true p
+    | (`SIn(_ ,_), _::_, _       ) -> fn state stack curr next
     | (`SCl([],b), _::_, '}'     ) -> fn `Ini stack curr next
-    | (`SCl([],b), _::_, '\255'  ) -> unclosed_comment_string (snd b)
+    | (`SCl([],b), _::_, '\255'  ) -> unclosed_comment ~in_str:true (snd b)
     | (`SCl([],b), _::_, _       ) -> fn (`SIn(b)) stack curr next
-    | (`SCl(l,b) , _::_, c       ) -> if c = List.hd l then
-                                        let l = List.tl l in
-                                        fn (`SCl(l, b)) stack curr next
-                                      else
-                                        fn (`SIn(b)) stack curr next
-    | (`SOp(_,_) , []  , _       ) -> assert false (* Impossible. *)
-    | (`SIn(_,_) , []  , _       ) -> assert false (* Impossible. *)
-    | (`SCl(_,_) , []  , _       ) -> assert false (* Impossible. *)
+    | (`SCl(l ,b), _::_, c       ) ->
+        if c = List.hd l then fn (`SCl(List.tl l, b)) stack curr next
+        else fn (`SIn(b)) stack curr next
+    | (`SOp(_ ,_), []  , _       ) -> assert false (* Impossible. *)
+    | (`SIn(_ ,_), []  , _       ) -> assert false (* Impossible. *)
+    | (`SCl(_ ,_), []  , _       ) -> assert false (* Impossible. *)
     (* Comment closing. *)
     | (`Ini      , _::_, '*'     ) -> fn `Cls stack curr next
     | (`Cls      , _::_, '*'     ) -> fn `Cls stack curr next
     | (`Cls      , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
     | (`Cls      , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Cls      , p::s, ')'     ) ->
-       if !ocamldoc && s = [] then (
-	 let comment =
-           try Buffer.sub ocamldoc_buf 0 (Buffer.length ocamldoc_buf - 2)
-           with Invalid_argument _ -> ""
-         in
-	 Buffer.clear ocamldoc_buf;
-	 ocamldoc_comments := (p,next,comment,!previous_newline)::!ocamldoc_comments;
-	 ocamldoc := false
-       );
-       new_line := false;
-       fn `Ini s curr next
+        (* Potential end of documentation comment. *)
+        if !odoc && s = [] then
+          begin
+            (* Get the comment text, reset the buffer. *)
+            let text = Buffer.sub odoc_buf 0 (Buffer.length odoc_buf - 2) in
+            Buffer.clear odoc_buf;
+            let c =
+              { doc_start = p ; doc_end = next ; doc_text = text
+              ; doc_nl = !previous_newline }
+            in
+            doc_comments := c :: !doc_comments;
+            odoc := false
+          end;
+        new_line := false;
+        fn `Ini s curr next
     | (`Cls      , _::_, _       ) -> fn `Ini stack curr next
     | (`Cls      , []  , _       ) -> assert false (* Impossible. *)
     (* Comment contents (excluding string litterals). *)
-    | (`Ini     , p::_, '\255'  ) -> unclosed_comment p
-    | (`Ini     , _::_, _       ) -> fn `Ini stack curr next
+    | (`Ini      , p::_, '\255'  ) -> unclosed_comment p
+    | (`Ini      , _::_, _       ) -> fn `Ini stack curr next
   in
   fn `Ini [] (buf, pos) (buf, pos)
 
