@@ -1,10 +1,9 @@
 open Earley_core
-open Asttypes
 
 (** Representation of a buffer with a specific position. *)
 type buf_pos = Input.buffer * int
 
-(** {2 Comments and documentation comments} *)
+(** {2 Comments and documentation comments} *********************************)
 
 (** Exception [Unclosed_comment(in_str, buf, pos)] is raised when a comment at
     is not closed properly at position [pos] in buffer [buf]. Note that if the
@@ -20,8 +19,7 @@ let unclosed_comment : ?in_str:bool -> buf_pos -> 'a =
 type doc_comment =
   { doc_start : buf_pos
   ; doc_end   : buf_pos
-  ; doc_text  : string
-  ; doc_nl    : int }
+  ; doc_text  : string }
 
 (** [doc_comments] holds documentation comments that have already been parsed,
     but only at the current level. *)
@@ -54,22 +52,16 @@ let pop_comments : unit -> unit = fun _ ->
 let ocaml_blank : Earley.blank = fun buf pos ->
   let odoc = ref false in
   let odoc_buf = Buffer.create 1024 in
-  let new_line = ref false in
-  let previous_newline = ref (Input.line_num buf) in
   let rec fn state stack prev ((buf, pos) as curr) =
     let (c, buf', pos') = Input.read buf pos in
     if !odoc then Buffer.add_char odoc_buf c;
     let next = (buf', pos') in
-    let count_newline () =
-      if !new_line then previous_newline := Input.line_num buf';
-      new_line := true;
-    in
     match (state, stack, c) with
     (* Basic blancs. *)
     | (`Ini      , []  , ' '     )
     | (`Ini      , []  , '\t'    )
     | (`Ini      , []  , '\r'    )
-    | (`Ini      , []  , '\n'    ) -> count_newline (); fn `Ini stack curr next
+    | (`Ini      , []  , '\n'    ) -> fn `Ini stack curr next
     (* Comment opening. *)
     | (`Ini      , _   , '('     ) -> fn (`Opn(curr)) stack curr next
     | (`Ini      , []  , _       ) -> curr
@@ -125,14 +117,10 @@ let ocaml_blank : Earley.blank = fun buf pos ->
             (* Get the comment text, reset the buffer. *)
             let text = Buffer.sub odoc_buf 0 (Buffer.length odoc_buf - 2) in
             Buffer.clear odoc_buf;
-            let c =
-              { doc_start = p ; doc_end = next ; doc_text = text
-              ; doc_nl = !previous_newline }
-            in
+            let c = {doc_start = p; doc_end = next; doc_text = text} in
             doc_comments := c :: !doc_comments;
             odoc := false
           end;
-        new_line := false;
         fn `Ini s curr next
     | (`Cls      , _::_, _       ) -> fn `Ini stack curr next
     | (`Cls      , []  , _       ) -> assert false (* Impossible. *)
@@ -142,19 +130,20 @@ let ocaml_blank : Earley.blank = fun buf pos ->
   in
   fn `Ini [] (buf, pos) (buf, pos)
 
-(****************************************************************************
- * Keywords management.                                                     *
- ****************************************************************************)
+(** {2 Keywords management} *************************************************)
 
-let ident_char c =
+(** [is_identifier_char c] tells whether [c] could appear in an identifier. *)
+let is_identifier_char : char -> bool = fun c ->
   match c with
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '_' | '\'' -> true
-  | _ -> false
+  | _                                           -> false
 
+(** [keyword s] creates a keyword parser for [s]. *)
 let key_word s =
-  if String.length s <= 0 then
-    invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Earley.keyword s ident_char ()
+  if String.length s <= 0 then invalid_arg "Pa_lexing.key_word";
+  Earley.keyword s is_identifier_char ()
+
+(** {3 Keyword declarations} *)
 
 let mutable_kw     = key_word "mutable"
 let private_kw     = key_word "private"
@@ -207,82 +196,86 @@ let lazy_kw        = key_word "lazy"
 let parser_kw      = key_word "parser"
 let cached_kw      = key_word "cached"
 
-let parser mutable_flag =
-  | mutable_kw -> Mutable
-  | EMPTY      -> Immutable
+(** [mutable_flag] is a parser for an optional "mutable" keyword. *)
+let parser mutable_flag : Asttypes.mutable_flag Earley.grammar =
+  | mutable_kw -> Asttypes.Mutable
+  | EMPTY      -> Asttypes.Immutable
 
-let parser private_flag =
-  | private_kw -> Private
-  | EMPTY      -> Public
+(** [private_flag] is a parser for an optional "private" keyword. *)
+let parser private_flag : Asttypes.private_flag Earley.grammar =
+  | private_kw -> Asttypes.Private
+  | EMPTY      -> Asttypes.Public
 
-let parser virtual_flag =
-  | virtual_kw -> Virtual
-  | EMPTY      -> Concrete
+(** [virtual_flag] is a parser for an optional "virtual" keyword. *)
+let parser virtual_flag : Asttypes.virtual_flag Earley.grammar =
+  | virtual_kw -> Asttypes.Virtual
+  | EMPTY      -> Asttypes.Concrete
 
-let parser rec_flag =
-  | rec_kw -> Recursive
-  | EMPTY  -> Nonrecursive
+(** [rec_flag] is a parser for an optional "rec" keyword. *)
+let parser rec_flag : Asttypes.rec_flag Earley.grammar =
+  | rec_kw -> Asttypes.Recursive
+  | EMPTY  -> Asttypes.Nonrecursive
 
-let parser downto_flag =
-  | to_kw     -> Upto
-  | downto_kw -> Downto
+(** [downto_flag] is a parser for either a "to" or a "downto" keyword. *)
+let parser downto_flag : Asttypes.direction_flag Earley.grammar =
+  | to_kw     -> Asttypes.Upto
+  | downto_kw -> Asttypes.Downto
 
-let no_keyword s =
+(** {3 Some parsers to forbid keywords} *)
+
+(** [not_keyword s] fails if the input matches keyword [s], and does not parse
+    any input (i.e., this is only a test combinator). *)
+let no_keyword : string -> unit Earley.grammar = fun s ->
   let len = String.length s in
   let rec fn i buf pos =
-    let c,buf,pos = Input.read buf pos in
-    if i >= len then ((), ident_char c) else
-      if c <> s.[i] then ((), true) else fn (i+1) buf pos
+    let (c, buf, pos) = Input.read buf pos in
+    if i >= len then ((), is_identifier_char c)
+    else if c <> s.[i] then ((), true) else fn (i + 1) buf pos
   in
-  Earley.test ~name:("no_"^s) Charset.full (fn 0)
+  Earley.test ~name:("no_" ^ s) Charset.full (fn 0)
 
-let no_else = no_keyword "else"
-let no_false = no_keyword "false"
+let no_else   = no_keyword "else"
+let no_with   = no_keyword "with"
 let no_parser = no_keyword "parser"
-let no_with = no_keyword "with"
-let no_as = no_keyword "as"
 
-let no_dot =
-  Earley.test ~name:"no_dot" Charset.full (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> '.' then ((), true) else ((), false))
+(** {3 Other similar functions for reserved sequences} *)
 
-let no_semi =
-  Earley.test ~name:"no_semi" Charset.full (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> ';' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c = ';' then ((), true) else ((), false))
+(** [no_dot] is a grammar that fails if the next character is ['.']. Note that
+    not input is consumed, whatever the outcome of the test. *)
+let no_dot : unit Earley.grammar =
+  let fn buf pos = ((), Input.get buf pos <> '.') in
+  Earley.test ~name:"no_dot" Charset.full fn
 
-let no_colon =
-  Earley.test ~name:"no_colon" Charset.full (fun buf pos ->
-    let c,buf,pos = Input.read buf pos in
-    if c <> ':' then ((), true) else
-    let c,buf,pos = Input.read buf pos in
-    if c = ':' then ((), true) else ((), false))
-
-(****************************************************************************
- * Identifiers.                                                             *
- ****************************************************************************)
-
-let make_reserved l =
-  let cmp s1 s2 = String.compare s2 s1 in
-  let re_from_list l =
-    let l = List.map (fun s -> "\\(" ^ Str.quote s ^ "\\)") l in
-    Str.regexp (String.concat "\\|" l)
+(** [no_semi] is a grammar that fails if the next character is a [';'], except
+    if the second next character is also [';']. No input is consumed. *)
+let no_semi : unit Earley.grammar =
+  let fn buf pos =
+    let (c, buf, pos) = Input.read buf pos in
+    ((), c <> ';' || Input.get buf pos = ';')
   in
-  let reserved = ref (List.sort cmp l) in
-  let re = ref (re_from_list !reserved) in
-  let is_reserved s =
-    Str.string_match !re s 0 && Str.match_end () = String.length s
-  in
-  let add_reserved s =
-    reserved := List.sort cmp (s::!reserved);
-    re := re_from_list !reserved
-  in
-  (is_reserved, add_reserved)
+  Earley.test ~name:"no_semi" Charset.full fn
 
-let reserved_ids =
+(** [no_semi] is a grammar that fails if the next character is a [':'], except
+    if the second next character is also [':']. No input is consumed. *)
+let no_colon : unit Earley.grammar =
+  let fn buf pos =
+    let (c, buf, pos) = Input.read buf pos in
+    ((), c <> ':' || Input.get buf pos = ':')
+  in
+  Earley.test ~name:"no_colon" Charset.full fn
+
+(** {2 Identifiers} *********************************************************)
+
+(** [make_reserved l] initializes a structure for storing a list of (reserved)
+    strings to [l], and returns a pair of functions [(mem, add)], respectively
+    testing the membership of a string and adding a new reserved element. *)
+let make_reserved : string list -> (string->bool) * (string->unit) = fun l ->
+  let htbl = Hashtbl.create 37 in
+  List.iter (fun s -> Hashtbl.add htbl s s) l;
+  (Hashtbl.mem htbl, (fun s -> Hashtbl.add htbl s s))
+
+(** Functions for manipulating reserved identifiers (e.g., keywords). *)
+let (is_reserved_id, add_reserved_id) = make_reserved
   [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ; "do"
   ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ; "false"
   ; "for" ; "function" ; "functor" ; "fun" ; "if" ; "in" ; "include"
@@ -290,139 +283,138 @@ let reserved_ids =
   ; "lsr" ; "lxor" ; "match" ; "method" ; "mod" ; "module" ; "mutable"
   ; "new" ; "object" ; "of" ; "open" ; "or" ; "private" ; "rec" ; "sig"
   ; "struct" ; "then" ; "to" ; "true" ; "try" ; "type" ; "val" ; "virtual"
-  ; "when" ; "while" ; "with" ]
+  ; "when" ; "while" ; "with" ; "_" ]
 
-let reserved_symbs =
+(** Functions for manipulating reserved symbols. *)
+let (is_reserved_symb, add_reserved_symb) = make_reserved
   [ "#" ; "'" ; "(" ; ")" ; "," ; "->" ; "->>"; "." ; ".." ; ":" ; ":>" ; ";"
   ; ";;" ; "<-" ; ">]" ; ">}" ; "?" ; "[" ; "[<" ; "[>" ; "[|" ; "]" ; "_"
   ; "`" ; "{" ; "{<" ; "|" ; "|]" ; "}" ; "~"; "$" ]
 
-let (is_reserved_id  , add_reserved_id  ) = make_reserved reserved_ids
-let (is_reserved_symb, add_reserved_symb) = make_reserved reserved_symbs
-
-let not_special =
-  let special = "!$%&*+./:<=>?@^|~-" in
-  let cs = ref Charset.empty in
-  String.iter (fun c -> cs := Charset.add !cs c) special;
-  Earley.blank_not_in_charset ~name:"not_special" !cs
-
-let parser  ident = id:''[A-Za-z_][a-zA-Z0-9_']*'' ->
+(** [ident] is a grammar that accepts any lowercase or upercase identifier, as
+    long as it is not reserved according to the [is_reserved_id] function. *)
+let parser ident = id:''[A-Za-z_][a-zA-Z0-9_']*'' ->
   if is_reserved_id id then Earley.give_up (); id
 
-(* NOTE "_" is not a valid "lident", it is handled separately. *)
-let parser lident = id:''\([a-z][a-zA-Z0-9_']*\)\|\([_][a-zA-Z0-9_']+\)'' ->
+(** [lident] is a grammar that accepts any non-reserved, lowercase identifier.
+    Reserved identifiers are identified using [is_reserved_id]. *)
+let parser lident = id:''[a-z_][a-zA-Z0-9_']*'' ->
   if is_reserved_id id then Earley.give_up (); id
 
+(** [uident] is a grammar that accepts any uppercase identifier. *)
 let parser uident = ''[A-Z][a-zA-Z0-9_']*''
 
-(****************************************************************************
- * Constants and litterals.                                                 *
- ****************************************************************************)
+(** {3 Special characters and delimiters} *)
 
-let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
+(** [not_special] can be used to reject the current input if it is immediately
+    followed by a special (infix or prefix operator) character. In the process
+    no blank characters are ignored prior to testing. *)
+let not_special : unit Earley.grammar =
+  let cs = ref Charset.empty in
+  String.iter (fun c -> cs := Charset.add !cs c) "!$%&*+./:<=>?@^|~-";
+  Earley.blank_not_in_charset ~name:"not_special" !cs
 
-let cs_to_string cs =
-  String.concat "" (List.map (fun c -> String.make 1 c) cs)
-
-let single_char c =
-  let s = String.make 1 c in
-  let f str pos =
-    let (c', str', pos') = Input.read str pos in
-    if c' = c then
-      let (c'', _, _) = Input.read str' pos' in
-      if c'' = c then Earley.give_up ()
-      else ((), str', pos')
-    else
-      Earley.give_up ()
+(** [single_char c] is a grammar that accepts a single [c] character, but that
+    rejects the input if it is then again followed by [c]. *)
+let single_char : char -> unit Earley.grammar = fun c ->
+  let fn str pos =
+    let (c_read, str, pos) = Input.read str pos in
+    if c <> c_read || Input.get str pos = c then Earley.give_up ();
+    ((), str, pos)
   in
-  Earley.black_box f (Charset.singleton c) false s
+  Earley.black_box fn (Charset.singleton c) false (String.make 1 c)
 
-let double_char c =
-  let s = String.make 2 c in
-  let f str pos =
-   let (c', str', pos') = Input.read str pos in
-   if c' = c then
-     let (c'', str', pos') = Input.read str' pos' in
-     if c'' <> c then Earley.give_up ()
-     else ((), str', pos')
-   else
-     Earley.give_up ()
+(** [double_char c] is a grammar that accepts a sequence of (exactly) two [c].
+    If a third [c] follows, the input is rejected. *)
+let double_char : char -> unit Earley.grammar = fun c ->
+  let fn str pos =
+    let (c_read, str, pos) = Input.read str pos in
+    if c_read <> c then Earley.give_up ();
+    let (c_read, str, pos) = Input.read str pos in
+    if c_read <> c || Input.get str pos = c then Earley.give_up ();
+    ((), str, pos)
   in
-  Earley.black_box f (Charset.singleton c) false s
-
-(* Special characters and delimiters. *)
+  Earley.black_box fn (Charset.singleton c) false (String.make 2 c)
 
 let semi_col        = single_char ';'
 let double_semi_col = double_char ';'
 let single_quote    = single_char '\''
 let double_quote    = double_char '\''
 
-(* Boolean litteral. *)
+(** {2 Constants and litterals} *********************************************)
 
+(** [union_re l] builds the string representation (following [Str] syntax]) of
+    a regular expression that is the alternative of the regular expressions in
+    the list [l]. *)
+let union_re : string list -> string = fun l ->
+  String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
+
+(** [cs_to_string cs] converts a list of characters into a string. *)
+let cs_to_string : char list -> string =
+  let b = Buffer.create 27 in
+  fun cs -> Buffer.(clear b; List.iter (add_char b) cs; contents b)
+
+(** [bool_lit] accepts a single boolean litteral. *)
 let parser bool_lit : string Earley.grammar =
   | false_kw -> "false"
   | true_kw  -> "true"
 
-(* Int litteral. *)
+(** {3 Numerical constants} *)
 
-let num_suffix =
+(** [num_suffix] accepts an optional numerical suffix character. *)
+let num_suffix : char option Earley.grammar =
   let suffix_cs = Charset.(union (range 'g' 'z') (range 'G' 'Z')) in
-  let no_suffix_cs = Earley.blank_test Charset.full
-    (fun buf pos _ _ ->
-      let c,_,_ = Input.read buf pos in
-      ((), c <> '.' && c <> 'e' && c <> 'E' && not (Charset.mem suffix_cs c))) in
-  parser
-  | - s:(Earley.in_charset suffix_cs) -> Some s
-  | no_suffix_cs -> None
-
-let int_litteral : (string * char option) Earley.grammar =
-  let int_re = union_re
-    [ "[0][xX][0-9a-fA-F][0-9a-fA-F_]*" (* Hexadecimal *)
-    ; "[0][oO][0-7][0-7_]*"             (* Octal *)
-    ; "[0][bB][01][01_]*"               (* Binary *)
-    ; "[0-9][0-9_]*" ]                  (* Decimal (NOTE needs to be last. *)
+  let no_suffix_cs = List.fold_left Charset.add suffix_cs ['.'; 'e'; 'E'] in
+  let no_suffix buf pos _ _ =
+    ((), not (Charset.mem no_suffix_cs (Input.get buf pos)))
   in
-  parser i:RE(int_re) num_suffix
+  parser
+  | - s:(Earley.in_charset suffix_cs)            -> Some s
+  | _:(Earley.blank_test Charset.full no_suffix) -> None
 
-(* Float litteral. *)
+(** [int_litteral] accepts an integer litteral in any valid syntax. *)
+let int_litteral : (string * char option) Earley.grammar =
+  let int_re =
+    [ "[0][xX][0-9a-fA-F][0-9a-fA-F_]*" (* Hexadecimal            *)
+    ; "[0][oO][0-7][0-7_]*"             (* Octal                  *)
+    ; "[0][bB][01][01_]*"               (* Binary                 *)
+    ; "[0-9][0-9_]*" ]                  (* Decimal (must be last) *)
+  in
+  parser i:RE(union_re int_re) num_suffix
+
+(** [float_litteral] accepts a floating point litteral in any valid syntax. *)
 let float_litteral : (string * char option) Earley.grammar =
-  let float_re = union_re
+  let float_re =
     [ "[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*"
     ; "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?" ]
   in
-  parser f:RE(float_re) num_suffix
+  parser f:RE(union_re float_re) num_suffix
 
-(* Char litteral. *)
+(** {3 Character and string constants} *)
 
+(** [escaped_char] accepts a single escaped character. *)
 let escaped_char : char Earley.grammar =
   let char_dec = "[0-9][0-9][0-9]" in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
   let char_esc = "[\\\\\\\"\\\'ntbrs ]" in
   parser
-    | e:RE(char_dec) -> char_of_int (int_of_string e)
-    | e:RE(char_hex) -> char_of_int (int_of_string ("0" ^ e))
-    | e:RE(char_esc) ->
-        begin
-          match e.[0] with
-          | 'n' -> '\n'
-          | 't' -> '\t'
-          | 'b' -> '\b'
-          | 'r' -> '\r'
-          | 's' -> ' '
-          | c   -> c
-        end
+  | e:RE(char_dec) -> char_of_int (int_of_string e)
+  | e:RE(char_hex) -> char_of_int (int_of_string ("0" ^ e))
+  | e:RE(char_esc) -> match e.[0] with
+                      | 'n' -> '\n' | 't' -> '\t' | 'b' -> '\b'
+                      | 'r' -> '\r' | 's' -> ' '  | c   -> c
 
+(** [char_litteral] accepts a single character litteral. *)
 let char_litteral : char Earley.grammar =
   let char_reg = "[^\\\\\\\']" in
-  let single_char =
+  let one_char =
     parser
-      | c:RE(char_reg)        -> c.[0]
-      | '\\' e:escaped_char -> e
+    | c:RE(char_reg)      -> c.[0]
+    | '\\' e:escaped_char -> e
   in
-  Earley.no_blank_layout (parser _:single_quote c:single_char - '\'')
+  Earley.no_blank_layout (parser _:single_quote c:one_char '\'')
 
-(* String litteral. *)
-
+(** [quoted_string] accepts a single quoted string ("{id|...|id}" syntax). *)
 let quoted_string : (string * string option) Earley.grammar =
   let f buf pos =
     let rec fn st str buf pos =
@@ -442,43 +434,46 @@ let quoted_string : (string * string option) Earley.grammar =
       | (`Cls(x::y,b,l), _       ) ->
           if x = c then fn (`Cls(y,x::b,l)) str buf' pos'
           else fn (`Cnt(l)) (List.append b str) buf' pos'
-      | (_           , _       ) -> Earley.give_up ()
+      | (_             , _       ) -> Earley.give_up ()
     in
     let (cs, id, buf, pos) = fn `Ini [] buf pos in
-    let r = (cs_to_string cs, Some (cs_to_string id)) in
-    (r, buf, pos)
+    ((cs_to_string cs, Some (cs_to_string id)), buf, pos)
   in
   Earley.black_box f (Charset.singleton '{') false "quoted_string"
 
+(** [normal_string] accepts a single standard string (with double quotes). *)
 let normal_string : string Earley.grammar =
-  let single_char = parser
-    | c:ANY                 -> if c = '"' || c = '\\' then Earley.give_up (); c
-    | '\\' - e:escaped_char -> e
+  let one_char =
+    let char_reg = "[^\\\\\\\"]" in
+    parser
+    | c:RE(char_reg)      -> c.[0]
+    | '\\' e:escaped_char -> e
   in
-  parser
-    '"' cs:single_char* css:{_:"\\\n" _:RE("[ \t]*")$ single_char*}* '"' ->
-      cs_to_string (List.flatten (cs :: css))
+  parser '"' cs:one_char* css:{_:"\\\n" _:RE("[ \t]*")$ one_char*}* '"' ->
+    cs_to_string (List.flatten (cs :: css))
 
+(** [string_litteral] accepts a single string litteral. *)
 let string_litteral : (string * string option) Earley.grammar =
   let string_litteral = parser s:normal_string -> (s, None) | quoted_string in
   Earley.no_blank_layout string_litteral
 
-(* Regexp litteral. *)
-let regexp =
+(** [regexp] accepts the contents of a regexp litteral (no delimitor). *)
+let regexp : string Earley.grammar =
   let regexp_char = parser
     | c:RE("[^'\\\\]")            -> c
     | _:single_quote              -> "'"
     | '\\' e:RE("[ntbrs\\\\()|]") ->
         match e.[0] with
-        | 'n'  -> "\n"  | 't'  -> "\t"  | 'b'  -> "\b"
-        | 'r'  -> "\r"  | 's'  -> " "   | '\\' -> "\\"
-        | '('  -> "\\(" | ')'  -> "\\)" | '|'  -> "\\|"
-        | _    -> assert false
+        | 'n'  -> "\n"  | 't'  -> "\t"  | 'b'  -> "\b"  | 'r'  -> "\r"
+        | 's'  -> " "   | '\\' -> "\\"  | '('  -> "\\(" | ')'  -> "\\)"
+        | '|'  -> "\\|" | _    -> assert false
   in
   parser cs:regexp_char* -> String.concat "" cs
 
+(** [regexp_litteral] accepts a single Earley regexp litteral (with [Str]). *)
 let regexp_litteral : string Earley.grammar =
-  parser _:double_quote - (Earley.no_blank_layout (parser regexp "''"))
+  parser _:double_quote (Earley.no_blank_layout (parser regexp "''"))
 
+(** [regexp_litteral] accepts a single Earley regexp litteral (builtin). *)
 let new_regexp_litteral : string Earley.grammar =
   Earley.no_blank_layout (parser "{#" regexp "#}")
