@@ -1,108 +1,125 @@
 open Earley_core
-open Asttypes
+type buf_pos = (Input.buffer * int)
+[@@@ocaml.text " Representation of a buffer with a specific position. "]
+[@@@ocaml.text
+  " {2 Comments and documentation comments} ********************************"]
 exception Unclosed_comment of bool * Input.buffer * int 
-let unclosed_comment : type a. (Input.buffer * int) -> a =
-  fun (buf, pos) -> raise (Unclosed_comment (false, buf, pos))
-let unclosed_comment_string : type a. (Input.buffer * int) -> a =
-  fun (buf, pos) -> raise (Unclosed_comment (true, buf, pos))
-let ocamldoc_comments = ref []
-let ocamldoc_stack = ref []
-let push_comments () =
-  ocamldoc_stack := ((!ocamldoc_comments) :: (!ocamldoc_stack));
-  ocamldoc_comments := []
-let pop_comments () =
-  match !ocamldoc_stack with
-  | [] -> assert false
-  | cs::ls ->
-      (ocamldoc_comments := ((!ocamldoc_comments) @ cs); ocamldoc_stack := ls)
-let ocaml_blank buf pos =
-  let ocamldoc = ref false in
-  let ocamldoc_buf = Buffer.create 1024 in
-  let new_line = ref false in
-  let previous_newline = ref (Input.line_num buf) in
-  let rec fn state stack prev curr =
-    let (buf, pos) = curr in
-    let (c, buf', pos') = Input.read buf pos in
-    if !ocamldoc then Buffer.add_char ocamldoc_buf c;
-    (let next = (buf', pos') in
-     let count_newline () =
-       if !new_line then previous_newline := (Input.line_num buf');
-       new_line := true in
-     match (state, stack, c) with
-     | (`Ini, [], ' ')|(`Ini, [], '\t')|(`Ini, [], '\r')|(`Ini, [], '\n') ->
-         (count_newline (); fn `Ini stack curr next)
-     | (`Ini, _, '(') -> fn (`Opn curr) stack curr next
-     | (`Ini, [], _) -> curr
-     | (`Opn p, _, '*') ->
-         if stack = []
-         then
-           let (c, buf', pos') = Input.read buf' pos' in
-           let (c', _, _) = Input.read buf' pos' in
-           (if (c = '*') && (c' <> '*')
-            then (ocamldoc := true; fn `Cls (p :: stack) curr (buf', pos'))
-            else fn `Ini (p :: stack) curr next)
-         else fn `Ini (p :: stack) curr next
-     | (`Opn _, _::_, '"') -> fn (`Str curr) stack curr next
-     | (`Opn _, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
-     | (`Opn _, _::_, '(') -> fn (`Opn curr) stack curr next
-     | (`Opn _, [], _) -> prev
-     | (`Opn _, _, _) -> fn `Ini stack curr next
-     | (`Ini, _::_, '"') -> fn (`Str curr) stack curr next
-     | (`Str _, _::_, '"') -> fn `Ini stack curr next
-     | (`Str p, _::_, '\\') -> fn (`Esc p) stack curr next
-     | (`Esc p, _::_, _) -> fn (`Str p) stack curr next
-     | (`Str p, _::_, '\255') -> unclosed_comment_string p
-     | (`Str _, _::_, _) -> fn state stack curr next
-     | (`Str _, [], _) -> assert false
-     | (`Esc _, [], _) -> assert false
-     | (`Ini, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
-     | (`SOp (l, p), _::_, 'a'..'z')|(`SOp (l, p), _::_, '_') ->
-         fn (`SOp ((c :: l), p)) stack curr next
-     | (`SOp (_, _), p::_, '\255') -> unclosed_comment p
-     | (`SOp (l, p), _::_, '|') ->
-         fn (`SIn ((List.rev l), p)) stack curr next
-     | (`SOp (_, _), _::_, _) -> fn `Ini stack curr next
-     | (`SIn (l, p), _::_, '|') -> fn (`SCl (l, (l, p))) stack curr next
-     | (`SIn (_, p), _::_, '\255') -> unclosed_comment_string p
-     | (`SIn (_, _), _::_, _) -> fn state stack curr next
-     | (`SCl ([], b), _::_, '}') -> fn `Ini stack curr next
-     | (`SCl ([], b), _::_, '\255') -> unclosed_comment_string (snd b)
-     | (`SCl ([], b), _::_, _) -> fn (`SIn b) stack curr next
-     | (`SCl (l, b), _::_, c) ->
-         if c = (List.hd l)
-         then let l = List.tl l in fn (`SCl (l, b)) stack curr next
-         else fn (`SIn b) stack curr next
-     | (`SOp (_, _), [], _) -> assert false
-     | (`SIn (_, _), [], _) -> assert false
-     | (`SCl (_, _), [], _) -> assert false
-     | (`Ini, _::_, '*') -> fn `Cls stack curr next
-     | (`Cls, _::_, '*') -> fn `Cls stack curr next
-     | (`Cls, _::_, '"') -> fn (`Str curr) stack curr next
-     | (`Cls, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
-     | (`Cls, p::s, ')') ->
-         (if (!ocamldoc) && (s = [])
-          then
-            (let comment =
-               try
-                 Buffer.sub ocamldoc_buf 0 ((Buffer.length ocamldoc_buf) - 2)
-               with | Invalid_argument _ -> "" in
-             Buffer.clear ocamldoc_buf;
-             ocamldoc_comments := ((p, next, comment, (!previous_newline)) ::
-               (!ocamldoc_comments));
-             ocamldoc := false);
-          new_line := false;
-          fn `Ini s curr next)
-     | (`Cls, _::_, _) -> fn `Ini stack curr next
-     | (`Cls, [], _) -> assert false
-     | (`Ini, p::_, '\255') -> unclosed_comment p
-     | (`Ini, _::_, _) -> fn `Ini stack curr next) in
-  fn `Ini [] (buf, pos) (buf, pos)
-let ident_char c =
-  match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> true | _ -> false
+[@@@ocaml.text
+  " Exception [Unclosed_comment(in_str, buf, pos)] is raised when a comment at\n    is not closed properly at position [pos] in buffer [buf]. Note that if the\n    [in_str] is set to [true] then the problem is due to an unclosed string in\n    a comment. "]
+let unclosed_comment : ?in_str:bool -> buf_pos -> 'a =
+  fun ?(in_str= false) ->
+    fun (buf, pos) -> raise (Unclosed_comment (in_str, buf, pos))
+[@@@ocaml.text
+  " [unclosed_comment ~in_str (buf, pos)] signals an unclodes comment. "]
+type doc_comment = {
+  doc_start: buf_pos ;
+  doc_end: buf_pos ;
+  doc_text: string }
+[@@@ocaml.text " Representation of a documentation comment. "]
+let doc_comments : doc_comment list ref = ref []
+[@@@ocaml.text
+  " [doc_comments] holds documentation comments that have already been parsed,\n    but only at the current level. "]
+let doc_stack : doc_comment list list ref = ref []
+[@@@ocaml.text
+  " [doc_stack] is used to store documentation comment contexts that are in an\n    outer scope (e.g., a parrent module). "]
+let push_comments : unit -> unit =
+  fun _ -> doc_stack := ((!doc_comments) :: (!doc_stack)); doc_comments := []
+[@@@ocaml.text
+  " [push_comments ()] pushes the current documentation comments to the stack,\n    and reinitialises the current comments. This function is used whenever the\n    parser enters the scope of a new module/signature definition. "]
+let pop_comments : unit -> unit =
+  fun _ ->
+    match !doc_stack with
+    | [] -> assert false
+    | c::stack -> (doc_comments := ((!doc_comments) @ c); doc_stack := stack)
+[@@@ocaml.text
+  " [pop_comments ()] pops back the documentation comments stored in the stack\n    (thus overwriting the currently stored documentation comments).  Note that\n    this function is used when getting out of a module definition. "]
+let ocaml_blank : Earley.blank =
+  fun buf ->
+    fun pos ->
+      let odoc = ref false in
+      let odoc_buf = Buffer.create 1024 in
+      let rec fn state stack prev ((buf, pos) as curr) =
+        let (c, buf', pos') = Input.read buf pos in
+        if !odoc then Buffer.add_char odoc_buf c;
+        (let next = (buf', pos') in
+         match (state, stack, c) with
+         | (`Ini, [], ' ')|(`Ini, [], '\t')|(`Ini, [], '\r')|(`Ini, [], '\n')
+             -> fn `Ini stack curr next
+         | (`Ini, _, '(') -> fn (`Opn curr) stack curr next
+         | (`Ini, [], _) -> curr
+         | (`Opn p, [], '*') ->
+             let (c1, buf', pos') = Input.read buf' pos' in
+             let is_doc = (c1 = '*') && ((Input.get buf' pos') <> '*') in
+             if is_doc
+             then (odoc := true; fn `Cls [p] curr (buf', pos'))
+             else fn `Ini [p] curr next
+         | (`Opn p, _, '*') -> fn `Ini (p :: stack) curr next
+         | (`Opn _, _::_, '"') -> fn (`Str curr) stack curr next
+         | (`Opn _, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
+         | (`Opn _, _::_, '(') -> fn (`Opn curr) stack curr next
+         | (`Opn _, [], _) -> prev
+         | (`Opn _, _, _) -> fn `Ini stack curr next
+         | (`Ini, _::_, '"') -> fn (`Str curr) stack curr next
+         | (`Str _, _::_, '"') -> fn `Ini stack curr next
+         | (`Str p, _::_, '\\') -> fn (`Esc p) stack curr next
+         | (`Esc p, _::_, _) -> fn (`Str p) stack curr next
+         | (`Str p, _::_, '\255') -> unclosed_comment ~in_str:true p
+         | (`Str _, _::_, _) -> fn state stack curr next
+         | (`Str _, [], _) -> assert false
+         | (`Esc _, [], _) -> assert false
+         | (`Ini, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
+         | (`SOp (l, p), _::_, 'a'..'z')|(`SOp (l, p), _::_, '_') ->
+             fn (`SOp ((c :: l), p)) stack curr next
+         | (`SOp (_, _), p::_, '\255') -> unclosed_comment p
+         | (`SOp (l, p), _::_, '|') ->
+             fn (`SIn ((List.rev l), p)) stack curr next
+         | (`SOp (_, _), _::_, _) -> fn `Ini stack curr next
+         | (`SIn (l, p), _::_, '|') -> fn (`SCl (l, (l, p))) stack curr next
+         | (`SIn (_, p), _::_, '\255') -> unclosed_comment ~in_str:true p
+         | (`SIn (_, _), _::_, _) -> fn state stack curr next
+         | (`SCl ([], b), _::_, '}') -> fn `Ini stack curr next
+         | (`SCl ([], b), _::_, '\255') ->
+             unclosed_comment ~in_str:true (snd b)
+         | (`SCl ([], b), _::_, _) -> fn (`SIn b) stack curr next
+         | (`SCl (l, b), _::_, c) ->
+             if c = (List.hd l)
+             then fn (`SCl ((List.tl l), b)) stack curr next
+             else fn (`SIn b) stack curr next
+         | (`SOp (_, _), [], _) -> assert false
+         | (`SIn (_, _), [], _) -> assert false
+         | (`SCl (_, _), [], _) -> assert false
+         | (`Ini, _::_, '*') -> fn `Cls stack curr next
+         | (`Cls, _::_, '*') -> fn `Cls stack curr next
+         | (`Cls, _::_, '"') -> fn (`Str curr) stack curr next
+         | (`Cls, _::_, '{') -> fn (`SOp ([], curr)) stack curr next
+         | (`Cls, p::s, ')') ->
+             (if (!odoc) && (s = [])
+              then
+                (let text =
+                   Buffer.sub odoc_buf 0 ((Buffer.length odoc_buf) - 2) in
+                 Buffer.clear odoc_buf;
+                 (let c = { doc_start = p; doc_end = next; doc_text = text } in
+                  doc_comments := (c :: (!doc_comments)); odoc := false));
+              fn `Ini s curr next)
+         | (`Cls, _::_, _) -> fn `Ini stack curr next
+         | (`Cls, [], _) -> assert false
+         | (`Ini, p::_, '\255') -> unclosed_comment p
+         | (`Ini, _::_, _) -> fn `Ini stack curr next) in
+      fn `Ini [] (buf, pos) (buf, pos)
+[@@@ocaml.text
+  " [ocaml_blank buf pos] is the Earley blank function for OCaml, that ignores\n    blanks starting at buffer [buf] and position [pos]. The ignored characters\n    include [' '], ['\\t'], ['\\r'], ['\\n'], everything enclosed between  [\"(*\"]\n    and [\"*)\"] (multi-line comments). Multi-line comments can contain (nested)\n    multi-line comments,  as well as valid string litterals (including strings\n    such as [\"(*\"] or [\"*)\"]). "]
+[@@@ocaml.text
+  " {2 Keywords management} ************************************************"]
+let is_identifier_char : char -> bool =
+  fun c ->
+    match c with | 'a'..'z'|'A'..'Z'|'0'..'9'|'_'|'\'' -> true | _ -> false
+[@@@ocaml.text
+  " [is_identifier_char c] tells whether [c] could appear in an identifier. "]
 let key_word s =
-  if (String.length s) <= 0
-  then invalid_arg "Pa_lexing.key_word (empty keyword)";
-  Earley.keyword s ident_char ()
+  if (String.length s) <= 0 then invalid_arg "Pa_lexing.key_word";
+  Earley.keyword s is_identifier_char ()
+[@@@ocaml.text " [keyword s] creates a keyword parser for [s]. "]
+[@@@ocaml.text " {3 Keyword declarations} "]
 let mutable_kw = key_word "mutable"
 let private_kw = key_word "private"
 let virtual_kw = key_word "virtual"
@@ -158,188 +175,193 @@ let _ =
   Earley_core.Earley.set_grammar mutable_flag
     (Earley_core.Earley.alternatives
        [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-          (Earley_core.Earley.empty Immutable);
+          (Earley_core.Earley.empty Asttypes.Immutable);
        Earley_core.Earley.fsequence mutable_kw
-         (Earley_core.Earley.empty (fun _default_0 -> Mutable))])
+         (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Mutable))] : 
+    Asttypes.mutable_flag Earley.grammar)
+[@@@ocaml.text
+  " [mutable_flag] is a parser for an optional \"mutable\" keyword. "]
 let private_flag = Earley_core.Earley.declare_grammar "private_flag"
 let _ =
   Earley_core.Earley.set_grammar private_flag
     (Earley_core.Earley.alternatives
        [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-          (Earley_core.Earley.empty Public);
+          (Earley_core.Earley.empty Asttypes.Public);
        Earley_core.Earley.fsequence private_kw
-         (Earley_core.Earley.empty (fun _default_0 -> Private))])
+         (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Private))] : 
+    Asttypes.private_flag Earley.grammar)
+[@@@ocaml.text
+  " [private_flag] is a parser for an optional \"private\" keyword. "]
 let virtual_flag = Earley_core.Earley.declare_grammar "virtual_flag"
 let _ =
   Earley_core.Earley.set_grammar virtual_flag
     (Earley_core.Earley.alternatives
        [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-          (Earley_core.Earley.empty Concrete);
+          (Earley_core.Earley.empty Asttypes.Concrete);
        Earley_core.Earley.fsequence virtual_kw
-         (Earley_core.Earley.empty (fun _default_0 -> Virtual))])
+         (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Virtual))] : 
+    Asttypes.virtual_flag Earley.grammar)
+[@@@ocaml.text
+  " [virtual_flag] is a parser for an optional \"virtual\" keyword. "]
 let rec_flag = Earley_core.Earley.declare_grammar "rec_flag"
 let _ =
   Earley_core.Earley.set_grammar rec_flag
     (Earley_core.Earley.alternatives
        [Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-          (Earley_core.Earley.empty Nonrecursive);
+          (Earley_core.Earley.empty Asttypes.Nonrecursive);
        Earley_core.Earley.fsequence rec_kw
-         (Earley_core.Earley.empty (fun _default_0 -> Recursive))])
+         (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Recursive))] : 
+    Asttypes.rec_flag Earley.grammar)
+[@@@ocaml.text " [rec_flag] is a parser for an optional \"rec\" keyword. "]
 let downto_flag = Earley_core.Earley.declare_grammar "downto_flag"
 let _ =
   Earley_core.Earley.set_grammar downto_flag
     (Earley_core.Earley.alternatives
        [Earley_core.Earley.fsequence downto_kw
-          (Earley_core.Earley.empty (fun _default_0 -> Downto));
+          (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Downto));
        Earley_core.Earley.fsequence to_kw
-         (Earley_core.Earley.empty (fun _default_0 -> Upto))])
-let no_keyword s =
-  let len = String.length s in
-  let rec fn i buf pos =
-    let (c, buf, pos) = Input.read buf pos in
-    if i >= len
-    then ((), (ident_char c))
-    else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos in
-  Earley.test ~name:("no_" ^ s) Charset.full (fn 0)
+         (Earley_core.Earley.empty (fun _default_0 -> Asttypes.Upto))] : 
+    Asttypes.direction_flag Earley.grammar)
+[@@@ocaml.text
+  " [downto_flag] is a parser for either a \"to\" or a \"downto\" keyword. "]
+[@@@ocaml.text " {3 Some parsers to forbid keywords} "]
+let no_keyword : string -> unit Earley.grammar =
+  fun s ->
+    let len = String.length s in
+    let rec fn i buf pos =
+      let (c, buf, pos) = Input.read buf pos in
+      if i >= len
+      then ((), (is_identifier_char c))
+      else if c <> (s.[i]) then ((), true) else fn (i + 1) buf pos in
+    Earley.test ~name:("no_" ^ s) Charset.full (fn 0)
+[@@@ocaml.text
+  " [not_keyword s] fails if the input matches keyword [s], and does not parse\n    any input (i.e., this is only a test combinator). "]
 let no_else = no_keyword "else"
-let no_false = no_keyword "false"
-let no_parser = no_keyword "parser"
 let no_with = no_keyword "with"
-let no_as = no_keyword "as"
-let no_dot =
-  Earley.test ~name:"no_dot" Charset.full
-    (fun buf ->
-       fun pos ->
-         let (c, buf, pos) = Input.read buf pos in
-         if c <> '.' then ((), true) else ((), false))
-let no_semi =
-  Earley.test ~name:"no_semi" Charset.full
-    (fun buf ->
-       fun pos ->
-         let (c, buf, pos) = Input.read buf pos in
-         if c <> ';'
-         then ((), true)
-         else
-           (let (c, buf, pos) = Input.read buf pos in
-            if c = ';' then ((), true) else ((), false)))
-let no_colon =
-  Earley.test ~name:"no_colon" Charset.full
-    (fun buf ->
-       fun pos ->
-         let (c, buf, pos) = Input.read buf pos in
-         if c <> ':'
-         then ((), true)
-         else
-           (let (c, buf, pos) = Input.read buf pos in
-            if c = ':' then ((), true) else ((), false)))
-let make_reserved l =
-  let cmp s1 s2 = String.compare s2 s1 in
-  let re_from_list l =
-    let l = List.map (fun s -> "\\(" ^ ((Str.quote s) ^ "\\)")) l in
-    Str.regexp (String.concat "\\|" l) in
-  let reserved = ref (List.sort cmp l) in
-  let re = ref (re_from_list (!reserved)) in
-  let is_reserved s =
-    (Str.string_match (!re) s 0) && ((Str.match_end ()) = (String.length s)) in
-  let add_reserved s =
-    reserved := (List.sort cmp (s :: (!reserved)));
-    re := (re_from_list (!reserved)) in
-  (is_reserved, add_reserved)
-let reserved_ids =
-  ["and";
-  "as";
-  "assert";
-  "asr";
-  "begin";
-  "class";
-  "constraint";
-  "do";
-  "done";
-  "downto";
-  "else";
-  "end";
-  "exception";
-  "external";
-  "false";
-  "for";
-  "function";
-  "functor";
-  "fun";
-  "if";
-  "in";
-  "include";
-  "inherit";
-  "initializer";
-  "land";
-  "lazy";
-  "let";
-  "lor";
-  "lsl";
-  "lsr";
-  "lxor";
-  "match";
-  "method";
-  "mod";
-  "module";
-  "mutable";
-  "new";
-  "object";
-  "of";
-  "open";
-  "or";
-  "private";
-  "rec";
-  "sig";
-  "struct";
-  "then";
-  "to";
-  "true";
-  "try";
-  "type";
-  "val";
-  "virtual";
-  "when";
-  "while";
-  "with"]
-let reserved_symbs =
-  ["#";
-  "'";
-  "(";
-  ")";
-  ",";
-  "->";
-  "->>";
-  ".";
-  "..";
-  ":";
-  ":>";
-  ";";
-  ";;";
-  "<-";
-  ">]";
-  ">}";
-  "?";
-  "[";
-  "[<";
-  "[>";
-  "[|";
-  "]";
-  "_";
-  "`";
-  "{";
-  "{<";
-  "|";
-  "|]";
-  "}";
-  "~";
-  "$"]
-let (is_reserved_id, add_reserved_id) = make_reserved reserved_ids
-let (is_reserved_symb, add_reserved_symb) = make_reserved reserved_symbs
-let not_special =
-  let special = "!$%&*+./:<=>?@^|~-" in
-  let cs = ref Charset.empty in
-  String.iter (fun c -> cs := (Charset.add (!cs) c)) special;
-  Earley.blank_not_in_charset ~name:"not_special" (!cs)
+let no_parser = no_keyword "parser"
+[@@@ocaml.text " {3 Other similar functions for reserved sequences} "]
+let no_dot : unit Earley.grammar =
+  let fn buf pos = ((), ((Input.get buf pos) <> '.')) in
+  Earley.test ~name:"no_dot" Charset.full fn
+[@@@ocaml.text
+  " [no_dot] is a grammar that fails if the next character is ['.']. Note that\n    not input is consumed, whatever the outcome of the test. "]
+let no_semi : unit Earley.grammar =
+  let fn buf pos =
+    let (c, buf, pos) = Input.read buf pos in
+    ((), ((c <> ';') || ((Input.get buf pos) = ';'))) in
+  Earley.test ~name:"no_semi" Charset.full fn
+[@@@ocaml.text
+  " [no_semi] is a grammar that fails if the next character is a [';'], except\n    if the second next character is also [';']. No input is consumed. "]
+let no_colon : unit Earley.grammar =
+  let fn buf pos =
+    let (c, buf, pos) = Input.read buf pos in
+    ((), ((c <> ':') || ((Input.get buf pos) = ':'))) in
+  Earley.test ~name:"no_colon" Charset.full fn
+[@@@ocaml.text
+  " [no_semi] is a grammar that fails if the next character is a [':'], except\n    if the second next character is also [':']. No input is consumed. "]
+[@@@ocaml.text
+  " {2 Identifiers} ********************************************************"]
+let make_reserved : string list -> ((string -> bool) * (string -> unit)) =
+  fun l ->
+    let htbl = Hashtbl.create 37 in
+    List.iter (fun s -> Hashtbl.add htbl s s) l;
+    ((Hashtbl.mem htbl), ((fun s -> Hashtbl.add htbl s s)))
+[@@@ocaml.text
+  " [make_reserved l] initializes a structure for storing a list of (reserved)\n    strings to [l], and returns a pair of functions [(mem, add)], respectively\n    testing the membership of a string and adding a new reserved element. "]
+let (is_reserved_id, add_reserved_id) =
+  make_reserved
+    ["and";
+    "as";
+    "assert";
+    "asr";
+    "begin";
+    "class";
+    "constraint";
+    "do";
+    "done";
+    "downto";
+    "else";
+    "end";
+    "exception";
+    "external";
+    "false";
+    "for";
+    "function";
+    "functor";
+    "fun";
+    "if";
+    "in";
+    "include";
+    "inherit";
+    "initializer";
+    "land";
+    "lazy";
+    "let";
+    "lor";
+    "lsl";
+    "lsr";
+    "lxor";
+    "match";
+    "method";
+    "mod";
+    "module";
+    "mutable";
+    "new";
+    "object";
+    "of";
+    "open";
+    "or";
+    "private";
+    "rec";
+    "sig";
+    "struct";
+    "then";
+    "to";
+    "true";
+    "try";
+    "type";
+    "val";
+    "virtual";
+    "when";
+    "while";
+    "with";
+    "_"]
+[@@@ocaml.text
+  " Functions for manipulating reserved identifiers (e.g., keywords). "]
+let (is_reserved_symb, add_reserved_symb) =
+  make_reserved
+    ["#";
+    "'";
+    "(";
+    ")";
+    ",";
+    "->";
+    "->>";
+    ".";
+    "..";
+    ":";
+    ":>";
+    ";";
+    ";;";
+    "<-";
+    ">]";
+    ">}";
+    "?";
+    "[";
+    "[<";
+    "[>";
+    "[|";
+    "]";
+    "_";
+    "`";
+    "{";
+    "{<";
+    "|";
+    "|]";
+    "}";
+    "~";
+    "$"]
+[@@@ocaml.text " Functions for manipulating reserved symbols. "]
 let ident = Earley_core.Earley.declare_grammar "ident"
 let _ =
   Earley_core.Earley.set_grammar ident
@@ -348,48 +370,67 @@ let _ =
           "[A-Za-z_][a-zA-Z0-9_']*" (fun groupe -> groupe 0))
        (Earley_core.Earley.empty
           (fun id -> if is_reserved_id id then Earley.give_up (); id)))
+[@@@ocaml.text
+  " [ident] is a grammar that accepts any lowercase or upercase identifier, as\n    long as it is not reserved according to the [is_reserved_id] function. "]
 let lident = Earley_core.Earley.declare_grammar "lident"
 let _ =
   Earley_core.Earley.set_grammar lident
     (Earley_core.Earley.fsequence
-       (Earley_str.regexp
-          ~name:"\\\\([a-z][a-zA-Z0-9_']*\\\\)\\\\|\\\\([_][a-zA-Z0-9_']+\\\\)"
-          "\\([a-z][a-zA-Z0-9_']*\\)\\|\\([_][a-zA-Z0-9_']+\\)"
+       (Earley_str.regexp ~name:"[a-z_][a-zA-Z0-9_']*" "[a-z_][a-zA-Z0-9_']*"
           (fun groupe -> groupe 0))
        (Earley_core.Earley.empty
           (fun id -> if is_reserved_id id then Earley.give_up (); id)))
+[@@@ocaml.text
+  " [lident] is a grammar that accepts any non-reserved, lowercase identifier.\n    Reserved identifiers are identified using [is_reserved_id]. "]
 let uident = Earley_core.Earley.declare_grammar "uident"
 let _ =
   Earley_core.Earley.set_grammar uident
     (Earley_str.regexp ~name:"[A-Z][a-zA-Z0-9_']*" "[A-Z][a-zA-Z0-9_']*"
        (fun groupe -> groupe 0))
-let union_re l = String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
-let cs_to_string cs =
-  String.concat "" (List.map (fun c -> String.make 1 c) cs)
-let single_char c =
-  let s = String.make 1 c in
-  let f str pos =
-    let (c', str', pos') = Input.read str pos in
-    if c' = c
-    then
-      let (c'', _, _) = Input.read str' pos' in
-      (if c'' = c then Earley.give_up () else ((), str', pos'))
-    else Earley.give_up () in
-  Earley.black_box f (Charset.singleton c) false s
-let double_char c =
-  let s = String.make 2 c in
-  let f str pos =
-    let (c', str', pos') = Input.read str pos in
-    if c' = c
-    then
-      let (c'', str', pos') = Input.read str' pos' in
-      (if c'' <> c then Earley.give_up () else ((), str', pos'))
-    else Earley.give_up () in
-  Earley.black_box f (Charset.singleton c) false s
+[@@@ocaml.text
+  " [uident] is a grammar that accepts any uppercase identifier. "]
+[@@@ocaml.text " {3 Special characters and delimiters} "]
+let not_special : unit Earley.grammar =
+  let cs = ref Charset.empty in
+  String.iter (fun c -> cs := (Charset.add (!cs) c)) "!$%&*+./:<=>?@^|~-";
+  Earley.blank_not_in_charset ~name:"not_special" (!cs)
+[@@@ocaml.text
+  " [not_special] can be used to reject the current input if it is immediately\n    followed by a special (infix or prefix operator) character. In the process\n    no blank characters are ignored prior to testing. "]
+let single_char : char -> unit Earley.grammar =
+  fun c ->
+    let fn str pos =
+      let (c_read, str, pos) = Input.read str pos in
+      if (c <> c_read) || ((Input.get str pos) = c) then Earley.give_up ();
+      ((), str, pos) in
+    Earley.black_box fn (Charset.singleton c) false (String.make 1 c)
+[@@@ocaml.text
+  " [single_char c] is a grammar that accepts a single [c] character, but that\n    rejects the input if it is then again followed by [c]. "]
+let double_char : char -> unit Earley.grammar =
+  fun c ->
+    let fn str pos =
+      let (c_read, str, pos) = Input.read str pos in
+      if c_read <> c then Earley.give_up ();
+      (let (c_read, str, pos) = Input.read str pos in
+       if (c_read <> c) || ((Input.get str pos) = c) then Earley.give_up ();
+       ((), str, pos)) in
+    Earley.black_box fn (Charset.singleton c) false (String.make 2 c)
+[@@@ocaml.text
+  " [double_char c] is a grammar that accepts a sequence of (exactly) two [c].\n    If a third [c] follows, the input is rejected. "]
 let semi_col = single_char ';'
 let double_semi_col = double_char ';'
 let single_quote = single_char '\''
 let double_quote = double_char '\''
+[@@@ocaml.text
+  " {2 Constants and litterals} ********************************************"]
+let union_re : string list -> string =
+  fun l -> String.concat "\\|" (List.map (Printf.sprintf "\\(%s\\)") l)
+[@@@ocaml.text
+  " [union_re l] builds the string representation (following [Str] syntax]) of\n    a regular expression that is the alternative of the regular expressions in\n    the list [l]. "]
+let cs_to_string : char list -> string =
+  let b = Buffer.create 27 in
+  fun cs -> let open Buffer in clear b; List.iter (add_char b) cs; contents b
+[@@@ocaml.text
+  " [cs_to_string cs] converts a list of characters into a string. "]
 let bool_lit = Earley_core.Earley.declare_grammar "bool_lit"
 let _ =
   Earley_core.Earley.set_grammar bool_lit
@@ -399,45 +440,45 @@ let _ =
        Earley_core.Earley.fsequence false_kw
          (Earley_core.Earley.empty (fun _default_0 -> "false"))] : string
                                                                     Earley.grammar)
-let num_suffix =
+[@@@ocaml.text " [bool_lit] accepts a single boolean litteral. "]
+[@@@ocaml.text " {3 Numerical constants} "]
+let num_suffix : char option Earley.grammar =
   let suffix_cs = let open Charset in union (range 'g' 'z') (range 'G' 'Z') in
-  let no_suffix_cs =
-    Earley.blank_test Charset.full
-      (fun buf ->
-         fun pos ->
-           fun _ ->
-             fun _ ->
-               let (c, _, _) = Input.read buf pos in
-               ((),
-                 ((c <> '.') &&
-                    ((c <> 'e') &&
-                       ((c <> 'E') && (not (Charset.mem suffix_cs c))))))) in
+  let no_suffix_cs = List.fold_left Charset.add suffix_cs ['.'; 'e'; 'E'] in
+  let no_suffix buf pos _ _ =
+    ((), (not (Charset.mem no_suffix_cs (Input.get buf pos)))) in
   Earley_core.Earley.alternatives
-    [Earley_core.Earley.fsequence no_suffix_cs
-       (Earley_core.Earley.empty (fun _default_0 -> None));
+    [Earley_core.Earley.fsequence_ignore
+       (Earley.blank_test Charset.full no_suffix)
+       (Earley_core.Earley.empty None);
     Earley_core.Earley.fsequence_ignore (Earley_core.Earley.no_blank_test ())
       (Earley_core.Earley.fsequence (Earley.in_charset suffix_cs)
          (Earley_core.Earley.empty (fun s -> Some s)))]
+[@@@ocaml.text
+  " [num_suffix] accepts an optional numerical suffix character. "]
 let int_litteral : (string * char option) Earley.grammar =
   let int_re =
-    union_re
-      ["[0][xX][0-9a-fA-F][0-9a-fA-F_]*";
-      "[0][oO][0-7][0-7_]*";
-      "[0][bB][01][01_]*";
-      "[0-9][0-9_]*"] in
+    ["[0][xX][0-9a-fA-F][0-9a-fA-F_]*";
+    "[0][oO][0-7][0-7_]*";
+    "[0][bB][01][01_]*";
+    "[0-9][0-9_]*"] in
   Earley_core.Earley.fsequence
-    (Earley_str.regexp ~name:"int" int_re (fun groupe -> groupe 0))
+    (Earley_str.regexp (union_re int_re) (fun groupe -> groupe 0))
     (Earley_core.Earley.fsequence num_suffix
        (Earley_core.Earley.empty (fun _default_0 -> fun i -> (i, _default_0))))
+[@@@ocaml.text
+  " [int_litteral] accepts an integer litteral in any valid syntax. "]
 let float_litteral : (string * char option) Earley.grammar =
   let float_re =
-    union_re
-      ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
-      "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
+    ["[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*";
+    "[0-9][0-9_]*[.][0-9_]*\\([eE][+-][0-9][0-9_]*\\)?"] in
   Earley_core.Earley.fsequence
-    (Earley_str.regexp ~name:"float" float_re (fun groupe -> groupe 0))
+    (Earley_str.regexp (union_re float_re) (fun groupe -> groupe 0))
     (Earley_core.Earley.fsequence num_suffix
        (Earley_core.Earley.empty (fun _default_0 -> fun f -> (f, _default_0))))
+[@@@ocaml.text
+  " [float_litteral] accepts a floating point litteral in any valid syntax. "]
+[@@@ocaml.text " {3 Character and string constants} "]
 let escaped_char : char Earley.grammar =
   let char_dec = "[0-9][0-9][0-9]" in
   let char_hex = "[x][0-9a-fA-F][0-9a-fA-F]" in
@@ -461,9 +502,10 @@ let escaped_char : char Earley.grammar =
       (Earley_str.regexp ~name:"char_hex" char_hex (fun groupe -> groupe 0))
       (Earley_core.Earley.empty
          (fun e -> char_of_int (int_of_string ("0" ^ e))))]
+[@@@ocaml.text " [escaped_char] accepts a single escaped character. "]
 let char_litteral : char Earley.grammar =
   let char_reg = "[^\\\\\\']" in
-  let single_char =
+  let one_char =
     Earley_core.Earley.alternatives
       [Earley_core.Earley.fsequence_ignore
          (Earley_core.Earley.char '\\' '\\')
@@ -474,12 +516,11 @@ let char_litteral : char Earley.grammar =
         (Earley_core.Earley.empty (fun c -> c.[0]))] in
   Earley.no_blank_layout
     (Earley_core.Earley.fsequence_ignore single_quote
-       (Earley_core.Earley.fsequence single_char
+       (Earley_core.Earley.fsequence one_char
           (Earley_core.Earley.fsequence_ignore
-             (Earley_core.Earley.no_blank_test ())
-             (Earley_core.Earley.fsequence_ignore
-                (Earley_core.Earley.char '\'' '\'')
-                (Earley_core.Earley.empty (fun c -> c))))))
+             (Earley_core.Earley.char '\'' '\'')
+             (Earley_core.Earley.empty (fun c -> c)))))
+[@@@ocaml.text " [char_litteral] accepts a single character litteral. "]
 let quoted_string : (string * string option) Earley.grammar =
   let f buf pos =
     let rec fn st str buf pos =
@@ -501,24 +542,25 @@ let quoted_string : (string * string option) Earley.grammar =
           else fn (`Cnt l) (List.append b str) buf' pos'
       | (_, _) -> Earley.give_up () in
     let (cs, id, buf, pos) = fn `Ini [] buf pos in
-    let r = ((cs_to_string cs), (Some (cs_to_string id))) in (r, buf, pos) in
+    (((cs_to_string cs), (Some (cs_to_string id))), buf, pos) in
   Earley.black_box f (Charset.singleton '{') false "quoted_string"
+[@@@ocaml.text
+  " [quoted_string] accepts a single quoted string (\"{id|...|id}\" syntax). "]
 let normal_string : string Earley.grammar =
-  let single_char =
+  let one_char =
+    let char_reg = "[^\\\\\\\"]" in
     Earley_core.Earley.alternatives
       [Earley_core.Earley.fsequence_ignore
          (Earley_core.Earley.char '\\' '\\')
-         (Earley_core.Earley.fsequence_ignore
-            (Earley_core.Earley.no_blank_test ())
-            (Earley_core.Earley.fsequence escaped_char
-               (Earley_core.Earley.empty (fun e -> e))));
-      Earley_core.Earley.fsequence Earley_core.Earley.any
-        (Earley_core.Earley.empty
-           (fun c -> if (c = '"') || (c = '\\') then Earley.give_up (); c))] in
+         (Earley_core.Earley.fsequence escaped_char
+            (Earley_core.Earley.empty (fun e -> e)));
+      Earley_core.Earley.fsequence
+        (Earley_str.regexp ~name:"char_reg" char_reg (fun groupe -> groupe 0))
+        (Earley_core.Earley.empty (fun c -> c.[0]))] in
   Earley_core.Earley.fsequence_ignore (Earley_core.Earley.char '"' '"')
     (Earley_core.Earley.fsequence
        (Earley_core.Earley.apply (fun f -> f [])
-          (Earley_core.Earley.fixpoint' (fun l -> l) single_char
+          (Earley_core.Earley.fixpoint' (fun l -> l) one_char
              (fun x -> fun f -> fun l -> f (x :: l))))
        (Earley_core.Earley.fsequence
           (Earley_core.Earley.apply (fun f -> f [])
@@ -531,7 +573,7 @@ let normal_string : string Earley.grammar =
                       (Earley_core.Earley.fsequence
                          (Earley_core.Earley.apply (fun f -> f [])
                             (Earley_core.Earley.fixpoint' (fun l -> l)
-                               single_char
+                               one_char
                                (fun x -> fun f -> fun l -> f (x :: l))))
                          (Earley_core.Earley.empty
                             (fun _default_0 -> _default_0)))))
@@ -540,6 +582,8 @@ let normal_string : string Earley.grammar =
              (Earley_core.Earley.char '"' '"')
              (Earley_core.Earley.empty
                 (fun css -> fun cs -> cs_to_string (List.flatten (cs :: css)))))))
+[@@@ocaml.text
+  " [normal_string] accepts a single standard string (with double quotes). "]
 let string_litteral : (string * string option) Earley.grammar =
   let string_litteral =
     Earley_core.Earley.alternatives
@@ -547,7 +591,8 @@ let string_litteral : (string * string option) Earley.grammar =
       Earley_core.Earley.fsequence normal_string
         (Earley_core.Earley.empty (fun s -> (s, None)))] in
   Earley.no_blank_layout string_litteral
-let regexp =
+[@@@ocaml.text " [string_litteral] accepts a single string litteral. "]
+let regexp : string Earley.grammar =
   let regexp_char =
     Earley_core.Earley.alternatives
       [Earley_core.Earley.fsequence_ignore
@@ -575,17 +620,19 @@ let regexp =
        (Earley_core.Earley.fixpoint' (fun l -> l) regexp_char
           (fun x -> fun f -> fun l -> f (x :: l))))
     (Earley_core.Earley.empty (fun cs -> String.concat "" cs))
+[@@@ocaml.text
+  " [regexp] accepts the contents of a regexp litteral (no delimitor). "]
 let regexp_litteral : string Earley.grammar =
   Earley_core.Earley.fsequence_ignore double_quote
-    (Earley_core.Earley.fsequence_ignore
-       (Earley_core.Earley.no_blank_test ())
-       (Earley_core.Earley.fsequence
-          (Earley.no_blank_layout
-             (Earley_core.Earley.fsequence regexp
-                (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.string "''" "''")
-                   (Earley_core.Earley.empty (fun _default_0 -> _default_0)))))
-          (Earley_core.Earley.empty (fun _default_0 -> _default_0))))
+    (Earley_core.Earley.fsequence
+       (Earley.no_blank_layout
+          (Earley_core.Earley.fsequence regexp
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string "''" "''")
+                (Earley_core.Earley.empty (fun _default_0 -> _default_0)))))
+       (Earley_core.Earley.empty (fun _default_0 -> _default_0)))
+[@@@ocaml.text
+  " [regexp_litteral] accepts a single Earley regexp litteral (with [Str]). "]
 let new_regexp_litteral : string Earley.grammar =
   Earley.no_blank_layout
     (Earley_core.Earley.fsequence_ignore

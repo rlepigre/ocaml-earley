@@ -2,11 +2,11 @@ open Earley_core
 open Earley_helpers
 open Earley
 open Astextra
+open Helper
+open Pa_lexing
 open Asttypes
 open Parsetree
 open Longident
-open Pa_lexing
-open Helper
 let lexing_position : Input.buffer -> int -> Lexing.position =
   fun buf ->
     fun pos ->
@@ -14,8 +14,9 @@ let lexing_position : Input.buffer -> int -> Lexing.position =
       let pos_lnum = Input.line_num buf in
       let pos_bol = Input.line_offset buf in
       let pos_cnum = pos_bol + pos in
-      let open Lexing in { pos_fname; pos_lnum; pos_cnum; pos_bol }[@@ocaml.doc
-                                                                    " [lexing_position str pos] transforms an [Input.buffer] and position into a\n    lexing position (used in the OCaml parse tree). "]
+      let open Lexing in { pos_fname; pos_lnum; pos_cnum; pos_bol }
+[@@@ocaml.text
+  " [lexing_position str pos] transforms an [Input.buffer] and position into a\n    lexing position (used in the OCaml parse tree). "]
 let locate : Input.buffer -> int -> Input.buffer -> int -> Location.t =
   fun buf1 ->
     fun pos1 ->
@@ -24,20 +25,22 @@ let locate : Input.buffer -> int -> Input.buffer -> int -> Location.t =
           let loc_start = lexing_position buf1 pos1 in
           let loc_end = lexing_position buf2 pos2 in
           let open Location in { loc_start; loc_end; loc_ghost = false }
-  [@@ocaml.doc " [locate] is an Earley location function. "]
+[@@@ocaml.text " [locate] is an Earley location function. "]
 type entry =
   | FromExt [@ocaml.doc " Proceed according to the extension.        "]
   | Impl [@ocaml.doc " Treat the input file as an implementation. "]
-  | Intf [@ocaml.doc " Treat the input file as an interface.      "][@@ocaml.doc
-                                                                    " Type representing the parsing mode. "]
-let entry : entry ref = ref FromExt[@@ocaml.doc
-                                     " [entry] is the current parsing mode. "]
-let file : string option ref = ref None[@@ocaml.doc
-                                         " [file] is the name of the file being parsed (not set in this file). "]
-let ascii : bool ref = ref false[@@ocaml.doc
-                                  " [ascii] if true, parsing is ASCII, and binary otherwise. "]
-let debug_attributes = ref false[@@ocaml.doc
-                                  " [debug_attributes] enables debuging mode for attribute attachement. "]
+  | Intf [@ocaml.doc " Treat the input file as an interface.      "]
+[@@@ocaml.text " Type representing the parsing mode. "]
+let entry : entry ref = ref FromExt
+[@@@ocaml.text " [entry] is the current parsing mode. "]
+let file : string option ref = ref None
+[@@@ocaml.text
+  " [file] is the name of the file being parsed (not set in this file). "]
+let ascii : bool ref = ref false
+[@@@ocaml.text " [ascii] if true, parsing is ASCII, and binary otherwise. "]
+let debug_attributes = ref false
+[@@@ocaml.text
+  " [debug_attributes] enables debuging mode for attribute attachement. "]
 let initial_spec : (Arg.key * Arg.spec * Arg.doc) list =
   [("--ascii", (Arg.Set ascii),
      "Output ASCII text instead of serialized AST.");
@@ -50,8 +53,9 @@ let initial_spec : (Arg.key * Arg.spec * Arg.doc) list =
   ("--debug-quotations", (Arg.Set Quote.quote_parser_position),
     "Report position from quotation in parser (for debugging quotations).");
   ("--debug-attributes", (Arg.Set debug_attributes),
-    "Debug ocamldoc comments attachment.")][@@ocaml.doc
-                                             " [initial_spec] is the default (minimal) command line argument config. "]
+    "Debug ocamldoc comments attachment.")]
+[@@@ocaml.text
+  " [initial_spec] is the default (minimal) command line argument config. "]
 module ExpPrio =
   struct
     type t =
@@ -148,6 +152,7 @@ module TypPrio =
         | AppType -> AtomType
         | AtomType -> AtomType
   end
+[@@@ocaml.text " Priority levels for type expressions. "]
 module PatPrio =
   struct
     type t =
@@ -174,16 +179,18 @@ module PatPrio =
         | ConstrPat -> AtomPat
         | AtomPat -> assert false
   end
+[@@@ocaml.text " Priority levels for patterns. "]
 open ExpPrio
 open TypPrio
 open PatPrio
-let mk_attrib loc txt contents =
-  let str = Const.string contents in
-  ({ txt; loc = Location.none },
-    (PStr [Str.eval ~loc (Exp.constant ~loc str)]))
+[@@@ocaml.text
+  " {2 Attachment of documentation comments} *******************************"]
+let mk_attrib loc id str =
+  let payload = PStr [Str.eval ~loc (Exp.constant ~loc (Const.string str))] in
+  Attr.mk (Location.mknoloc id) payload
 let attach_attrib =
-  let tbl_s = Hashtbl.create 31 in
-  let tbl_e = Hashtbl.create 31 in
+  let htbl_start = Hashtbl.create 31 in
+  let htbl_end = Hashtbl.create 31 in
   fun loc ->
     fun acc ->
       let open Location in
@@ -192,61 +199,62 @@ let attach_attrib =
           (let rec fn acc res =
              function
              | [] -> res
-             | ((start, end_, contents, _) as c)::rest ->
-                 let start' = loc.loc_start in
-                 let lend = Input.line_num (fst end_) in
-                 let loc =
-                   locate (fst start) (snd start) (fst end_) (snd end_) in
+             | ({ doc_start; doc_end; doc_text } as c)::rest ->
+                 let (buf_start, pos_start) = doc_start in
+                 let (buf_end, pos_end) = doc_end in
+                 let loc = locate buf_start pos_start buf_end pos_end in
+                 let start_lnum = (loc.loc_start).pos_lnum in
+                 let lend = Input.line_num buf_end in
                  (if !debug_attributes
                   then
                     Printf.eprintf "start [%d,%d] [%d,...]\n%!"
-                      (Input.line_num (fst start)) lend start'.pos_lnum;
-                  if
-                    (start'.pos_lnum > lend) &&
-                      ((start'.pos_lnum - lend) <= 1)
+                      (Input.line_num buf_start) lend start_lnum;
+                  if (start_lnum > lend) && ((start_lnum - lend) <= 1)
                   then
                     (if !debug_attributes
-                     then Printf.eprintf "attach backward %s\n%!" contents;
-                     ocamldoc_comments := (List.rev_append acc rest);
-                     if contents <> ""
-                     then (mk_attrib loc "ocaml.doc" contents) :: res
+                     then Printf.eprintf "attach backward %s\n%!" doc_text;
+                     doc_comments := (List.rev_append acc rest);
+                     if doc_text <> ""
+                     then (mk_attrib loc "ocaml.doc" doc_text) :: res
                      else res)
                   else fn (c :: acc) res rest) in
            let rec gn acc res =
              function
              | [] -> List.rev res
-             | ((start, end_, contents, lstart) as c)::rest ->
-                 let end' = loc.loc_end in
-                 let loc =
-                   locate (fst start) (snd start) (fst end_) (snd end_) in
+             | ({ doc_start; doc_end; doc_text } as c)::rest ->
+                 let (buf_start, pos_start) = doc_start in
+                 let (buf_end, pos_end) = doc_end in
+                 let end_lnum = (loc.loc_end).pos_lnum in
+                 let loc = locate buf_start pos_start buf_end pos_end in
                  (if !debug_attributes
                   then
-                    Printf.eprintf "end[%d,%d] [...,%d]\n%!" lstart
-                      (Input.line_num (fst end_)) end'.pos_lnum;
+                    Printf.eprintf "end[%d] [...,%d]\n%!"
+                      (Input.line_num (fst doc_end)) end_lnum;
                   if
-                    (lstart >= end'.pos_lnum) &&
-                      ((lstart - end'.pos_lnum) <= 1)
+                    ((Input.line_num buf_start) >= end_lnum) &&
+                      (((Input.line_num buf_start) - end_lnum) <= 1)
                   then
                     (if !debug_attributes
-                     then Printf.eprintf "attach forward %s\n%!" contents;
-                     ocamldoc_comments := (List.rev_append rest acc);
-                     if contents <> ""
-                     then (mk_attrib loc "ocaml.doc" contents) :: res
+                     then Printf.eprintf "attach forward %s\n%!" doc_text;
+                     doc_comments := (List.rev_append rest acc);
+                     if doc_text <> ""
+                     then (mk_attrib loc "ocaml.doc" doc_text) :: res
                      else res)
                   else gn (c :: acc) res rest) in
-           let l2 =
-             try Hashtbl.find tbl_e ((loc.loc_start), (loc.loc_end))
+           let l_start =
+             try Hashtbl.find htbl_start loc.loc_start
              with
              | Not_found ->
-                 let res = gn [] [] (List.rev (!ocamldoc_comments)) in
-                 (Hashtbl.add tbl_e ((loc.loc_start), (loc.loc_end)) res; res) in
-           let l1 =
-             try Hashtbl.find tbl_s loc.loc_start
+                 let res = fn [] [] (!doc_comments) in
+                 (Hashtbl.add htbl_start loc.loc_start res; res) in
+           let l_end =
+             let key = ((loc.loc_start), (loc.loc_end)) in
+             try Hashtbl.find htbl_end key
              with
              | Not_found ->
-                 let res = fn [] [] (!ocamldoc_comments) in
-                 (Hashtbl.add tbl_s loc.loc_start res; res) in
-           l1 @ (acc @ l2))
+                 let res = gn [] [] (List.rev (!doc_comments)) in
+                 (Hashtbl.add htbl_end key res; res) in
+           l_start @ (acc @ l_end))
 let attach_gen build =
   let tbl = Hashtbl.create 31 in
   fun loc ->
@@ -254,8 +262,11 @@ let attach_gen build =
       let open Lexing in
         let rec fn acc res =
           function
-          | [] -> (ocamldoc_comments := (List.rev acc); res)
-          | ((start, end_, contents, _) as c)::rest ->
+          | [] -> (doc_comments := (List.rev acc); res)
+          | c::rest ->
+              let start = c.doc_start in
+              let end_ = c.doc_end in
+              let contents = c.doc_text in
               let start' = loc.loc_start in
               let loc = locate (fst start) (snd start) (fst end_) (snd end_) in
               (if !debug_attributes
@@ -273,11 +284,11 @@ let attach_gen build =
         if !debug_attributes
         then
           Printf.eprintf "enter attach sig/str [%d,...] %d\n%!"
-            (loc.loc_start).pos_lnum (List.length (!ocamldoc_comments));
+            (loc.loc_start).pos_lnum (List.length (!doc_comments));
         (try Hashtbl.find tbl loc.loc_start
          with
          | Not_found ->
-             let res = fn [] [] (!ocamldoc_comments) in
+             let res = fn [] [] (!doc_comments) in
              (Hashtbl.add tbl loc.loc_start res; res))
 let attach_sig = attach_gen (fun loc -> fun a -> Sig.attribute ~loc a)
 let attach_str = attach_gen (fun loc -> fun a -> Str.attribute ~loc a)
