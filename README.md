@@ -2,13 +2,18 @@
 
 # Dependencies
 
- * OCaml (at least 4.03.0)
- * dune (at least 1.2)
- * odoc
+ * OCaml (at least 4.07.0)
+ * Dune (at least 2.7)
+ * stdlib-shims (at least 0.1)
  * GNU Make
 
 # Installation procedure
 
+You can either pin the repository using Opam with
+```bash
+opam pin add earley https://github.com/rlepigre/ocaml-earley.git
+```
+or clone an install manually with
 ```bash
 git clone https://github.com/rlepigre/ocaml-earley.git
 cd ocaml-earley
