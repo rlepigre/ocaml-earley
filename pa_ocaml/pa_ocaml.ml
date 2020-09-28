@@ -842,11 +842,9 @@ let prefix_prio s =
   if s = "-" || s = "-." || s = "+" || s = "+." then Opp else Prefix
 
 let array_function loc str name =
-  let name = if !fast then "unsafe_" ^ name else name in
   loc_expr loc (Pexp_ident (id_loc (Ldot(Lident str, name)) loc ))
 
 let bigarray_function loc str name =
-  let name = if !fast then "unsafe_" ^ name else name in
   let lid = Ldot(Ldot(Lident "Bigarray", str), name) in
   loc_expr loc (Pexp_ident (id_loc lid loc))
 
