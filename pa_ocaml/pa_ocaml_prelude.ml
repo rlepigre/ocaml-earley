@@ -51,15 +51,13 @@ open Earley
 open Asttypes
 open Parsetree
 open Pa_lexing
-open Helper
+open Ast_helper
 
 (* Some references for the handling of command-line arguments. *)
 type entry = FromExt | Impl | Intf
 
 let entry : entry ref         = ref FromExt
-let fast  : bool ref          = ref false
 let file  : string option ref = ref None
-let ascii : bool ref          = ref false
 
 let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
   let open Lexing in
@@ -102,16 +100,10 @@ module Initial =
 
     (* Default command line arguments. *)
     let spec : (Arg.key * Arg.spec * Arg.doc) list =
-      [ ("--ascii", Arg.Set ascii,
-          "Output ASCII text instead of serialized AST.")
-      ; ("--impl", Arg.Unit (fun () -> entry := Impl),
+      [ ("--impl", Arg.Unit (fun () -> entry := Impl),
           "Treat file as an implementation.")
       ; ("--intf", Arg.Unit (fun () -> entry := Intf),
           "Treat file as an interface.")
-      ; ("--unsafe", Arg.Set fast,
-          "Use unsafe functions for arrays (more efficient).")
-      ; ("--position-from-parser", Arg.Set Quote.quote_parser_position,
-          "Report position from quotation in parser (usefull to debug quotation).")
       ; ("--debug", Arg.Set_int Earley.debug_lvl,
           "Sets the value of \"Earley.debug_lvl\".")
       ; ("--debug-attach", Arg.Set debug_attach,
@@ -275,7 +267,7 @@ let mk_attrib loc txt contents =
 let attach_attrib =
   let tbl_s = Hashtbl.create 31 in
   let tbl_e = Hashtbl.create 31 in
-  fun loc acc ->
+  let attach_attrib loc (acc : attribute list)  : attribute list =
     let open Location in
     let open Lexing in
     if !debug_attach then Printf.eprintf "enter attach\n%!";
@@ -328,7 +320,11 @@ let attach_attrib =
         Hashtbl.add tbl_s loc.loc_start res;
         res
     in
-    l1 @ acc @ l2
+    let l1 = List.map (fun (s,pl) -> Attr.mk s pl) l1 in
+    let l2 = List.map (fun (s,pl) -> Attr.mk s pl) l2 in
+    (l1 @ acc @ l2)
+  in
+  attach_attrib
 
 let attach_gen build =
   let tbl = Hashtbl.create 31 in
@@ -362,10 +358,10 @@ let attach_gen build =
       res
 
 let attach_sig =
-  attach_gen (fun loc a  -> Sig.attribute ~loc a)
+  attach_gen (fun loc (str,pl)  -> Sig.attribute ~loc (Attr.mk ~loc str pl))
 
 let attach_str =
-  attach_gen (fun loc a  -> Str.attribute ~loc a)
+  attach_gen (fun loc (str,pl)  -> Str.attribute ~loc (Attr.mk ~loc str pl))
 
 
 

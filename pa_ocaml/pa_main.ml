@@ -202,25 +202,7 @@ module Start(Main : Extension) = struct
     Earley.handle_exception run ()
 
   let _ =
-    if !ascii then begin
-      begin
-        match ast with
-        | `Struct ast -> Pprintast.structure Format.std_formatter ast;
-        | `Sig ast -> Pprintast.signature Format.std_formatter ast;
-      end;
-      Format.print_newline ()
-    end else begin
-      let magic = match ast with
-        | `Struct _ -> Config.ast_impl_magic_number
-        | `Sig _ -> Config.ast_intf_magic_number
-      in
-      output_string stdout magic;
-      output_value stdout (match !file with None -> "" | Some name -> name);
-      begin
-        match ast with
-        | `Struct ast -> output_value stdout ast
-        | `Sig ast -> output_value stdout ast
-      end;
-      close_out stdout
-    end
+    match ast with
+    | `Struct ast -> Format.printf "%a\n%!" Pprintast.structure ast
+    | `Sig ast    -> Format.printf "%a\n%!" Pprintast.signature ast
 end
