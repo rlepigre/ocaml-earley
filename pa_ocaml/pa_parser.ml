@@ -284,7 +284,9 @@ module Ext(In:Extension) = struct
     let (def,cond,e) = build_rule r in
     match cond with
     | None   -> def (mk_cons loc e acc)
-    | Some c -> def (Exp.ifthenelse ~loc c (mk_cons loc e acc) (Some acc))
+    | Some c -> def (mk_app loc (mk_id "List.append")
+                       [Exp.ifthenelse ~loc c (mk_cons loc e (mk_constr loc
+                       "[]" None))  (Some (mk_constr loc "[]" None)); acc])
 
   let apply_def_cond_prio loc arg r acc =
     let (def,cond,e) = build_rule r in
