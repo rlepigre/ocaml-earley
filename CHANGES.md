@@ -1,3 +1,13 @@
+### 3.0.0 (2020-09-28)
+
+New major release introducing compatibility with newer versions of OCaml.
+Here are the most important changes:
+ - Remove quotations/antiquotations support.
+ - Remove syntax extension support.
+ - Do not expose the internals of the OCaml parser anymore.
+ - Embed the OCaml AST, pprintast and friends (based on 4.10.0 for now).
+ - Only the preprocessor remain.
+
 ### 2.0.0 (2018-11-10)
 
 New major release, introducing incompatibilities due to wrapping of library

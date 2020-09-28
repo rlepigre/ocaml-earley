@@ -1,5 +1,4 @@
 *~
 _build
 .merlin
-*.install
-static/boot/*.tar
+boot_*.tar
