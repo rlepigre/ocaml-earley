@@ -20,6 +20,7 @@ doc: "https://rlepigre.github.io/ocaml-earley/"
 depends: [
   "ocaml" { >= "4.03.0" & <= "4.07.1" }
   "dune"  { >= "2.7.0" }
+  "stdlib-shims" { >= "0.1.0" }
 ]
 
 build: [ [ "dune" "build" "-p" name "-j" jobs ] ]

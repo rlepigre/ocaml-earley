@@ -123,7 +123,7 @@ cat > $SRC_DIR/dune <<- "EOF"
  (modules :standard)
  (modules_without_implementation asttypes parsetree)
  (wrapped false)
- (libraries stdlib-shims menhirLib))
+ (libraries stdlib-shims))
 EOF
 
 echo "[OK]"
