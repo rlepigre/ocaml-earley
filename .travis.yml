@@ -20,6 +20,14 @@ env:
   - OCAML_VERSION=4.06.1
   - OCAML_VERSION=4.07.0
   - OCAML_VERSION=4.07.1
+  - OCAML_VERSION=4.08.0
+  - OCAML_VERSION=4.08.1
+  - OCAML_VERSION=4.09.0
+  - OCAML_VERSION=4.09.1
+  - OCAML_VERSION=4.10.0
+  - OCAML_VERSION=4.10.1
+  - OCAML_VERSION=4.11.0
+  - OCAML_VERSION=4.11.1
 
 before_install:
   # Obtain and install opam locally.
@@ -40,4 +48,4 @@ script:
 notifications:
   email:
     - christophe@raffalli.eu
-    - rodolphe.lepigre@inria.fr
+    - lepigre@mpi-sws.org
