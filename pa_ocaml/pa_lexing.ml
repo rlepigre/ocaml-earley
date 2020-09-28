@@ -115,15 +115,15 @@ let ocaml_blank buf pos =
     | (`Ini      , []  , _       ) -> curr
     | (`Opn(p)   , _   , '*'     ) ->
        (if stack = [] then
-	 let (c, buf', pos') = Input.read buf' pos' in
-	 let (c',_,_) = Input.read buf' pos' in
-	 if c = '*' && c' <> '*' then (
-	   ocamldoc := true;
-	   fn `Cls (p::stack) curr (buf',pos'))
-	 else
-	   fn `Ini (p::stack) curr next
-	else
-	   fn `Ini (p::stack) curr next)
+         let (c, buf', pos') = Input.read buf' pos' in
+         let (c',_,_) = Input.read buf' pos' in
+         if c = '*' && c' <> '*' then (
+           ocamldoc := true;
+           fn `Cls (p::stack) curr (buf',pos'))
+         else
+           fn `Ini (p::stack) curr next
+        else
+           fn `Ini (p::stack) curr next)
     | (`Opn(_)   , _::_, '"'     ) -> fn (`Str(curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Opn(_)   , _::_, '('     ) -> fn (`Opn(curr)) stack curr next
@@ -166,13 +166,13 @@ let ocaml_blank buf pos =
     | (`Cls      , _::_, '{'     ) -> fn (`SOp([],curr)) stack curr next (*#*)
     | (`Cls      , p::s, ')'     ) ->
        if !ocamldoc && s = [] then (
-	 let comment =
+         let comment =
            try Buffer.sub ocamldoc_buf 0 (Buffer.length ocamldoc_buf - 2)
            with Invalid_argument _ -> ""
          in
-	 Buffer.clear ocamldoc_buf;
-	 ocamldoc_comments := (p,next,comment,!previous_newline)::!ocamldoc_comments;
-	 ocamldoc := false
+         Buffer.clear ocamldoc_buf;
+         ocamldoc_comments := (p,next,comment,!previous_newline)::!ocamldoc_comments;
+         ocamldoc := false
        );
        new_line := false;
        fn `Ini s curr next

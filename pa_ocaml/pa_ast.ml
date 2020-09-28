@@ -87,8 +87,8 @@ let rec merge = function
        | [loc] -> loc
        | l2::ls when Location.(l2.loc_start = l2.loc_end) -> fn ls
        | l2::ls ->
-	  Location.(
-	   {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
+          Location.(
+           {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
      in fn ls
 
 let merge2 l1 l2 =

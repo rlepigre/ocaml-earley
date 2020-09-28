@@ -711,8 +711,8 @@ let pred_prod_lec : type a. errpos -> a final -> a cur -> a reads
             try let res = Ref.find tmemo memo in
                 res (* Check if this was done *)
             with Not_found ->
-	      let rules = List.filter (good c) rules in
-	      Ref.add tmemo memo rules;
+              let rules = List.filter (good c) rules in
+              Ref.add tmemo memo rules;
               List.iter
                 (fun rule ->
                   let start = cur_pos in
