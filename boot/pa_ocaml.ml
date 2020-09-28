@@ -184,17 +184,20 @@ module Make(Initial:Extension) =
                    (Earley_core.Earley.fsequence smodule_name
                       (Earley_core.Earley.empty
                          (fun m -> fun acc -> Ldot (acc, m)))))
-                (if allow_app
-                 then
-                   List.cons
-                     (Earley_core.Earley.fsequence_ignore
-                        (Earley_core.Earley.string "(" "(")
-                        (Earley_core.Earley.fsequence (module_path_gen true)
-                           (Earley_core.Earley.fsequence_ignore
-                              (Earley_core.Earley.string ")" ")")
-                              (Earley_core.Earley.empty
-                                 (fun m' -> fun a -> Lapply (a, m')))))) []
-                 else [])))
+                (List.append
+                   (if allow_app
+                    then
+                      List.cons
+                        (Earley_core.Earley.fsequence_ignore
+                           (Earley_core.Earley.string "(" "(")
+                           (Earley_core.Earley.fsequence
+                              (module_path_gen true)
+                              (Earley_core.Earley.fsequence_ignore
+                                 (Earley_core.Earley.string ")" ")")
+                                 (Earley_core.Earley.empty
+                                    (fun m' -> fun a -> Lapply (a, m'))))))
+                        []
+                    else []) [])))
     let _ =
       set_module_path_suit
         (fun allow_app ->
@@ -1809,13 +1812,14 @@ module Make(Initial:Extension) =
                 (Earley_core.Earley.fsequence_ignore
                    (Earley_core.Earley.char '|' '|')
                    (Earley_core.Earley.empty ()))
-                (if not with_bar
-                 then
-                   List.cons
-                     (Earley_core.Earley.fsequence_ignore
-                        (Earley_core.Earley.empty ())
-                        (Earley_core.Earley.empty ())) []
-                 else [])))
+                (List.append
+                   (if not with_bar
+                    then
+                      List.cons
+                        (Earley_core.Earley.fsequence_ignore
+                           (Earley_core.Earley.empty ())
+                           (Earley_core.Earley.empty ())) []
+                    else []) [])))
     let (constr_decl, constr_decl__set__grammar) =
       Earley_core.Earley.grammar_family "constr_decl"
     let _ =
@@ -2209,17 +2213,18 @@ module Make(Initial:Extension) =
            (Earley_core.Earley.fsequence type_information
               (Earley_core.Earley.fsequence
                  (Earley_core.Earley.alternatives
-                    (if not att
-                     then
-                       List.cons
-                         (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.empty ())
-                            (Earley_core.Earley.empty []))
-                         (if att
-                          then List.cons post_item_attributes []
-                          else [])
-                     else
-                       if att then List.cons post_item_attributes [] else []))
+                    (List.append
+                       (if not att
+                        then
+                          List.cons
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.empty ())
+                               (Earley_core.Earley.empty [])) []
+                        else [])
+                       (List.append
+                          (if att
+                           then List.cons post_item_attributes []
+                           else []) [])))
                  (Earley_core.Earley.empty_pos
                     (fun __loc__start__buf ->
                        fun __loc__start__pos ->
@@ -3903,35 +3908,41 @@ module Make(Initial:Extension) =
                                                                     []))))))))))))))))))))))),
           (fun (as_ok, lvl) ->
              List.cons (extra_patterns_grammar (as_ok, lvl))
-               (if as_ok
-                then
-                  List.cons
-                    (Earley_core.Earley.fsequence (pattern_lvl (as_ok, lvl))
-                       (Earley_core.Earley.fsequence as_kw
-                          (Earley_core.Earley.fsequence_position value_name
-                             (Earley_core.Earley.empty_pos
-                                (fun __loc__start__buf ->
-                                   fun __loc__start__pos ->
-                                     fun __loc__end__buf ->
-                                       fun __loc__end__pos ->
-                                         let _loc =
-                                           locate __loc__start__buf
-                                             __loc__start__pos
-                                             __loc__end__buf __loc__end__pos in
-                                         fun str1 ->
-                                           fun pos1 ->
-                                             fun str2 ->
-                                               fun pos2 ->
-                                                 fun vn ->
-                                                   let _loc_vn =
-                                                     locate str1 pos1 str2
-                                                       pos2 in
-                                                   fun _default_0 ->
-                                                     fun p ->
-                                                       Pat.alias ~loc:_loc p
-                                                         (id_loc vn _loc_vn))))))
-                    []
-                else [])))
+               (List.append
+                  (if as_ok
+                   then
+                     List.cons
+                       (Earley_core.Earley.fsequence
+                          (pattern_lvl (as_ok, lvl))
+                          (Earley_core.Earley.fsequence as_kw
+                             (Earley_core.Earley.fsequence_position
+                                value_name
+                                (Earley_core.Earley.empty_pos
+                                   (fun __loc__start__buf ->
+                                      fun __loc__start__pos ->
+                                        fun __loc__end__buf ->
+                                          fun __loc__end__pos ->
+                                            let _loc =
+                                              locate __loc__start__buf
+                                                __loc__start__pos
+                                                __loc__end__buf
+                                                __loc__end__pos in
+                                            fun str1 ->
+                                              fun pos1 ->
+                                                fun str2 ->
+                                                  fun pos2 ->
+                                                    fun vn ->
+                                                      let _loc_vn =
+                                                        locate str1 pos1 str2
+                                                          pos2 in
+                                                      fun _default_0 ->
+                                                        fun p ->
+                                                          Pat.alias ~loc:_loc
+                                                            p
+                                                            (id_loc vn
+                                                               _loc_vn))))))
+                       []
+                   else []) [])))
     let let_re = "\\(let\\)\\|\\(val\\)\\b"
     type assoc =
       | NoAssoc 
@@ -4073,169 +4084,162 @@ module Make(Initial:Extension) =
       set_parameter
         (fun allow_new_type ->
            Earley_core.Earley.alternatives
-             (if allow_new_type
-              then
-                List.cons
-                  (Earley_core.Earley.fsequence_ignore
-                     (Earley_core.Earley.char '(' '(')
-                     (Earley_core.Earley.fsequence type_kw
-                        (Earley_core.Earley.fsequence_position
-                           typeconstr_name
-                           (Earley_core.Earley.fsequence_ignore
-                              (Earley_core.Earley.char ')' ')')
-                              (Earley_core.Earley.empty
-                                 (fun str1 ->
-                                    fun pos1 ->
-                                      fun str2 ->
-                                        fun pos2 ->
-                                          fun name ->
-                                            let _loc_name =
-                                              locate str1 pos1 str2 pos2 in
-                                            fun _default_0 ->
-                                              let name =
-                                                id_loc name _loc_name in
-                                              `Type name))))))
-                  (List.cons
-                     (Earley_core.Earley.fsequence
-                        (pattern_lvl (false, AtomPat))
-                        (Earley_core.Earley.empty
-                           (fun pat -> `Arg (nolabel, None, pat))))
-                     (List.cons
-                        (Earley_core.Earley.fsequence_ignore
-                           (Earley_core.Earley.char '~' '~')
-                           (Earley_core.Earley.fsequence_ignore
-                              (Earley_core.Earley.char '(' '(')
-                              (Earley_core.Earley.fsequence_position lident
-                                 (Earley_core.Earley.fsequence
-                                    (Earley_core.Earley.option None
-                                       (Earley_core.Earley.apply
-                                          (fun x -> Some x)
-                                          (Earley_core.Earley.fsequence_ignore
-                                             (Earley_core.Earley.string ":"
-                                                ":")
-                                             (Earley_core.Earley.fsequence
-                                                typexpr
-                                                (Earley_core.Earley.empty
-                                                   (fun t -> t))))))
-                                    (Earley_core.Earley.fsequence_ignore
-                                       (Earley_core.Earley.string ")" ")")
-                                       (Earley_core.Earley.empty_pos
-                                          (fun __loc__start__buf ->
-                                             fun __loc__start__pos ->
-                                               fun __loc__end__buf ->
-                                                 fun __loc__end__pos ->
-                                                   let _loc =
-                                                     locate __loc__start__buf
-                                                       __loc__start__pos
-                                                       __loc__end__buf
-                                                       __loc__end__pos in
-                                                   fun t ->
-                                                     fun str1 ->
-                                                       fun pos1 ->
-                                                         fun str2 ->
-                                                           fun pos2 ->
-                                                             fun id ->
-                                                               let _loc_id =
-                                                                 locate str1
-                                                                   pos1 str2
-                                                                   pos2 in
-                                                               let pat =
-                                                                 loc_pat
-                                                                   _loc_id
-                                                                   (Ppat_var
-                                                                    (id_loc
-                                                                    id
+             (List.append
+                (if allow_new_type
+                 then
+                   List.cons
+                     (Earley_core.Earley.fsequence_ignore
+                        (Earley_core.Earley.char '(' '(')
+                        (Earley_core.Earley.fsequence type_kw
+                           (Earley_core.Earley.fsequence_position
+                              typeconstr_name
+                              (Earley_core.Earley.fsequence_ignore
+                                 (Earley_core.Earley.char ')' ')')
+                                 (Earley_core.Earley.empty
+                                    (fun str1 ->
+                                       fun pos1 ->
+                                         fun str2 ->
+                                           fun pos2 ->
+                                             fun name ->
+                                               let _loc_name =
+                                                 locate str1 pos1 str2 pos2 in
+                                               fun _default_0 ->
+                                                 let name =
+                                                   id_loc name _loc_name in
+                                                 `Type name)))))) []
+                 else [])
+                (List.cons
+                   (Earley_core.Earley.fsequence
+                      (pattern_lvl (false, AtomPat))
+                      (Earley_core.Earley.empty
+                         (fun pat -> `Arg (nolabel, None, pat))))
+                   (List.cons
+                      (Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.char '~' '~')
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.char '(' '(')
+                            (Earley_core.Earley.fsequence_position lident
+                               (Earley_core.Earley.fsequence
+                                  (Earley_core.Earley.option None
+                                     (Earley_core.Earley.apply
+                                        (fun x -> Some x)
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string ":" ":")
+                                           (Earley_core.Earley.fsequence
+                                              typexpr
+                                              (Earley_core.Earley.empty
+                                                 (fun t -> t))))))
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.string ")" ")")
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun t ->
+                                                   fun str1 ->
+                                                     fun pos1 ->
+                                                       fun str2 ->
+                                                         fun pos2 ->
+                                                           fun id ->
+                                                             let _loc_id =
+                                                               locate str1
+                                                                 pos1 str2
+                                                                 pos2 in
+                                                             let pat =
+                                                               loc_pat
+                                                                 _loc_id
+                                                                 (Ppat_var
+                                                                    (
+                                                                    id_loc id
                                                                     _loc_id)) in
-                                                               let pat =
-                                                                 match t with
-                                                                 | None ->
-                                                                    pat
-                                                                 | Some t ->
-                                                                    loc_pat
+                                                             let pat =
+                                                               match t with
+                                                               | None -> pat
+                                                               | Some t ->
+                                                                   loc_pat
                                                                     _loc
                                                                     (Ppat_constraint
                                                                     (pat, t)) in
-                                                               `Arg
-                                                                 ((labelled
-                                                                    id),
-                                                                   None, pat))))))))
-                        (List.cons
-                           (Earley_core.Earley.fsequence ty_label
-                              (Earley_core.Earley.fsequence pattern
-                                 (Earley_core.Earley.empty
-                                    (fun pat ->
-                                       fun id -> `Arg (id, None, pat)))))
-                           (List.cons
-                              (Earley_core.Earley.fsequence_ignore
-                                 (Earley_core.Earley.char '~' '~')
-                                 (Earley_core.Earley.fsequence_position
-                                    lident
-                                    (Earley_core.Earley.fsequence no_colon
-                                       (Earley_core.Earley.empty
-                                          (fun _default_0 ->
-                                             fun str1 ->
-                                               fun pos1 ->
-                                                 fun str2 ->
-                                                   fun pos2 ->
-                                                     fun id ->
-                                                       let _loc_id =
-                                                         locate str1 pos1
-                                                           str2 pos2 in
-                                                       `Arg
-                                                         ((labelled id),
-                                                           None,
-                                                           (loc_pat _loc_id
-                                                              (Ppat_var
-                                                                 (id_loc id
-                                                                    _loc_id)))))))))
-                              (List.cons
-                                 (Earley_core.Earley.fsequence_ignore
-                                    (Earley_core.Earley.char '?' '?')
-                                    (Earley_core.Earley.fsequence_ignore
-                                       (Earley_core.Earley.char '(' '(')
-                                       (Earley_core.Earley.fsequence_position
-                                          lident
-                                          (Earley_core.Earley.fsequence_position
-                                             (Earley_core.Earley.option None
-                                                (Earley_core.Earley.apply
-                                                   (fun x -> Some x)
-                                                   (Earley_core.Earley.fsequence_ignore
-                                                      (Earley_core.Earley.char
-                                                         ':' ':')
-                                                      (Earley_core.Earley.fsequence
-                                                         typexpr
-                                                         (Earley_core.Earley.empty
-                                                            (fun t -> t))))))
-                                             (Earley_core.Earley.fsequence
-                                                (Earley_core.Earley.option
-                                                   None
-                                                   (Earley_core.Earley.apply
-                                                      (fun x -> Some x)
-                                                      (Earley_core.Earley.fsequence_ignore
-                                                         (Earley_core.Earley.char
-                                                            '=' '=')
-                                                         (Earley_core.Earley.fsequence
-                                                            expression
-                                                            (Earley_core.Earley.empty
-                                                               (fun e -> e))))))
-                                                (Earley_core.Earley.fsequence_ignore
-                                                   (Earley_core.Earley.char
-                                                      ')' ')')
-                                                   (Earley_core.Earley.empty
-                                                      (fun e ->
-                                                         fun str1 ->
-                                                           fun pos1 ->
-                                                             fun str2 ->
-                                                               fun pos2 ->
-                                                                 fun t ->
-                                                                   let _loc_t
-                                                                    =
-                                                                    locate
+                                                             `Arg
+                                                               ((labelled id),
+                                                                 None, pat))))))))
+                      (List.cons
+                         (Earley_core.Earley.fsequence ty_label
+                            (Earley_core.Earley.fsequence pattern
+                               (Earley_core.Earley.empty
+                                  (fun pat -> fun id -> `Arg (id, None, pat)))))
+                         (List.cons
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.char '~' '~')
+                               (Earley_core.Earley.fsequence_position lident
+                                  (Earley_core.Earley.fsequence no_colon
+                                     (Earley_core.Earley.empty
+                                        (fun _default_0 ->
+                                           fun str1 ->
+                                             fun pos1 ->
+                                               fun str2 ->
+                                                 fun pos2 ->
+                                                   fun id ->
+                                                     let _loc_id =
+                                                       locate str1 pos1 str2
+                                                         pos2 in
+                                                     `Arg
+                                                       ((labelled id), None,
+                                                         (loc_pat _loc_id
+                                                            (Ppat_var
+                                                               (id_loc id
+                                                                  _loc_id)))))))))
+                            (List.cons
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.char '?' '?')
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.char '(' '(')
+                                     (Earley_core.Earley.fsequence_position
+                                        lident
+                                        (Earley_core.Earley.fsequence_position
+                                           (Earley_core.Earley.option None
+                                              (Earley_core.Earley.apply
+                                                 (fun x -> Some x)
+                                                 (Earley_core.Earley.fsequence_ignore
+                                                    (Earley_core.Earley.char
+                                                       ':' ':')
+                                                    (Earley_core.Earley.fsequence
+                                                       typexpr
+                                                       (Earley_core.Earley.empty
+                                                          (fun t -> t))))))
+                                           (Earley_core.Earley.fsequence
+                                              (Earley_core.Earley.option None
+                                                 (Earley_core.Earley.apply
+                                                    (fun x -> Some x)
+                                                    (Earley_core.Earley.fsequence_ignore
+                                                       (Earley_core.Earley.char
+                                                          '=' '=')
+                                                       (Earley_core.Earley.fsequence
+                                                          expression
+                                                          (Earley_core.Earley.empty
+                                                             (fun e -> e))))))
+                                              (Earley_core.Earley.fsequence_ignore
+                                                 (Earley_core.Earley.char ')'
+                                                    ')')
+                                                 (Earley_core.Earley.empty
+                                                    (fun e ->
+                                                       fun str1 ->
+                                                         fun pos1 ->
+                                                           fun str2 ->
+                                                             fun pos2 ->
+                                                               fun t ->
+                                                                 let _loc_t =
+                                                                   locate
                                                                     str1 pos1
                                                                     str2 pos2 in
-                                                                   fun str1
-                                                                    ->
-                                                                    fun pos1
+                                                                 fun str1 ->
+                                                                   fun pos1
                                                                     ->
                                                                     fun str2
                                                                     ->
@@ -4272,47 +4276,45 @@ module Make(Initial:Extension) =
                                                                     ((optional
                                                                     id), e,
                                                                     pat)))))))))
-                                 (List.cons
-                                    (Earley_core.Earley.fsequence
-                                       ty_opt_label
-                                       (Earley_core.Earley.fsequence_ignore
-                                          (Earley_core.Earley.string "(" "(")
-                                          (Earley_core.Earley.fsequence_position
-                                             pattern
-                                             (Earley_core.Earley.fsequence_position
-                                                (Earley_core.Earley.option
-                                                   None
-                                                   (Earley_core.Earley.apply
-                                                      (fun x -> Some x)
-                                                      (Earley_core.Earley.fsequence_ignore
-                                                         (Earley_core.Earley.char
-                                                            ':' ':')
-                                                         (Earley_core.Earley.fsequence
-                                                            typexpr
-                                                            (Earley_core.Earley.empty
-                                                               (fun t -> t))))))
-                                                (Earley_core.Earley.fsequence
-                                                   (Earley_core.Earley.option
-                                                      None
-                                                      (Earley_core.Earley.apply
-                                                         (fun x -> Some x)
-                                                         (Earley_core.Earley.fsequence_ignore
-                                                            (Earley_core.Earley.char
-                                                               '=' '=')
-                                                            (Earley_core.Earley.fsequence
-                                                               expression
-                                                               (Earley_core.Earley.empty
-                                                                  (fun e -> e))))))
-                                                   (Earley_core.Earley.fsequence_ignore
-                                                      (Earley_core.Earley.char
-                                                         ')' ')')
-                                                      (Earley_core.Earley.empty
-                                                         (fun e ->
-                                                            fun str1 ->
-                                                              fun pos1 ->
-                                                                fun str2 ->
-                                                                  fun pos2 ->
-                                                                    fun t ->
+                               (List.cons
+                                  (Earley_core.Earley.fsequence ty_opt_label
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string "(" "(")
+                                        (Earley_core.Earley.fsequence_position
+                                           pattern
+                                           (Earley_core.Earley.fsequence_position
+                                              (Earley_core.Earley.option None
+                                                 (Earley_core.Earley.apply
+                                                    (fun x -> Some x)
+                                                    (Earley_core.Earley.fsequence_ignore
+                                                       (Earley_core.Earley.char
+                                                          ':' ':')
+                                                       (Earley_core.Earley.fsequence
+                                                          typexpr
+                                                          (Earley_core.Earley.empty
+                                                             (fun t -> t))))))
+                                              (Earley_core.Earley.fsequence
+                                                 (Earley_core.Earley.option
+                                                    None
+                                                    (Earley_core.Earley.apply
+                                                       (fun x -> Some x)
+                                                       (Earley_core.Earley.fsequence_ignore
+                                                          (Earley_core.Earley.char
+                                                             '=' '=')
+                                                          (Earley_core.Earley.fsequence
+                                                             expression
+                                                             (Earley_core.Earley.empty
+                                                                (fun e -> e))))))
+                                                 (Earley_core.Earley.fsequence_ignore
+                                                    (Earley_core.Earley.char
+                                                       ')' ')')
+                                                    (Earley_core.Earley.empty
+                                                       (fun e ->
+                                                          fun str1 ->
+                                                            fun pos1 ->
+                                                              fun str2 ->
+                                                                fun pos2 ->
+                                                                  fun t ->
                                                                     let _loc_t
                                                                     =
                                                                     locate
@@ -4351,76 +4353,21 @@ module Make(Initial:Extension) =
                                                                     `Arg
                                                                     (id, e,
                                                                     pat)))))))))
-                                    (List.cons
-                                       (Earley_core.Earley.fsequence
-                                          ty_opt_label
-                                          (Earley_core.Earley.fsequence
-                                             pattern
-                                             (Earley_core.Earley.empty
-                                                (fun pat ->
-                                                   fun id ->
-                                                     `Arg (id, None, pat)))))
-                                       (List.cons
-                                          (Earley_core.Earley.fsequence_ignore
-                                             (Earley_core.Earley.char '?' '?')
-                                             (Earley_core.Earley.fsequence_position
-                                                lident
-                                                (Earley_core.Earley.empty
-                                                   (fun str1 ->
-                                                      fun pos1 ->
-                                                        fun str2 ->
-                                                          fun pos2 ->
-                                                            fun id ->
-                                                              let _loc_id =
-                                                                locate str1
-                                                                  pos1 str2
-                                                                  pos2 in
-                                                              `Arg
-                                                                ((optional id),
-                                                                  None,
-                                                                  (loc_pat
-                                                                    _loc_id
-                                                                    (Ppat_var
-                                                                    (id_loc
-                                                                    id
-                                                                    _loc_id))))))))
-                                          []))))))))
-              else
-                List.cons
-                  (Earley_core.Earley.fsequence
-                     (pattern_lvl (false, AtomPat))
-                     (Earley_core.Earley.empty
-                        (fun pat -> `Arg (nolabel, None, pat))))
-                  (List.cons
-                     (Earley_core.Earley.fsequence_ignore
-                        (Earley_core.Earley.char '~' '~')
-                        (Earley_core.Earley.fsequence_ignore
-                           (Earley_core.Earley.char '(' '(')
-                           (Earley_core.Earley.fsequence_position lident
-                              (Earley_core.Earley.fsequence
-                                 (Earley_core.Earley.option None
-                                    (Earley_core.Earley.apply
-                                       (fun x -> Some x)
-                                       (Earley_core.Earley.fsequence_ignore
-                                          (Earley_core.Earley.string ":" ":")
-                                          (Earley_core.Earley.fsequence
-                                             typexpr
-                                             (Earley_core.Earley.empty
-                                                (fun t -> t))))))
-                                 (Earley_core.Earley.fsequence_ignore
-                                    (Earley_core.Earley.string ")" ")")
-                                    (Earley_core.Earley.empty_pos
-                                       (fun __loc__start__buf ->
-                                          fun __loc__start__pos ->
-                                            fun __loc__end__buf ->
-                                              fun __loc__end__pos ->
-                                                let _loc =
-                                                  locate __loc__start__buf
-                                                    __loc__start__pos
-                                                    __loc__end__buf
-                                                    __loc__end__pos in
-                                                fun t ->
-                                                  fun str1 ->
+                                  (List.cons
+                                     (Earley_core.Earley.fsequence
+                                        ty_opt_label
+                                        (Earley_core.Earley.fsequence pattern
+                                           (Earley_core.Earley.empty
+                                              (fun pat ->
+                                                 fun id ->
+                                                   `Arg (id, None, pat)))))
+                                     (List.cons
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.char '?' '?')
+                                           (Earley_core.Earley.fsequence_position
+                                              lident
+                                              (Earley_core.Earley.empty
+                                                 (fun str1 ->
                                                     fun pos1 ->
                                                       fun str2 ->
                                                         fun pos2 ->
@@ -4429,238 +4376,16 @@ module Make(Initial:Extension) =
                                                               locate str1
                                                                 pos1 str2
                                                                 pos2 in
-                                                            let pat =
-                                                              loc_pat _loc_id
-                                                                (Ppat_var
-                                                                   (id_loc id
-                                                                    _loc_id)) in
-                                                            let pat =
-                                                              match t with
-                                                              | None -> pat
-                                                              | Some t ->
-                                                                  loc_pat
-                                                                    _loc
-                                                                    (
-                                                                    Ppat_constraint
-                                                                    (pat, t)) in
                                                             `Arg
-                                                              ((labelled id),
-                                                                None, pat))))))))
-                     (List.cons
-                        (Earley_core.Earley.fsequence ty_label
-                           (Earley_core.Earley.fsequence pattern
-                              (Earley_core.Earley.empty
-                                 (fun pat -> fun id -> `Arg (id, None, pat)))))
-                        (List.cons
-                           (Earley_core.Earley.fsequence_ignore
-                              (Earley_core.Earley.char '~' '~')
-                              (Earley_core.Earley.fsequence_position lident
-                                 (Earley_core.Earley.fsequence no_colon
-                                    (Earley_core.Earley.empty
-                                       (fun _default_0 ->
-                                          fun str1 ->
-                                            fun pos1 ->
-                                              fun str2 ->
-                                                fun pos2 ->
-                                                  fun id ->
-                                                    let _loc_id =
-                                                      locate str1 pos1 str2
-                                                        pos2 in
-                                                    `Arg
-                                                      ((labelled id), None,
-                                                        (loc_pat _loc_id
-                                                           (Ppat_var
-                                                              (id_loc id
-                                                                 _loc_id)))))))))
-                           (List.cons
-                              (Earley_core.Earley.fsequence_ignore
-                                 (Earley_core.Earley.char '?' '?')
-                                 (Earley_core.Earley.fsequence_ignore
-                                    (Earley_core.Earley.char '(' '(')
-                                    (Earley_core.Earley.fsequence_position
-                                       lident
-                                       (Earley_core.Earley.fsequence_position
-                                          (Earley_core.Earley.option None
-                                             (Earley_core.Earley.apply
-                                                (fun x -> Some x)
-                                                (Earley_core.Earley.fsequence_ignore
-                                                   (Earley_core.Earley.char
-                                                      ':' ':')
-                                                   (Earley_core.Earley.fsequence
-                                                      typexpr
-                                                      (Earley_core.Earley.empty
-                                                         (fun t -> t))))))
-                                          (Earley_core.Earley.fsequence
-                                             (Earley_core.Earley.option None
-                                                (Earley_core.Earley.apply
-                                                   (fun x -> Some x)
-                                                   (Earley_core.Earley.fsequence_ignore
-                                                      (Earley_core.Earley.char
-                                                         '=' '=')
-                                                      (Earley_core.Earley.fsequence
-                                                         expression
-                                                         (Earley_core.Earley.empty
-                                                            (fun e -> e))))))
-                                             (Earley_core.Earley.fsequence_ignore
-                                                (Earley_core.Earley.char ')'
-                                                   ')')
-                                                (Earley_core.Earley.empty
-                                                   (fun e ->
-                                                      fun str1 ->
-                                                        fun pos1 ->
-                                                          fun str2 ->
-                                                            fun pos2 ->
-                                                              fun t ->
-                                                                let _loc_t =
-                                                                  locate str1
-                                                                    pos1 str2
-                                                                    pos2 in
-                                                                fun str1 ->
-                                                                  fun pos1 ->
-                                                                    fun str2
-                                                                    ->
-                                                                    fun pos2
-                                                                    ->
-                                                                    fun id ->
-                                                                    let _loc_id
-                                                                    =
-                                                                    locate
-                                                                    str1 pos1
-                                                                    str2 pos2 in
-                                                                    let pat =
-                                                                    loc_pat
-                                                                    _loc_id
-                                                                    (Ppat_var
-                                                                    (id_loc
-                                                                    id
-                                                                    _loc_id)) in
-                                                                    let pat =
-                                                                    match t
-                                                                    with
-                                                                    | 
-                                                                    None ->
-                                                                    pat
-                                                                    | 
-                                                                    Some t ->
-                                                                    loc_pat
-                                                                    (merge2
-                                                                    _loc_id
-                                                                    _loc_t)
-                                                                    (Ppat_constraint
-                                                                    (pat, t)) in
-                                                                    `Arg
-                                                                    ((optional
-                                                                    id), e,
-                                                                    pat)))))))))
-                              (List.cons
-                                 (Earley_core.Earley.fsequence ty_opt_label
-                                    (Earley_core.Earley.fsequence_ignore
-                                       (Earley_core.Earley.string "(" "(")
-                                       (Earley_core.Earley.fsequence_position
-                                          pattern
-                                          (Earley_core.Earley.fsequence_position
-                                             (Earley_core.Earley.option None
-                                                (Earley_core.Earley.apply
-                                                   (fun x -> Some x)
-                                                   (Earley_core.Earley.fsequence_ignore
-                                                      (Earley_core.Earley.char
-                                                         ':' ':')
-                                                      (Earley_core.Earley.fsequence
-                                                         typexpr
-                                                         (Earley_core.Earley.empty
-                                                            (fun t -> t))))))
-                                             (Earley_core.Earley.fsequence
-                                                (Earley_core.Earley.option
-                                                   None
-                                                   (Earley_core.Earley.apply
-                                                      (fun x -> Some x)
-                                                      (Earley_core.Earley.fsequence_ignore
-                                                         (Earley_core.Earley.char
-                                                            '=' '=')
-                                                         (Earley_core.Earley.fsequence
-                                                            expression
-                                                            (Earley_core.Earley.empty
-                                                               (fun e -> e))))))
-                                                (Earley_core.Earley.fsequence_ignore
-                                                   (Earley_core.Earley.char
-                                                      ')' ')')
-                                                   (Earley_core.Earley.empty
-                                                      (fun e ->
-                                                         fun str1 ->
-                                                           fun pos1 ->
-                                                             fun str2 ->
-                                                               fun pos2 ->
-                                                                 fun t ->
-                                                                   let _loc_t
-                                                                    =
-                                                                    locate
-                                                                    str1 pos1
-                                                                    str2 pos2 in
-                                                                   fun str1
-                                                                    ->
-                                                                    fun pos1
-                                                                    ->
-                                                                    fun str2
-                                                                    ->
-                                                                    fun pos2
-                                                                    ->
-                                                                    fun pat
-                                                                    ->
-                                                                    let _loc_pat
-                                                                    =
-                                                                    locate
-                                                                    str1 pos1
-                                                                    str2 pos2 in
-                                                                    fun id ->
-                                                                    let pat =
-                                                                    match t
-                                                                    with
-                                                                    | 
-                                                                    None ->
-                                                                    pat
-                                                                    | 
-                                                                    Some t ->
-                                                                    loc_pat
-                                                                    (merge2
-                                                                    _loc_pat
-                                                                    _loc_t)
-                                                                    (Ppat_constraint
-                                                                    (pat, t)) in
-                                                                    `Arg
-                                                                    (id, e,
-                                                                    pat)))))))))
-                                 (List.cons
-                                    (Earley_core.Earley.fsequence
-                                       ty_opt_label
-                                       (Earley_core.Earley.fsequence pattern
-                                          (Earley_core.Earley.empty
-                                             (fun pat ->
-                                                fun id ->
-                                                  `Arg (id, None, pat)))))
-                                    (List.cons
-                                       (Earley_core.Earley.fsequence_ignore
-                                          (Earley_core.Earley.char '?' '?')
-                                          (Earley_core.Earley.fsequence_position
-                                             lident
-                                             (Earley_core.Earley.empty
-                                                (fun str1 ->
-                                                   fun pos1 ->
-                                                     fun str2 ->
-                                                       fun pos2 ->
-                                                         fun id ->
-                                                           let _loc_id =
-                                                             locate str1 pos1
-                                                               str2 pos2 in
-                                                           `Arg
-                                                             ((optional id),
-                                                               None,
-                                                               (loc_pat
-                                                                  _loc_id
-                                                                  (Ppat_var
+                                                              ((optional id),
+                                                                None,
+                                                                (loc_pat
+                                                                   _loc_id
+                                                                   (Ppat_var
                                                                     (id_loc
                                                                     id
                                                                     _loc_id))))))))
-                                       [])))))))))
+                                        []))))))))))
     let apply_params ?(gh= false)  _loc params e =
       let f acc =
         function
@@ -8349,43 +8074,30 @@ module Make(Initial:Extension) =
       set_expression_lvl
         (fun ((alm, lvl) as c) ->
            Earley_core.Earley.alternatives
-             (if allow_match alm
-              then
-                List.cons
-                  (Earley_core.Earley.fsequence prefix_expression
-                     (Earley_core.Earley.fsequence (semicol (alm, lvl))
-                        (Earley_core.Earley.empty
-                           (fun _default_0 -> fun r -> r))))
-                  (List.cons
-                     (Earley_core.Earley.fsequence
-                        (extra_expressions_grammar c)
+             (List.append
+                (if allow_match alm
+                 then
+                   List.cons
+                     (Earley_core.Earley.fsequence prefix_expression
                         (Earley_core.Earley.fsequence (semicol (alm, lvl))
                            (Earley_core.Earley.empty
-                              (fun _default_0 -> fun e -> e))))
-                     (List.cons
-                        (Earley.dependent_sequence (debut lvl alm)
-                           (suit lvl alm))
-                        (List.cons
-                           (Earley_core.Earley.fsequence
-                              (right_expression lvl)
-                              (Earley_core.Earley.fsequence
-                                 (semicol (alm, lvl))
-                                 (Earley_core.Earley.empty
-                                    (fun _default_0 -> fun r -> r)))) [])))
-              else
-                List.cons
-                  (Earley_core.Earley.fsequence (extra_expressions_grammar c)
-                     (Earley_core.Earley.fsequence (semicol (alm, lvl))
-                        (Earley_core.Earley.empty
-                           (fun _default_0 -> fun e -> e))))
-                  (List.cons
-                     (Earley.dependent_sequence (debut lvl alm)
-                        (suit lvl alm))
-                     (List.cons
-                        (Earley_core.Earley.fsequence (right_expression lvl)
-                           (Earley_core.Earley.fsequence (semicol (alm, lvl))
-                              (Earley_core.Earley.empty
-                                 (fun _default_0 -> fun r -> r)))) []))))
+                              (fun _default_0 -> fun r -> r)))) []
+                 else [])
+                (List.cons
+                   (Earley_core.Earley.fsequence
+                      (extra_expressions_grammar c)
+                      (Earley_core.Earley.fsequence (semicol (alm, lvl))
+                         (Earley_core.Earley.empty
+                            (fun _default_0 -> fun e -> e))))
+                   (List.cons
+                      (Earley.dependent_sequence (debut lvl alm)
+                         (suit lvl alm))
+                      (List.cons
+                         (Earley_core.Earley.fsequence (right_expression lvl)
+                            (Earley_core.Earley.fsequence
+                               (semicol (alm, lvl))
+                               (Earley_core.Earley.empty
+                                  (fun _default_0 -> fun r -> r)))) [])))))
     let module_expr_base =
       Earley_core.Earley.declare_grammar "module_expr_base"
     let _ =

@@ -407,32 +407,28 @@ module Initial =
       infix_symbol__set__grammar
         (fun prio ->
            Earley_core.Earley.alternatives
-             (if prio <> Cons
-              then
-                List.cons
-                  (Earley_core.Earley.fsequence
-                     (Earley_str.regexp (infix_symb_re prio)
-                        (fun group -> group 0))
-                     (Earley_core.Earley.fsequence not_special
-                        (Earley_core.Earley.empty
-                           (fun _default_0 ->
-                              fun sym ->
-                                if is_reserved_symb sym then give_up (); sym))))
-                  (if prio = Cons
-                   then
-                     List.cons
-                       (Earley_core.Earley.fsequence_ignore
-                          (Earley_core.Earley.string "::" "::")
-                          (Earley_core.Earley.empty "::")) []
-                   else [])
-              else
-                if prio = Cons
-                then
-                  List.cons
-                    (Earley_core.Earley.fsequence_ignore
-                       (Earley_core.Earley.string "::" "::")
-                       (Earley_core.Earley.empty "::")) []
-                else []))
+             (List.append
+                (if prio <> Cons
+                 then
+                   List.cons
+                     (Earley_core.Earley.fsequence
+                        (Earley_str.regexp (infix_symb_re prio)
+                           (fun group -> group 0))
+                        (Earley_core.Earley.fsequence not_special
+                           (Earley_core.Earley.empty
+                              (fun _default_0 ->
+                                 fun sym ->
+                                   if is_reserved_symb sym then give_up ();
+                                   sym)))) []
+                 else [])
+                (List.append
+                   (if prio = Cons
+                    then
+                      List.cons
+                        (Earley_core.Earley.fsequence_ignore
+                           (Earley_core.Earley.string "::" "::")
+                           (Earley_core.Earley.empty "::")) []
+                    else []) [])))
     let (prefix_symbol, prefix_symbol__set__grammar) =
       Earley_core.Earley.grammar_family "prefix_symbol"
     let _ =
