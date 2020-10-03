@@ -102,10 +102,6 @@ let merge2 l1 l2 =
 let exp_apply _loc f l =
   loc_expr _loc (Pexp_apply(f, List.map (fun x -> Nolabel, x) l))
 
-module Make(Initial : Extension) = struct
-
-include Initial
-
 let ouident = uident
 let parser uident   =
   | ouident
@@ -397,15 +393,10 @@ let mkoption loc d =
   let loc = ghost loc in
   Typ.constr ~loc (id_loc (Ldot (Lident "*predef*", "option")) loc) [d]
 
-let extra_types_grammar lvl =
-  (alternatives (List.map (fun g -> g lvl) extra_types))
-
 let op_cl = parser d:".." -> Open | EMPTY -> Closed
 
 let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
   parser
-  | [@unshared] e:(extra_types_grammar lvl)
-                         -> e
   | "'" id:ident
     -> Typ.var ~loc:_loc id
 
@@ -730,12 +721,7 @@ let parser neg_constant =
 
 (* Patterns *)
 
-let parser extra_patterns_grammar lvl =
-  (alternatives (List.map (fun g -> g lvl) extra_patterns))
-
 let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
-  | [@unshared] e:(extra_patterns_grammar (as_ok, lvl)) -> e
-
   | [@unshared] p:(pattern_lvl (as_ok, lvl)) as_kw vn:value_name when as_ok ->
       Pat.alias ~loc:_loc p (id_loc vn _loc_vn)
 
@@ -1211,8 +1197,6 @@ let rec mk_seq loc_c final = function
          loc_expr (merge2 x.pexp_loc loc_c) (Pexp_sequence(x,res))
 
 (* Expressions *)
-let parser extra_expressions_grammar c =
-  (alternatives (List.map (fun g -> g c) extra_expressions))
 
 let structure_item_simple = declare_grammar "structure_item_simple"
 
@@ -1337,7 +1321,7 @@ let parser prefix_expression =
     -> Exp.match_ ~loc:_loc e l
   | try_kw e:expression with_kw l:match_cases
     -> Exp.try_ ~loc:_loc e l
-  | e:(alternatives extra_prefix_expressions)
+  | e:Pa_parser.extra_prefix_expressions
 
 let parser right_expression @lvl =
   | id:value_path when lvl <= Atom -> loc_expr _loc (Pexp_ident(id_loc id _loc_id))
@@ -1460,9 +1444,7 @@ let parser suit lvl alm (lvl0,no_else) =
         let _loc_c = if c then _loc_c else _loc_e in
         f e (_l, _loc_c)
 
-let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
-
-  | e:(extra_expressions_grammar c) (semicol (alm,lvl)) -> e
+let _ = set_expression_lvl (fun (alm, lvl) -> parser
 
   | (Earley.dependent_sequence (debut lvl alm) (suit lvl alm))
 
@@ -1600,7 +1582,7 @@ let parser structure_item_aux =
   | _:ext_attributes -> []
   | _:ext_attributes e:expression -> attach_str _loc @ [Str.eval ~loc:_loc_e e]
   | s1:structure_item_aux double_semi_col?[()] _:ext_attributes f:{
-             | e:(alternatives extra_structure) ->
+             | e:(Pa_parser.extra_structure) ->
                  (fun s1 -> List.rev_append e (List.rev_append (attach_str _loc_e) s1))
              | s2:structure_item_base ->
                   (fun s1 -> s2 :: (List.rev_append (attach_str _loc_s2) s1)) } -> f s1
@@ -1661,8 +1643,5 @@ let parser signature_item_base =
 
 let _ = set_grammar signature_item (
   parser
-  | e:(alternatives extra_signature) -> attach_sig _loc @ e
   | s:signature_item_base _:double_semi_col? -> attach_sig _loc @ [s]
   )
-
-end

@@ -1,5 +1,5 @@
 (executable
-  (name pa_default)
+  (name pa_main)
   (public_name pa_ocaml)
   (package earley)
   (modules :standard)

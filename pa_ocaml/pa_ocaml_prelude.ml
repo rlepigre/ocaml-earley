@@ -92,25 +92,18 @@ type entry_point =
   | Implementation of Parsetree.structure_item list grammar * blank
   | Interface      of Parsetree.signature_item list grammar * blank
 
-(* Initial parser module, starting point of the functorial interface. *)
-module Initial =
-  struct
+let debug_attach = ref false
 
-    let debug_attach = ref false
-
-    (* Default command line arguments. *)
-    let spec : (Arg.key * Arg.spec * Arg.doc) list =
-      [ ("--impl", Arg.Unit (fun () -> entry := Impl),
-          "Treat file as an implementation.")
-      ; ("--intf", Arg.Unit (fun () -> entry := Intf),
-          "Treat file as an interface.")
-      ; ("--debug", Arg.Set_int Earley.debug_lvl,
-          "Sets the value of \"Earley.debug_lvl\".")
-      ; ("--debug-attach", Arg.Set debug_attach,
-          "Debug ocamldoc comments attachment.") ]
-
-    (* Function to be run before parsing. *)
-    let before_parse_hook : unit -> unit = fun () -> ()
+(* Default command line arguments. *)
+let spec : (Arg.key * Arg.spec * Arg.doc) list =
+  [ ("--impl", Arg.Unit (fun () -> entry := Impl),
+      "Treat file as an implementation.")
+  ; ("--intf", Arg.Unit (fun () -> entry := Intf),
+      "Treat file as an interface.")
+  ; ("--debug", Arg.Set_int Earley.debug_lvl,
+      "Sets the value of \"Earley.debug_lvl\".")
+  ; ("--debug-attach", Arg.Set debug_attach,
+      "Debug ocamldoc comments attachment.") ]
 
 type expression_prio =
   | Seq | If | Aff | Tupl | Disj | Conj | Eq | Append
@@ -231,12 +224,6 @@ let string_exp (b,lvl) =
   let class_body : class_structure grammar = declare_grammar "class_body"
   let class_expr : class_expr grammar = declare_grammar "class_expr"
   let value_path : Longident.t grammar = declare_grammar "value_path"
-  let extra_expressions = ([] : (alm * expression_prio -> expression grammar) list)
-  let extra_prefix_expressions = ([] : (expression grammar) list)
-  let extra_types = ([] : (type_prio -> core_type grammar) list)
-  let extra_patterns = ([] : (bool * pattern_prio -> pattern grammar) list)
-  let extra_structure = ([] : structure_item list grammar list)
-  let extra_signature = ([] : signature_item list grammar list)
 
   type record_field = Longident.t Asttypes.loc * Parsetree.expression
 
@@ -440,13 +427,6 @@ let parser downto_flag =
 let entry_points : (string * entry_point) list =
    [ ".mli", Interface      (signature, ocaml_blank)
    ;  ".ml", Implementation (structure, ocaml_blank) ]
-end
-
-module type Extension = module type of Initial
-
-module type FExt = functor (E:Extension) -> Extension
-
-include Initial
 
 let start_pos loc =
   loc.Location.loc_start
