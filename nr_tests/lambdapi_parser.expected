@@ -1,0 +1,2141 @@
+[@@@ocaml.text
+  " Parsing functions for the Lambdapi syntax based on the Earley library. See\n    https://github.com/rlepigre/ocaml-earley/blob/master/README.md for details\n    on using the library and its syntax extension. "]
+open Earley_core
+open Extra
+open Syntax
+open Files
+open Pos
+[@@@ocaml.text
+  " {b NOTE} we maintain the invariant that errors reported by the parser have\n    a position. To help enforce that, we avoid opening the [Console] module so\n    that [Console.fatal] and [Console.fatal_no_pos] are not in scope. To raise\n    an error in the parser, only the following function should be used. "]
+let parser_fatal : Pos.pos -> ('a, 'b) Console.koutfmt -> 'a =
+  fun loc -> fun fmt -> Console.fatal (Some loc) fmt[@@ocaml.doc
+                                                      " [parser_fatal loc fmt] is a wrapper for [Console.fatal] that enforces that\n    the error has an attached source code position. "]
+module Prefix :
+  sig
+    type 'a t
+    val init : unit -> 'a t[@@ocaml.doc
+                             " [init ()] initializes a new (empty) prefix tree. "]
+    val reset : 'a t -> unit[@@ocaml.doc
+                              " [reset t] resets [t] to an empty prefix tree [t]. "]
+    val add : 'a t -> string -> 'a -> unit[@@ocaml.doc
+                                            " [add k v t] inserts the value [v] with the key [k] (possibly replacing\n        a previous value associated to [k]) in the tree [t]. Note that key [k]\n        should not be [\"\"], otherwise [Invalid_argument] is raised. "]
+    val grammar : 'a t -> 'a Earley.grammar[@@ocaml.doc
+                                             " [grammar t] is an [Earley] grammar parsing the longest possible prefix\n        of the input corresponding to a word of [t]. The corresponding, stored\n        value is returned. It fails if no such longest prefix exist. "]
+    type 'a saved[@@ocaml.doc
+                   " Type of a saved prefix tree. Prefix trees are imperative, so they need\n        to be manually saved and restored to enforce reentrancy. Note that the\n        parser may call itself through dependency loading "]
+    val save : 'a t -> 'a saved[@@ocaml.doc
+                                 " [save t] returns a snapshot of the internal state of [t]. "]
+    val restore : 'a t -> 'a saved -> unit[@@ocaml.doc
+                                            " [restore t s] restores the internal state of [t] as it was at the time\n        of calling [save]. "]
+  end =
+  struct
+    type 'a tree =
+      | Node of 'a option * (char * 'a tree) list 
+    type 'a t = 'a tree Stdlib.ref
+    let init : unit -> 'a t = fun _ -> ref (Node (None, []))
+    let reset : 'a t -> unit = fun t -> t := (Node (None, []))
+    let add : 'a t -> string -> 'a -> unit =
+      fun t ->
+        fun k ->
+          fun v ->
+            if k = "" then invalid_arg "Prefix.add";
+            (let rec add i (Node (vo, l)) =
+               match try Some (k.[i]) with | _ -> None with
+               | None -> Node ((Some v), l)
+               | Some c ->
+                   let l =
+                     try
+                       let t = List.assoc c l in (c, (add (i + 1) t)) ::
+                         (List.remove_assoc c l)
+                     with
+                     | Not_found -> (c, (add (i + 1) (Node (None, [])))) :: l in
+                   Node (vo, l) in
+             t := (add 0 (!t)))
+    let grammar : 'a t -> 'a Earley.grammar =
+      fun t ->
+        let fn buf pos =
+          let rec fn best (Node (vo, l)) buf pos =
+            let best =
+              match vo with | None -> best | Some v -> Some (v, buf, pos) in
+            try
+              let (c, buf, pos) = Input.read buf pos in
+              fn best (List.assoc c l) buf pos
+            with
+            | Not_found ->
+                (match best with
+                 | None -> Earley.give_up ()
+                 | Some best -> best) in
+          fn None (!t) buf pos in
+        Earley.black_box fn Charset.full false "<tree>"
+    type 'a saved = 'a tree
+    let save : 'a t -> 'a saved = Stdlib.(!)
+    let restore : 'a t -> 'a saved -> unit = Stdlib.(:=)
+  end 
+[@@@ocaml.text " Prefix trees for greedy parsing among a set of string. "]
+[@@@ocaml.text " Type of a prefix tree. "]
+let unops : unop Prefix.t = Prefix.init ()[@@ocaml.doc
+                                            " Currently defined unary operators. "]
+let unop = Prefix.grammar unops[@@ocaml.doc " Parser for a unary operator. "]
+let binops : binop Prefix.t = Prefix.init ()[@@ocaml.doc
+                                              " Currently defined binary operators. "]
+let binop = Prefix.grammar binops[@@ocaml.doc
+                                   " Parser for a binary operator. "]
+let declared_ids : string Prefix.t = Prefix.init ()[@@ocaml.doc
+                                                     " Currently defined identifiers. "]
+let declared_id = Prefix.grammar declared_ids[@@ocaml.doc
+                                               " Parser for a declared identifier. "]
+let forbidden_in_ops =
+  ["(";
+  ")";
+  ".";
+  "\206\187";
+  "\206\160";
+  "$";
+  "[";
+  "]";
+  "{";
+  "}";
+  "?";
+  ":";
+  "\226\134\170";
+  "\226\138\162";
+  "\226\134\146";
+  "@";
+  ",";
+  ";";
+  "\"";
+  "'";
+  "\226\137\148";
+  "//";
+  " ";
+  "\r";
+  "\n";
+  "\t";
+  "\b"] @ (List.init 10 string_of_int)[@@ocaml.doc
+                                        " The following should not appear as substrings of binary operators, as they\n    would introduce ambiguity in the parsing. "]
+let get_ops : Pos.pos -> p_module_path -> unit =
+  fun loc ->
+    fun p ->
+      let p = List.map fst p in
+      let sign =
+        try PathMap.find p (let open Timed in !Sign.loaded)
+        with
+        | Not_found ->
+            parser_fatal loc "Module [%a] not loaded (used for binops)."
+              Path.pp p in
+      let fn s (_, unop) = Prefix.add unops s unop in
+      StrMap.iter fn (let open Timed in !(let open Sign in sign.sign_unops));
+      (let fn s (_, binop) = Prefix.add binops s binop in
+       StrMap.iter fn
+         (let open Timed in !(let open Sign in sign.sign_binops));
+       (let fn s = Prefix.add declared_ids s s in
+        StrSet.iter fn
+          (let open Timed in !(let open Sign in sign.sign_idents))))[@@ocaml.doc
+                                                                    " [get_ops loc p] loads the unary and binary operators associated to  module\n    [p] and report possible errors at location [loc].  This operation requires\n    the module [p] to be loaded (i.e., compiled). The declared identifiers are\n    also retrieved at the same time. "]
+let blank = Blanks.line_comments "//"[@@ocaml.doc
+                                       " Blank function (for comments and white spaces). "]
+let id_charset = Charset.from_string "a-zA-Z0-9_'"[@@ocaml.doc
+                                                    " Set of identifier characters. "]
+module KW =
+  (Keywords.Make)(struct let id_charset = id_charset
+                         let reserved = [] end)
+[@@@ocaml.text " Keyword module. "]
+let _ = KW.reserve "KIND"[@@ocaml.doc
+                           " Reserve [\"KIND\"] to disallow it as an identifier. "]
+let _abort_ = KW.create "abort"[@@ocaml.doc
+                                 " Keyword declarations. Keep alphabetical order. "]
+let _admit_ = KW.create "admit"
+let _apply_ = KW.create "apply"
+let _as_ = KW.create "as"
+let _assert_ = KW.create "assert"
+let _assertnot_ = KW.create "assertnot"
+let _compute_ = KW.create "compute"
+let _constant_ = KW.create "constant"
+let _definition_ = KW.create "definition"
+let _focus_ = KW.create "focus"
+let _in_ = KW.create "in"
+let _injective_ = KW.create "injective"
+let _intro_ = KW.create "assume"
+let _let_ = KW.create "let"
+let _open_ = KW.create "open"
+let _print_ = KW.create "print"
+let _private_ = KW.create "private"
+let _proof_ = KW.create "proof"
+let _proofterm_ = KW.create "proofterm"
+let _protected_ = KW.create "protected"
+let _qed_ = KW.create "qed"
+let _refine_ = KW.create "refine"
+let _refl_ = KW.create "reflexivity"
+let _require_ = KW.create "require"
+let _rewrite_ = KW.create "rewrite"
+let _rule_ = KW.create "rule"
+let _set_ = KW.create "set"
+let _simpl_ = KW.create "simpl"
+let _sym_ = KW.create "symmetry"
+let _symbol_ = KW.create "symbol"
+let _theorem_ = KW.create "theorem"
+let _type_ = KW.create "type"
+let _TYPE_ = KW.create "TYPE"
+let _why3_ = KW.create "why3"
+let _wild_ = KW.create "_"
+let _with_ = KW.create "with"
+let sanity_check : Pos.pos -> string -> unit =
+  fun loc ->
+    fun s ->
+      if s = "" then parser_fatal loc "Invalid token (empty).";
+      if KW.mem s then parser_fatal loc "Invalid token (reserved).";
+      if String.for_all (Charset.mem id_charset) s
+      then parser_fatal loc "Invalid token (only identifier characters).";
+      (let check_substring w =
+         if String.is_substring w s
+         then parser_fatal loc "Invalid token (has [%s] as a substring)." w in
+       List.iter check_substring forbidden_in_ops)[@@ocaml.doc
+                                                    " [sanity_check pos s] checks that the token [s] is appropriate for an infix\n    operator or a declared identifier. If it is not the case, then the [Fatal]\n    exception is raised. "]
+let nat_lit =
+  let num_cs = Charset.from_string "0-9" in
+  let fn buf pos =
+    let nb = ref 1 in
+    while Charset.mem num_cs (Input.get buf (pos + (!nb))) do incr nb done;
+    ((int_of_string (String.sub (Input.line buf) pos (!nb))), buf,
+      (pos + (!nb))) in
+  Earley.black_box fn num_cs false "<nat>"[@@ocaml.doc
+                                            " Natural number literal. "]
+let float_lit =
+  let num_cs = Charset.from_string "0-9" in
+  let fn buf pos =
+    let nb = ref 1 in
+    while Charset.mem num_cs (Input.get buf (pos + (!nb))) do incr nb done;
+    if (Input.get buf (pos + (!nb))) = '.'
+    then
+      (incr nb;
+       while Charset.mem num_cs (Input.get buf (pos + (!nb))) do incr nb done);
+    ((float_of_string (String.sub (Input.line buf) pos (!nb))), buf,
+      (pos + (!nb))) in
+  Earley.black_box fn num_cs false "<float>"[@@ocaml.doc
+                                              " Floating-point number literal. "]
+let string_lit =
+  let body_cs = List.fold_left Charset.del Charset.full ['"'; '\n'] in
+  let fn buf pos =
+    let nb = ref 1 in
+    while Charset.mem body_cs (Input.get buf (pos + (!nb))) do incr nb done;
+    if (Input.get buf (pos + (!nb))) <> '"' then Earley.give_up ();
+    ((String.sub (Input.line buf) (pos + 1) ((!nb) - 1)), buf,
+      ((pos + (!nb)) + 1)) in
+  Earley.black_box fn (Charset.singleton '"') false "<string>"[@@ocaml.doc
+                                                                " String literal. "]
+let alpha =
+  let alpha = Charset.from_string "a-zA-Z" in
+  let fn buf pos =
+    let nb = ref 1 in
+    while Charset.mem alpha (Input.get buf (pos + (!nb))) do incr nb done;
+    ((String.sub (Input.line buf) pos (!nb)), buf, (pos + (!nb))) in
+  Earley.black_box fn alpha false "<alpha>"[@@ocaml.doc
+                                             " Sequence of alphabetical characters. "]
+let regular_ident =
+  let head_cs = Charset.from_string "a-zA-Z_" in
+  let body_cs = Charset.from_string "a-zA-Z0-9_'" in
+  let fn buf pos =
+    let nb = ref 1 in
+    while Charset.mem body_cs (Input.get buf (pos + (!nb))) do incr nb done;
+    ((String.sub (Input.line buf) pos (!nb)), buf, (pos + (!nb))) in
+  Earley.black_box fn head_cs false "<r-ident>"[@@ocaml.doc
+                                                 " Regular identifier (regexp [\"[a-zA-Z_][a-zA-Z0-9_']*\"]). "]
+let escaped_ident : bool -> string Earley.grammar =
+  fun with_delim ->
+    let fn buf pos =
+      let s = Buffer.create 20 in
+      let (c, buf, pos) = Input.read buf (pos + 1) in
+      if c <> '|' then Earley.give_up ();
+      if with_delim then Buffer.add_string s "{|";
+      (let rec work buf pos =
+         let (c, buf, pos) = Input.read buf pos in
+         let next_c = Input.get buf pos in
+         if (c = '|') && (next_c = '}')
+         then (buf, (pos + 1))
+         else
+           if c <> '\255'
+           then (Buffer.add_char s c; work buf pos)
+           else Earley.give_up () in
+       let (buf, pos) = work buf pos in
+       if with_delim then Buffer.add_string s "|}";
+       ((Buffer.contents s), buf, pos)) in
+    let p_name = if with_delim then "{|<e-ident>|}" else "<e-ident>" in
+    Earley.black_box fn (Charset.singleton '{') false p_name[@@ocaml.doc
+                                                              " [escaped_ident with_delim] is a parser for a single escaped identifier. An\n    escaped identifier corresponds to an arbitrary sequence of characters that\n    starts with [\"{|\"], ends with [\"|}\"], and does not contain [\"|}\"]. Or said\n    otherwise, they are recognised by regexp [\"{|\\([^|]\\|\\(|[^}]\\)\\)|*|}\"]. If\n    [with_delim] is [true] then the returned string includes both the starting\n    and the ending delimitors. They are otherwise omited. "]
+let escaped_ident_no_delim = escaped_ident false
+let escaped_ident = escaped_ident true
+let any_ident = Earley_core.Earley.declare_grammar "any_ident"
+let _ =
+  Earley_core.Earley.set_grammar any_ident
+    (Earley_core.Earley.alternatives
+       (List.cons declared_id
+          (List.cons
+             (Earley_core.Earley.fsequence regular_ident
+                (Earley_core.Earley.empty (fun id -> KW.check id; id)))
+             (List.cons escaped_ident []))))
+[@@@ocaml.text " Any identifier (regular or escaped). "]
+let ident = Earley_core.Earley.declare_grammar "ident"
+let _ =
+  Earley_core.Earley.set_grammar ident
+    (Earley_core.Earley.fsequence any_ident
+       (Earley_core.Earley.empty_pos
+          (fun __loc__start__buf ->
+             fun __loc__start__pos ->
+               fun __loc__end__buf ->
+                 fun __loc__end__pos ->
+                   let _loc =
+                     locate __loc__start__buf __loc__start__pos
+                       __loc__end__buf __loc__end__pos in
+                   fun id -> in_pos _loc id)))
+[@@@ocaml.text " Identifier (regular and non-keyword, or escaped). "]
+let arg_ident = Earley_core.Earley.declare_grammar "arg_ident"
+let _ =
+  Earley_core.Earley.set_grammar arg_ident
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _wild_
+             (Earley_core.Earley.empty (fun _default_0 -> None)))
+          (List.cons
+             (Earley_core.Earley.fsequence ident
+                (Earley_core.Earley.empty (fun id -> Some id))) [])))
+let meta = Earley_core.Earley.declare_grammar "meta"
+let _ =
+  Earley_core.Earley.set_grammar meta
+    (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.string "?" "?")
+       (Earley_core.Earley.fsequence_ignore
+          (Earley_core.Earley.no_blank_test ())
+          (Earley_core.Earley.fsequence
+             (Earley_core.Earley.alternatives
+                (List.cons escaped_ident (List.cons regular_ident [])))
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun id ->
+                           if id = "_" then Earley.give_up (); in_pos _loc id)))))
+[@@@ocaml.text
+  " Metavariable identifier (regular or escaped, prefixed with ['?']). "]
+let patt = Earley_core.Earley.declare_grammar "patt"
+let _ =
+  Earley_core.Earley.set_grammar patt
+    (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.string "$" "$")
+       (Earley_core.Earley.fsequence_ignore
+          (Earley_core.Earley.no_blank_test ())
+          (Earley_core.Earley.fsequence
+             (Earley_core.Earley.alternatives
+                (List.cons escaped_ident (List.cons regular_ident [])))
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun id ->
+                           if id = "_" then None else Some (in_pos _loc id))))))
+[@@@ocaml.text
+  " Pattern variable identifier (regular or escaped, prefixed with ['$']). "]
+let path_elem = Earley_core.Earley.declare_grammar "path_elem"
+let _ =
+  Earley_core.Earley.set_grammar path_elem
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence escaped_ident_no_delim
+             (Earley_core.Earley.empty (fun id -> (id, true))))
+          (List.cons
+             (Earley_core.Earley.fsequence regular_ident
+                (Earley_core.Earley.empty
+                   (fun id -> KW.check id; (id, false)))) [])))
+[@@@ocaml.text " Any path member identifier (escaped idents are stripped). "]
+let path = Earley_core.Earley.declare_grammar "path"
+let _ =
+  Earley_core.Earley.set_grammar path
+    (Earley_core.Earley.fsequence path_elem
+       (Earley_core.Earley.fsequence
+          (Earley_core.Earley.greedy
+             (Earley_core.Earley.apply (fun f -> f [])
+                (Earley_core.Earley.fixpoint' (fun l -> l)
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "." ".")
+                      (Earley_core.Earley.fsequence path_elem
+                         (Earley_core.Earley.empty
+                            (fun _default_0 -> _default_0))))
+                   (fun x -> fun f -> fun l -> f (List.cons x l)))))
+          (Earley_core.Earley.empty (fun ms -> fun m -> m :: ms))))
+[@@@ocaml.text " Module path (dot-separated identifiers. "]
+let qident = Earley_core.Earley.declare_grammar "qident"
+let _ =
+  Earley_core.Earley.set_grammar qident
+    (Earley_core.Earley.fsequence
+       (Earley_core.Earley.apply (fun f -> f [])
+          (Earley_core.Earley.fixpoint' (fun l -> l)
+             (Earley_core.Earley.fsequence path_elem
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "." ".")
+                   (Earley_core.Earley.empty (fun _default_0 -> _default_0))))
+             (fun x -> fun f -> fun l -> f (List.cons x l))))
+       (Earley_core.Earley.fsequence any_ident
+          (Earley_core.Earley.empty_pos
+             (fun __loc__start__buf ->
+                fun __loc__start__pos ->
+                  fun __loc__end__buf ->
+                    fun __loc__end__pos ->
+                      let _loc =
+                        locate __loc__start__buf __loc__start__pos
+                          __loc__end__buf __loc__end__pos in
+                      fun id -> fun mp -> in_pos _loc (mp, id)))))
+[@@@ocaml.text " [qident] parses a single (possibly qualified) identifier. "]
+let property = Earley_core.Earley.declare_grammar "property"
+let _ =
+  Earley_core.Earley.set_grammar property
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _injective_
+             (Earley_core.Earley.empty (fun _default_0 -> Terms.Injec)))
+          (List.cons
+             (Earley_core.Earley.fsequence _constant_
+                (Earley_core.Earley.empty (fun _default_0 -> Terms.Const)))
+             [])))
+[@@@ocaml.text " [symtag] parses a single symbol tag. "]
+let exposition = Earley_core.Earley.declare_grammar "exposition"
+let _ =
+  Earley_core.Earley.set_grammar exposition
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _private_
+             (Earley_core.Earley.empty (fun _default_0 -> Terms.Privat)))
+          (List.cons
+             (Earley_core.Earley.fsequence _protected_
+                (Earley_core.Earley.empty (fun _default_0 -> Terms.Protec)))
+             [])))
+[@@@ocaml.text " [exposition] parses the exposition tag of a symbol."]
+type prio =
+  | PAtom 
+  | PAppl 
+  | PUnaO 
+  | PBinO 
+  | PFunc [@@ocaml.doc " Priority level for an expression (term or type). "]
+let (term, term__set__grammar) = Earley_core.Earley.grammar_prio "term"
+let env = Earley_core.Earley.declare_grammar "env"
+let arg = Earley_core.Earley.declare_grammar "arg"
+let _ =
+  term__set__grammar
+    ((List.cons
+        ((fun (p : prio) -> p >= PBinO),
+          (Earley_core.Earley.iter
+             (Earley_core.Earley.fsequence (term PBinO)
+                (Earley_core.Earley.fsequence binop
+                   (Earley_core.Earley.empty_pos
+                      (fun __loc__start__buf ->
+                         fun __loc__start__pos ->
+                           fun __loc__end__buf ->
+                             fun __loc__end__pos ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               fun b ->
+                                 fun t ->
+                                   let (min_pl, min_pr) =
+                                     let (_, assoc, p, _) = b in
+                                     let p_plus_epsilon = p +. 1e-6 in
+                                     match assoc with
+                                     | Assoc_none ->
+                                         (p_plus_epsilon, p_plus_epsilon)
+                                     | Assoc_left -> (p, p_plus_epsilon)
+                                     | Assoc_right -> (p_plus_epsilon, p) in
+                                   let _ =
+                                     match t.elt with
+                                     | P_BinO (_, (_, _, p, _), _) when
+                                         p < min_pl -> Earley.give_up ()
+                                     | _ -> () in
+                                   Earley_core.Earley.fsequence (term PBinO)
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun u ->
+                                                   let _ =
+                                                     match u.elt with
+                                                     | P_BinO
+                                                         (_, (_, _, p, _), _)
+                                                         ->
+                                                         if p < min_pr
+                                                         then
+                                                           Earley.give_up ()
+                                                     | _ -> () in
+                                                   in_pos _loc
+                                                     (P_BinO (t, b, u))))))))))
+        (List.cons
+           ((fun (p : prio) -> p >= PAtom),
+             (Earley_core.Earley.fsequence _TYPE_
+                (Earley_core.Earley.empty_pos
+                   (fun __loc__start__buf ->
+                      fun __loc__start__pos ->
+                        fun __loc__end__buf ->
+                          fun __loc__end__pos ->
+                            let _loc =
+                              locate __loc__start__buf __loc__start__pos
+                                __loc__end__buf __loc__end__pos in
+                            fun _default_0 -> in_pos _loc P_Type))))
+           (List.cons
+              ((fun (p : prio) -> p >= PAtom),
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option false
+                      (Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.string "@" "@")
+                         (Earley_core.Earley.empty true)))
+                   (Earley_core.Earley.fsequence qident
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun qid ->
+                                    fun expl ->
+                                      in_pos _loc (P_Iden (qid, expl)))))))
+              (List.cons
+                 ((fun (p : prio) -> p >= PAtom),
+                   (Earley_core.Earley.fsequence _wild_
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun _default_0 -> in_pos _loc P_Wild))))
+                 (List.cons
+                    ((fun (p : prio) -> p >= PAtom),
+                      (Earley_core.Earley.fsequence meta
+                         (Earley_core.Earley.fsequence
+                            (Earley_core.Earley.option [] env)
+                            (Earley_core.Earley.empty_pos
+                               (fun __loc__start__buf ->
+                                  fun __loc__start__pos ->
+                                    fun __loc__end__buf ->
+                                      fun __loc__end__pos ->
+                                        let _loc =
+                                          locate __loc__start__buf
+                                            __loc__start__pos __loc__end__buf
+                                            __loc__end__pos in
+                                        fun e ->
+                                          fun m ->
+                                            in_pos _loc
+                                              (P_Meta (m, (Array.of_list e))))))))
+                    (List.cons
+                       ((fun (p : prio) -> p >= PAtom),
+                         (Earley_core.Earley.fsequence patt
+                            (Earley_core.Earley.fsequence
+                               (Earley_core.Earley.option [] env)
+                               (Earley_core.Earley.empty_pos
+                                  (fun __loc__start__buf ->
+                                     fun __loc__start__pos ->
+                                       fun __loc__end__buf ->
+                                         fun __loc__end__pos ->
+                                           let _loc =
+                                             locate __loc__start__buf
+                                               __loc__start__pos
+                                               __loc__end__buf
+                                               __loc__end__pos in
+                                           fun e ->
+                                             fun p ->
+                                               in_pos _loc
+                                                 (P_Patt
+                                                    (p, (Array.of_list e))))))))
+                       (List.cons
+                          ((fun (p : prio) -> p >= PAtom),
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.string "(" "(")
+                               (Earley_core.Earley.fsequence (term PFunc)
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.string ")" ")")
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun t ->
+                                                   in_pos _loc (P_Wrap t)))))))
+                          (List.cons
+                             ((fun (p : prio) -> p >= PAtom),
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "{" "{")
+                                  (Earley_core.Earley.fsequence (term PFunc)
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string "}" "}")
+                                        (Earley_core.Earley.empty_pos
+                                           (fun __loc__start__buf ->
+                                              fun __loc__start__pos ->
+                                                fun __loc__end__buf ->
+                                                  fun __loc__end__pos ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos in
+                                                    fun t ->
+                                                      in_pos _loc (P_Expl t)))))))
+                             (List.cons
+                                ((fun (p : prio) -> p >= PAppl),
+                                  (Earley_core.Earley.fsequence (term PAppl)
+                                     (Earley_core.Earley.fsequence
+                                        (term PAtom)
+                                        (Earley_core.Earley.empty_pos
+                                           (fun __loc__start__buf ->
+                                              fun __loc__start__pos ->
+                                                fun __loc__end__buf ->
+                                                  fun __loc__end__pos ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos in
+                                                    fun u ->
+                                                      fun t ->
+                                                        in_pos _loc
+                                                          (P_Appl (t, u)))))))
+                                (List.cons
+                                   ((fun (p : prio) -> p >= PFunc),
+                                     (Earley_core.Earley.fsequence
+                                        (term PBinO)
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string
+                                              "\226\134\146" "\226\134\146")
+                                           (Earley_core.Earley.fsequence
+                                              (term PFunc)
+                                              (Earley_core.Earley.empty_pos
+                                                 (fun __loc__start__buf ->
+                                                    fun __loc__start__pos ->
+                                                      fun __loc__end__buf ->
+                                                        fun __loc__end__pos
+                                                          ->
+                                                          let _loc =
+                                                            locate
+                                                              __loc__start__buf
+                                                              __loc__start__pos
+                                                              __loc__end__buf
+                                                              __loc__end__pos in
+                                                          fun b ->
+                                                            fun a ->
+                                                              in_pos _loc
+                                                                (P_Impl
+                                                                   (a, b))))))))
+                                   (List.cons
+                                      ((fun (p : prio) -> p >= PFunc),
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string
+                                              "\206\160" "\206\160")
+                                           (Earley_core.Earley.fsequence
+                                              (Earley_core.Earley.apply
+                                                 (fun f -> f [])
+                                                 (Earley_core.Earley.fixpoint1'
+                                                    (fun l -> l) arg
+                                                    (fun x ->
+                                                       fun f ->
+                                                         fun l ->
+                                                           f (List.cons x l))))
+                                              (Earley_core.Earley.fsequence_ignore
+                                                 (Earley_core.Earley.string
+                                                    "," ",")
+                                                 (Earley_core.Earley.fsequence
+                                                    (term PFunc)
+                                                    (Earley_core.Earley.empty_pos
+                                                       (fun __loc__start__buf
+                                                          ->
+                                                          fun
+                                                            __loc__start__pos
+                                                            ->
+                                                            fun
+                                                              __loc__end__buf
+                                                              ->
+                                                              fun
+                                                                __loc__end__pos
+                                                                ->
+                                                                let _loc =
+                                                                  locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                fun b ->
+                                                                  fun xs ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_Prod
+                                                                    (xs, b)))))))))
+                                      (List.cons
+                                         ((fun (p : prio) -> p >= PFunc),
+                                           (Earley_core.Earley.fsequence_ignore
+                                              (Earley_core.Earley.string
+                                                 "\206\160" "\206\160")
+                                              (Earley_core.Earley.fsequence
+                                                 (Earley_core.Earley.apply
+                                                    (fun f -> f [])
+                                                    (Earley_core.Earley.fixpoint1'
+                                                       (fun l -> l) arg_ident
+                                                       (fun x ->
+                                                          fun f ->
+                                                            fun l ->
+                                                              f
+                                                                (List.cons x
+                                                                   l))))
+                                                 (Earley_core.Earley.fsequence_ignore
+                                                    (Earley_core.Earley.string
+                                                       ":" ":")
+                                                    (Earley_core.Earley.fsequence
+                                                       (term PFunc)
+                                                       (Earley_core.Earley.fsequence_ignore
+                                                          (Earley_core.Earley.string
+                                                             "," ",")
+                                                          (Earley_core.Earley.fsequence
+                                                             (term PFunc)
+                                                             (Earley_core.Earley.empty_pos
+                                                                (fun
+                                                                   __loc__start__buf
+                                                                   ->
+                                                                   fun
+                                                                    __loc__start__pos
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun b ->
+                                                                    fun a ->
+                                                                    fun xs ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_Prod
+                                                                    ([
+                                                                    (xs,
+                                                                    (Some a),
+                                                                    false)],
+                                                                    b)))))))))))
+                                         (List.cons
+                                            ((fun (p : prio) -> p >= PFunc),
+                                              (Earley_core.Earley.fsequence_ignore
+                                                 (Earley_core.Earley.string
+                                                    "\206\187" "\206\187")
+                                                 (Earley_core.Earley.fsequence
+                                                    (Earley_core.Earley.apply
+                                                       (fun f -> f [])
+                                                       (Earley_core.Earley.fixpoint1'
+                                                          (fun l -> l) arg
+                                                          (fun x ->
+                                                             fun f ->
+                                                               fun l ->
+                                                                 f
+                                                                   (List.cons
+                                                                    x l))))
+                                                    (Earley_core.Earley.fsequence_ignore
+                                                       (Earley_core.Earley.string
+                                                          "," ",")
+                                                       (Earley_core.Earley.fsequence
+                                                          (term PFunc)
+                                                          (Earley_core.Earley.empty_pos
+                                                             (fun
+                                                                __loc__start__buf
+                                                                ->
+                                                                fun
+                                                                  __loc__start__pos
+                                                                  ->
+                                                                  fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun t ->
+                                                                    fun xs ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_Abst
+                                                                    (xs, t)))))))))
+                                            (List.cons
+                                               ((fun (p : prio) -> p >= PFunc),
+                                                 (Earley_core.Earley.fsequence_ignore
+                                                    (Earley_core.Earley.string
+                                                       "\206\187" "\206\187")
+                                                    (Earley_core.Earley.fsequence
+                                                       (Earley_core.Earley.apply
+                                                          (fun f -> f [])
+                                                          (Earley_core.Earley.fixpoint1'
+                                                             (fun l -> l)
+                                                             arg_ident
+                                                             (fun x ->
+                                                                fun f ->
+                                                                  fun l ->
+                                                                    f
+                                                                    (List.cons
+                                                                    x l))))
+                                                       (Earley_core.Earley.fsequence_ignore
+                                                          (Earley_core.Earley.string
+                                                             ":" ":")
+                                                          (Earley_core.Earley.fsequence
+                                                             (term PFunc)
+                                                             (Earley_core.Earley.fsequence_ignore
+                                                                (Earley_core.Earley.string
+                                                                   "," ",")
+                                                                (Earley_core.Earley.fsequence
+                                                                   (term
+                                                                    PFunc)
+                                                                   (Earley_core.Earley.empty_pos
+                                                                    (fun
+                                                                    __loc__start__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun t ->
+                                                                    fun a ->
+                                                                    fun xs ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_Abst
+                                                                    ([
+                                                                    (xs,
+                                                                    (Some a),
+                                                                    false)],
+                                                                    t)))))))))))
+                                               (List.cons
+                                                  ((fun (p : prio) ->
+                                                      p >= PFunc),
+                                                    (Earley_core.Earley.fsequence
+                                                       _let_
+                                                       (Earley_core.Earley.fsequence
+                                                          ident
+                                                          (Earley_core.Earley.fsequence
+                                                             (Earley_core.Earley.apply
+                                                                (fun f ->
+                                                                   f [])
+                                                                (Earley_core.Earley.fixpoint'
+                                                                   (fun l ->
+                                                                    l) arg
+                                                                   (fun x ->
+                                                                    fun f ->
+                                                                    fun l ->
+                                                                    f
+                                                                    (List.cons
+                                                                    x l))))
+                                                             (Earley_core.Earley.fsequence
+                                                                (Earley_core.Earley.option
+                                                                   None
+                                                                   (Earley_core.Earley.apply
+                                                                    (fun x ->
+                                                                    Some x)
+                                                                    (Earley_core.Earley.fsequence_ignore
+                                                                    (Earley_core.Earley.string
+                                                                    ":" ":")
+                                                                    (Earley_core.Earley.fsequence
+                                                                    (term
+                                                                    PFunc)
+                                                                    (Earley_core.Earley.empty
+                                                                    (fun
+                                                                    _default_0
+                                                                    ->
+                                                                    _default_0))))))
+                                                                (Earley_core.Earley.fsequence_ignore
+                                                                   (Earley_core.Earley.string
+                                                                    "\226\137\148"
+                                                                    "\226\137\148")
+                                                                   (Earley_core.Earley.fsequence
+                                                                    (term
+                                                                    PFunc)
+                                                                    (Earley_core.Earley.fsequence
+                                                                    _in_
+                                                                    (Earley_core.Earley.fsequence
+                                                                    (term
+                                                                    PFunc)
+                                                                    (Earley_core.Earley.empty_pos
+                                                                    (fun
+                                                                    __loc__start__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun u ->
+                                                                    fun
+                                                                    _default_0
+                                                                    ->
+                                                                    fun t ->
+                                                                    fun b ->
+                                                                    fun a ->
+                                                                    fun x ->
+                                                                    fun
+                                                                    _default_1
+                                                                    ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_LLet
+                                                                    (x, a, b,
+                                                                    t, u)))))))))))))
+                                                  (List.cons
+                                                     ((fun (p : prio) ->
+                                                         p >= PAtom),
+                                                       (Earley_core.Earley.fsequence
+                                                          nat_lit
+                                                          (Earley_core.Earley.empty_pos
+                                                             (fun
+                                                                __loc__start__buf
+                                                                ->
+                                                                fun
+                                                                  __loc__start__pos
+                                                                  ->
+                                                                  fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun n ->
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_NLit n)))))
+                                                     (List.cons
+                                                        ((fun (p : prio) ->
+                                                            p >= PUnaO),
+                                                          (Earley_core.Earley.fsequence
+                                                             unop
+                                                             (Earley_core.Earley.fsequence
+                                                                (term PUnaO)
+                                                                (Earley_core.Earley.empty_pos
+                                                                   (fun
+                                                                    __loc__start__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun t ->
+                                                                    fun u ->
+                                                                    let min_p
+                                                                    =
+                                                                    let 
+                                                                    (_, p, _)
+                                                                    = u in p in
+                                                                    let _ =
+                                                                    match 
+                                                                    t.elt
+                                                                    with
+                                                                    | 
+                                                                    P_UnaO
+                                                                    ((_, p,
+                                                                    _), _)
+                                                                    when
+                                                                    p < min_p
+                                                                    ->
+                                                                    Earley.give_up
+                                                                    ()
+                                                                    | 
+                                                                    _ -> () in
+                                                                    in_pos
+                                                                    _loc
+                                                                    (P_UnaO
+                                                                    (u, t)))))))
+                                                        []))))))))))))))))),
+      (fun (p : prio) -> []))
+let _ =
+  Earley_core.Earley.set_grammar env
+    (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.string "[" "[")
+       (Earley_core.Earley.fsequence (term PBinO)
+          (Earley_core.Earley.fsequence
+             (Earley_core.Earley.apply (fun f -> f [])
+                (Earley_core.Earley.fixpoint' (fun l -> l)
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "," ",")
+                      (Earley_core.Earley.fsequence (term PBinO)
+                         (Earley_core.Earley.empty
+                            (fun _default_0 -> _default_0))))
+                   (fun x -> fun f -> fun l -> f (List.cons x l))))
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string "]" "]")
+                (Earley_core.Earley.empty (fun ts -> fun t -> t :: ts))))))
+let _ =
+  Earley_core.Earley.set_grammar arg
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "{" "{")
+             (Earley_core.Earley.fsequence
+                (Earley_core.Earley.apply (fun f -> f [])
+                   (Earley_core.Earley.fixpoint1' (fun l -> l) arg_ident
+                      (fun x -> fun f -> fun l -> f (List.cons x l))))
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x -> Some x)
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string ":" ":")
+                            (Earley_core.Earley.fsequence (term PFunc)
+                               (Earley_core.Earley.empty
+                                  (fun _default_0 -> _default_0))))))
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "}" "}")
+                      (Earley_core.Earley.empty
+                         (fun a -> fun xs -> (xs, a, true)))))))
+          (List.cons
+             (Earley_core.Earley.fsequence arg_ident
+                (Earley_core.Earley.empty (fun x -> ([x], None, false))))
+             (List.cons
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "(" "(")
+                   (Earley_core.Earley.fsequence
+                      (Earley_core.Earley.apply (fun f -> f [])
+                         (Earley_core.Earley.fixpoint1' (fun l -> l)
+                            arg_ident
+                            (fun x -> fun f -> fun l -> f (List.cons x l))))
+                      (Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.string ":" ":")
+                         (Earley_core.Earley.fsequence (term PFunc)
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.string ")" ")")
+                               (Earley_core.Earley.empty
+                                  (fun a -> fun xs -> (xs, (Some a), false))))))))
+                []))))
+[@@@ocaml.text " [term] is a parser for a term. "]
+[@@@ocaml.text " [env] is a parser for a metavariable environment. "]
+[@@@ocaml.text " [arg] parses a single function argument. "]
+let term = term PFunc
+let rule = Earley_core.Earley.declare_grammar "rule"
+let _ =
+  Earley_core.Earley.set_grammar rule
+    (Earley_core.Earley.fsequence term
+       (Earley_core.Earley.fsequence_ignore
+          (Earley_core.Earley.string "\226\134\170" "\226\134\170")
+          (Earley_core.Earley.fsequence term
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun r -> fun l -> Pos.in_pos _loc (l, r))))))
+[@@@ocaml.text " [rule] is a parser for a single rewriting rule. "]
+let rw_patt_spec = Earley_core.Earley.declare_grammar "rw_patt_spec"
+let _ =
+  Earley_core.Earley.set_grammar rw_patt_spec
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence term
+             (Earley_core.Earley.fsequence _as_
+                (Earley_core.Earley.fsequence ident
+                   (Earley_core.Earley.fsequence _in_
+                      (Earley_core.Earley.fsequence term
+                         (Earley_core.Earley.empty
+                            (fun t ->
+                               fun _default_0 ->
+                                 fun x ->
+                                   fun _default_1 ->
+                                     fun u -> P_rw_TermAsIdInTerm (u, x, t))))))))
+          (List.cons
+             (Earley_core.Earley.fsequence term
+                (Earley_core.Earley.empty (fun t -> P_rw_Term t)))
+             (List.cons
+                (Earley_core.Earley.fsequence _in_
+                   (Earley_core.Earley.fsequence term
+                      (Earley_core.Earley.empty
+                         (fun t -> fun _default_0 -> P_rw_InTerm t))))
+                (List.cons
+                   (Earley_core.Earley.fsequence _in_
+                      (Earley_core.Earley.fsequence ident
+                         (Earley_core.Earley.fsequence _in_
+                            (Earley_core.Earley.fsequence term
+                               (Earley_core.Earley.empty
+                                  (fun t ->
+                                     fun _default_0 ->
+                                       fun x ->
+                                         fun _default_1 ->
+                                           P_rw_InIdInTerm (x, t)))))))
+                   (List.cons
+                      (Earley_core.Earley.fsequence ident
+                         (Earley_core.Earley.fsequence _in_
+                            (Earley_core.Earley.fsequence term
+                               (Earley_core.Earley.empty
+                                  (fun t ->
+                                     fun _default_0 ->
+                                       fun x -> P_rw_IdInTerm (x, t))))))
+                      (List.cons
+                         (Earley_core.Earley.fsequence term
+                            (Earley_core.Earley.fsequence _in_
+                               (Earley_core.Earley.fsequence ident
+                                  (Earley_core.Earley.fsequence _in_
+                                     (Earley_core.Earley.fsequence term
+                                        (Earley_core.Earley.empty
+                                           (fun t ->
+                                              fun _default_0 ->
+                                                fun x ->
+                                                  fun _default_1 ->
+                                                    fun u ->
+                                                      P_rw_TermInIdInTerm
+                                                        (u, x, t)))))))) [])))))))
+[@@@ocaml.text
+  " [rw_patt_spec] is a parser for a rewrite pattern specification. "]
+let rw_patt = Earley_core.Earley.declare_grammar "rw_patt"
+let _ =
+  Earley_core.Earley.set_grammar rw_patt
+    (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.string "[" "[")
+       (Earley_core.Earley.fsequence rw_patt_spec
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "]" "]")
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun r -> in_pos _loc r)))))
+[@@@ocaml.text " [rw_patt] is a parser for a (located) rewrite pattern. "]
+let assert_must_fail = Earley_core.Earley.declare_grammar "assert_must_fail"
+let _ =
+  Earley_core.Earley.set_grammar assert_must_fail
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _assertnot_
+             (Earley_core.Earley.empty (fun _default_0 -> true)))
+          (List.cons
+             (Earley_core.Earley.fsequence _assert_
+                (Earley_core.Earley.empty (fun _default_0 -> false))) [])))
+let assertion = Earley_core.Earley.declare_grammar "assertion"
+let _ =
+  Earley_core.Earley.set_grammar assertion
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence term
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string "\226\137\161" "\226\137\161")
+                (Earley_core.Earley.fsequence term
+                   (Earley_core.Earley.empty
+                      (fun u -> fun t -> P_assert_conv (t, u))))))
+          (List.cons
+             (Earley_core.Earley.fsequence term
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string ":" ":")
+                   (Earley_core.Earley.fsequence term
+                      (Earley_core.Earley.empty
+                         (fun a -> fun t -> P_assert_typing (t, a)))))) [])))
+[@@@ocaml.text " [assertion] parses a single assertion. "]
+let query = Earley_core.Earley.declare_grammar "query"
+let _ =
+  Earley_core.Earley.set_grammar query
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _set_
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string "prover_timeout" "prover_timeout")
+                (Earley_core.Earley.fsequence nat_lit
+                   (Earley_core.Earley.empty_pos
+                      (fun __loc__start__buf ->
+                         fun __loc__start__pos ->
+                           fun __loc__end__buf ->
+                             fun __loc__end__pos ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               fun n ->
+                                 fun _default_0 ->
+                                   Pos.in_pos _loc (P_query_prover_timeout n))))))
+          (List.cons
+             (Earley_core.Earley.fsequence _set_
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "verbose" "verbose")
+                   (Earley_core.Earley.fsequence nat_lit
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun i ->
+                                    fun _default_0 ->
+                                      Pos.in_pos _loc (P_query_verbose i))))))
+             (List.cons
+                (Earley_core.Earley.fsequence _set_
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "debug" "debug")
+                      (Earley_core.Earley.fsequence
+                         (Earley_core.Earley.alternatives
+                            (List.cons
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.char '-' '-')
+                                  (Earley_core.Earley.empty false))
+                               (List.cons
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.char '+' '+')
+                                     (Earley_core.Earley.empty true)) [])))
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.no_blank_test ())
+                            (Earley_core.Earley.fsequence alpha
+                               (Earley_core.Earley.empty_pos
+                                  (fun __loc__start__buf ->
+                                     fun __loc__start__pos ->
+                                       fun __loc__end__buf ->
+                                         fun __loc__end__pos ->
+                                           let _loc =
+                                             locate __loc__start__buf
+                                               __loc__start__pos
+                                               __loc__end__buf
+                                               __loc__end__pos in
+                                           fun s ->
+                                             fun b ->
+                                               fun _default_0 ->
+                                                 Pos.in_pos _loc
+                                                   (P_query_debug (b, s)))))))))
+                (List.cons
+                   (Earley_core.Earley.fsequence _set_
+                      (Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.string "flag" "flag")
+                         (Earley_core.Earley.fsequence string_lit
+                            (Earley_core.Earley.fsequence
+                               (Earley_core.Earley.alternatives
+                                  (List.cons
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string "off"
+                                           "off")
+                                        (Earley_core.Earley.empty false))
+                                     (List.cons
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string "on"
+                                              "on")
+                                           (Earley_core.Earley.empty true))
+                                        [])))
+                               (Earley_core.Earley.empty_pos
+                                  (fun __loc__start__buf ->
+                                     fun __loc__start__pos ->
+                                       fun __loc__end__buf ->
+                                         fun __loc__end__pos ->
+                                           let _loc =
+                                             locate __loc__start__buf
+                                               __loc__start__pos
+                                               __loc__end__buf
+                                               __loc__end__pos in
+                                           fun b ->
+                                             fun s ->
+                                               fun _default_0 ->
+                                                 Pos.in_pos _loc
+                                                   (P_query_flag (s, b))))))))
+                   (List.cons
+                      (Earley_core.Earley.fsequence assert_must_fail
+                         (Earley_core.Earley.fsequence assertion
+                            (Earley_core.Earley.empty_pos
+                               (fun __loc__start__buf ->
+                                  fun __loc__start__pos ->
+                                    fun __loc__end__buf ->
+                                      fun __loc__end__pos ->
+                                        let _loc =
+                                          locate __loc__start__buf
+                                            __loc__start__pos __loc__end__buf
+                                            __loc__end__pos in
+                                        fun a ->
+                                          fun mf ->
+                                            Pos.in_pos _loc
+                                              (P_query_assert (mf, a))))))
+                      (List.cons
+                         (Earley_core.Earley.fsequence assert_must_fail
+                            (Earley_core.Earley.fsequence
+                               (Earley_core.Earley.apply (fun f -> f [])
+                                  (Earley_core.Earley.fixpoint' (fun l -> l)
+                                     arg
+                                     (fun x ->
+                                        fun f -> fun l -> f (List.cons x l))))
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "\226\138\162"
+                                     "\226\138\162")
+                                  (Earley_core.Earley.fsequence term
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string
+                                           "\226\137\161" "\226\137\161")
+                                        (Earley_core.Earley.fsequence term
+                                           (Earley_core.Earley.empty_pos
+                                              (fun __loc__start__buf ->
+                                                 fun __loc__start__pos ->
+                                                   fun __loc__end__buf ->
+                                                     fun __loc__end__pos ->
+                                                       let _loc =
+                                                         locate
+                                                           __loc__start__buf
+                                                           __loc__start__pos
+                                                           __loc__end__buf
+                                                           __loc__end__pos in
+                                                       fun u ->
+                                                         fun t ->
+                                                           fun ps ->
+                                                             fun mf ->
+                                                               let ps_t =
+                                                                 Pos.in_pos
+                                                                   _loc
+                                                                   (P_Abst
+                                                                    (ps, t)) in
+                                                               let ps_u =
+                                                                 Pos.in_pos
+                                                                   _loc
+                                                                   (P_Abst
+                                                                    (ps, u)) in
+                                                               let assert_conv
+                                                                 =
+                                                                 P_assert_conv
+                                                                   (ps_t,
+                                                                    ps_u) in
+                                                               Pos.in_pos
+                                                                 _loc
+                                                                 (P_query_assert
+                                                                    (mf,
+                                                                    assert_conv))))))))))
+                         (List.cons
+                            (Earley_core.Earley.fsequence assert_must_fail
+                               (Earley_core.Earley.fsequence
+                                  (Earley_core.Earley.apply (fun f -> f [])
+                                     (Earley_core.Earley.fixpoint'
+                                        (fun l -> l) arg
+                                        (fun x ->
+                                           fun f ->
+                                             fun l -> f (List.cons x l))))
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.string
+                                        "\226\138\162" "\226\138\162")
+                                     (Earley_core.Earley.fsequence term
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string ":" ":")
+                                           (Earley_core.Earley.fsequence term
+                                              (Earley_core.Earley.empty_pos
+                                                 (fun __loc__start__buf ->
+                                                    fun __loc__start__pos ->
+                                                      fun __loc__end__buf ->
+                                                        fun __loc__end__pos
+                                                          ->
+                                                          let _loc =
+                                                            locate
+                                                              __loc__start__buf
+                                                              __loc__start__pos
+                                                              __loc__end__buf
+                                                              __loc__end__pos in
+                                                          fun u ->
+                                                            fun t ->
+                                                              fun ps ->
+                                                                fun mf ->
+                                                                  let ps_t =
+                                                                    Pos.in_pos
+                                                                    _loc
+                                                                    (P_Abst
+                                                                    (ps, t)) in
+                                                                  let ps_u =
+                                                                    Pos.in_pos
+                                                                    _loc
+                                                                    (P_Prod
+                                                                    (ps, u)) in
+                                                                  let assert_typing
+                                                                    =
+                                                                    P_assert_typing
+                                                                    (ps_t,
+                                                                    ps_u) in
+                                                                  Pos.in_pos
+                                                                    _loc
+                                                                    (
+                                                                    P_query_assert
+                                                                    (mf,
+                                                                    assert_typing))))))))))
+                            (List.cons
+                               (Earley_core.Earley.fsequence _type_
+                                  (Earley_core.Earley.fsequence term
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun t ->
+                                                   fun _default_0 ->
+                                                     let c =
+                                                       let open Eval in
+                                                         {
+                                                           strategy = NONE;
+                                                           steps = None
+                                                         } in
+                                                     Pos.in_pos _loc
+                                                       (P_query_infer (t, c))))))
+                               (List.cons
+                                  (Earley_core.Earley.fsequence _compute_
+                                     (Earley_core.Earley.fsequence term
+                                        (Earley_core.Earley.empty_pos
+                                           (fun __loc__start__buf ->
+                                              fun __loc__start__pos ->
+                                                fun __loc__end__buf ->
+                                                  fun __loc__end__pos ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos in
+                                                    fun t ->
+                                                      fun _default_0 ->
+                                                        let c =
+                                                          let open Eval in
+                                                            {
+                                                              strategy = SNF;
+                                                              steps = None
+                                                            } in
+                                                        Pos.in_pos _loc
+                                                          (P_query_normalize
+                                                             (t, c))))))
+                                  (List.cons
+                                     (Earley_core.Earley.fsequence _set_
+                                        (Earley_core.Earley.fsequence_ignore
+                                           (Earley_core.Earley.string
+                                              "prover" "prover")
+                                           (Earley_core.Earley.fsequence
+                                              string_lit
+                                              (Earley_core.Earley.empty_pos
+                                                 (fun __loc__start__buf ->
+                                                    fun __loc__start__pos ->
+                                                      fun __loc__end__buf ->
+                                                        fun __loc__end__pos
+                                                          ->
+                                                          let _loc =
+                                                            locate
+                                                              __loc__start__buf
+                                                              __loc__start__pos
+                                                              __loc__end__buf
+                                                              __loc__end__pos in
+                                                          fun s ->
+                                                            fun _default_0 ->
+                                                              Pos.in_pos _loc
+                                                                (P_query_prover
+                                                                   s)))))) [])))))))))))
+[@@@ocaml.text " [query] parses a query. "]
+let tactic = Earley_core.Earley.declare_grammar "tactic"
+let _ =
+  Earley_core.Earley.set_grammar tactic
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence query
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun q -> Pos.in_pos _loc (P_tac_query q))))
+          (List.cons
+             (Earley_core.Earley.fsequence _refine_
+                (Earley_core.Earley.fsequence term
+                   (Earley_core.Earley.empty_pos
+                      (fun __loc__start__buf ->
+                         fun __loc__start__pos ->
+                           fun __loc__end__buf ->
+                             fun __loc__end__pos ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               fun t ->
+                                 fun _default_0 ->
+                                   Pos.in_pos _loc (P_tac_refine t)))))
+             (List.cons
+                (Earley_core.Earley.fsequence _intro_
+                   (Earley_core.Earley.fsequence
+                      (Earley_core.Earley.apply (fun f -> f [])
+                         (Earley_core.Earley.fixpoint1' (fun l -> l)
+                            arg_ident
+                            (fun x -> fun f -> fun l -> f (List.cons x l))))
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun xs ->
+                                    fun _default_0 ->
+                                      Pos.in_pos _loc (P_tac_intro xs)))))
+                (List.cons
+                   (Earley_core.Earley.fsequence _apply_
+                      (Earley_core.Earley.fsequence term
+                         (Earley_core.Earley.empty_pos
+                            (fun __loc__start__buf ->
+                               fun __loc__start__pos ->
+                                 fun __loc__end__buf ->
+                                   fun __loc__end__pos ->
+                                     let _loc =
+                                       locate __loc__start__buf
+                                         __loc__start__pos __loc__end__buf
+                                         __loc__end__pos in
+                                     fun t ->
+                                       fun _default_0 ->
+                                         Pos.in_pos _loc (P_tac_apply t)))))
+                   (List.cons
+                      (Earley_core.Earley.fsequence _simpl_
+                         (Earley_core.Earley.empty_pos
+                            (fun __loc__start__buf ->
+                               fun __loc__start__pos ->
+                                 fun __loc__end__buf ->
+                                   fun __loc__end__pos ->
+                                     let _loc =
+                                       locate __loc__start__buf
+                                         __loc__start__pos __loc__end__buf
+                                         __loc__end__pos in
+                                     fun _default_0 ->
+                                       Pos.in_pos _loc P_tac_simpl)))
+                      (List.cons
+                         (Earley_core.Earley.fsequence _rewrite_
+                            (Earley_core.Earley.fsequence
+                               (Earley_core.Earley.option None
+                                  (Earley_core.Earley.apply (fun x -> Some x)
+                                     rw_patt))
+                               (Earley_core.Earley.fsequence term
+                                  (Earley_core.Earley.empty_pos
+                                     (fun __loc__start__buf ->
+                                        fun __loc__start__pos ->
+                                          fun __loc__end__buf ->
+                                            fun __loc__end__pos ->
+                                              let _loc =
+                                                locate __loc__start__buf
+                                                  __loc__start__pos
+                                                  __loc__end__buf
+                                                  __loc__end__pos in
+                                              fun t ->
+                                                fun p ->
+                                                  fun _default_0 ->
+                                                    Pos.in_pos _loc
+                                                      (P_tac_rewrite (p, t)))))))
+                         (List.cons
+                            (Earley_core.Earley.fsequence _refl_
+                               (Earley_core.Earley.empty_pos
+                                  (fun __loc__start__buf ->
+                                     fun __loc__start__pos ->
+                                       fun __loc__end__buf ->
+                                         fun __loc__end__pos ->
+                                           let _loc =
+                                             locate __loc__start__buf
+                                               __loc__start__pos
+                                               __loc__end__buf
+                                               __loc__end__pos in
+                                           fun _default_0 ->
+                                             Pos.in_pos _loc P_tac_refl)))
+                            (List.cons
+                               (Earley_core.Earley.fsequence _sym_
+                                  (Earley_core.Earley.empty_pos
+                                     (fun __loc__start__buf ->
+                                        fun __loc__start__pos ->
+                                          fun __loc__end__buf ->
+                                            fun __loc__end__pos ->
+                                              let _loc =
+                                                locate __loc__start__buf
+                                                  __loc__start__pos
+                                                  __loc__end__buf
+                                                  __loc__end__pos in
+                                              fun _default_0 ->
+                                                Pos.in_pos _loc P_tac_sym)))
+                               (List.cons
+                                  (Earley_core.Earley.fsequence
+                                     (Earley_core.Earley.fsequence_ignore
+                                        _focus_
+                                        (Earley_core.Earley.fsequence nat_lit
+                                           (Earley_core.Earley.empty
+                                              (fun _default_0 -> _default_0))))
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun i ->
+                                                   Pos.in_pos _loc
+                                                     (P_tac_focus i))))
+                                  (List.cons
+                                     (Earley_core.Earley.fsequence _print_
+                                        (Earley_core.Earley.empty_pos
+                                           (fun __loc__start__buf ->
+                                              fun __loc__start__pos ->
+                                                fun __loc__end__buf ->
+                                                  fun __loc__end__pos ->
+                                                    let _loc =
+                                                      locate
+                                                        __loc__start__buf
+                                                        __loc__start__pos
+                                                        __loc__end__buf
+                                                        __loc__end__pos in
+                                                    fun _default_0 ->
+                                                      Pos.in_pos _loc
+                                                        P_tac_print)))
+                                     (List.cons
+                                        (Earley_core.Earley.fsequence
+                                           _proofterm_
+                                           (Earley_core.Earley.empty_pos
+                                              (fun __loc__start__buf ->
+                                                 fun __loc__start__pos ->
+                                                   fun __loc__end__buf ->
+                                                     fun __loc__end__pos ->
+                                                       let _loc =
+                                                         locate
+                                                           __loc__start__buf
+                                                           __loc__start__pos
+                                                           __loc__end__buf
+                                                           __loc__end__pos in
+                                                       fun _default_0 ->
+                                                         Pos.in_pos _loc
+                                                           P_tac_proofterm)))
+                                        (List.cons
+                                           (Earley_core.Earley.fsequence
+                                              _why3_
+                                              (Earley_core.Earley.fsequence
+                                                 (Earley_core.Earley.option
+                                                    None
+                                                    (Earley_core.Earley.apply
+                                                       (fun x -> Some x)
+                                                       string_lit))
+                                                 (Earley_core.Earley.empty_pos
+                                                    (fun __loc__start__buf ->
+                                                       fun __loc__start__pos
+                                                         ->
+                                                         fun __loc__end__buf
+                                                           ->
+                                                           fun
+                                                             __loc__end__pos
+                                                             ->
+                                                             let _loc =
+                                                               locate
+                                                                 __loc__start__buf
+                                                                 __loc__start__pos
+                                                                 __loc__end__buf
+                                                                 __loc__end__pos in
+                                                             fun s ->
+                                                               fun _default_0
+                                                                 ->
+                                                                 Pos.in_pos
+                                                                   _loc
+                                                                   (P_tac_why3
+                                                                    s))))) [])))))))))))))
+[@@@ocaml.text " [tactic] is a parser for a single tactic. "]
+let proof_end = Earley_core.Earley.declare_grammar "proof_end"
+let _ =
+  Earley_core.Earley.set_grammar proof_end
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence _abort_
+             (Earley_core.Earley.empty (fun _default_0 -> P_proof_abort)))
+          (List.cons
+             (Earley_core.Earley.fsequence _qed_
+                (Earley_core.Earley.empty (fun _default_0 -> P_proof_qed)))
+             (List.cons
+                (Earley_core.Earley.fsequence _admit_
+                   (Earley_core.Earley.empty
+                      (fun _default_0 -> P_proof_admit))) []))))
+[@@@ocaml.text " [proof_end] is a parser for a proof terminator. "]
+let assoc = Earley_core.Earley.declare_grammar "assoc"
+let _ =
+  Earley_core.Earley.set_grammar assoc
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "right" "right")
+             (Earley_core.Earley.empty Assoc_right))
+          (List.cons
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.empty ())
+                (Earley_core.Earley.empty Assoc_none))
+             (List.cons
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "left" "left")
+                   (Earley_core.Earley.empty Assoc_left)) []))))
+let config = Earley_core.Earley.declare_grammar "config"
+let _ =
+  Earley_core.Earley.set_grammar config
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.string "declared" "declared")
+             (Earley_core.Earley.fsequence_position string_lit
+                (Earley_core.Earley.empty
+                   (fun str1 ->
+                      fun pos1 ->
+                        fun str2 ->
+                          fun pos2 ->
+                            fun id ->
+                              let _loc_id = locate str1 pos1 str2 pos2 in
+                              sanity_check _loc_id id;
+                              Prefix.add declared_ids id id;
+                              P_config_ident id))))
+          (List.cons
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string "builtin" "builtin")
+                (Earley_core.Earley.fsequence string_lit
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "\226\137\148"
+                         "\226\137\148")
+                      (Earley_core.Earley.fsequence qident
+                         (Earley_core.Earley.empty
+                            (fun qid -> fun s -> P_config_builtin (s, qid)))))))
+             (List.cons
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "prefix" "prefix")
+                   (Earley_core.Earley.fsequence float_lit
+                      (Earley_core.Earley.fsequence_position string_lit
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string "\226\137\148"
+                               "\226\137\148")
+                            (Earley_core.Earley.fsequence qident
+                               (Earley_core.Earley.empty
+                                  (fun qid ->
+                                     fun str1 ->
+                                       fun pos1 ->
+                                         fun str2 ->
+                                           fun pos2 ->
+                                             fun s ->
+                                               let _loc_s =
+                                                 locate str1 pos1 str2 pos2 in
+                                               fun p ->
+                                                 let unop = (s, p, qid) in
+                                                 sanity_check _loc_s s;
+                                                 Prefix.add unops s unop;
+                                                 P_config_unop unop)))))))
+                (List.cons
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "infix" "infix")
+                      (Earley_core.Earley.fsequence assoc
+                         (Earley_core.Earley.fsequence float_lit
+                            (Earley_core.Earley.fsequence_position string_lit
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "\226\137\148"
+                                     "\226\137\148")
+                                  (Earley_core.Earley.fsequence qident
+                                     (Earley_core.Earley.empty
+                                        (fun qid ->
+                                           fun str1 ->
+                                             fun pos1 ->
+                                               fun str2 ->
+                                                 fun pos2 ->
+                                                   fun s ->
+                                                     let _loc_s =
+                                                       locate str1 pos1 str2
+                                                         pos2 in
+                                                     fun p ->
+                                                       fun a ->
+                                                         let binop =
+                                                           (s, a, p, qid) in
+                                                         sanity_check _loc_s
+                                                           s;
+                                                         Prefix.add binops s
+                                                           binop;
+                                                         P_config_binop binop))))))))
+                   [])))))
+[@@@ocaml.text " [config] parses a single configuration option. "]
+let statement = Earley_core.Earley.declare_grammar "statement"
+let _ =
+  Earley_core.Earley.set_grammar statement
+    (Earley_core.Earley.fsequence _theorem_
+       (Earley_core.Earley.fsequence ident
+          (Earley_core.Earley.fsequence
+             (Earley_core.Earley.apply (fun f -> f [])
+                (Earley_core.Earley.fixpoint' (fun l -> l) arg
+                   (fun x -> fun f -> fun l -> f (List.cons x l))))
+             (Earley_core.Earley.fsequence_ignore
+                (Earley_core.Earley.string ":" ":")
+                (Earley_core.Earley.fsequence term
+                   (Earley_core.Earley.fsequence _proof_
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun _default_0 ->
+                                    fun a ->
+                                      fun al ->
+                                        fun s ->
+                                          fun _default_1 ->
+                                            Pos.in_pos _loc (s, al, a)))))))))
+let proof = Earley_core.Earley.declare_grammar "proof"
+let _ =
+  Earley_core.Earley.set_grammar proof
+    (Earley_core.Earley.fsequence
+       (Earley_core.Earley.apply (fun f -> f [])
+          (Earley_core.Earley.fixpoint' (fun l -> l) tactic
+             (fun x -> fun f -> fun l -> f (List.cons x l))))
+       (Earley_core.Earley.fsequence_position proof_end
+          (Earley_core.Earley.empty
+             (fun str1 ->
+                fun pos1 ->
+                  fun str2 ->
+                    fun pos2 ->
+                      fun e ->
+                        let _loc_e = locate str1 pos1 str2 pos2 in
+                        fun ts -> (ts, (Pos.in_pos _loc_e e))))))
+let require : (Path.t -> unit) Stdlib.ref = ref (fun _ -> ())[@@ocaml.doc
+                                                               " [!require mp] can be used to require the compilation of a module [mp] when\n    it is required as a dependency. This has the effect of importing notations\n    exported by that module. The value of [require] is set in [Compile], and a\n    reference is used to avoid to avoid cyclic dependencies. "]
+let do_require : Pos.pos -> p_module_path -> unit =
+  fun loc ->
+    fun path ->
+      let path = List.map fst path in
+      let local_fatal fmt =
+        let fmt = "Error when loading module [%a].\n" ^^ fmt in
+        parser_fatal loc fmt Path.pp path in
+      let reentrant_call () =
+        let saved_unops = Prefix.save unops in
+        let saved_binops = Prefix.save binops in
+        let saved_declared_ids = Prefix.save declared_ids in
+        let restore () =
+          Prefix.restore unops saved_unops;
+          Prefix.restore binops saved_binops;
+          Prefix.restore declared_ids saved_declared_ids in
+        try (!require) path; restore () with | e -> (restore (); raise e) in
+      try reentrant_call ()
+      with | Console.Fatal (None, msg) -> local_fatal "%s" msg
+      | Console.Fatal (Some pos, msg) ->
+          local_fatal "[%a] %s" Pos.print pos msg
+      | e -> local_fatal "Uncaught exception: [%s]" (Printexc.to_string e)
+  [@@ocaml.doc
+    " [do_require pos path] is a wrapper for [!require path], that takes care of\n    possible exceptions. Errors are reported at given position [pos],  keeping\n    as much information as possible in the error message. "]
+let cmd = Earley_core.Earley.declare_grammar "cmd"
+let _ =
+  Earley_core.Earley.set_grammar cmd
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence query
+             (Earley_core.Earley.empty (fun q -> P_query q)))
+          (List.cons
+             (Earley_core.Earley.fsequence _require_
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option false
+                      (Earley_core.Earley.fsequence _open_
+                         (Earley_core.Earley.empty (fun _default_0 -> true))))
+                   (Earley_core.Earley.fsequence
+                      (Earley_core.Earley.apply (fun f -> f [])
+                         (Earley_core.Earley.fixpoint1' (fun l -> l) path
+                            (fun x -> fun f -> fun l -> f (List.cons x l))))
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  fun ps ->
+                                    fun o ->
+                                      fun _default_0 ->
+                                        let fn p =
+                                          do_require _loc p;
+                                          if o then get_ops _loc p in
+                                        List.iter fn ps; P_require (o, ps))))))
+             (List.cons
+                (Earley_core.Earley.fsequence _require_
+                   (Earley_core.Earley.fsequence path
+                      (Earley_core.Earley.fsequence _as_
+                         (Earley_core.Earley.fsequence_position path_elem
+                            (Earley_core.Earley.empty_pos
+                               (fun __loc__start__buf ->
+                                  fun __loc__start__pos ->
+                                    fun __loc__end__buf ->
+                                      fun __loc__end__pos ->
+                                        let _loc =
+                                          locate __loc__start__buf
+                                            __loc__start__pos __loc__end__buf
+                                            __loc__end__pos in
+                                        fun str1 ->
+                                          fun pos1 ->
+                                            fun str2 ->
+                                              fun pos2 ->
+                                                fun n ->
+                                                  let _loc_n =
+                                                    locate str1 pos1 str2
+                                                      pos2 in
+                                                  fun _default_0 ->
+                                                    fun p ->
+                                                      fun _default_1 ->
+                                                        do_require _loc p;
+                                                        P_require_as
+                                                          (p,
+                                                            (Pos.in_pos
+                                                               _loc_n n))))))))
+                (List.cons
+                   (Earley_core.Earley.fsequence _open_
+                      (Earley_core.Earley.fsequence
+                         (Earley_core.Earley.apply (fun f -> f [])
+                            (Earley_core.Earley.fixpoint1' (fun l -> l) path
+                               (fun x -> fun f -> fun l -> f (List.cons x l))))
+                         (Earley_core.Earley.empty_pos
+                            (fun __loc__start__buf ->
+                               fun __loc__start__pos ->
+                                 fun __loc__end__buf ->
+                                   fun __loc__end__pos ->
+                                     let _loc =
+                                       locate __loc__start__buf
+                                         __loc__start__pos __loc__end__buf
+                                         __loc__end__pos in
+                                     fun ps ->
+                                       fun _default_0 ->
+                                         List.iter (get_ops _loc) ps;
+                                         P_open ps))))
+                   (List.cons
+                      (Earley_core.Earley.fsequence
+                         (Earley_core.Earley.option None
+                            (Earley_core.Earley.apply (fun x -> Some x)
+                               exposition))
+                         (Earley_core.Earley.fsequence
+                            (Earley_core.Earley.option None
+                               (Earley_core.Earley.apply (fun x -> Some x)
+                                  property))
+                            (Earley_core.Earley.fsequence _symbol_
+                               (Earley_core.Earley.fsequence ident
+                                  (Earley_core.Earley.fsequence
+                                     (Earley_core.Earley.apply
+                                        (fun f -> f [])
+                                        (Earley_core.Earley.fixpoint'
+                                           (fun l -> l) arg
+                                           (fun x ->
+                                              fun f ->
+                                                fun l -> f (List.cons x l))))
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string ":" ":")
+                                        (Earley_core.Earley.fsequence term
+                                           (Earley_core.Earley.empty
+                                              (fun a ->
+                                                 fun al ->
+                                                   fun s ->
+                                                     fun _default_0 ->
+                                                       fun p ->
+                                                         fun e ->
+                                                           P_symbol
+                                                             ((Option.get
+                                                                 Terms.Public
+                                                                 e),
+                                                               (Option.get
+                                                                  Terms.Defin
+                                                                  p), s, al,
+                                                               a))))))))))
+                      (List.cons
+                         (Earley_core.Earley.fsequence _rule_
+                            (Earley_core.Earley.fsequence rule
+                               (Earley_core.Earley.fsequence
+                                  (Earley_core.Earley.apply (fun f -> f [])
+                                     (Earley_core.Earley.fixpoint'
+                                        (fun l -> l)
+                                        (Earley_core.Earley.fsequence_ignore
+                                           _with_
+                                           (Earley_core.Earley.fsequence rule
+                                              (Earley_core.Earley.empty
+                                                 (fun _default_0 ->
+                                                    _default_0))))
+                                        (fun x ->
+                                           fun f ->
+                                             fun l -> f (List.cons x l))))
+                                  (Earley_core.Earley.empty
+                                     (fun rs ->
+                                        fun r ->
+                                          fun _default_0 -> P_rules (r :: rs))))))
+                         (List.cons
+                            (Earley_core.Earley.fsequence
+                               (Earley_core.Earley.option None
+                                  (Earley_core.Earley.apply (fun x -> Some x)
+                                     exposition))
+                               (Earley_core.Earley.fsequence _definition_
+                                  (Earley_core.Earley.fsequence ident
+                                     (Earley_core.Earley.fsequence
+                                        (Earley_core.Earley.apply
+                                           (fun f -> f [])
+                                           (Earley_core.Earley.fixpoint'
+                                              (fun l -> l) arg
+                                              (fun x ->
+                                                 fun f ->
+                                                   fun l -> f (List.cons x l))))
+                                        (Earley_core.Earley.fsequence
+                                           (Earley_core.Earley.option None
+                                              (Earley_core.Earley.apply
+                                                 (fun x -> Some x)
+                                                 (Earley_core.Earley.fsequence_ignore
+                                                    (Earley_core.Earley.string
+                                                       ":" ":")
+                                                    (Earley_core.Earley.fsequence
+                                                       term
+                                                       (Earley_core.Earley.empty
+                                                          (fun _default_0 ->
+                                                             _default_0))))))
+                                           (Earley_core.Earley.fsequence_ignore
+                                              (Earley_core.Earley.string
+                                                 "\226\137\148"
+                                                 "\226\137\148")
+                                              (Earley_core.Earley.fsequence
+                                                 term
+                                                 (Earley_core.Earley.empty
+                                                    (fun t ->
+                                                       fun ao ->
+                                                         fun al ->
+                                                           fun s ->
+                                                             fun _default_0
+                                                               ->
+                                                               fun e ->
+                                                                 P_definition
+                                                                   ((Option.get
+                                                                    Terms.Public
+                                                                    e),
+                                                                    false, s,
+                                                                    al, ao,
+                                                                    t))))))))))
+                            (List.cons
+                               (Earley_core.Earley.fsequence
+                                  (Earley_core.Earley.option None
+                                     (Earley_core.Earley.apply
+                                        (fun x -> Some x) exposition))
+                                  (Earley_core.Earley.fsequence statement
+                                     (Earley_core.Earley.fsequence proof
+                                        (Earley_core.Earley.empty
+                                           (fun ((ts, pe) as _default_0) ->
+                                              fun st ->
+                                                fun e ->
+                                                  P_theorem
+                                                    ((Option.get Terms.Public
+                                                        e), st, ts, pe))))))
+                               (List.cons
+                                  (Earley_core.Earley.fsequence _set_
+                                     (Earley_core.Earley.fsequence config
+                                        (Earley_core.Earley.empty
+                                           (fun c ->
+                                              fun _default_0 -> P_set c))))
+                                  []))))))))))
+[@@@ocaml.text " [cmd] is a parser for a single command. "]
+let cmds = Earley_core.Earley.declare_grammar "cmds"
+let _ =
+  Earley_core.Earley.set_grammar cmds
+    (Earley_core.Earley.apply (fun f -> f [])
+       (Earley_core.Earley.fixpoint' (fun l -> l)
+          (Earley_core.Earley.fsequence cmd
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun c -> in_pos _loc c)))
+          (fun x -> fun f -> fun l -> f (List.cons x l))))
+[@@@ocaml.text " [cmds] is a parser for multiple (located) commands. "]
+let parse_file : string -> ast =
+  fun fname ->
+    Prefix.reset unops;
+    Prefix.reset binops;
+    Prefix.reset declared_ids;
+    (try Earley.parse_file cmds blank fname
+     with
+     | Earley.Parse_error (buf, pos) ->
+         let loc = Pos.locate buf pos buf pos in
+         parser_fatal loc "Parse error.")[@@ocaml.doc
+                                           " [parse_file fname] attempts to parse the file [fname], to obtain a list of\n    toplevel commands. In case of failure, a graceful error message containing\n    the error position is given through the [Fatal] exception. "]
+let parse_string : string -> string -> ast =
+  fun fname ->
+    fun str ->
+      Prefix.reset unops;
+      Prefix.reset binops;
+      Prefix.reset declared_ids;
+      (try Earley.parse_string ~filename:fname cmds blank str
+       with
+       | Earley.Parse_error (buf, pos) ->
+           let loc = Pos.locate buf pos buf pos in
+           parser_fatal loc "Parse error.")[@@ocaml.doc
+                                             " [parse_string fname str] attempts to parse the string [str] file to obtain\n    a list of toplevel commands.  In case of failure, a graceful error message\n    containing the error position is given through the [Fatal] exception.  The\n    [fname] argument should contain a relevant file name for the error message\n    to be constructed. "]
