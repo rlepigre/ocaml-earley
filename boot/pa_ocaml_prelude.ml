@@ -5,11 +5,6 @@ open Asttypes
 open Parsetree
 open Pa_lexing
 open Ast_helper
-type entry =
-  | FromExt 
-  | Impl 
-  | Intf 
-let entry : entry ref = ref FromExt
 let file : string option ref = ref None
 let print_location ch { Location.loc_start = s; Location.loc_end = e } =
   let open Lexing in
@@ -33,19 +28,7 @@ let locate str pos str' pos' =
     let s = lexing_position str pos in
     let e = lexing_position str' pos' in
     let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
-type entry_point =
-  | Implementation of Parsetree.structure_item list grammar * blank 
-  | Interface of Parsetree.signature_item list grammar * blank 
 let debug_attach = ref false
-let spec : (Arg.key * Arg.spec * Arg.doc) list =
-  [("--impl", (Arg.Unit ((fun () -> entry := Impl))),
-     "Treat file as an implementation.");
-  ("--intf", (Arg.Unit ((fun () -> entry := Intf))),
-    "Treat file as an interface.");
-  ("--debug", (Arg.Set_int Earley.debug_lvl),
-    "Sets the value of \"Earley.debug_lvl\".");
-  ("--debug-attach", (Arg.Set debug_attach),
-    "Debug ocamldoc comments attachment.")]
 type expression_prio =
   | Seq 
   | If 
@@ -469,8 +452,5 @@ let _ =
           (List.cons
              (Earley_core.Earley.fsequence to_kw
                 (Earley_core.Earley.empty (fun _default_0 -> Upto))) [])))
-let entry_points : (string * entry_point) list =
-  [(".mli", (Interface (signature, ocaml_blank)));
-  (".ml", (Implementation (structure, ocaml_blank)))]
 let start_pos loc = loc.Location.loc_start
 let end_pos loc = loc.Location.loc_end

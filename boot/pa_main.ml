@@ -115,32 +115,18 @@ module OCamlPP : Preprocessor =
   end 
 module PP = (Earley.WithPP)(OCamlPP)
 let _ =
-  let anon_fun s = file := (Some s) in
+  let spec : (Arg.key * Arg.spec * Arg.doc) list =
+    [("--debug", (Arg.Set_int Earley.debug_lvl),
+       "Sets the value of \"Earley.debug_lvl\".");
+    ("--debug-attach", (Arg.Set debug_attach),
+      "Debug ocamldoc comments attachment.")] in
   let usage = Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)) in
-  Arg.parse Pa_ocaml_prelude.spec anon_fun usage
-let entry =
-  match ((!entry), (!file)) with
-  | (FromExt, Some s) ->
-      let rec fn =
-        function
-        | (ext, res)::l -> if Filename.check_suffix s ext then res else fn l
-        | [] -> (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
-      fn Pa_ocaml_prelude.entry_points
-  | (FromExt, None) -> Implementation (Pa_ocaml.structure, ocaml_blank)
-  | (Intf, _) -> Interface (Pa_ocaml.signature, ocaml_blank)
-  | (Impl, _) -> Implementation (Pa_ocaml.structure, ocaml_blank)
-let ast =
-  let (filename, ch) =
-    match !file with
-    | None -> ("stdin", stdin)
-    | Some name -> (name, (open_in name)) in
-  let run () =
-    match entry with
-    | Implementation (g, blank) ->
-        `Struct (PP.parse_channel ~filename g blank ch)
-    | Interface (g, blank) -> `Sig (PP.parse_channel ~filename g blank ch) in
-  Earley.handle_exception run ()
-let _ =
-  match ast with
-  | `Struct ast -> Format.printf "%a\n%!" Pprintast.structure ast
-  | `Sig ast -> Format.printf "%a\n%!" Pprintast.signature ast
+  Arg.parse spec (fun s -> file := (Some s)) usage;
+  (let ast =
+     let (filename, ic) =
+       match !file with
+       | None -> ("stdin", stdin)
+       | Some file -> (file, (open_in file)) in
+     let parse = PP.parse_channel ~filename structure ocaml_blank in
+     Earley.handle_exception parse ic in
+   Format.printf "%a\n%!" Pprintast.structure ast)
