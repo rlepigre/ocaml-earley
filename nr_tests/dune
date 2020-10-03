@@ -2,25 +2,25 @@
  (deps lambdapi_parser.input)
  (action
   (with-stdout-to lambdapi_parser.output
-   (run pa_ocaml --impl lambdapi_parser.input))))
+   (run pa_ocaml lambdapi_parser.input))))
 
 (rule
  (deps pml2_parser.input)
  (action
   (with-stdout-to pml2_parser.output
-   (run pa_ocaml --impl pml2_parser.input))))
+   (run pa_ocaml pml2_parser.input))))
 
 (rule
  (deps refinedc_parser.input)
  (action
   (with-stdout-to refinedc_parser.output
-   (run pa_ocaml --impl refinedc_parser.input))))
+   (run pa_ocaml refinedc_parser.input))))
 
 (rule
  (deps subml_parser.input)
  (action
   (with-stdout-to subml_parser.output
-   (run pa_ocaml --impl subml_parser.input))))
+   (run pa_ocaml subml_parser.input))))
 
 (rule
  (alias runtest)
