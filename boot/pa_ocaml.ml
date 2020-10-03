@@ -6,10 +6,73 @@ open Ast_helper
 open Asttypes
 open Parsetree
 open Longident
-open Pa_ast
 open Pa_lexing
 open Ast_helper
 include Pa_ocaml_prelude
+let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc }
+let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc }
+let loc_expr ?(attributes= [])  _loc e =
+  {
+    pexp_desc = e;
+    pexp_loc = _loc;
+    pexp_attributes = attributes;
+    pexp_loc_stack = []
+  }
+let loc_pat ?(attributes= [])  _loc pat =
+  {
+    ppat_desc = pat;
+    ppat_loc = _loc;
+    ppat_attributes = attributes;
+    ppat_loc_stack = []
+  }
+let loc_pcl ?(attributes= [])  _loc desc =
+  { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes }
+let loc_typ ?(attributes= [])  _loc typ =
+  {
+    ptyp_desc = typ;
+    ptyp_loc = _loc;
+    ptyp_attributes = attributes;
+    ptyp_loc_stack = []
+  }
+let pctf_loc ?(attributes= [])  _loc desc =
+  { pctf_desc = desc; pctf_loc = _loc; pctf_attributes = attributes }
+let pcty_loc ?(attributes= [])  _loc desc =
+  { pcty_desc = desc; pcty_loc = _loc; pcty_attributes = attributes }
+let loc_pcf ?(attributes= [])  _loc desc =
+  { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
+let ghost loc = let open Location in { loc with loc_ghost = true }
+let no_ghost loc = let open Location in { loc with loc_ghost = false }
+let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
+let id_loc txt loc = { txt; loc }
+let loc_id loc txt = { txt; loc }
+let rec merge =
+  function
+  | [] -> assert false
+  | loc::[] -> loc
+  | l1::_ as ls ->
+      let ls = List.rev ls in
+      let rec fn =
+        function
+        | [] -> assert false
+        | loc::[] -> loc
+        | l2::ls when let open Location in l2.loc_start = l2.loc_end -> fn ls
+        | l2::ls ->
+            let open Location in
+              {
+                loc_start = (l1.loc_start);
+                loc_end = (l2.loc_end);
+                loc_ghost = (l1.loc_ghost && l2.loc_ghost)
+              } in
+      fn ls
+let merge2 l1 l2 =
+  let open Location in
+    {
+      l1 with
+      loc_end = (l2.loc_end);
+      loc_ghost = (l1.loc_ghost && l2.loc_ghost)
+    }
+let exp_apply _loc f l =
+  loc_expr _loc (Pexp_apply (f, (List.map (fun x -> (Nolabel, x)) l)))
 module Make(Initial:Extension) =
   struct
     include Initial
@@ -34,11 +97,11 @@ module Make(Initial:Extension) =
       | (("-"|"-."|"+"|"+."), _) ->
           let lid = id_loc (Lident ("~" ^ name)) loc_name in
           let fn = Exp.ident ~loc:loc_name lid in
-          Exp.apply ~loc fn [(nolabel, arg)]
+          Exp.apply ~loc fn [(Nolabel, arg)]
       | _ ->
           let lid = id_loc (Lident name) loc_name in
           let fn = Exp.ident ~loc:loc_name lid in
-          Exp.apply ~loc fn [(nolabel, arg)]
+          Exp.apply ~loc fn [(Nolabel, arg)]
     let mk_binary_op loc e' op loc_op e =
       if op = "::"
       then
@@ -46,7 +109,7 @@ module Make(Initial:Extension) =
         Exp.construct ~loc lid (Some (Exp.tuple ~loc:(ghost loc) [e'; e]))
       else
         (let id = Exp.ident ~loc:loc_op (id_loc (Lident op) loc_op) in
-         Exp.apply ~loc id [(nolabel, e'); (nolabel, e)])
+         Exp.apply ~loc id [(Nolabel, e'); (Nolabel, e)])
     let wrap_type_annotation loc types core_type body =
       let exp = Exp.constraint_ ~loc body core_type in
       let exp =
@@ -76,7 +139,7 @@ module Make(Initial:Extension) =
               (Earley_core.Earley.fsequence lident
                  (Earley_core.Earley.fsequence_ignore
                     (Earley_core.Earley.char ':' ':')
-                    (Earley_core.Earley.empty (fun s -> labelled s))))))
+                    (Earley_core.Earley.empty (fun s -> Labelled s))))))
     let ty_opt_label = Earley_core.Earley.declare_grammar "ty_opt_label"
     let _ =
       Earley_core.Earley.set_grammar ty_opt_label
@@ -87,7 +150,7 @@ module Make(Initial:Extension) =
               (Earley_core.Earley.fsequence lident
                  (Earley_core.Earley.fsequence_ignore
                     (Earley_core.Earley.char ':' ':')
-                    (Earley_core.Earley.empty (fun s -> optional s))))))
+                    (Earley_core.Earley.empty (fun s -> Optional s))))))
     let maybe_opt_label =
       Earley_core.Earley.declare_grammar "maybe_opt_label"
     let _ =
@@ -99,7 +162,7 @@ module Make(Initial:Extension) =
            (Earley_core.Earley.fsequence label_name
               (Earley_core.Earley.empty
                  (fun ln ->
-                    fun o -> if o = None then labelled ln else optional ln))))
+                    fun o -> if o = None then Labelled ln else Optional ln))))
     let operator_name =
       alternatives ((prefix_symbol Prefix) ::
         (List.map infix_symbol infix_prios))
@@ -1192,7 +1255,7 @@ module Make(Initial:Extension) =
                                                                  fun ln ->
                                                                    Typ.arrow
                                                                     ~loc:_loc
-                                                                    (labelled
+                                                                    (Labelled
                                                                     ln) te
                                                                     te'))))))))
                               (List.cons
@@ -1218,7 +1281,7 @@ module Make(Initial:Extension) =
                                                             fun te ->
                                                               Typ.arrow
                                                                 ~loc:_loc
-                                                                nolabel te
+                                                                Nolabel te
                                                                 te'))))))
                                  (List.cons
                                     ((fun _ -> true),
@@ -1706,7 +1769,7 @@ module Make(Initial:Extension) =
                               fun pos2 ->
                                 fun j ->
                                   let _loc_j = locate str1 pos1 str2 pos2 in
-                                  fun var -> ((Joker _loc_j), var)))))
+                                  fun var -> ((Typ.any ~loc:_loc_j ()), var)))))
               (List.cons
                  (Earley_core.Earley.fsequence opt_variance
                     (Earley_core.Earley.fsequence_position
@@ -1723,7 +1786,7 @@ module Make(Initial:Extension) =
                                    fun id ->
                                      let _loc_id = locate str1 pos1 str2 pos2 in
                                      fun var ->
-                                       ((Name (id_loc id _loc_id)), var)))))
+                                       ((Typ.var ~loc:_loc_id id), var)))))
                  [])))
     let type_params = Earley_core.Earley.declare_grammar "type_params"
     let _ =
@@ -2096,12 +2159,11 @@ module Make(Initial:Extension) =
                                                fun fn ->
                                                  let _loc_fn =
                                                    locate str1 pos1 str2 pos2 in
-                                                 fun m ->
-                                                   label_declaration
-                                                     ~attributes:(attach_attrib
-                                                                    _loc [])
-                                                     _loc (id_loc fn _loc_fn)
-                                                     m pte)))))))
+                                                 fun mut ->
+                                                   Type.field ~loc:_loc
+                                                     ~attrs:(attach_attrib
+                                                               _loc []) ~mut
+                                                     (id_loc fn _loc_fn) pte)))))))
     let field_decl = Earley_core.Earley.declare_grammar "field_decl"
     let _ =
       Earley_core.Earley.set_grammar field_decl
@@ -2126,11 +2188,10 @@ module Make(Initial:Extension) =
                                           fun fn ->
                                             let _loc_fn =
                                               locate str1 pos1 str2 pos2 in
-                                            fun m ->
-                                              label_declaration
-                                                ~attributes:(attach_attrib
-                                                               _loc []) _loc
-                                                (id_loc fn _loc_fn) m pte))))))
+                                            fun mut ->
+                                              Type.field ~loc:_loc
+                                                ~attrs:(attach_attrib _loc [])
+                                                ~mut (id_loc fn _loc_fn) pte))))))
     let field_decl_aux = Earley_core.Earley.declare_grammar "field_decl_aux"
     let _ =
       Earley_core.Earley.set_grammar field_decl_aux
@@ -2242,36 +2303,36 @@ module Make(Initial:Extension) =
                                          fun tcn ->
                                            let _loc_tcn =
                                              locate str1 pos1 str2 pos2 in
-                                           fun tps ->
+                                           fun params ->
                                              fun prev_loc ->
                                                let _loc =
-                                                 match (prev_loc : Location.t
-                                                                    option)
-                                                 with
+                                                 match prev_loc with
                                                  | None -> _loc
                                                  | Some l -> merge2 l _loc in
-                                               let (pri, te, tkind, cstrs) =
+                                               let (pri, te, kind, cstrs) =
                                                  ti in
-                                               let (pri, te) =
+                                               let (priv, manifest) =
                                                  match te with
                                                  | None -> (pri, None)
+                                                 | Some (Private, te) when
+                                                     pri = Private ->
+                                                     give_up ()
                                                  | Some (Private, te) ->
-                                                     (if pri = Private
-                                                      then give_up ();
-                                                      (Private, (Some te)))
+                                                     (Private, (Some te))
                                                  | Some (_, te) ->
                                                      (pri, (Some te)) in
-                                               ((id_loc tcn _loc_tcn),
-                                                 (type_declaration
-                                                    ~attributes:(if att
-                                                                 then
-                                                                   attach_attrib
-                                                                    _loc a
-                                                                 else [])
-                                                    _loc
-                                                    (id_loc (filter tcn)
-                                                       _loc_tcn) tps cstrs
-                                                    tkind pri te)))))))
+                                               let ty =
+                                                 let attrs =
+                                                   if att
+                                                   then attach_attrib _loc a
+                                                   else [] in
+                                                 let name =
+                                                   id_loc (filter tcn)
+                                                     _loc_tcn in
+                                                 Type.mk ~loc:_loc ~attrs
+                                                   ~params ~cstrs ~kind ~priv
+                                                   ?manifest name in
+                                               ((id_loc tcn _loc_tcn), ty))))))
     let type_extension = Earley_core.Earley.declare_grammar "type_extension"
     let _ =
       Earley_core.Earley.set_grammar type_extension
@@ -2298,8 +2359,6 @@ module Make(Initial:Extension) =
                                                    fun _default_0 ->
                                                      let tcn =
                                                        id_loc tcn _loc_tcn in
-                                                     let params =
-                                                       params_map params in
                                                      Te.mk ~attrs ~params
                                                        ~priv tcn cds)))))))))
     let typedef = Earley_core.Earley.declare_grammar "typedef"
@@ -2712,7 +2771,7 @@ module Make(Initial:Extension) =
                                 match lab with
                                 | None ->
                                     pcty_loc _loc
-                                      (Pcty_arrow (nolabel, te, acc))
+                                      (Pcty_arrow (Nolabel, te, acc))
                                 | Some l ->
                                     pcty_loc _loc
                                       (Pcty_arrow
@@ -2769,12 +2828,12 @@ module Make(Initial:Extension) =
                                                let _loc_cn =
                                                  locate str1 pos1 str2 pos2 in
                                                fun params ->
-                                                 fun v ->
-                                                   class_type_declaration
-                                                     ~attributes:(attach_attrib
-                                                                    _loc [])
-                                                     _loc (id_loc cn _loc_cn)
-                                                     params v ct)))))))
+                                                 fun virt ->
+                                                   Ci.mk ~loc:_loc
+                                                     ~attrs:(attach_attrib
+                                                               _loc []) ~virt
+                                                     ~params
+                                                     (id_loc cn _loc_cn) ct)))))))
     let class_specification =
       Earley_core.Earley.declare_grammar "class_specification"
     let _ =
@@ -2817,13 +2876,12 @@ module Make(Initial:Extension) =
                                        let _loc_cn =
                                          locate str1 pos1 str2 pos2 in
                                        fun params ->
-                                         fun v ->
-                                           fun _l ->
-                                             class_type_declaration
-                                               ~attributes:(attach_attrib _l
-                                                              []) _l
-                                               (id_loc cn _loc_cn) params v
-                                               cbt)))))))
+                                         fun virt ->
+                                           fun loc ->
+                                             Ci.mk ~loc
+                                               ~attrs:(attach_attrib loc [])
+                                               ~virt ~params
+                                               (id_loc cn _loc_cn) cbt)))))))
     let classtype_definition =
       Earley_core.Earley.declare_grammar "classtype_definition"
     let _ =
@@ -2891,12 +2949,12 @@ module Make(Initial:Extension) =
                        (List.cons
                           (Earley_core.Earley.fsequence regexp_litteral
                              (Earley_core.Earley.empty
-                                (fun s -> const_string s)))
+                                (fun s -> Const.string s)))
                           (List.cons
                              (Earley_core.Earley.fsequence
                                 new_regexp_litteral
                                 (Earley_core.Earley.empty
-                                   (fun s -> const_string s))) [])))))))
+                                   (fun s -> Const.string s))) [])))))))
     let neg_constant = Earley_core.Earley.declare_grammar "neg_constant"
     let _ =
       Earley_core.Earley.set_grammar neg_constant
@@ -3559,9 +3617,52 @@ module Make(Initial:Extension) =
                                                                     _default_0
                                                                     ->
                                                                     fun ps ->
-                                                                    pat_list
-                                                                    _loc
-                                                                    _loc_c ps)))))))
+                                                                    let nil =
+                                                                    id_loc
+                                                                    (Lident
+                                                                    "[]")
+                                                                    (ghost
+                                                                    _loc_c) in
+                                                                    let hd =
+                                                                    match ps
+                                                                    with
+                                                                    | 
+                                                                    [] ->
+                                                                    assert
+                                                                    false
+                                                                    | 
+                                                                    x::_ -> x in
+                                                                    let cons
+                                                                    x xs =
+                                                                    let cloc
+                                                                    =
+                                                                    ghost
+                                                                    (merge2
+                                                                    x.ppat_loc
+                                                                    _loc) in
+                                                                    let c =
+                                                                    id_loc
+                                                                    (Lident
+                                                                    "::")
+                                                                    cloc in
+                                                                    let loc =
+                                                                    if
+                                                                    x == hd
+                                                                    then _loc
+                                                                    else cloc in
+                                                                    Pat.construct
+                                                                    ~loc c
+                                                                    (Some
+                                                                    (Pat.tuple
+                                                                    ~loc:cloc
+                                                                    [x; xs])) in
+                                                                    List.fold_right
+                                                                    cons ps
+                                                                    (Pat.construct
+                                                                    ~loc:(
+                                                                    ghost
+                                                                    _loc_c)
+                                                                    nil None))))))))
                                                          (List.cons
                                                             ((fun _ -> true),
                                                               (Earley_core.Earley.fsequence_ignore
@@ -3982,10 +4083,8 @@ module Make(Initial:Extension) =
       then Opp
       else Prefix
     let array_function loc str name =
-      let name = if !fast then "unsafe_" ^ name else name in
       loc_expr loc (Pexp_ident (id_loc (Ldot ((Lident str), name)) loc))
     let bigarray_function loc str name =
-      let name = if !fast then "unsafe_" ^ name else name in
       let lid = Ldot ((Ldot ((Lident "Bigarray"), str)), name) in
       loc_expr loc (Pexp_ident (id_loc lid loc))
     let untuplify exp =
@@ -4034,7 +4133,7 @@ module Make(Initial:Extension) =
            (List.cons
               (Earley_core.Earley.fsequence
                  (expression_lvl (NoMatch, (next_exp App)))
-                 (Earley_core.Earley.empty (fun e -> (nolabel, e))))
+                 (Earley_core.Earley.empty (fun e -> (Nolabel, e))))
               (List.cons
                  (Earley_core.Earley.fsequence_ignore
                     (Earley_core.Earley.char '~' '~')
@@ -4049,7 +4148,7 @@ module Make(Initial:Extension) =
                                         fun id ->
                                           let _loc_id =
                                             locate str1 pos1 str2 pos2 in
-                                          ((labelled id),
+                                          ((Labelled id),
                                             (loc_expr _loc_id
                                                (Pexp_ident
                                                   (id_loc (Lident id) _loc_id)))))))))
@@ -4071,7 +4170,7 @@ module Make(Initial:Extension) =
                                          fun id ->
                                            let _loc_id =
                                              locate str1 pos1 str2 pos2 in
-                                           ((optional id),
+                                           ((Optional id),
                                              (Exp.ident ~loc:_loc_id
                                                 (id_loc (Lident id) _loc_id)))))))
                        (List.cons
@@ -4112,7 +4211,7 @@ module Make(Initial:Extension) =
                    (Earley_core.Earley.fsequence
                       (pattern_lvl (false, AtomPat))
                       (Earley_core.Earley.empty
-                         (fun pat -> `Arg (nolabel, None, pat))))
+                         (fun pat -> `Arg (Nolabel, None, pat))))
                    (List.cons
                       (Earley_core.Earley.fsequence_ignore
                          (Earley_core.Earley.char '~' '~')
@@ -4167,7 +4266,7 @@ module Make(Initial:Extension) =
                                                                     (Ppat_constraint
                                                                     (pat, t)) in
                                                              `Arg
-                                                               ((labelled id),
+                                                               ((Labelled id),
                                                                  None, pat))))))))
                       (List.cons
                          (Earley_core.Earley.fsequence ty_label
@@ -4190,7 +4289,7 @@ module Make(Initial:Extension) =
                                                        locate str1 pos1 str2
                                                          pos2 in
                                                      `Arg
-                                                       ((labelled id), None,
+                                                       ((Labelled id), None,
                                                          (loc_pat _loc_id
                                                             (Ppat_var
                                                                (id_loc id
@@ -4273,7 +4372,7 @@ module Make(Initial:Extension) =
                                                                     (Ppat_constraint
                                                                     (pat, t)) in
                                                                     `Arg
-                                                                    ((optional
+                                                                    ((Optional
                                                                     id), e,
                                                                     pat)))))))))
                                (List.cons
@@ -4377,7 +4476,7 @@ module Make(Initial:Extension) =
                                                                 pos1 str2
                                                                 pos2 in
                                                             `Arg
-                                                              ((optional id),
+                                                              ((Optional id),
                                                                 None,
                                                                 (loc_pat
                                                                    _loc_id
@@ -4390,8 +4489,7 @@ module Make(Initial:Extension) =
       let f acc =
         function
         | (`Arg (lbl, opt, pat), _loc') ->
-            loc_expr (ghost (merge2 _loc' _loc))
-              (pexp_fun (lbl, opt, pat, acc))
+            Exp.fun_ ~loc:(ghost (merge2 _loc' _loc)) lbl opt pat acc
         | (`Type name, _loc') ->
             Exp.newtype ~loc:(merge2 _loc' _loc) name acc in
       let e = List.fold_left f e (List.rev params) in
@@ -4461,13 +4559,12 @@ module Make(Initial:Extension) =
                                                         match ty with
                                                         | None -> e
                                                         | Some ty ->
-                                                            loc_expr
-                                                              (ghost
-                                                                 (merge2
+                                                            Exp.constraint_
+                                                              ~loc:(ghost
+                                                                    (merge2
                                                                     _loc_ty
-                                                                    _loc))
-                                                              (pexp_constraint
-                                                                 (e, ty)) in
+                                                                    _loc)) e
+                                                              ty in
                                                       apply_params ~gh:true
                                                         _loc_e l e))))))
     let eright_member = Earley_core.Earley.declare_grammar "eright_member"
@@ -4551,11 +4648,11 @@ module Make(Initial:Extension) =
                                                                     vn
                                                                     _loc_vn))),
                                                                     ty)) in
-                                                                 (value_binding
-                                                                    ~attributes:(
+                                                                 (Vb.mk ~loc
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     loc a)
-                                                                    loc pat e)
+                                                                    pat e)
                                                                    :: l)))))))))
               (List.cons
                  (Earley_core.Earley.fsequence_position pattern
@@ -4627,11 +4724,11 @@ module Make(Initial:Extension) =
                                                                     poly_ty),
                                                                     (Exp.constraint_
                                                                     ~loc e ty)) in
-                                                                 (value_binding
-                                                                    ~attributes:(
+                                                                 (Vb.mk ~loc
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     loc a)
-                                                                    loc pat e)
+                                                                    pat e)
                                                                    :: l))))))
                  (List.cons
                     (Earley_core.Earley.fsequence_position value_name
@@ -4669,13 +4766,14 @@ module Make(Initial:Extension) =
                                                               merge2 _loc_vn
                                                                 _loc_e in
                                                             let pat =
-                                                              pat_ident
-                                                                _loc_vn vn in
-                                                            (value_binding
-                                                               ~attributes:(
+                                                              Pat.var
+                                                                ~loc:_loc_vn
+                                                                (id_loc vn
+                                                                   _loc_vn) in
+                                                            (Vb.mk ~loc
+                                                               ~attrs:(
                                                                attach_attrib
-                                                                 loc a) loc
-                                                               pat e)
+                                                                 loc a) pat e)
                                                               :: l))))))
                     (List.cons
                        (Earley_core.Earley.fsequence_position value_name
@@ -4754,12 +4852,13 @@ module Make(Initial:Extension) =
                                                                     merge2
                                                                     _loc_vn
                                                                     _loc_e in
-                                                                    (value_binding
-                                                                    ~attributes:(
+                                                                    (Vb.mk
+                                                                    ~loc
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     loc a)
-                                                                    loc pat e)
-                                                                    :: l)))))))))
+                                                                    pat e) ::
+                                                                    l)))))))))
                        [])))))
     [@@@ocaml.text " FIXME OCAML: shoud not change the position below "]
     let (match_case, match_case__set__grammar) =
@@ -4798,7 +4897,7 @@ module Make(Initial:Extension) =
                       (Earley_core.Earley.empty
                          (fun e ->
                             fun _default_0 ->
-                              fun w -> fun pat -> make_case pat e w))))))
+                              fun guard -> fun pat -> Exp.case pat ?guard e))))))
     let _ =
       set_grammar match_cases
         (Earley_core.Earley.alternatives
@@ -5331,13 +5430,13 @@ module Make(Initial:Extension) =
                                                                     None -> e
                                                                     | 
                                                                     Some t ->
-                                                                    loc_expr
-                                                                    (ghost
+                                                                    Exp.constraint_
+                                                                    ~loc:(
+                                                                    ghost
                                                                     (merge2
                                                                     _loc_ivn
-                                                                    _loc))
-                                                                    (pexp_constraint
-                                                                    (e, t)) in
+                                                                    _loc)) e
+                                                                    t in
                                                                     loc_pcf
                                                                     _loc
                                                                     (Pcf_val
@@ -5758,13 +5857,13 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     Some te
                                                                     ->
-                                                                    loc_expr
-                                                                    (ghost
+                                                                    Exp.constraint_
+                                                                    ~loc:(
+                                                                    ghost
                                                                     (merge2
                                                                     _loc_te
                                                                     _loc_e))
-                                                                    (pexp_constraint
-                                                                    (e, te)) in
+                                                                    e te in
                                                                     let e
                                                                     : expression
                                                                     =
@@ -6078,7 +6177,8 @@ module Make(Initial:Extension) =
                                                                     str2 pos2 in
                                                                  fun params
                                                                    ->
-                                                                   fun v ->
+                                                                   fun virt
+                                                                    ->
                                                                     let ce =
                                                                     apply_params_cls
                                                                     ~gh:true
@@ -6101,15 +6201,16 @@ module Make(Initial:Extension) =
                                                                     (ce, ct)) in
                                                                     fun _loc
                                                                     ->
-                                                                    class_type_declaration
-                                                                    ~attributes:(
+                                                                    Ci.mk
+                                                                    ~loc:_loc
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     _loc [])
-                                                                    _loc
+                                                                    ~virt
+                                                                    ~params
                                                                     (id_loc
                                                                     cn
                                                                     _loc_cn)
-                                                                    params v
                                                                     ce)))))))))
     let class_definition =
       Earley_core.Earley.declare_grammar "class_definition"
@@ -6152,7 +6253,7 @@ module Make(Initial:Extension) =
                                              cbs)))))
     let pexp_list _loc ?loc_cl  l =
       if l = []
-      then loc_expr _loc (pexp_construct ((id_loc (Lident "[]") _loc), None))
+      then Exp.construct ~loc:_loc (id_loc (Lident "[]") _loc) None
       else
         (let loc_cl =
            ghost (match loc_cl with | None -> _loc | Some pos -> pos) in
@@ -6160,12 +6261,9 @@ module Make(Initial:Extension) =
            (fun (x, pos) ->
               fun acc ->
                 let _loc = ghost (merge2 pos loc_cl) in
-                loc_expr _loc
-                  (pexp_construct
-                     ((id_loc (Lident "::") (ghost _loc)),
-                       (Some (loc_expr _loc (Pexp_tuple [x; acc])))))) l
-           (loc_expr loc_cl
-              (pexp_construct ((id_loc (Lident "[]") loc_cl), None))))
+                Exp.construct ~loc:_loc (id_loc (Lident "::") (ghost _loc))
+                  (Some (Exp.tuple ~loc:_loc [x; acc]))) l
+           (Exp.construct ~loc:loc_cl (id_loc (Lident "[]") loc_cl) None))
     let apply_lbl _loc (lbl, e) =
       let e =
         match e with
@@ -7143,9 +7241,9 @@ module Make(Initial:Extension) =
                                                              id_loc
                                                                (Lident "()")
                                                                _loc in
-                                                           loc_expr _loc
-                                                             (pexp_construct
-                                                                (cunit, None))))))))
+                                                           Exp.construct
+                                                             ~loc:_loc cunit
+                                                             None))))))
                               (List.cons
                                  ((fun lvl -> lvl <= Atom),
                                    (Earley_core.Earley.fsequence_ignore
@@ -7184,20 +7282,19 @@ module Make(Initial:Extension) =
                                                                     | 
                                                                     (Some t1,
                                                                     None) ->
-                                                                    loc_expr
-                                                                    (ghost
-                                                                    _loc)
-                                                                    (pexp_constraint
-                                                                    (e, t1))
+                                                                    Exp.constraint_
+                                                                    ~loc:(
+                                                                    ghost
+                                                                    _loc) e
+                                                                    t1
                                                                     | 
                                                                     (t1, Some
                                                                     t2) ->
-                                                                    loc_expr
-                                                                    (ghost
-                                                                    _loc)
-                                                                    (pexp_coerce
-                                                                    (e, t1,
-                                                                    t2))
+                                                                    Exp.coerce
+                                                                    ~loc:(
+                                                                    ghost
+                                                                    _loc) e
+                                                                    t1 t2
                                                                     | 
                                                                     (None,
                                                                     None) ->
@@ -7241,11 +7338,10 @@ module Make(Initial:Extension) =
                                                                     (Lident
                                                                     "()")
                                                                     _loc in
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (pexp_construct
-                                                                    (cunit,
-                                                                    None))))))))
+                                                                    Exp.construct
+                                                                    ~loc:_loc
+                                                                    cunit
+                                                                    None))))))
                                     (List.cons
                                        ((fun lvl -> lvl <= App),
                                          (Earley_core.Earley.fsequence
@@ -7334,12 +7430,11 @@ module Make(Initial:Extension) =
                                                                     locate
                                                                     str1 pos1
                                                                     str2 pos2 in
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (pexp_construct
-                                                                    ((id_loc
-                                                                    c _loc_c),
-                                                                    None)))))))
+                                                                    Exp.construct
+                                                                    ~loc:_loc
+                                                                    (id_loc c
+                                                                    _loc_c)
+                                                                    None)))))
                                           (List.cons
                                              ((fun lvl -> lvl <= Atom),
                                                (Earley_core.Earley.fsequence
@@ -7840,32 +7935,29 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    let desc
-                                                                    =
                                                                     match pt
                                                                     with
                                                                     | 
                                                                     None ->
-                                                                    Pexp_pack
+                                                                    Exp.pack
+                                                                    ~loc:_loc
                                                                     me
                                                                     | 
                                                                     Some pt
                                                                     ->
                                                                     let me =
-                                                                    loc_expr
-                                                                    (ghost
-                                                                    _loc)
-                                                                    (Pexp_pack
-                                                                    me) in
+                                                                    Exp.pack
+                                                                    ~loc:(
+                                                                    ghost
+                                                                    _loc) me in
                                                                     let pt =
                                                                     loc_typ
                                                                     (ghost
                                                                     _loc)
                                                                     pt.ptyp_desc in
-                                                                    pexp_constraint
-                                                                    (me, pt) in
-                                                                    loc_expr
-                                                                    _loc desc))))))))
+                                                                    Exp.constraint_
+                                                                    ~loc:_loc
+                                                                    me pt))))))))
                                                                     (List.cons
                                                                     ((fun lvl
                                                                     ->
@@ -8132,13 +8224,11 @@ module Make(Initial:Extension) =
                                              fun _default_0 ->
                                                let e =
                                                  match pt with
-                                                 | None -> Pmod_unpack e
+                                                 | None -> e
                                                  | Some pt ->
-                                                     Pmod_unpack
-                                                       (loc_expr (ghost _loc)
-                                                          (pexp_constraint
-                                                             (e, pt))) in
-                                               mexpr_loc _loc e)))))))
+                                                     Exp.constraint_
+                                                       ~loc:(ghost _loc) e pt in
+                                               Mod.unpack ~loc:_loc e)))))))
               (List.cons
                  (Earley_core.Earley.fsequence module_path
                     (Earley_core.Earley.empty_pos
@@ -8150,8 +8240,7 @@ module Make(Initial:Extension) =
                                   locate __loc__start__buf __loc__start__pos
                                     __loc__end__buf __loc__end__pos in
                                 fun mp ->
-                                  let mid = id_loc mp _loc in
-                                  mexpr_loc _loc (Pmod_ident mid))))
+                                  Mod.ident ~loc:_loc (id_loc mp _loc))))
                  (List.cons
                     (Earley_core.Earley.fsequence
                        (Earley_core.Earley.fsequence struct_kw
@@ -8185,8 +8274,7 @@ module Make(Initial:Extension) =
                                          fun _default_0 ->
                                            fun ms ->
                                              fun _default_1 ->
-                                               mexpr_loc _loc
-                                                 (Pmod_structure ms))))))
+                                               Mod.structure ~loc:_loc ms)))))
                     (List.cons
                        (Earley_core.Earley.fsequence functor_kw
                           (Earley_core.Earley.fsequence functor_parameter
@@ -8239,9 +8327,8 @@ module Make(Initial:Extension) =
                                                       match mt with
                                                       | None -> me
                                                       | Some mt ->
-                                                          mexpr_loc _loc
-                                                            (Pmod_constraint
-                                                               (me, mt))))))))
+                                                          Mod.constraint_
+                                                            ~loc:_loc me mt))))))
                           []))))))
     let _ =
       set_grammar module_expr
@@ -8276,8 +8363,8 @@ module Make(Initial:Extension) =
                               List.fold_left
                                 (fun acc ->
                                    fun (_loc_n, n) ->
-                                     mexpr_loc (merge2 _loc_m _loc_n)
-                                       (Pmod_apply (acc, n))) m l))))
+                                     Mod.apply ~loc:(merge2 _loc_m _loc_n)
+                                       acc n) m l))))
     let module_type_base =
       Earley_core.Earley.declare_grammar "module_type_base"
     let _ =
@@ -8485,7 +8572,7 @@ module Make(Initial:Extension) =
                                                                 locate str1
                                                                   pos1 str2
                                                                   pos2 in
-                                                              fun tps ->
+                                                              fun params ->
                                                                 fun
                                                                   _default_0
                                                                   ->
@@ -8499,12 +8586,11 @@ module Make(Initial:Extension) =
                                                                     tcn
                                                                     _loc_tcn in
                                                                   let td =
-                                                                    type_declaration
-                                                                    _loc tcn0
-                                                                    tps []
-                                                                    Ptype_abstract
-                                                                    Public
-                                                                    (Some te) in
+                                                                    Type.mk
+                                                                    ~loc:_loc
+                                                                    ~params
+                                                                    ~manifest:te
+                                                                    tcn0 in
                                                                   Pwith_typesubst
                                                                     (_tcn,
                                                                     td))))))))
@@ -8542,7 +8628,7 @@ module Make(Initial:Extension) =
                             fun m ->
                               match l with
                               | None -> m
-                              | Some l -> mtyp_loc _loc (Pmty_with (m, l))))))
+                              | Some l -> Mty.with_ ~loc:_loc m l))))
     let structure_item_base =
       Earley_core.Earley.declare_grammar "structure_item_base"
     let _ =
@@ -8842,11 +8928,25 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    module_binding
-                                                                    (merge2
+                                                                    let loc =
+                                                                    merge2
                                                                     _loc_mt
-                                                                    _loc_me)
-                                                                    mn mt me)))))))
+                                                                    _loc_me in
+                                                                    let me =
+                                                                    match mt
+                                                                    with
+                                                                    | 
+                                                                    None ->
+                                                                    me
+                                                                    | 
+                                                                    Some mt
+                                                                    ->
+                                                                    Mod.constraint_
+                                                                    ~loc me
+                                                                    mt in
+                                                                    Mb.mk
+                                                                    ~loc mn
+                                                                    me)))))))
                                                                     (fun x ->
                                                                     fun f ->
                                                                     fun l ->
@@ -8907,15 +9007,28 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    let m =
-                                                                    module_binding
-                                                                    (merge2
+                                                                    let loc =
+                                                                    merge2
                                                                     _loc_mt
-                                                                    _loc_me)
-                                                                    mn mt me in
+                                                                    _loc_me in
+                                                                    let me =
+                                                                    match mt
+                                                                    with
+                                                                    | 
+                                                                    None ->
+                                                                    me
+                                                                    | 
+                                                                    Some mt
+                                                                    ->
+                                                                    Mod.constraint_
+                                                                    ~loc me
+                                                                    mt in
                                                                     Str.rec_module
                                                                     ~loc:_loc
-                                                                    (m :: ms)))))))))
+                                                                    ((Mb.mk
+                                                                    ~loc mn
+                                                                    me) ::
+                                                                    ms)))))))))
                                                (List.cons
                                                   (Earley_core.Earley.fsequence
                                                      module_name
@@ -9037,9 +9150,9 @@ module Make(Initial:Extension) =
                                                                     l) in
                                                                     Str.module_
                                                                     ~loc:_loc
-                                                                    (module_binding
-                                                                    _loc mn
-                                                                    None me))))))))
+                                                                    (Mb.mk
+                                                                    ~loc:_loc
+                                                                    mn me))))))))
                                                   []))))
                                       (Earley_core.Earley.empty (fun r -> r))))
                                 (List.cons
@@ -9187,8 +9300,8 @@ module Make(Initial:Extension) =
                                         let _loc_e =
                                           locate str1 pos1 str2 pos2 in
                                         fun _default_0 ->
-                                          fun s1 ->
-                                            (loc_str _loc_e (pstr_eval e)) ::
+                                          fun s1 -> (Str.eval ~loc:_loc_e e)
+                                            ::
                                             (List.rev_append
                                                (attach_str _loc_e) s1)))))))
               (List.cons
@@ -9214,8 +9327,7 @@ module Make(Initial:Extension) =
                                                 let _loc_e =
                                                   locate str1 pos1 str2 pos2 in
                                                 (attach_str _loc) @
-                                                  [loc_str _loc_e
-                                                     (pstr_eval e)]))))
+                                                  [Str.eval ~loc:_loc_e e]))))
                     (List.cons
                        (Earley_core.Earley.fsequence structure_item_aux
                           (Earley_core.Earley.fsequence
@@ -9511,12 +9623,12 @@ module Make(Initial:Extension) =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    module_declaration
-                                                                    ~attributes:(
+                                                                    Md.mk
+                                                                    ~loc:_loc
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     _loc a)
-                                                                    _loc mn
-                                                                    mt)))))))
+                                                                    mn mt)))))))
                                                            (fun x ->
                                                               fun f ->
                                                                 fun l ->
@@ -9585,13 +9697,12 @@ module Make(Initial:Extension) =
                                                                     _loc_mn
                                                                     _loc_a in
                                                                     let m =
-                                                                    module_declaration
-                                                                    ~attributes:(
+                                                                    Md.mk
+                                                                    ~loc:loc_first
+                                                                    ~attrs:(
                                                                     attach_attrib
                                                                     loc_first
-                                                                    a)
-                                                                    loc_first
-                                                                    mn mt in
+                                                                    a) mn mt in
                                                                     Sig.rec_module
                                                                     ~loc:_loc
                                                                     (m :: ms))))))))))

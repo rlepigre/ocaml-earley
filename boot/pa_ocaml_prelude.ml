@@ -10,7 +10,6 @@ type entry =
   | Impl 
   | Intf 
 let entry : entry ref = ref FromExt
-let fast : bool ref = ref false
 let file : string option ref = ref None
 let print_location ch { Location.loc_start = s; Location.loc_end = e } =
   let open Lexing in
@@ -45,8 +44,6 @@ module Initial =
          "Treat file as an implementation.");
       ("--intf", (Arg.Unit ((fun () -> entry := Intf))),
         "Treat file as an interface.");
-      ("--unsafe", (Arg.Set fast),
-        "Use unsafe functions for arrays (more efficient).");
       ("--debug", (Arg.Set_int Earley.debug_lvl),
         "Sets the value of \"Earley.debug_lvl\".");
       ("--debug-attach", (Arg.Set debug_attach),
