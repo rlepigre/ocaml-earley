@@ -9,70 +9,15 @@ open Longident
 open Pa_lexing
 open Ast_helper
 include Pa_ocaml_prelude
-let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc }
-let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc }
-let loc_expr ?(attributes= [])  _loc e =
-  {
-    pexp_desc = e;
-    pexp_loc = _loc;
-    pexp_attributes = attributes;
-    pexp_loc_stack = []
-  }
-let loc_pat ?(attributes= [])  _loc pat =
-  {
-    ppat_desc = pat;
-    ppat_loc = _loc;
-    ppat_attributes = attributes;
-    ppat_loc_stack = []
-  }
-let loc_pcl ?(attributes= [])  _loc desc =
-  { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes }
-let loc_typ ?(attributes= [])  _loc typ =
-  {
-    ptyp_desc = typ;
-    ptyp_loc = _loc;
-    ptyp_attributes = attributes;
-    ptyp_loc_stack = []
-  }
-let pctf_loc ?(attributes= [])  _loc desc =
-  { pctf_desc = desc; pctf_loc = _loc; pctf_attributes = attributes }
-let pcty_loc ?(attributes= [])  _loc desc =
-  { pcty_desc = desc; pcty_loc = _loc; pcty_attributes = attributes }
-let loc_pcf ?(attributes= [])  _loc desc =
-  { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
 let ghost loc = let open Location in { loc with loc_ghost = true }
 let no_ghost loc = let open Location in { loc with loc_ghost = false }
-let de_ghost e = loc_expr (no_ghost e.pexp_loc) e.pexp_desc
+let de_ghost e = Exp.mk ~loc:(no_ghost e.pexp_loc) e.pexp_desc
 let id_loc txt loc = { txt; loc }
 let loc_id loc txt = { txt; loc }
-let rec merge =
-  function
-  | [] -> assert false
-  | loc::[] -> loc
-  | l1::_ as ls ->
-      let ls = List.rev ls in
-      let rec fn =
-        function
-        | [] -> assert false
-        | loc::[] -> loc
-        | l2::ls when let open Location in l2.loc_start = l2.loc_end -> fn ls
-        | l2::ls ->
-            let open Location in
-              {
-                loc_start = (l1.loc_start);
-                loc_end = (l2.loc_end);
-                loc_ghost = (l1.loc_ghost && l2.loc_ghost)
-              } in
-      fn ls
 let merge2 l1 l2 =
-  let open Location in
-    {
-      l1 with
-      loc_end = (l2.loc_end);
-      loc_ghost = (l1.loc_ghost && l2.loc_ghost)
-    }
-let exp_apply _loc f l =
-  loc_expr _loc (Pexp_apply (f, (List.map (fun x -> (Nolabel, x)) l)))
+  let loc_ghost = let open Location in l1.loc_ghost && l2.loc_ghost in
+  let open Location in { l1 with loc_end = (l2.loc_end); loc_ghost }
+let exp_apply loc f l = Exp.apply ~loc f (List.map (fun x -> (Nolabel, x)) l)
 let ouident = uident
 let uident = Earley_core.Earley.declare_grammar "uident"
 let _ = Earley_core.Earley.set_grammar uident ouident
@@ -1115,7 +1060,7 @@ let _ =
                                                __loc__end__pos in
                                            fun pt ->
                                              fun _default_0 ->
-                                               loc_typ _loc pt.ptyp_desc)))))))
+                                               Typ.mk ~loc:_loc pt.ptyp_desc)))))))
                  (List.cons
                     ((fun (allow_par, lvl) -> allow_par),
                       (Earley_core.Earley.fsequence_ignore
@@ -2397,14 +2342,13 @@ let _ =
                                  locate __loc__start__buf __loc__start__pos
                                    __loc__end__buf __loc__end__pos in
                                fun cbt ->
-                                 fun _default_0 ->
-                                   pctf_loc _loc (Pctf_inherit cbt)))))
+                                 fun _default_0 -> Ctf.inherit_ ~loc:_loc cbt))))
              (List.cons
                 (Earley_core.Earley.fsequence val_kw
                    (Earley_core.Earley.fsequence virt_mut
                       (Earley_core.Earley.fsequence_position inst_var_name
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string ":" ":")
+                            (Earley_core.Earley.char ':' ':')
                             (Earley_core.Earley.fsequence typexpr
                                (Earley_core.Earley.empty_pos
                                   (fun __loc__start__buf ->
@@ -2430,19 +2374,16 @@ let _ =
                                                             _default_0)
                                                          ->
                                                          fun _default_1 ->
-                                                           let ivn =
-                                                             id_loc ivn
-                                                               _loc_ivn in
-                                                           pctf_loc _loc
-                                                             (Pctf_val
-                                                                (ivn, mut,
-                                                                  vir, te)))))))))
+                                                           Ctf.val_ ~loc:_loc
+                                                             (id_loc ivn
+                                                                _loc_ivn) mut
+                                                             vir te)))))))
                 (List.cons
                    (Earley_core.Earley.fsequence method_kw
                       (Earley_core.Earley.fsequence virt_priv
                          (Earley_core.Earley.fsequence method_name
                             (Earley_core.Earley.fsequence_ignore
-                               (Earley_core.Earley.string ":" ":")
+                               (Earley_core.Earley.char ':' ':')
                                (Earley_core.Earley.fsequence poly_typexpr
                                   (Earley_core.Earley.empty_pos
                                      (fun __loc__start__buf ->
@@ -2481,9 +2422,8 @@ let _ =
                                               fun te' ->
                                                 fun te ->
                                                   fun _default_0 ->
-                                                    pctf_loc _loc
-                                                      (Pctf_constraint
-                                                         (te, te'))))))))
+                                                    Ctf.constraint_ ~loc:_loc
+                                                      te te'))))))
                       (List.cons
                          (Earley_core.Earley.fsequence floating_attribute
                             (Earley_core.Earley.empty_pos
@@ -2504,18 +2444,18 @@ let _ =
           (Earley_core.Earley.fsequence
              (Earley_core.Earley.option []
                 (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.string "[" "[")
+                   (Earley_core.Earley.char '[' '[')
                    (Earley_core.Earley.fsequence typexpr
                       (Earley_core.Earley.fsequence
                          (Earley_core.Earley.apply (fun f -> f [])
                             (Earley_core.Earley.fixpoint' (fun l -> l)
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string "," ",")
+                                  (Earley_core.Earley.char ',' ',')
                                   (Earley_core.Earley.fsequence typexpr
                                      (Earley_core.Earley.empty (fun te -> te))))
                                (fun x -> fun f -> fun l -> f (List.cons x l))))
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string "]" "]")
+                            (Earley_core.Earley.char ']' ']')
                             (Earley_core.Earley.empty
                                (fun tes -> fun te -> te :: tes)))))))
              (Earley_core.Earley.fsequence_position classtype_path
@@ -2535,19 +2475,18 @@ let _ =
                                       let _loc_ctp =
                                         locate str1 pos1 str2 pos2 in
                                       fun tes ->
-                                        let ctp = id_loc ctp _loc_ctp in
-                                        pcty_loc _loc
-                                          (Pcty_constr (ctp, tes))))))
+                                        Cty.constr ~loc:_loc
+                                          (id_loc ctp _loc_ctp) tes))))
           (List.cons
              (Earley_core.Earley.fsequence object_kw
                 (Earley_core.Earley.fsequence_position
                    (Earley_core.Earley.option None
                       (Earley_core.Earley.apply (fun x -> Some x)
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string "(" "(")
+                            (Earley_core.Earley.char '(' '(')
                             (Earley_core.Earley.fsequence typexpr
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string ")" ")")
+                                  (Earley_core.Earley.char ')' ')')
                                   (Earley_core.Earley.empty (fun te -> te)))))))
                    (Earley_core.Earley.fsequence
                       (Earley_core.Earley.apply (fun f -> f [])
@@ -2578,16 +2517,11 @@ let _ =
                                                      let self =
                                                        match te with
                                                        | None ->
-                                                           loc_typ _loc_te
-                                                             Ptyp_any
+                                                           Typ.any
+                                                             ~loc:_loc_te ()
                                                        | Some t -> t in
-                                                     let sign =
-                                                       {
-                                                         pcsig_self = self;
-                                                         pcsig_fields = cfs
-                                                       } in
-                                                     pcty_loc _loc
-                                                       (Pcty_signature sign)))))))
+                                                     Cty.signature ~loc:_loc
+                                                       (Csig.mk self cfs)))))))
              [])))
 let class_type = Earley_core.Earley.declare_grammar "class_type"
 let _ =
@@ -2596,11 +2530,9 @@ let _ =
        (Earley_core.Earley.apply (fun f -> f [])
           (Earley_core.Earley.fixpoint' (fun l -> l)
              (Earley_core.Earley.fsequence
-                (Earley_core.Earley.option None
-                   (Earley_core.Earley.apply (fun x -> Some x)
-                      maybe_opt_label))
+                (Earley_core.Earley.option Nolabel maybe_opt_label)
                 (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.string ":" ":")
+                   (Earley_core.Earley.char ':' ':')
                    (Earley_core.Earley.fsequence typexpr
                       (Earley_core.Earley.empty (fun te -> fun l -> (l, te))))))
              (fun x -> fun f -> fun l -> f (List.cons x l))))
@@ -2616,16 +2548,7 @@ let _ =
                       fun cbt ->
                         fun tes ->
                           let app acc (lab, te) =
-                            match lab with
-                            | None ->
-                                pcty_loc _loc (Pcty_arrow (Nolabel, te, acc))
-                            | Some l ->
-                                pcty_loc _loc
-                                  (Pcty_arrow
-                                     (l,
-                                       (match l with
-                                        | Optional _ -> te
-                                        | _ -> te), acc)) in
+                            Cty.arrow ~loc:_loc lab te acc in
                           List.fold_left app cbt (List.rev tes)))))
 let type_parameters = Earley_core.Earley.declare_grammar "type_parameters"
 let _ =
@@ -2847,8 +2770,8 @@ let _ =
                                              let cons =
                                                id_loc (Lident "::") _loc_c in
                                              let args =
-                                               loc_pat (ghost _loc)
-                                                 (Ppat_tuple [p; p']) in
+                                               Pat.tuple ~loc:(ghost _loc)
+                                                 [p; p'] in
                                              Pat.construct ~loc:_loc cons
                                                (Some args)))))))
         (List.cons
@@ -2946,15 +2869,13 @@ let _ =
                                                      __loc__end__pos in
                                                  fun ty ->
                                                    fun p ->
-                                                     let p =
-                                                       match ty with
-                                                       | None ->
-                                                           loc_pat _loc
-                                                             p.ppat_desc
-                                                       | Some ty ->
-                                                           Pat.constraint_
-                                                             ~loc:_loc p ty in
-                                                     p)))))))
+                                                     match ty with
+                                                     | None ->
+                                                         Pat.mk ~loc:_loc
+                                                           p.ppat_desc
+                                                     | Some ty ->
+                                                         Pat.constraint_
+                                                           ~loc:_loc p ty)))))))
                        (List.cons
                           ((fun (as_ok, lvl) -> lvl <= ConstrPat),
                             (Earley_core.Earley.fsequence lazy_kw
@@ -3343,10 +3264,10 @@ let _ =
                                                                     give_up
                                                                     () in
                                                                     (lab,
-                                                                    (loc_pat
-                                                                    lab.loc
-                                                                    (Ppat_var
-                                                                    slab))) in
+                                                                    (Pat.var
+                                                                    ~loc:(
+                                                                    lab.loc)
+                                                                    slab)) in
                                                                     let all =
                                                                     List.map
                                                                     f all in
@@ -3688,8 +3609,9 @@ let _ =
                                                                     Some pt
                                                                     ->
                                                                     let pt =
-                                                                    loc_typ
-                                                                    (ghost
+                                                                    Typ.mk
+                                                                    ~loc:(
+                                                                    ghost
                                                                     _loc)
                                                                     pt.ptyp_desc in
                                                                     Pat.constraint_
@@ -3868,10 +3790,10 @@ let prefix_prio s =
   then Opp
   else Prefix
 let array_function loc str name =
-  loc_expr loc (Pexp_ident (id_loc (Ldot ((Lident str), name)) loc))
+  Exp.ident ~loc (id_loc (Ldot ((Lident str), name)) loc)
 let bigarray_function loc str name =
-  let lid = Ldot ((Ldot ((Lident "Bigarray"), str)), name) in
-  loc_expr loc (Pexp_ident (id_loc lid loc))
+  Exp.ident ~loc
+    (id_loc (Ldot ((Ldot ((Lident "Bigarray"), str)), name)) loc)
 let untuplify exp =
   match exp.pexp_desc with | Pexp_tuple es -> es | _ -> [exp]
 let bigarray_get loc arr arg =
@@ -3932,9 +3854,8 @@ let _ =
                                       let _loc_id =
                                         locate str1 pos1 str2 pos2 in
                                       ((Labelled id),
-                                        (loc_expr _loc_id
-                                           (Pexp_ident
-                                              (id_loc (Lident id) _loc_id)))))))))
+                                        (Exp.ident ~loc:_loc_id
+                                           (id_loc (Lident id) _loc_id))))))))
              (List.cons
                 (Earley_core.Earley.fsequence ty_label
                    (Earley_core.Earley.fsequence
@@ -4027,17 +3948,17 @@ let _ =
                                                            locate str1 pos1
                                                              str2 pos2 in
                                                          let pat =
-                                                           loc_pat _loc_id
-                                                             (Ppat_var
-                                                                (id_loc id
-                                                                   _loc_id)) in
+                                                           Pat.var
+                                                             ~loc:_loc_id
+                                                             (id_loc id
+                                                                _loc_id) in
                                                          let pat =
                                                            match t with
                                                            | None -> pat
                                                            | Some t ->
-                                                               loc_pat _loc
-                                                                 (Ppat_constraint
-                                                                    (pat, t)) in
+                                                               Pat.constraint_
+                                                                 ~loc:_loc
+                                                                 pat t in
                                                          `Arg
                                                            ((Labelled id),
                                                              None, pat))))))))
@@ -4062,9 +3983,8 @@ let _ =
                                                    locate str1 pos1 str2 pos2 in
                                                  `Arg
                                                    ((Labelled id), None,
-                                                     (loc_pat _loc_id
-                                                        (Ppat_var
-                                                           (id_loc id _loc_id)))))))))
+                                                     (Pat.var ~loc:_loc_id
+                                                        (id_loc id _loc_id))))))))
                         (List.cons
                            (Earley_core.Earley.fsequence_ignore
                               (Earley_core.Earley.char '?' '?')
@@ -4119,12 +4039,11 @@ let _ =
                                                                     str1 pos1
                                                                     str2 pos2 in
                                                                     let pat =
-                                                                    loc_pat
-                                                                    _loc_id
-                                                                    (Ppat_var
+                                                                    Pat.var
+                                                                    ~loc:_loc_id
                                                                     (id_loc
                                                                     id
-                                                                    _loc_id)) in
+                                                                    _loc_id) in
                                                                     let pat =
                                                                     match t
                                                                     with
@@ -4133,12 +4052,12 @@ let _ =
                                                                     pat
                                                                     | 
                                                                     Some t ->
-                                                                    loc_pat
-                                                                    (merge2
+                                                                    Pat.constraint_
+                                                                    ~loc:(
+                                                                    merge2
                                                                     _loc_id
                                                                     _loc_t)
-                                                                    (Ppat_constraint
-                                                                    (pat, t)) in
+                                                                    pat t in
                                                                     `Arg
                                                                     ((Optional
                                                                     id), e,
@@ -4207,12 +4126,12 @@ let _ =
                                                                     pat
                                                                     | 
                                                                     Some t ->
-                                                                    loc_pat
-                                                                    (merge2
+                                                                    Pat.constraint_
+                                                                    ~loc:(
+                                                                    merge2
                                                                     _loc_pat
                                                                     _loc_t)
-                                                                    (Ppat_constraint
-                                                                    (pat, t)) in
+                                                                    pat t in
                                                                     `Arg
                                                                     (id, e,
                                                                     pat)))))))))
@@ -4239,10 +4158,10 @@ let _ =
                                                         `Arg
                                                           ((Optional id),
                                                             None,
-                                                            (loc_pat _loc_id
-                                                               (Ppat_var
-                                                                  (id_loc id
-                                                                    _loc_id))))))))
+                                                            (Pat.var
+                                                               ~loc:_loc_id
+                                                               (id_loc id
+                                                                  _loc_id)))))))
                                     []))))))))))
 let apply_params ?(gh= false)  _loc params e =
   let f acc =
@@ -4259,7 +4178,7 @@ let apply_params_cls ?(gh= false)  _loc params e =
   let f acc =
     function
     | (`Arg (lbl, opt, pat), _loc') ->
-        loc_pcl (ghost _loc') (Pcl_fun (lbl, opt, pat, acc))
+        Cl.fun_ ~loc:(ghost _loc') lbl opt pat acc
     | (`Type name, _) -> assert false in
   List.fold_left f e (List.rev params)
 [@@@ocaml.text " FIXME OCAML: shoud be ghost as above ? "]
@@ -4384,16 +4303,15 @@ let _ =
                                                                wrap_type_annotation
                                                                  loc ids ty e in
                                                              let pat =
-                                                               loc_pat
-                                                                 (ghost loc)
-                                                                 (Ppat_constraint
-                                                                    ((loc_pat
-                                                                    _loc_vn
-                                                                    (Ppat_var
-                                                                    (id_loc
-                                                                    vn
-                                                                    _loc_vn))),
-                                                                    ty)) in
+                                                               Pat.constraint_
+                                                                 ~loc:(
+                                                                 ghost loc)
+                                                                 (Pat.var
+                                                                    ~loc:_loc_vn
+                                                                    (
+                                                                    id_loc vn
+                                                                    _loc_vn))
+                                                                 ty in
                                                              (Vb.mk ~loc
                                                                 ~attrs:(
                                                                 attach_attrib
@@ -4570,20 +4488,20 @@ let _ =
                                                                     str1 pos1
                                                                     str2 pos2 in
                                                                     let pat =
-                                                                    loc_pat
-                                                                    (ghost
+                                                                    Pat.constraint_
+                                                                    ~loc:(
+                                                                    ghost
                                                                     _loc)
-                                                                    (Ppat_constraint
-                                                                    ((loc_pat
-                                                                    _loc_vn
-                                                                    (Ppat_var
+                                                                    (Pat.var
+                                                                    ~loc:_loc_vn
                                                                     (id_loc
                                                                     vn
-                                                                    _loc_vn))),
-                                                                    (loc_typ
-                                                                    (ghost
+                                                                    _loc_vn))
+                                                                    (Typ.mk
+                                                                    ~loc:(
+                                                                    ghost
                                                                     _loc)
-                                                                    ty.ptyp_desc))) in
+                                                                    ty.ptyp_desc) in
                                                                     let loc =
                                                                     merge2
                                                                     _loc_vn
@@ -4596,7 +4514,6 @@ let _ =
                                                                     pat e) ::
                                                                     l)))))))))
                    [])))))
-[@@@ocaml.text " FIXME OCAML: shoud not change the position below "]
 let (match_case, match_case__set__grammar) =
   Earley_core.Earley.grammar_family "match_case"
 let match_case __curry__varx0 __curry__varx1 =
@@ -4733,7 +4650,7 @@ let _ =
                          fun f ->
                            let _loc_f = locate str1 pos1 str2 pos2 in
                            let id = id_loc (Lident f) _loc_f in
-                           (id, (loc_expr _loc_f (Pexp_ident id))))))
+                           (id, (Exp.ident ~loc:_loc_f id)))))
           (List.cons
              (Earley_core.Earley.fsequence_position field
                 (Earley_core.Earley.fsequence_ignore
@@ -4763,7 +4680,7 @@ let _ =
                          fun f ->
                            let _loc_f = locate str1 pos1 str2 pos2 in
                            let id = id_loc (Lident f) _loc_f in
-                           (id, (loc_expr _loc_f (Pexp_ident id))))))
+                           (id, (Exp.ident ~loc:_loc_f id)))))
           (List.cons
              (Earley_core.Earley.fsequence_position field
                 (Earley_core.Earley.fsequence_ignore
@@ -4836,7 +4753,7 @@ let _ =
                                fun _default_0 ->
                                  fun cb ->
                                    fun _default_1 ->
-                                     loc_pcl _loc (Pcl_structure cb))))))
+                                     Cl.structure ~loc:_loc cb)))))
           (List.cons
              (Earley_core.Earley.fsequence_position class_path
                 (Earley_core.Earley.empty_pos
@@ -4854,8 +4771,8 @@ let _ =
                                     fun cp ->
                                       let _loc_cp =
                                         locate str1 pos1 str2 pos2 in
-                                      let cp = id_loc cp _loc_cp in
-                                      loc_pcl _loc (Pcl_constr (cp, [])))))
+                                      Cl.constr ~loc:_loc (id_loc cp _loc_cp)
+                                        [])))
              (List.cons
                 (Earley_core.Earley.fsequence_ignore
                    (Earley_core.Earley.char '[' '[')
@@ -4891,18 +4808,15 @@ let _ =
                                                          pos2 in
                                                      fun tes ->
                                                        fun te ->
-                                                         let cp =
-                                                           id_loc cp _loc_cp in
-                                                         loc_pcl _loc
-                                                           (Pcl_constr
-                                                              (cp, (te ::
-                                                                tes))))))))))
+                                                         Cl.constr ~loc:_loc
+                                                           (id_loc cp _loc_cp)
+                                                           (te :: tes))))))))
                 (List.cons
                    (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.string "(" "(")
+                      (Earley_core.Earley.char '(' '(')
                       (Earley_core.Earley.fsequence class_expr
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string ")" ")")
+                            (Earley_core.Earley.char ')' ')')
                             (Earley_core.Earley.empty_pos
                                (fun __loc__start__buf ->
                                   fun __loc__start__pos ->
@@ -4912,16 +4826,16 @@ let _ =
                                           locate __loc__start__buf
                                             __loc__start__pos __loc__end__buf
                                             __loc__end__pos in
-                                        fun ce -> loc_pcl _loc ce.pcl_desc)))))
+                                        fun ce -> Cl.mk ~loc:_loc ce.pcl_desc)))))
                    (List.cons
                       (Earley_core.Earley.fsequence_ignore
-                         (Earley_core.Earley.string "(" "(")
+                         (Earley_core.Earley.char '(' '(')
                          (Earley_core.Earley.fsequence class_expr
                             (Earley_core.Earley.fsequence_ignore
                                (Earley_core.Earley.string ":" ":")
                                (Earley_core.Earley.fsequence class_type
                                   (Earley_core.Earley.fsequence_ignore
-                                     (Earley_core.Earley.string ")" ")")
+                                     (Earley_core.Earley.char ')' ')')
                                      (Earley_core.Earley.empty_pos
                                         (fun __loc__start__buf ->
                                            fun __loc__start__pos ->
@@ -4934,9 +4848,8 @@ let _ =
                                                      __loc__end__pos in
                                                  fun ct ->
                                                    fun ce ->
-                                                     loc_pcl _loc
-                                                       (Pcl_constraint
-                                                          (ce, ct)))))))))
+                                                     Cl.constraint_ ~loc:_loc
+                                                       ce ct)))))))
                       (List.cons
                          (Earley_core.Earley.fsequence fun_kw
                             (Earley_core.Earley.fsequence
@@ -5000,10 +4913,9 @@ let _ =
                                                              fun r ->
                                                                fun _default_1
                                                                  ->
-                                                                 loc_pcl _loc
-                                                                   (Pcl_let
-                                                                    (r, lbs,
-                                                                    ce)))))))))
+                                                                 Cl.let_
+                                                                   ~loc:_loc
+                                                                   r lbs ce)))))))
                             []))))))))
 let _ =
   set_grammar class_expr
@@ -5026,7 +4938,7 @@ let _ =
                         fun ce ->
                           match args with
                           | None -> ce
-                          | Some l -> loc_pcl _loc (Pcl_apply (ce, l))))))
+                          | Some l -> Cl.apply ~loc:_loc ce l))))
 let class_field = Earley_core.Earley.declare_grammar "class_field"
 let _ =
   Earley_core.Earley.set_grammar class_field
@@ -5075,8 +4987,7 @@ let _ =
                                        fun ce ->
                                          fun o ->
                                            fun _default_0 ->
-                                             loc_pcf _loc
-                                               (Pcf_inherit (o, ce, id))))))))
+                                             Cf.inherit_ ~loc:_loc o ce id))))))
              (List.cons
                 (Earley_core.Earley.fsequence val_kw
                    (Earley_core.Earley.fsequence override_flag
@@ -5137,12 +5048,11 @@ let _ =
                                                                     _loc_ivn
                                                                     _loc)) e
                                                                     t in
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_val
-                                                                    (ivn, m,
+                                                                    Cf.val_
+                                                                    ~loc:_loc
+                                                                    ivn m
                                                                     (Cfk_concrete
-                                                                    (o, ex)))))))))))))
+                                                                    (o, ex)))))))))))
                 (List.cons
                    (Earley_core.Earley.fsequence val_kw
                       (Earley_core.Earley.fsequence mutable_flag
@@ -5150,7 +5060,7 @@ let _ =
                             (Earley_core.Earley.fsequence_position
                                inst_var_name
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string ":" ":")
+                                  (Earley_core.Earley.char ':' ':')
                                   (Earley_core.Earley.fsequence typexpr
                                      (Earley_core.Earley.empty_pos
                                         (fun __loc__start__buf ->
@@ -5178,16 +5088,14 @@ let _ =
                                                                  fun
                                                                    _default_1
                                                                    ->
-                                                                   let ivn =
-                                                                    id_loc
+                                                                   Cf.val_
+                                                                    ~loc:_loc
+                                                                    (id_loc
                                                                     ivn
-                                                                    _loc_ivn in
-                                                                   loc_pcf
-                                                                    _loc
-                                                                    (Pcf_val
-                                                                    (ivn, m,
+                                                                    _loc_ivn)
+                                                                    m
                                                                     (Cfk_virtual
-                                                                    te)))))))))))
+                                                                    te)))))))))
                    (List.cons
                       (Earley_core.Earley.fsequence val_kw
                          (Earley_core.Earley.fsequence virtual_kw
@@ -5195,7 +5103,7 @@ let _ =
                                (Earley_core.Earley.fsequence_position
                                   inst_var_name
                                   (Earley_core.Earley.fsequence_ignore
-                                     (Earley_core.Earley.string ":" ":")
+                                     (Earley_core.Earley.char ':' ':')
                                      (Earley_core.Earley.fsequence typexpr
                                         (Earley_core.Earley.empty_pos
                                            (fun __loc__start__buf ->
@@ -5228,17 +5136,14 @@ let _ =
                                                                     fun
                                                                     _default_2
                                                                     ->
-                                                                    let ivn =
-                                                                    id_loc
+                                                                    Cf.val_
+                                                                    ~loc:_loc
+                                                                    (id_loc
                                                                     ivn
-                                                                    _loc_ivn in
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_val
-                                                                    (ivn,
-                                                                    Mutable,
+                                                                    _loc_ivn)
+                                                                    Mutable
                                                                     (Cfk_virtual
-                                                                    te)))))))))))
+                                                                    te)))))))))
                       (List.cons
                          (Earley_core.Earley.fsequence method_kw
                             (Earley_core.Earley.fsequence_position
@@ -5253,7 +5158,7 @@ let _ =
                                                   (_default_2, _default_1,
                                                     _default_0))))))
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string ":" ":")
+                                  (Earley_core.Earley.char ':' ':')
                                   (Earley_core.Earley.fsequence poly_typexpr
                                      (Earley_core.Earley.fsequence_ignore
                                         (Earley_core.Earley.char '=' '=')
@@ -5289,20 +5194,18 @@ let _ =
                                                                     (o, p,
                                                                     mn) = t in
                                                                     let e =
-                                                                    loc_expr
-                                                                    (ghost
+                                                                    Exp.poly
+                                                                    ~loc:(
+                                                                    ghost
                                                                     (merge2
                                                                     _loc_t
-                                                                    _loc))
-                                                                    (Pexp_poly
-                                                                    (e,
-                                                                    (Some te))) in
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_method
-                                                                    (mn, p,
+                                                                    _loc)) e
+                                                                    (Some te) in
+                                                                    Cf.method_
+                                                                    ~loc:_loc
+                                                                    mn p
                                                                     (Cfk_concrete
-                                                                    (o, e))))))))))))
+                                                                    (o, e))))))))))
                          (List.cons
                             (Earley_core.Earley.fsequence method_kw
                                (Earley_core.Earley.fsequence_position
@@ -5384,19 +5287,17 @@ let _ =
                                                                     _loc_e
                                                                     ids te e in
                                                                     let e =
-                                                                    loc_expr
-                                                                    (ghost
-                                                                    _loc_e)
-                                                                    (Pexp_poly
-                                                                    (e,
+                                                                    Exp.poly
+                                                                    ~loc:(
+                                                                    ghost
+                                                                    _loc_e) e
                                                                     (Some
-                                                                    poly))) in
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_method
-                                                                    (mn, p,
+                                                                    poly) in
+                                                                    Cf.method_
+                                                                    ~loc:_loc
+                                                                    mn p
                                                                     (Cfk_concrete
-                                                                    (o, e))))))))))))
+                                                                    (o, e))))))))))
                             (List.cons
                                (Earley_core.Earley.fsequence method_kw
                                   (Earley_core.Earley.fsequence_position
@@ -5439,8 +5340,8 @@ let _ =
                                               (Earley_core.Earley.apply
                                                  (fun x -> Some x)
                                                  (Earley_core.Earley.fsequence_ignore
-                                                    (Earley_core.Earley.string
-                                                       ":" ":")
+                                                    (Earley_core.Earley.char
+                                                       ':' ':')
                                                     (Earley_core.Earley.fsequence
                                                        typexpr
                                                        (Earley_core.Earley.empty
@@ -5543,19 +5444,18 @@ let _ =
                                                                     _loc_e ps
                                                                     e in
                                                                     let e =
-                                                                    loc_expr
-                                                                    (ghost
+                                                                    Exp.poly
+                                                                    ~loc:(
+                                                                    ghost
                                                                     (merge2
                                                                     _loc_t
                                                                     _loc_e))
-                                                                    (Pexp_poly
-                                                                    (e, None)) in
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_method
-                                                                    (mn, p,
+                                                                    e None in
+                                                                    Cf.method_
+                                                                    ~loc:_loc
+                                                                    mn p
                                                                     (Cfk_concrete
-                                                                    (o, e)))))))))))))
+                                                                    (o, e)))))))))))
                                (List.cons
                                   (Earley_core.Earley.fsequence method_kw
                                      (Earley_core.Earley.fsequence
@@ -5565,8 +5465,8 @@ let _ =
                                            (Earley_core.Earley.fsequence
                                               method_name
                                               (Earley_core.Earley.fsequence_ignore
-                                                 (Earley_core.Earley.string
-                                                    ":" ":")
+                                                 (Earley_core.Earley.char ':'
+                                                    ':')
                                                  (Earley_core.Earley.fsequence
                                                     poly_typexpr
                                                     (Earley_core.Earley.empty_pos
@@ -5596,12 +5496,11 @@ let _ =
                                                                     fun
                                                                     _default_1
                                                                     ->
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_method
-                                                                    (mn, p,
+                                                                    Cf.method_
+                                                                    ~loc:_loc
+                                                                    mn p
                                                                     (Cfk_virtual
-                                                                    pte)))))))))))
+                                                                    pte)))))))))
                                   (List.cons
                                      (Earley_core.Earley.fsequence method_kw
                                         (Earley_core.Earley.fsequence
@@ -5611,8 +5510,8 @@ let _ =
                                               (Earley_core.Earley.fsequence
                                                  method_name
                                                  (Earley_core.Earley.fsequence_ignore
-                                                    (Earley_core.Earley.string
-                                                       ":" ":")
+                                                    (Earley_core.Earley.char
+                                                       ':' ':')
                                                     (Earley_core.Earley.fsequence
                                                        poly_typexpr
                                                        (Earley_core.Earley.empty_pos
@@ -5645,13 +5544,12 @@ let _ =
                                                                     fun
                                                                     _default_2
                                                                     ->
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_method
-                                                                    (mn,
-                                                                    Private,
+                                                                    Cf.method_
+                                                                    ~loc:_loc
+                                                                    mn
+                                                                    Private
                                                                     (Cfk_virtual
-                                                                    pte)))))))))))
+                                                                    pte)))))))))
                                      (List.cons
                                         (Earley_core.Earley.fsequence
                                            constraint_kw
@@ -5685,10 +5583,9 @@ let _ =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    loc_pcf
-                                                                    _loc
-                                                                    (Pcf_constraint
-                                                                    (te, te'))))))))
+                                                                    Cf.constraint_
+                                                                    ~loc:_loc
+                                                                    te te'))))))
                                         (List.cons
                                            (Earley_core.Earley.fsequence
                                               initializer_kw
@@ -5712,9 +5609,9 @@ let _ =
                                                              fun e ->
                                                                fun _default_0
                                                                  ->
-                                                                 loc_pcf _loc
-                                                                   (Pcf_initializer
-                                                                    e)))))
+                                                                 Cf.initializer_
+                                                                   ~loc:_loc
+                                                                   e))))
                                            (List.cons
                                               (Earley_core.Earley.fsequence
                                                  floating_attribute
@@ -5747,7 +5644,7 @@ let _ =
              (Earley_core.Earley.fixpoint' (fun l -> l) class_field
                 (fun x -> fun f -> fun l -> f (List.cons x l))))
           (Earley_core.Earley.empty
-             (fun f ->
+             (fun fs ->
                 fun str1 ->
                   fun pos1 ->
                     fun str2 ->
@@ -5756,9 +5653,9 @@ let _ =
                           let _loc_p = locate str1 pos1 str2 pos2 in
                           let p =
                             match p with
-                            | None -> loc_pat (ghost _loc_p) Ppat_any
+                            | None -> Pat.any ~loc:(ghost _loc_p) ()
                             | Some p -> p in
-                          { pcstr_self = p; pcstr_fields = f }))))
+                          Cstr.mk p fs))))
 let class_binding = Earley_core.Earley.declare_grammar "class_binding"
 let _ =
   Earley_core.Earley.set_grammar class_binding
@@ -5766,10 +5663,10 @@ let _ =
        (Earley_core.Earley.fsequence
           (Earley_core.Earley.option []
              (Earley_core.Earley.fsequence_ignore
-                (Earley_core.Earley.string "[" "[")
+                (Earley_core.Earley.char '[' '[')
                 (Earley_core.Earley.fsequence type_parameters
                    (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.string "]" "]")
+                      (Earley_core.Earley.char ']' ']')
                       (Earley_core.Earley.empty (fun params -> params))))))
           (Earley_core.Earley.fsequence_position class_name
              (Earley_core.Earley.fsequence_position
@@ -5791,7 +5688,7 @@ let _ =
                    (Earley_core.Earley.option None
                       (Earley_core.Earley.apply (fun x -> Some x)
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string ":" ":")
+                            (Earley_core.Earley.char ':' ':')
                             (Earley_core.Earley.fsequence class_type
                                (Earley_core.Earley.empty (fun ct -> ct))))))
                    (Earley_core.Earley.fsequence_ignore
@@ -5841,10 +5738,9 @@ let _ =
                                                                    None -> ce
                                                                    | 
                                                                    Some ct ->
-                                                                    loc_pcl
-                                                                    _loc
-                                                                    (Pcl_constraint
-                                                                    (ce, ct)) in
+                                                                    Cl.constraint_
+                                                                    ~loc:_loc
+                                                                    ce ct in
                                                                  fun _loc ->
                                                                    Ci.mk
                                                                     ~loc:_loc
@@ -5906,18 +5802,15 @@ let pexp_list _loc ?loc_cl  l =
             Exp.construct ~loc:_loc (id_loc (Lident "::") (ghost _loc))
               (Some (Exp.tuple ~loc:_loc [x; acc]))) l
        (Exp.construct ~loc:loc_cl (id_loc (Lident "[]") loc_cl) None))
-let apply_lbl _loc (lbl, e) =
-  let e =
-    match e with
-    | None -> loc_expr _loc (Pexp_ident (id_loc (Lident lbl) _loc))
-    | Some e -> e in
-  (lbl, e)
-let rec mk_seq loc_c final =
-  function
+let apply_lbl loc (lbl, e) =
+  match e with
+  | None -> (lbl, (Exp.ident ~loc (id_loc (Lident lbl) loc)))
+  | Some e -> (lbl, e)
+let rec mk_seq loc_c final l =
+  match l with
   | [] -> final
   | x::l ->
-      let res = mk_seq loc_c final l in
-      loc_expr (merge2 x.pexp_loc loc_c) (Pexp_sequence (x, res))
+      Exp.sequence ~loc:(merge2 x.pexp_loc loc_c) x (mk_seq loc_c final l)
 let structure_item_simple = declare_grammar "structure_item_simple"
 let functor_parameter =
   Earley_core.Earley.declare_grammar "functor_parameter"
@@ -6066,7 +5959,7 @@ let _ =
                                         (Seq, false,
                                           (fun e ->
                                              fun (_loc, _) ->
-                                               loc_expr _loc
+                                               Exp.mk ~loc:_loc
                                                  (apply_params _loc l e).pexp_desc))))))))
            (List.cons
               ((fun (alm, lvl) -> (allow_let alm) && (lvl < App)),
@@ -6106,9 +5999,8 @@ let _ =
                                         (fun l ->
                                            fun r ->
                                              fun e ->
-                                               fun (_l, _) ->
-                                                 loc_expr _l
-                                                   (Pexp_let (r, l, e))))))
+                                               fun (loc, _) ->
+                                                 Exp.let_ ~loc r l e))))
                                (List.cons
                                   (Earley_core.Earley.fsequence module_kw
                                      (Earley_core.Earley.fsequence
@@ -6299,11 +6191,9 @@ let _ =
                                                   locate str1 pos1 str2 pos2 in
                                                 ((next_exp Aff), false,
                                                   (fun e ->
-                                                     fun (_l, _) ->
-                                                       loc_expr _l
-                                                         (Pexp_setinstvar
-                                                            ((id_loc v _loc_v),
-                                                              e)))))))))
+                                                     fun (loc, _) ->
+                                                       Exp.setinstvar ~loc
+                                                         (id_loc v _loc_v) e)))))))
                           (List.cons
                              ((fun (alm, lvl) -> lvl <= Aff),
                                (Earley_core.Earley.fsequence
@@ -6328,16 +6218,14 @@ let _ =
                                                                fun e' ->
                                                                  fun e ->
                                                                    fun
-                                                                    (_l, _)
+                                                                    (loc, _)
                                                                     ->
                                                                     let f =
                                                                     id_loc f
                                                                     _loc_f in
-                                                                    loc_expr
-                                                                    _l
-                                                                    (Pexp_setfield
-                                                                    (e', f,
-                                                                    e)))))
+                                                                    Exp.setfield
+                                                                    ~loc e' f
+                                                                    e)))
                                               (List.cons
                                                  (Earley_core.Earley.fsequence_ignore
                                                     (Earley_core.Earley.string
@@ -6459,9 +6347,8 @@ let _ =
                                            (fun _default_0 ->
                                               ((next_exp App), false,
                                                 (fun e ->
-                                                   fun (_l, _) ->
-                                                     loc_expr _l
-                                                       (Pexp_assert e)))))))
+                                                   fun (loc, _) ->
+                                                     Exp.assert_ ~loc e))))))
                                    (List.cons
                                       ((fun (alm, lvl) -> lvl <= App),
                                         (Earley_core.Earley.fsequence lazy_kw
@@ -6469,9 +6356,8 @@ let _ =
                                               (fun _default_0 ->
                                                  ((next_exp App), false,
                                                    (fun e ->
-                                                      fun (_l, _) ->
-                                                        loc_expr _l
-                                                          (Pexp_lazy e)))))))
+                                                      fun (loc, _) ->
+                                                        Exp.lazy_ ~loc e))))))
                                       (List.cons
                                          ((fun (alm, lvl) -> lvl <= Opp),
                                            (prefix_expr Opp))
@@ -6631,8 +6517,7 @@ let _ =
                                     fun id ->
                                       let _loc_id =
                                         locate str1 pos1 str2 pos2 in
-                                      loc_expr _loc
-                                        (Pexp_ident (id_loc id _loc_id))))))
+                                      Exp.ident ~loc:_loc (id_loc id _loc_id)))))
            (List.cons
               ((fun lvl -> lvl <= Atom),
                 (Earley_core.Earley.fsequence constant
@@ -6644,17 +6529,17 @@ let _ =
                                let _loc =
                                  locate __loc__start__buf __loc__start__pos
                                    __loc__end__buf __loc__end__pos in
-                               fun c -> loc_expr _loc (Pexp_constant c)))))
+                               fun c -> Exp.constant ~loc:_loc c))))
               (List.cons
                  ((fun lvl -> lvl <= Atom),
                    (Earley_core.Earley.fsequence_position module_path
                       (Earley_core.Earley.fsequence_ignore
-                         (Earley_core.Earley.string "." ".")
+                         (Earley_core.Earley.char '.' '.')
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string "(" "(")
+                            (Earley_core.Earley.char '(' '(')
                             (Earley_core.Earley.fsequence expression
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string ")" ")")
+                                  (Earley_core.Earley.char ')' ')')
                                   (Earley_core.Earley.empty_pos
                                      (fun __loc__start__buf ->
                                         fun __loc__start__pos ->
@@ -6814,7 +6699,7 @@ let _ =
                                                  fun e ->
                                                    match e with
                                                    | Some e ->
-                                                       loc_expr _loc
+                                                       Exp.mk ~loc:_loc
                                                          e.pexp_desc
                                                    | None ->
                                                        let cunit =
@@ -6892,8 +6777,8 @@ let _ =
                                                            fun _default_1 ->
                                                              match e with
                                                              | Some e ->
-                                                                 loc_expr
-                                                                   _loc
+                                                                 Exp.mk
+                                                                   ~loc:_loc
                                                                    e.pexp_desc
                                                              | None ->
                                                                  let cunit =
@@ -6931,27 +6816,27 @@ let _ =
                                                            __loc__end__pos in
                                                        fun l ->
                                                          fun f ->
-                                                           loc_expr _loc
-                                                             (match ((f.pexp_desc),
-                                                                    l)
-                                                              with
-                                                              | (Pexp_construct
-                                                                 (c, None),
-                                                                 (Nolabel, a)::[])
-                                                                  ->
-                                                                  Pexp_construct
-                                                                    (c,
-                                                                    (Some a))
-                                                              | (Pexp_variant
-                                                                 (c, None),
-                                                                 (Nolabel, a)::[])
-                                                                  ->
-                                                                  Pexp_variant
-                                                                    (c,
-                                                                    (Some a))
-                                                              | _ ->
-                                                                  Pexp_apply
-                                                                    (f, l)))))))
+                                                           match ((f.pexp_desc),
+                                                                   l)
+                                                           with
+                                                           | (Pexp_construct
+                                                              (c, None),
+                                                              (Nolabel, a)::[])
+                                                               ->
+                                                               Exp.construct
+                                                                 ~loc:_loc c
+                                                                 (Some a)
+                                                           | (Pexp_variant
+                                                              (c, None),
+                                                              (Nolabel, a)::[])
+                                                               ->
+                                                               Exp.variant
+                                                                 ~loc:_loc c
+                                                                 (Some a)
+                                                           | _ ->
+                                                               Exp.apply
+                                                                 ~loc:_loc f
+                                                                 l)))))
                                    (List.cons
                                       ((fun lvl -> lvl <= Atom),
                                         (Earley_core.Earley.fsequence_position
@@ -7003,9 +6888,9 @@ let _ =
                                                               __loc__end__buf
                                                               __loc__end__pos in
                                                           fun l ->
-                                                            loc_expr _loc
-                                                              (Pexp_variant
-                                                                 (l, None))))))
+                                                            Exp.variant
+                                                              ~loc:_loc l
+                                                              None))))
                                          (List.cons
                                             ((fun lvl -> lvl <= Atom),
                                               (Earley_core.Earley.fsequence_ignore
@@ -7036,11 +6921,10 @@ let _ =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                    fun l ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_array
+                                                                    Exp.array
+                                                                    ~loc:_loc
                                                                     (List.map
-                                                                    fst l))))))))
+                                                                    fst l)))))))
                                             (List.cons
                                                ((fun lvl -> lvl <= Atom),
                                                  (Earley_core.Earley.fsequence_ignore
@@ -7086,8 +6970,8 @@ let _ =
                                                                     str1 pos1
                                                                     str2 pos2 in
                                                                     fun l ->
-                                                                    loc_expr
-                                                                    _loc
+                                                                    Exp.mk
+                                                                    ~loc:_loc
                                                                     (pexp_list
                                                                     _loc
                                                                     ~loc_cl:_loc_cl
@@ -7095,8 +6979,8 @@ let _ =
                                                (List.cons
                                                   ((fun lvl -> lvl <= Atom),
                                                     (Earley_core.Earley.fsequence_ignore
-                                                       (Earley_core.Earley.string
-                                                          "{" "{")
+                                                       (Earley_core.Earley.char
+                                                          '{' '{')
                                                        (Earley_core.Earley.fsequence
                                                           (Earley_core.Earley.option
                                                              None
@@ -7115,8 +6999,8 @@ let _ =
                                                           (Earley_core.Earley.fsequence
                                                              record_list
                                                              (Earley_core.Earley.fsequence_ignore
-                                                                (Earley_core.Earley.string
-                                                                   "}" "}")
+                                                                (Earley_core.Earley.char
+                                                                   '}' '}')
                                                                 (Earley_core.Earley.empty_pos
                                                                    (fun
                                                                     __loc__start__buf
@@ -7139,10 +7023,9 @@ let _ =
                                                                     __loc__end__pos in
                                                                     fun l ->
                                                                     fun e ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_record
-                                                                    (l, e)))))))))
+                                                                    Exp.record
+                                                                    ~loc:_loc
+                                                                    l e)))))))
                                                   (List.cons
                                                      ((fun lvl -> lvl <= Atom),
                                                        (Earley_core.Earley.fsequence
@@ -7186,10 +7069,9 @@ let _ =
                                                                     fun
                                                                     _default_2
                                                                     ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_while
-                                                                    (e, e'))))))))))
+                                                                    Exp.while_
+                                                                    ~loc:_loc
+                                                                    e e'))))))))
                                                      (List.cons
                                                         ((fun lvl ->
                                                             lvl <= Atom),
@@ -7247,12 +7129,10 @@ let _ =
                                                                     fun
                                                                     _default_2
                                                                     ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_for
-                                                                    (id, e,
-                                                                    e', d,
-                                                                    e''))))))))))))))
+                                                                    Exp.for_
+                                                                    ~loc:_loc
+                                                                    id e e' d
+                                                                    e''))))))))))))
                                                         (List.cons
                                                            ((fun lvl ->
                                                                lvl <= Atom),
@@ -7297,11 +7177,10 @@ let _ =
                                                                     fun
                                                                     _default_0
                                                                     ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_new
+                                                                    Exp.new_
+                                                                    ~loc:_loc
                                                                     (id_loc p
-                                                                    _loc_p)))))))
+                                                                    _loc_p))))))
                                                            (List.cons
                                                               ((fun lvl ->
                                                                   lvl <= Atom),
@@ -7338,10 +7217,9 @@ let _ =
                                                                     fun
                                                                     _default_1
                                                                     ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_object
-                                                                    o)))))))
+                                                                    Exp.object_
+                                                                    ~loc:_loc
+                                                                    o))))))
                                                               (List.cons
                                                                  ((fun lvl ->
                                                                     lvl <=
@@ -7409,10 +7287,9 @@ let _ =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                     fun l ->
-                                                                    loc_expr
-                                                                    _loc
-                                                                    (Pexp_override
-                                                                    l)))))))
+                                                                    Exp.override
+                                                                    ~loc:_loc
+                                                                    l))))))
                                                                  (List.cons
                                                                     ((fun lvl
                                                                     ->
@@ -7483,8 +7360,9 @@ let _ =
                                                                     ghost
                                                                     _loc) me in
                                                                     let pt =
-                                                                    loc_typ
-                                                                    (ghost
+                                                                    Typ.mk
+                                                                    ~loc:(
+                                                                    ghost
                                                                     _loc)
                                                                     pt.ptyp_desc in
                                                                     Exp.constraint_
@@ -7524,14 +7402,12 @@ let _ =
                                                                     str1 pos1
                                                                     str2 pos2 in
                                                                     fun e' ->
-                                                                    fun _l ->
-                                                                    let f =
-                                                                    id_loc f
-                                                                    _loc_f in
-                                                                    loc_expr
-                                                                    _l
-                                                                    (Pexp_field
-                                                                    (e', f)))))
+                                                                    fun loc
+                                                                    ->
+                                                                    Exp.field
+                                                                    ~loc e'
+                                                                    (id_loc f
+                                                                    _loc_f))))
                                                                     (List.cons
                                                                     (Earley_core.Earley.fsequence_ignore
                                                                     (Earley_core.Earley.string
@@ -9377,18 +9253,14 @@ let _ =
                                                             fun me ->
                                                               fun _default_0
                                                                 ->
-                                                                loc_sig _loc
-                                                                  (Psig_include
-                                                                    {
-                                                                    pincl_mod
-                                                                    = me;
-                                                                    pincl_loc
-                                                                    = _loc;
-                                                                    pincl_attributes
-                                                                    =
-                                                                    (attach_attrib
+                                                                Sig.include_
+                                                                  ~loc:_loc
+                                                                  (Incl.mk
+                                                                    ~loc:_loc
+                                                                    ~attrs:(
+                                                                    attach_attrib
                                                                     _loc a)
-                                                                    }))))))
+                                                                    me))))))
                                      (List.cons
                                         (Earley_core.Earley.fsequence
                                            classtype_definition
@@ -9404,9 +9276,8 @@ let _ =
                                                            __loc__end__buf
                                                            __loc__end__pos in
                                                        fun ctd ->
-                                                         loc_sig _loc
-                                                           (Psig_class_type
-                                                              ctd))))
+                                                         Sig.class_type
+                                                           ~loc:_loc ctd)))
                                         (List.cons
                                            (Earley_core.Earley.fsequence
                                               class_specification
@@ -9423,8 +9294,8 @@ let _ =
                                                               __loc__end__buf
                                                               __loc__end__pos in
                                                           fun cs ->
-                                                            loc_sig _loc
-                                                              (Psig_class cs))))
+                                                            Sig.class_
+                                                              ~loc:_loc cs)))
                                            (List.cons
                                               (Earley_core.Earley.fsequence
                                                  floating_attribute
