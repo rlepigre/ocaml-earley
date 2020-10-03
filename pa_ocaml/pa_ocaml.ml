@@ -53,12 +53,54 @@ open Ast_helper
 open Asttypes
 open Parsetree
 open Longident
-open Pa_ast
 open Pa_lexing
 open Ast_helper
 include Pa_ocaml_prelude
 
 #define LOCATE locate
+
+let loc_str _loc desc = { pstr_desc = desc; pstr_loc = _loc; }
+let loc_sig _loc desc = { psig_desc = desc; psig_loc = _loc; }
+
+let loc_expr ?(attributes=[]) _loc e = { pexp_desc = e; pexp_loc = _loc; pexp_attributes = attributes; pexp_loc_stack = [] }
+let loc_pat ?(attributes=[]) _loc pat = { ppat_desc = pat; ppat_loc = _loc; ppat_attributes = attributes; ppat_loc_stack = [] }
+let loc_pcl ?(attributes=[]) _loc desc = { pcl_desc = desc; pcl_loc = _loc; pcl_attributes = attributes; }
+let loc_typ ?(attributes=[]) _loc typ = { ptyp_desc = typ; ptyp_loc = _loc; ptyp_attributes = attributes; ptyp_loc_stack = [] }
+let pctf_loc ?(attributes=[]) _loc desc = { pctf_desc = desc; pctf_loc = _loc; pctf_attributes = attributes }
+let pcty_loc ?(attributes=[]) _loc desc = { pcty_desc = desc; pcty_loc = _loc; pcty_attributes = attributes }
+let loc_pcf ?(attributes=[]) _loc desc = { pcf_desc = desc; pcf_loc = _loc; pcf_attributes = attributes }
+
+let ghost loc =
+  Location.({loc with loc_ghost = true})
+
+let no_ghost loc =
+  Location.({loc with loc_ghost = false})
+
+let de_ghost e =
+  loc_expr (no_ghost e.pexp_loc) e.pexp_desc
+
+let id_loc txt loc = { txt; loc }
+let loc_id loc txt = { txt; loc }
+
+let rec merge = function
+  | [] -> assert false
+  | [loc] -> loc
+  | l1::_ as ls ->
+     let ls = List.rev ls in
+     let rec fn = function
+       | [] -> assert false
+       | [loc] -> loc
+       | l2::ls when Location.(l2.loc_start = l2.loc_end) -> fn ls
+       | l2::ls ->
+          Location.(
+           {loc_start = l1.loc_start; loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost})
+     in fn ls
+
+let merge2 l1 l2 =
+  Location.{l1 with loc_end = l2.loc_end; loc_ghost = l1.loc_ghost && l2.loc_ghost}
+
+let exp_apply _loc f l =
+  loc_expr _loc (Pexp_apply(f, List.map (fun x -> Nolabel, x) l))
 
 module Make(Initial : Extension) = struct
 
@@ -88,11 +130,11 @@ let mk_unary_op loc name loc_name arg =
   | ("-" | "-." | "+" | "+."), _ ->
      let lid = id_loc (Lident ("~" ^ name)) loc_name in
      let fn = Exp.ident ~loc:loc_name lid in
-     Exp.apply ~loc fn [nolabel, arg]
+     Exp.apply ~loc fn [Nolabel, arg]
   | _ ->
      let lid = id_loc (Lident name) loc_name in
      let fn = Exp.ident ~loc:loc_name lid in
-     Exp.apply ~loc fn [nolabel, arg]
+     Exp.apply ~loc fn [Nolabel, arg]
 
 let mk_binary_op loc e' op loc_op e =
   if op = "::" then
@@ -100,7 +142,7 @@ let mk_binary_op loc e' op loc_op e =
     Exp.construct ~loc lid (Some (Exp.tuple ~loc:(ghost loc) [e';e]))
   else
     let id = Exp.ident ~loc:loc_op (id_loc (Lident op) loc_op) in
-    Exp.apply ~loc id [(nolabel, e') ; (nolabel, e)]
+    Exp.apply ~loc id [(Nolabel, e') ; (Nolabel, e)]
 
 let wrap_type_annotation loc types core_type body =
   let exp = Exp.constraint_ ~loc body core_type in
@@ -124,14 +166,14 @@ let string_of_tree (t:tree) : string =
 let label_name = lident
 
 let parser ty_label =
-  | '~' - s:lident ':' -> labelled s
+  | '~' - s:lident ':' -> Labelled s
 
 let parser ty_opt_label =
-  | '?' - s:lident ':' -> optional s
+  | '?' - s:lident ':' -> Optional s
 
 let parser maybe_opt_label =
   | o:'?'? ln:label_name ->
-      (if o = None then labelled ln else (optional ln))
+      (if o = None then Labelled ln else (Optional ln))
 
 (****************************************************************************
  * Names                                                                    *
@@ -383,11 +425,11 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
 
   | ln:label_name ':' te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
        when lvl <= Arr
-    -> Typ.arrow ~loc:_loc (labelled ln) te te'
+    -> Typ.arrow ~loc:_loc (Labelled ln) te te'
 
   | te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
        when lvl <= Arr
-    -> Typ.arrow ~loc:_loc nolabel te te'
+    -> Typ.arrow ~loc:_loc Nolabel te te'
 
   | tc:typeconstr
     -> Typ.constr ~loc:_loc (id_loc tc _loc_tc) []
@@ -435,9 +477,9 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
 (* Type definition *)
 let parser type_param =
   | var:opt_variance id:{_:'\'' ident} ->
-      (Name (id_loc id _loc_id), var)
-  | var:opt_variance j:'_' ->
-      (Joker _loc_j, var)
+      (Typ.var ~loc:_loc_id id, var)
+  | var:opt_variance j:'_'             ->
+      (Typ.any ~loc:_loc_j (), var)
 
 let parser type_params =
   | EMPTY -> []
@@ -508,14 +550,12 @@ let parser constr_extn_list =
 
 (* NOTE: OCaml includes the semi column in the position *)
 let parser field_decl_semi =
-  | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
-     label_declaration ~attributes:(attach_attrib _loc [])
-                       _loc (id_loc fn _loc_fn) m pte
+  | mut:mutable_flag fn:field_name STR(":") pte:poly_typexpr semi_col ->
+      Type.field ~loc:_loc ~attrs:(attach_attrib _loc []) ~mut (id_loc fn _loc_fn) pte
 
 let parser field_decl =
-  | m:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
-     label_declaration ~attributes:(attach_attrib _loc [])
-                       _loc (id_loc fn _loc_fn) m pte
+  | mut:mutable_flag fn:field_name STR(":") pte:poly_typexpr ->
+      Type.field ~loc:_loc ~attrs:(attach_attrib _loc []) ~mut (id_loc fn _loc_fn) pte
 
 let parser field_decl_aux =
   | EMPTY -> []
@@ -542,33 +582,31 @@ let parser type_information =
       in
       (pri, te, tkind, cstrs)
 
-let typedef_gen = (fun att constr filter ->
+let typedef_gen att constr filter =
   parser
-  | tps:type_params tcn:constr ti:type_information
-            a:{post_item_attributes when att | EMPTY when not att -> []}
-    -> (fun prev_loc ->
-      let _loc = match
-           (prev_loc:Location.t option) with None -> _loc
-        | Some l -> merge2 l _loc
+  | params:type_params tcn:constr ti:type_information
+            a:{post_item_attributes when att | EMPTY when not att -> []} ->
+    (fun prev_loc ->
+      let _loc = match prev_loc with None -> _loc | Some l -> merge2 l _loc in
+      let (pri, te, kind, cstrs) = ti in
+      let (priv, manifest) =
+        match te with
+        | None                                 -> (pri    , None   )
+        | Some(Private, te) when pri = Private -> give_up () (* ty = private ty' = private A | B is not legal *)
+        | Some(Private, te)                    -> (Private, Some te)
+        | Some(_      , te)                    -> (pri    , Some te)
       in
-      let (pri, te, tkind, cstrs) = ti in
-      let pri, te = match te with
-          None -> pri, None
-        | Some(Private, te) ->
-           if pri = Private then give_up (); (* ty = private ty' = private A | B is not legal *)
-           Private, Some te
-        | Some(_, te) -> pri, Some te
+      let ty =
+        let attrs = if att then attach_attrib _loc a else [] in
+        let name = id_loc (filter tcn) _loc_tcn in
+        Type.mk ~loc:_loc ~attrs ~params ~cstrs ~kind ~priv ?manifest name
       in
-      id_loc tcn _loc_tcn,
-      type_declaration ~attributes:(if att then attach_attrib _loc a else [])
-        _loc (id_loc (filter tcn) _loc_tcn) tps cstrs tkind pri te)
-  )
+      (id_loc tcn _loc_tcn, ty))
 
 let parser type_extension =
   type_kw params:type_params tcn:typeconstr "+=" priv:private_flag
      cds:constr_extn_list attrs:post_item_attributes ->
         let tcn = id_loc tcn _loc_tcn in
-        let params = params_map params in
         Te.mk ~attrs ~params ~priv tcn cds
 
 let parser typedef = (typedef_gen true typeconstr_name (fun x -> x))
@@ -645,7 +683,7 @@ let parser class_type =
   | tes:{l:maybe_opt_label? STR(":") te:typexpr -> (l, te)}* cbt:class_body_type ->
       let app acc (lab, te) =
         match lab with
-        | None   -> pcty_loc _loc (Pcty_arrow (nolabel, te, acc))
+        | None   -> pcty_loc _loc (Pcty_arrow (Nolabel, te, acc))
         | Some l -> pcty_loc _loc (Pcty_arrow (l, (match l with Optional _ -> te | _ -> te), acc))
       in
       List.fold_left app cbt (List.rev tes)
@@ -655,18 +693,18 @@ let parser type_parameters =
 
 (* Class specification *)
 let parser class_spec =
-  | v:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
+  | virt:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
     cn:class_name STR(":") ct:class_type ->
-      class_type_declaration ~attributes:(attach_attrib _loc []) _loc (id_loc cn _loc_cn) params v ct
+      Ci.mk ~loc:_loc ~attrs:(attach_attrib _loc []) ~virt ~params (id_loc cn _loc_cn) ct
 
 let parser class_specification =
   | class_kw cs:class_spec css:{_:and_kw class_spec}* -> (cs::css)
 
 (* Class type definition *)
 let parser classtype_def =
-  | v:virtual_flag params:{STR("[") tp:type_parameters STR("]")}?[[]] cn:class_name
+  | virt:virtual_flag params:{STR("[") tp:type_parameters STR("]")}?[[]] cn:class_name
     CHR('=') cbt:class_body_type ->
-      (fun _l -> class_type_declaration ~attributes:(attach_attrib _l []) _l (id_loc cn _loc_cn) params v cbt)
+      (fun loc -> Ci.mk ~loc ~attrs:(attach_attrib loc []) ~virt ~params (id_loc cn _loc_cn) cbt)
 
 let parser classtype_definition =
   | k:class_kw type_kw cd:classtype_def cds:{_:and_kw cd:classtype_def -> cd _loc}* ->
@@ -681,8 +719,8 @@ let parser constant =
   | (f,suffix):float_litteral -> Const.float ?suffix f
   | c:char_litteral           -> Const.char c
   | (s,quotation_delimiter):string_litteral -> Const.string ?quotation_delimiter s
-  | s:regexp_litteral  -> const_string s
-  | s:new_regexp_litteral -> const_string s
+  | s:regexp_litteral  -> Const.string s
+  | s:new_regexp_litteral -> Const.string s
   | (i,suffix):int_litteral -> Const.integer ?suffix i
 
 (* we do like parser.mly from ocaml: neg_constant for pattern only *)
@@ -765,7 +803,15 @@ let _ = set_pattern_lvl (fun @(as_ok,lvl) -> parser
       Pat.record ~loc:_loc all cl
 
   | '[' ps:(list1 pattern semi_col) semi_col? c:']' ->
-      pat_list _loc _loc_c ps
+      let nil = id_loc (Lident "[]") (ghost _loc_c) in
+      let hd = match ps with [] -> assert false | x::_ -> x in
+      let cons x xs =
+        let cloc = ghost (merge2 x.ppat_loc _loc) in
+        let c = id_loc (Lident "::") cloc in
+        let loc = if x == hd then _loc else cloc in
+        Pat.construct ~loc c (Some(Pat.tuple ~loc:cloc [x;xs]))
+      in
+      List.fold_right cons ps (Pat.construct ~loc:(ghost _loc_c) nil None)
 
   | '[' ']' ->
       Pat.construct ~loc:_loc (id_loc (Lident "[]") _loc) None
@@ -883,34 +929,34 @@ let parser constructor =
 
 let parser argument =
   | '~' id:lident no_colon ->
-        (labelled id, loc_expr _loc_id (Pexp_ident(id_loc (Lident id) _loc_id)))
+        (Labelled id, loc_expr _loc_id (Pexp_ident(id_loc (Lident id) _loc_id)))
   | id:ty_label e:(expression_lvl (NoMatch ,next_exp App)) ->
        (id, e)
   | '?' id:lident ->
-       (optional id, Exp.ident ~loc:_loc_id (id_loc (Lident id) _loc_id))
+       (Optional id, Exp.ident ~loc:_loc_id (id_loc (Lident id) _loc_id))
   | id:ty_opt_label e:(expression_lvl (NoMatch, next_exp App)) ->
        (id, e)
   | e:(expression_lvl (NoMatch, next_exp App)) ->
-       (nolabel, e)
+       (Nolabel, e)
 
 let _ = set_parameter (fun allow_new_type ->
   parser
-  | pat:(pattern_lvl (false,AtomPat)) -> `Arg (nolabel, None, pat)
+  | pat:(pattern_lvl (false,AtomPat)) -> `Arg (Nolabel, None, pat)
   | '~' '(' id:lident t:{ STR":" t:typexpr }? STR")" -> (
       let pat =  loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
       | None   -> pat
       | Some t -> loc_pat _loc (Ppat_constraint (pat, t))
       in
-      `Arg (labelled id, None, pat))
+      `Arg (Labelled id, None, pat))
   | id:ty_label pat:pattern -> `Arg (id, None, pat)
-  | '~' id:lident no_colon -> `Arg (labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
+  | '~' id:lident no_colon -> `Arg (Labelled id, None, loc_pat _loc_id (Ppat_var(id_loc id _loc_id)))
   | '?' '(' id:lident t:{ ':' t:typexpr -> t }? e:{'=' e:expression -> e}? ')' -> (
       let pat = loc_pat _loc_id (Ppat_var(id_loc id _loc_id)) in
       let pat = match t with
                 | None -> pat
                 | Some t -> loc_pat (merge2 _loc_id _loc_t) (Ppat_constraint(pat,t))
-      in `Arg (optional id, e, pat))
+      in `Arg (Optional id, e, pat))
   | id:ty_opt_label STR"(" pat:pattern t:{':' t:typexpr}? e:{'=' e:expression}? ')' -> (
       let pat = match t with
                 | None -> pat
@@ -919,7 +965,7 @@ let _ = set_parameter (fun allow_new_type ->
   | id:ty_opt_label pat:pattern -> `Arg (id, None, pat)
   | '?' id:lident ->
              (* FIXME OCAML: why is ? treated differently in label position *)
-             `Arg (optional id, None, loc_pat _loc_id (Ppat_var (id_loc id _loc_id)))
+             `Arg (Optional id, None, loc_pat _loc_id (Ppat_var (id_loc id _loc_id)))
   | '(' type_kw name:typeconstr_name ')' when allow_new_type ->
       let name = id_loc name _loc_name in
       `Type(name)
@@ -928,7 +974,7 @@ let _ = set_parameter (fun allow_new_type ->
 let apply_params ?(gh=false) _loc params e =
   let f acc = function
     | `Arg (lbl,opt,pat), _loc' ->
-       loc_expr (ghost (merge2 _loc' _loc)) (pexp_fun (lbl, opt, pat, acc))
+       Exp.fun_ ~loc:(ghost (merge2 _loc' _loc)) lbl opt pat acc
     | `Type name, _loc' ->
        (** FIXME OCAML: should be ghost, or above should not be ghost *)
        Exp.newtype ~loc:(merge2 _loc' _loc) name acc
@@ -948,9 +994,9 @@ let apply_params_cls ?(gh=false) _loc params e =
 
 let parser right_member =
   | l:{lb:(parameter true) -> lb, _loc_lb}+ ty:{CHR(':') t:typexpr}? CHR('=') e:expression ->
-      let e = match ty with
-        None -> e
-      | Some ty -> loc_expr (ghost (merge2 _loc_ty _loc)) (pexp_constraint(e, ty))
+      let e =
+        match ty with None -> e | Some ty ->
+          Exp.constraint_ ~loc:(ghost (merge2 _loc_ty _loc)) e ty
       in
       apply_params ~gh:true _loc_e l e
 
@@ -961,21 +1007,22 @@ let parser eright_member =
 let _ = set_grammar let_binding (
   parser
   | pat:pattern erm:eright_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
-  (    let (_ty, e) = erm in
-       let loc = merge2 _loc_pat _loc_erm in
-       let pat, e = match _ty with
-           None -> (pat, e)
-         | Some ty ->
+      let (_ty, e) = erm in
+      let loc = merge2 _loc_pat _loc_erm in
+      let pat, e =
+        match _ty with
+        | None -> (pat, e)
+        | Some ty ->
             (* FIXME OCAML: crisper position are possible!*)
             let loc = ghost _loc in
             let poly_ty = Typ.poly ~loc:(ghost _loc(*_ty*)) [] ty in
             (Pat.constraint_ ~loc pat poly_ty, Exp.constraint_ ~loc e ty)
-       in
-       value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
+      in
+      Vb.mk ~loc ~attrs:(attach_attrib loc a) pat e :: l
   | vn:value_name e:right_member a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
-     ( let loc = merge2 _loc_vn _loc_e in
-       let pat = pat_ident _loc_vn vn  in
-       value_binding ~attributes:(attach_attrib loc a) loc pat e::l)
+      let loc = merge2 _loc_vn _loc_e in
+      let pat = Pat.var ~loc:_loc_vn (id_loc vn _loc_vn) in
+      Vb.mk ~loc ~attrs:(attach_attrib loc a) pat e :: l
   | vn:value_name ':' ty:only_poly_typexpr '=' e:expression a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
       let pat = loc_pat (ghost _loc) (Ppat_constraint(
         loc_pat _loc_vn (Ppat_var(id_loc vn _loc_vn)),
@@ -983,7 +1030,7 @@ let _ = set_grammar let_binding (
         loc_typ (ghost _loc) ty.ptyp_desc))
       in
       let loc = merge2 _loc_vn _loc_e in
-      value_binding ~attributes:(attach_attrib loc a) loc pat e::l
+      Vb.mk ~loc ~attrs:(attach_attrib loc a) pat e :: l
   | vn:value_name ':' (ids,ty):poly_syntax_typexpr '=' e:expression a:post_item_attributes l:{_:and_kw let_binding}?[[]] ->
     let loc = merge2 _loc_vn _loc_e in
     let (e, ty) = wrap_type_annotation loc ids ty e in
@@ -991,14 +1038,14 @@ let _ = set_grammar let_binding (
         loc_pat _loc_vn (Ppat_var(id_loc vn _loc_vn)),
         ty))
     in
-    value_binding ~attributes:(attach_attrib loc a) loc pat e::l
+    Vb.mk ~loc ~attrs:(attach_attrib loc a) pat e :: l
   )
 
 let parser match_case alm lvl =
-  | pat:pattern  w:{_:when_kw expression }? arrow_re
-                 e:{ (expression_lvl (alm, lvl))
-                   | "." -> Exp.unreachable ~loc:_loc () }
-  -> make_case pat e w
+  | pat:pattern guard:{_:when_kw expression}? arrow_re
+                 e:{(expression_lvl (alm, lvl))
+                   | "." -> Exp.unreachable ~loc:_loc () } ->
+      Exp.case pat ?guard e
 
 let _ = set_grammar match_cases (
   parser
@@ -1072,9 +1119,8 @@ let parser class_field =
     CHR('=') e:expression ->
       let ivn = id_loc ivn _loc_ivn in
       let ex =
-        match te with
-        | None   -> e
-        | Some t -> loc_expr (ghost (merge2 _loc_ivn _loc)) (pexp_constraint (e, t))
+        match te with None -> e | Some t ->
+          Exp.constraint_ ~loc:(ghost (merge2 _loc_ivn _loc)) e t
       in
       loc_pcf _loc (Pcf_val (ivn, m, Cfk_concrete(o,ex)))
   | val_kw m:mutable_flag virtual_kw ivn:inst_var_name
@@ -1101,10 +1147,8 @@ let parser class_field =
       let (o,p,mn) = t in
       if ps = [] && te <> None then give_up ();
       let e =
-        match te with
-          None -> e
-        | Some te ->
-           loc_expr (ghost (merge2 _loc_te _loc_e)) (pexp_constraint (e, te))
+        match te with None -> e | Some te ->
+          Exp.constraint_ ~loc:(ghost (merge2 _loc_te _loc_e)) e te
       in
       let e : expression = apply_params ~gh:true _loc_e ps e in
       let e = loc_expr (ghost (merge2 _loc_t _loc_e)) (Pexp_poly (e, None)) in
@@ -1129,7 +1173,7 @@ let _ = set_grammar class_body (
 
 (* Class definition *)
 let parser class_binding =
-  | v:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
+  | virt:virtual_flag params:{STR("[") params:type_parameters STR("]")}?[[]]
     cn:class_name ps:{p:(parameter false) -> (p,_loc)}* ct:{STR(":") ct:class_type}? CHR('=')
     ce:class_expr ->
       let ce = apply_params_cls ~gh:true (merge2 _loc_ps _loc) ps ce in
@@ -1137,9 +1181,7 @@ let parser class_binding =
                | None    -> ce
                | Some ct -> loc_pcl _loc (Pcl_constraint(ce, ct))
       in
-      (fun _loc ->
-        class_type_declaration ~attributes:(attach_attrib _loc [])
-                               _loc (id_loc cn _loc_cn) params v ce)
+      (fun _loc -> Ci.mk ~loc:_loc ~attrs:(attach_attrib _loc []) ~virt ~params (id_loc cn _loc_cn) ce)
 
 let parser class_definition =
   | k:class_kw cb:class_binding cbs:{_:and_kw cb:class_binding -> cb _loc}*
@@ -1147,13 +1189,13 @@ let parser class_definition =
 
 let pexp_list _loc ?loc_cl l =
   if l = [] then
-    loc_expr _loc (pexp_construct(id_loc (Lident "[]") _loc, None))
+    Exp.construct ~loc:_loc (id_loc (Lident "[]") _loc) None
   else
     let loc_cl = ghost (match loc_cl with None -> _loc | Some pos -> pos) in
     List.fold_right (fun (x,pos) acc ->
                      let _loc = ghost (merge2 pos loc_cl) in
-                     loc_expr _loc (pexp_construct(id_loc (Lident "::") (ghost _loc), Some (loc_expr _loc (Pexp_tuple [x;acc])))))
-                    l (loc_expr loc_cl (pexp_construct(id_loc (Lident "[]") loc_cl, None)))
+                     Exp.construct ~loc:_loc (id_loc (Lident "::") (ghost _loc)) (Some (Exp.tuple ~loc:_loc [x;acc])))
+                    l (Exp.construct ~loc:loc_cl (id_loc (Lident "[]") loc_cl) None)
 
 
 let apply_lbl _loc (lbl, e) =
@@ -1321,20 +1363,20 @@ let parser right_expression @lvl =
         | Some(e) -> loc_expr _loc e.pexp_desc
         | None ->
            let cunit = id_loc (Lident "()") _loc in
-           loc_expr _loc (pexp_construct(cunit, None)))
+           Exp.construct ~loc:_loc cunit None)
 
   | '(' no_parser e:expression t:type_coercion ')'  when lvl <= Atom  ->
        (match t with
-           | (Some t1, None) -> loc_expr (ghost _loc) (pexp_constraint(e, t1))
-           | (t1, Some t2) -> loc_expr (ghost _loc) (pexp_coerce(e, t1, t2))
-           | None, None -> assert false)
+        | (Some t1, None   ) -> Exp.constraint_ ~loc:(ghost _loc) e t1
+        | (t1     , Some t2) -> Exp.coerce ~loc:(ghost _loc) e t1 t2
+        | (None   , None   ) -> assert false)
 
   | begin_kw e:expression? end_kw when lvl <= Atom ->
        (match e with
         | Some e -> loc_expr _loc e.pexp_desc
         | None ->
            let cunit = id_loc (Lident "()") _loc in
-           loc_expr _loc (pexp_construct(cunit, None)))
+           Exp.construct ~loc:_loc cunit None)
 
   | f:(expression_lvl (NoMatch, next_exp App)) l:argument+ when lvl <= App ->
      loc_expr _loc (match f.pexp_desc, l with
@@ -1343,7 +1385,7 @@ let parser right_expression @lvl =
      | _ -> Pexp_apply(f,l))
 
   | c:constructor no_dot when lvl <= Atom ->
-        loc_expr _loc (pexp_construct(id_loc c _loc_c, None))
+     Exp.construct ~loc:_loc (id_loc c _loc_c) None
 
   | l:tag_name  when lvl <= Atom ->
      loc_expr _loc (Pexp_variant(l, None))
@@ -1371,13 +1413,14 @@ let parser right_expression @lvl =
      loc_expr _loc (Pexp_override l)
 
   | '(' module_kw me:module_expr pt:{STR(":") pt:package_type}? ')' when lvl <= Atom ->
-      let desc = match pt with
-                 | None    -> Pexp_pack me
-                 | Some pt -> let me = loc_expr (ghost _loc) (Pexp_pack me) in
-                              (* FIXME OCAML: why enlarge and ghost ?*)
-                              let pt = loc_typ (ghost _loc) pt.ptyp_desc in
-                              pexp_constraint (me, pt)
-      in loc_expr _loc desc
+      begin
+        match pt with
+        | None    -> Exp.pack ~loc:_loc me
+        | Some pt -> let me = Exp.pack ~loc:(ghost _loc) me in
+                     (* FIXME OCAML: why enlarge and ghost ?*)
+                     let pt = loc_typ (ghost _loc) pt.ptyp_desc in
+                     Exp.constraint_ ~loc:_loc me pt
+      end
   | e':{e':(expression_lvl (NoMatch, Dot)) -> e'} '.'
       r:{ STR("(") f:expression STR(")") ->
            fun e' _l -> exp_apply _l (array_function (ghost (merge2 e'.pexp_loc _l)) "Array" "get") [e';f]
@@ -1436,29 +1479,31 @@ let _ = set_expression_lvl (fun (alm, lvl as c) -> parser
 
 let parser module_expr_base =
   | mp:module_path ->
-      let mid = id_loc mp _loc in
-      mexpr_loc _loc (Pmod_ident mid)
+      Mod.ident ~loc:_loc (id_loc mp _loc)
   | {struct_kw -> push_comments ()}
     ms:{ms:structure -> ms @ attach_str _loc}
     {end_kw ->  pop_comments ()} ->
-      mexpr_loc _loc (Pmod_structure(ms))
-  | functor_kw p:functor_parameter arrow_re me:module_expr
-    -> Mod.functor_ ~loc:_loc (snd p) me
+      Mod.structure ~loc:_loc ms
+  | functor_kw p:functor_parameter arrow_re me:module_expr ->
+      Mod.functor_ ~loc:_loc (snd p) me
   | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
-      (match mt with
-       | None    -> me
-       | Some mt -> mexpr_loc _loc (Pmod_constraint (me, mt)))
+      begin
+        match mt with
+         | None    -> me
+         | Some mt -> Mod.constraint_ ~loc:_loc me mt
+      end
   | '(' val_kw e:expression pt:{STR(":") pt:package_type}? ')' ->
-      let e = match pt with
-              | None    -> Pmod_unpack e
-              | Some pt -> Pmod_unpack (loc_expr (ghost _loc) (pexp_constraint (e, pt)))
+      let e =
+        match pt with
+        | None    -> e
+        | Some pt -> Exp.constraint_ ~loc:(ghost _loc) e pt
       in
-      mexpr_loc _loc e
+      Mod.unpack ~loc:_loc e
 
 let _ = set_grammar module_expr (
   parser
     m:module_expr_base l:{STR("(") m:module_expr STR(")") -> (_loc, m)}* ->
-      List.fold_left (fun acc (_loc_n, n) -> mexpr_loc (merge2 _loc_m _loc_n) (Pmod_apply(acc, n))) m l
+      List.fold_left (fun acc (_loc_n, n) -> Mod.apply ~loc:(merge2 _loc_m _loc_n) acc n) m l
   )
 
 let parser module_type_base =
@@ -1480,10 +1525,10 @@ let parser mod_constraint =
   | module_kw m1:module_path CHR('=') m2:extended_module_path ->
      let name = id_loc m1 _loc_m1 in
      Pwith_module(name, id_loc m2 _loc_m2 )
-  | type_kw tps:type_params tcn:typeconstr STR(":=") te:typexpr ->
+  | type_kw params:type_params tcn:typeconstr STR(":=") te:typexpr ->
       let tcn0 = id_loc (Longident.last tcn) _loc_tcn in
       let _tcn = id_loc tcn _loc_tcn in
-      let td = type_declaration _loc tcn0 tps [] Ptype_abstract Public (Some te) in
+      let td = Type.mk ~loc:_loc ~params ~manifest:te tcn0 in
       Pwith_typesubst (_tcn,td)
   | module_kw mn:module_path STR(":=") emp:extended_module_path ->
       let mn = id_loc mn _loc_mn in
@@ -1491,11 +1536,9 @@ let parser mod_constraint =
 
 let _ = set_grammar module_type (
   parser
-    m:module_type_base l:{_:with_kw m:mod_constraint l:{_:and_kw mod_constraint}* -> m::l } ? ->
-      (match l with
-         None -> m
-       | Some l -> mtyp_loc _loc (Pmty_with(m, l)))
-  )
+  | m:module_type_base l:{_:with_kw m:mod_constraint l:{_:and_kw mod_constraint}* -> m::l}? ->
+      (match l with None -> m | Some l -> Mty.with_ ~loc:_loc m l)
+)
 
 let parser structure_item_base =
   | RE(let_re) r:rec_flag l:let_binding ->
@@ -1514,10 +1557,17 @@ let parser structure_item_base =
   | _:module_kw r:{
       | rec_kw mn:module_name mt:{':' mt:module_type}? '=' me:module_expr ms:{
           and_kw mn:module_name mt:{':' mt:module_type}? '=' me:module_expr ->
-            module_binding (merge2 _loc_mt _loc_me) mn mt me
+            let loc = merge2 _loc_mt _loc_me in
+            let me =
+              match mt with None -> me | Some mt -> Mod.constraint_ ~loc me mt
+            in
+            Mb.mk ~loc mn me
         }* ->
-          let m = (module_binding (merge2 _loc_mt _loc_me) mn mt me) in
-          Str.rec_module ~loc:_loc (m::ms)
+          let loc = merge2 _loc_mt _loc_me in
+          let me =
+            match mt with None -> me | Some mt -> Mod.constraint_ ~loc me mt
+          in
+          Str.rec_module ~loc:_loc (Mb.mk ~loc mn me :: ms)
       | mn:module_name l:functor_parameter* mt:{':' mt:module_type }? '=' me:module_expr ->
           let me =
             let loc = merge2 _loc_mt _loc_me in
@@ -1528,7 +1578,7 @@ let parser structure_item_base =
             Mod.functor_ ~loc p acc
           in
           let me = List.fold_left fn me (List.rev l) in
-          Str.module_ ~loc:_loc (module_binding _loc mn None me)
+          Str.module_ ~loc:_loc (Mb.mk ~loc:_loc mn me)
       | type_kw mn:modtype_name mt:{STR"=" mt:module_type}?
         a:post_item_attributes ->
           let attrs = attach_attrib _loc a in
@@ -1548,14 +1598,14 @@ let parser structure_item_base =
 (* FIXME ext_attributes *)
 let parser structure_item_aux =
   | _:ext_attributes -> []
-  | _:ext_attributes e:expression -> attach_str _loc @ [loc_str _loc_e (pstr_eval e)]
+  | _:ext_attributes e:expression -> attach_str _loc @ [Str.eval ~loc:_loc_e e]
   | s1:structure_item_aux double_semi_col?[()] _:ext_attributes f:{
              | e:(alternatives extra_structure) ->
                  (fun s1 -> List.rev_append e (List.rev_append (attach_str _loc_e) s1))
              | s2:structure_item_base ->
                   (fun s1 -> s2 :: (List.rev_append (attach_str _loc_s2) s1)) } -> f s1
   | s1:structure_item_aux double_semi_col _:ext_attributes e:expression
-      -> loc_str _loc_e (pstr_eval e) :: (List.rev_append (attach_str _loc_e) s1)
+      -> Str.eval ~loc:_loc_e e :: (List.rev_append (attach_str _loc_e) s1)
 
 let _ = set_grammar structure_item
   (parser l:structure_item_aux _:double_semi_col? -> List.rev l)
@@ -1581,10 +1631,10 @@ let parser signature_item_base =
       Sig.exception_ ~loc:_loc (Te.mk_exception ~loc:_loc cd)
   | module_kw rec_kw mn:module_name ':' mt:module_type a:post_item_attributes
     ms:{and_kw mn:module_name ':' mt:module_type a:post_item_attributes ->
-            module_declaration ~attributes:(attach_attrib _loc a) _loc mn mt
+      Md.mk ~loc:_loc ~attrs:(attach_attrib _loc a) mn mt
     }* ->
       let loc_first = merge2 _loc_mn _loc_a in
-      let m = (module_declaration ~attributes:(attach_attrib loc_first a) loc_first mn mt) in
+      let m = Md.mk ~loc:loc_first ~attrs:(attach_attrib loc_first a) mn mt in
       Sig.rec_module ~loc:_loc (m::ms)
   | _:module_kw r:{
       | mn:module_name l:functor_parameter* ':' mt:module_type a:post_item_attributes ->

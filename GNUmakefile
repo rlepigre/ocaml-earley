@@ -32,7 +32,6 @@ boot:
 	@echo "Bootstrapping [pa_ocaml] (with backup in a tarball)."
 	@tar -cf boot_$(shell date +%F_%H-%M-%S).tar boot
 	@rm -rf new_boot && mkdir new_boot
-	@dune exec -- pa_ocaml pa_ocaml/pa_ast.ml > new_boot/pa_ast.ml
 	@dune exec -- pa_ocaml pa_ocaml/pa_default.ml > new_boot/pa_default.ml
 	@dune exec -- pa_ocaml pa_ocaml/pa_lexing.ml > new_boot/pa_lexing.ml
 	@dune exec -- pa_ocaml pa_ocaml/pa_main.ml > new_boot/pa_main.ml
