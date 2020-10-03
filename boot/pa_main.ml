@@ -114,40 +114,33 @@ module OCamlPP : Preprocessor =
       match st with | [] -> () | _ -> pp_error name "unclosed conditionals"
   end 
 module PP = (Earley.WithPP)(OCamlPP)
-module Start(Main:Extension) =
-  struct
-    let _ =
-      let anon_fun s = file := (Some s) in
-      let usage = Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)) in
-      Arg.parse Main.spec anon_fun usage
-    let _ = Main.before_parse_hook ()
-    let entry =
-      match ((!entry), (!file)) with
-      | (FromExt, Some s) ->
-          let rec fn =
-            function
-            | (ext, res)::l ->
-                if Filename.check_suffix s ext then res else fn l
-            | [] ->
-                (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
-          fn Main.entry_points
-      | (FromExt, None) -> Implementation (Main.structure, ocaml_blank)
-      | (Intf, _) -> Interface (Main.signature, ocaml_blank)
-      | (Impl, _) -> Implementation (Main.structure, ocaml_blank)
-    let ast =
-      let (filename, ch) =
-        match !file with
-        | None -> ("stdin", stdin)
-        | Some name -> (name, (open_in name)) in
-      let run () =
-        match entry with
-        | Implementation (g, blank) ->
-            `Struct (PP.parse_channel ~filename g blank ch)
-        | Interface (g, blank) ->
-            `Sig (PP.parse_channel ~filename g blank ch) in
-      Earley.handle_exception run ()
-    let _ =
-      match ast with
-      | `Struct ast -> Format.printf "%a\n%!" Pprintast.structure ast
-      | `Sig ast -> Format.printf "%a\n%!" Pprintast.signature ast
-  end
+let _ =
+  let anon_fun s = file := (Some s) in
+  let usage = Printf.sprintf "usage: %s [options] file" (Sys.argv.(0)) in
+  Arg.parse Pa_ocaml_prelude.spec anon_fun usage
+let entry =
+  match ((!entry), (!file)) with
+  | (FromExt, Some s) ->
+      let rec fn =
+        function
+        | (ext, res)::l -> if Filename.check_suffix s ext then res else fn l
+        | [] -> (eprintf "Don't know what to do with file %s\n%!" s; exit 1) in
+      fn Pa_ocaml_prelude.entry_points
+  | (FromExt, None) -> Implementation (Pa_ocaml.structure, ocaml_blank)
+  | (Intf, _) -> Interface (Pa_ocaml.signature, ocaml_blank)
+  | (Impl, _) -> Implementation (Pa_ocaml.structure, ocaml_blank)
+let ast =
+  let (filename, ch) =
+    match !file with
+    | None -> ("stdin", stdin)
+    | Some name -> (name, (open_in name)) in
+  let run () =
+    match entry with
+    | Implementation (g, blank) ->
+        `Struct (PP.parse_channel ~filename g blank ch)
+    | Interface (g, blank) -> `Sig (PP.parse_channel ~filename g blank ch) in
+  Earley.handle_exception run ()
+let _ =
+  match ast with
+  | `Struct ast -> Format.printf "%a\n%!" Pprintast.structure ast
+  | `Sig ast -> Format.printf "%a\n%!" Pprintast.signature ast
