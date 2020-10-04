@@ -74,22 +74,22 @@ let new_regexp_apply loc nameo e1 =
 let mk_constr loc id arg =
   Exp.construct ~loc (mknoloc (Longident.parse id)) arg
 
+let mk_unit loc = mk_constr loc "()" None
+
+let or_unit loc eo = match eo with Some(e) -> e | None -> mk_unit loc
+
 let mk_cons loc e1 e2 = mk_app loc (mk_id "List.cons") [e1; e2]
 
 let rec build_action loc occur_loc ids e =
-  let e1 =
+  let e =
     let fn e ((id, x), visible) =
       match (find_locate (), visible) with
       | (Some(f), true) ->
           let args = ["str1"; "pos1"; "str2"; "pos2"] in
-          mk_fun loc args (
-            Exp.fun_ ~loc Nolabel None (mkpatt loc (id,x)) (
-            let vb =
-              Vb.mk (Pat.var (mknoloc ("_loc_" ^ id)))
-                (mk_appv loc f ["str1"; "pos1"; "str2"; "pos2"])
-            in
-            Exp.let_ Nonrecursive [vb] e
-          ))
+          let pat_loc_id = Pat.var (mknoloc ("_loc_" ^ id)) in
+          let vb = Vb.mk pat_loc_id (mk_appv loc f args) in
+          let e = Exp.let_ Nonrecursive [vb] e in
+          mk_fun loc args (Exp.fun_ ~loc Nolabel None (mkpatt loc (id,x)) e)
       | (_      , _   ) ->
           if id= "_" && x = None then e else
           Exp.fun_ ~loc Nolabel None (mkpatt loc (id,x)) e
@@ -102,11 +102,9 @@ let rec build_action loc occur_loc ids e =
         [ "__loc__start__buf" ; "__loc__start__pos"
         ; "__loc__end__buf"   ; "__loc__end__pos"   ]
       in
-      mk_fun loc args (
-        let vb = Vb.mk (Pat.var (mknoloc "_loc")) (mk_appv loc locate args) in
-        Exp.let_ Nonrecursive [vb] e1
-      )
-  | (_           , _   ) -> e1
+      let vb = Vb.mk (Pat.var (mknoloc "_loc")) (mk_appv loc locate args) in
+      mk_fun loc args (Exp.let_ Nonrecursive [vb] e)
+  | (_           , _   ) -> e
 
 let apply_option loc opt e =
   let fn e f d =
@@ -163,7 +161,7 @@ let default_action loc l =
     | _                            -> assert false
   in
   match List.map f (List.filter p l) with
-  | []  -> mk_constr loc "()" None
+  | []  -> mk_unit loc
   | [e] -> e
   | l   -> Exp.tuple ~loc l
 
@@ -191,8 +189,7 @@ let build_rule (_loc,occur_loc,def, l, condition, action) =
                | None -> def a
                | Some cond ->
                   def (Exp.ifthenelse ~loc:_loc cond a (Some (core_apply
-                  _loc "fail"
-                  [mk_constr _loc "()" None]))))
+                  _loc "fail" [mk_unit _loc]))))
     in
 
     let rec fn ids l = match l with
@@ -230,7 +227,7 @@ let apply_def_cond _loc r =
   match cond with
     None -> def e
   | Some c ->
-    def (Exp.ifthenelse ~loc:_loc c e (Some (core_apply _loc "fail" [mk_constr _loc "()" None])))
+    def (Exp.ifthenelse ~loc:_loc c e (Some (core_apply _loc "fail" [mk_unit _loc])))
 
 let apply_def_cond_list loc r acc =
   let (def,cond,e) = build_rule r in
@@ -250,7 +247,7 @@ let build_alternatives loc ls =
   (* FIXME: warning if useless @| ? *)
   let ls = List.map snd ls in
   match ls with
-  | []      -> core_apply loc "fail" [mk_constr loc "()" None]
+  | []      -> core_apply loc "fail" [mk_unit loc]
   | [r]     -> apply_def_cond loc r
   | _::_::_ ->
       let l = List.fold_right (apply_def_cond_list loc) ls (mk_constr loc "[]" None) in
@@ -382,90 +379,101 @@ let build_str_item _loc l =
   else
     str1 @ (Str.value ~loc:_loc Recursive str3) :: str2
 
-let parser glr_sequence =
-  | '{' r:glr_rules '}'
-   -> (true, build_alternatives _loc_r r)
-  | "EOF" oe:glr_opt_expr
-   -> (oe <> None, core_apply _loc "eof" [from_opt oe (mk_constr _loc "()" None)])
-  | "EMPTY" oe:glr_opt_expr
-   -> (oe <> None, core_apply _loc "empty" [from_opt oe (mk_constr _loc "()" None)])
-  | "FAIL" e:expr_arg
-   -> (false, core_apply _loc "fail" [e])
-  | "DEBUG" e:expr_arg
-   -> (false, core_apply _loc "debug" [e])
-  | "ANY"
-   -> (true, mk_id "Earley_core.Earley.any")
-  | "CHR" e:expr_arg oe:glr_opt_expr
-   -> (oe <> None, core_apply _loc "char" [e; from_opt oe e])
-  | c:char_litteral oe:glr_opt_expr
-   -> let e = Exp.constant ~loc:_loc (Const.char c) in
-      (oe <> None, core_apply _loc "char" [e; from_opt oe e])
-  | "STR" e:expr_arg oe:glr_opt_expr
-   -> (oe <> None, core_apply _loc "string" [e; from_opt oe e])
-  | "ERROR" e:expr_arg
-   -> (true, core_apply _loc "error_message" [Exp.fun_ Nolabel None (Pat.any ()) e])
-  | (s,_):string_litteral oe:glr_opt_expr
-   -> if String.length s = 0 then Earley.give_up ();
-      let s = Exp.constant (Const.string s) in
-      let e = from_opt oe s in
-      (oe <> None, core_apply _loc "string" [s; e])
-  | "RE" e:expr_arg opt:glr_opt_expr
-   -> begin
-        let act =
-          mk_fun _loc ["group"] (from_opt opt (mk_app _loc (mk_id "group")
-            [Exp.constant (Const.int 0)]))
+let build_re loc e opt =
+  let act =
+    mk_fun loc ["group"] (from_opt opt (mk_app loc (mk_id "group")
+      [Exp.constant (Const.int 0)]))
+  in
+  let name =
+    match e.pexp_desc with
+    | Pexp_ident { txt = Lident id } ->
+        let id =
+          let l = String.length id in
+          if l > 3 && String.sub id (l - 3) 3 = "_re" then
+            String.sub id 0 (l - 3)
+          else id
         in
-        match e.pexp_desc with
-        | Pexp_ident { txt = Lident id } ->
-            let id =
-              let l = String.length id in
-              if l > 3 && String.sub id (l - 3) 3 = "_re" then
-                String.sub id 0 (l - 3)
-              else id
-            in
-            (true, regexp_apply _loc (Some (Exp.constant (Const.string id))) e act)
-        | _                              ->
-            (true, regexp_apply _loc None e act)
-      end
-  | "BLANK" oe:glr_opt_expr
-   -> let e = from_opt oe (mk_constr _loc "()" None) in
-      (oe <> None, core_apply _loc "with_blank_test" [e])
-  | dash oe:glr_opt_expr
-   -> let e = from_opt oe (mk_constr _loc "()" None) in
-      (oe <> None, core_apply _loc "no_blank_test" [e])
-  | s:regexp_litteral oe:glr_opt_expr
-   -> let opt = from_opt oe (mk_app _loc (mk_id "group") [Exp.constant (Const.int 0)]) in
-      let es = String.escaped s in
-      let act = mk_fun _loc ["group"] opt in
-      (true, regexp_apply _loc (Some (Exp.constant (Const.string es)))
-               (Exp.constant (Const.string s)) act)
-  | s:new_regexp_litteral opt:glr_opt_expr
-   -> begin
-        let es = String.escaped s in
-        let s = "\\(" ^ s ^ "\\)" in
-        let re =
-          new_regexp_apply _loc (Some (Exp.constant (Const.string es)))
-            (Exp.constant (Const.string s))
-        in
-        match opt with
-        | None   -> (true, re)
-        | Some e -> (true, core_apply _loc "apply" [mk_fun _loc ["group"] e; re])
-      end
-  | id:value_path
-   -> (true, Exp.ident ~loc:_loc (mkloc id _loc))
-  | "(" e:expression ")"
-   -> (true, e)
+        Some (Exp.constant (Const.string id))
+    | _                              -> None
+  in
+  regexp_apply loc name e act
 
+let build_re_litteral loc s opt =
+  let opt =
+    from_opt opt (mk_app loc (mk_id "group") [Exp.constant (Const.int 0)])
+  in
+  let es = String.escaped s in
+  let act = mk_fun loc ["group"] opt in
+  regexp_apply loc (Some (Exp.constant (Const.string es)))
+    (Exp.constant (Const.string s)) act
 
-and parser glr_opt_expr = {'[' expression ']'}?
+let build_new_re_litteral loc s opt =
+  let es = String.escaped s in
+  let s = "\\(" ^ s ^ "\\)" in
+  let re =
+    new_regexp_apply loc (Some (Exp.constant (Const.string es)))
+      (Exp.constant (Const.string s))
+  in
+  match opt with
+  | None   -> re
+  | Some e -> core_apply loc "apply" [mk_fun loc ["group"] e; re]
 
-and parser glr_option =
-  | '*' e:glr_opt_expr g:'$'? -> `Fixpoint(e,g)
-  | '+' e:glr_opt_expr g:'$'? -> `Fixpoint1(e,g)
-  | '?' e:glr_opt_expr g:'$'? -> `Option(e,g)
-  | '$'                       -> `Greedy
-  | EMPTY                     -> `Once
+(** Grammar for a single parser atom (including composite atoms such a a local
+    alternative given in braces). The semantic action is a pair [(boring, e)],
+    where [boring] is a boolean indicating whether the denoted parser produces
+    a boring value (i.e., an uninteresting result),  and [e] is the parser for
+    the atom (as an OCaml expression). *) (* TODO invert boolean. *)
+let parser parser_atom =
+  (* Atoms using a special, capitalized identifier. *)
+  | "EOF" oe:parser_param? ->
+      (oe = None, core_apply _loc "eof" [or_unit _loc oe])
+  | "EMPTY" oe:parser_param? ->
+      (oe = None, core_apply _loc "empty" [or_unit _loc oe])
+  | "FAIL" ->
+      (true, core_apply _loc "fail" [mk_unit _loc])
+  | "DEBUG" e:expr_arg ->
+      (true, core_apply _loc "debug" [e])
+  | "CHR" e:expr_arg oe:parser_param? ->
+      (oe = None, core_apply _loc "char" [e; from_opt oe e])
+  | "STR" e:expr_arg oe:parser_param? ->
+      (oe = None, core_apply _loc "string" [e; from_opt oe e])
+  | "ANY" ->
+      (false, mk_id "Earley_core.Earley.any")
+  | "BLANK" oe:parser_param? ->
+      (oe = None, core_apply _loc "with_blank_test" [or_unit _loc oe])
+  | "RE" e:expr_arg oe:parser_param? ->
+      (false, build_re _loc e oe)
+  (* Atoms using literals syntax. *)
+  | c:char_litteral oe:parser_param? ->
+      let e = Exp.constant ~loc:_loc (Const.char c) in
+      (oe = None, core_apply _loc "char" [e; from_opt oe e])
+  | (s,_):string_litteral oe:parser_param? ->
+      let e = Exp.constant (Const.string s) in
+      (oe = None, core_apply _loc "string" [e; from_opt oe e])
+  | s:regexp_litteral oe:parser_param? ->
+      (false, build_re_litteral _loc s oe)
+  | s:new_regexp_litteral oe:parser_param? ->
+      (false, build_new_re_litteral _loc s oe)
+  (* Atoms defined by OCaml values. *)
+  | id:value_path ->
+      (false, Exp.ident ~loc:_loc (mkloc id _loc))
+  | "(" e:expression ")" ->
+      (false, e)
+  (* Full grammar as an atom. *)
+  | '{' r:glr_rules '}' ->
+      (false, build_alternatives _loc r)
+  (* Special atom to forbid blanks. *)
+  | dash oe:parser_param? ->
+      (oe = None, core_apply _loc "no_blank_test" [or_unit _loc oe])
 
+and parser parser_param = '[' expression ']'
+
+and parser parser_modifier =
+  | '*' e:parser_param? g:'$'? -> `Fixpoint(e,g)
+  | '+' e:parser_param? g:'$'? -> `Fixpoint1(e,g)
+  | '?' e:parser_param? g:'$'? -> `Option(e,g)
+  | '$'                        -> `Greedy
+  | EMPTY                      -> `Once
 
 and parser glr_ident =
   | p:(pattern_lvl (true, ConstrPat)) ':' ->
@@ -476,11 +484,12 @@ and parser glr_ident =
         | Ppat_any                  -> (Some(false    ), ("_", None   ))
         | _                         -> (Some(true     ), ("_", Some(p)))
       end
-  | EMPTY -> (None, ("_", None))
+  | EMPTY ->
+      (None, ("_", None))
 
 and parser glr_left_member =
-   {(cst',id):glr_ident (cst,s):glr_sequence opt:glr_option ->
-     `Normal(id, (from_opt cst' (opt <> `Once || cst)),s,opt) }+
+   {(cst',id):glr_ident (boring,s):parser_atom opt:parser_modifier ->
+     `Normal(id, (from_opt cst' (opt <> `Once || not boring)),s,opt) }+
 
 and parser glr_let =
   | let_kw r:rec_flag lbs:let_binding in_kw l:glr_let ->
@@ -491,52 +500,58 @@ and parser glr_let =
 and parser glr_cond = {_:when_kw e:expression}?
 
 and parser glr_action alm =
-  | "->>" r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
-  | "->" action:(if alm then expression else expression_lvl (Let, Seq)) no_semi -> Normal action
-  | EMPTY -> Default
+  | "->>" r:(glr_rule alm) ->
+      DepSeq(build_rule r)
+  | "->" a:(if alm then expression else expression_lvl (Let, Seq)) no_semi ->
+      Normal(a)
+  | EMPTY ->
+      Default
 
 and parser glr_rule alm =
-  | def:glr_let l:glr_left_member condition:glr_cond action:(glr_action alm) ->
-      let l = fst (List.fold_right (fun x (res,i) ->
+  | def:glr_let l:glr_left_member cond:glr_cond action:(glr_action alm) ->
+      let fn x (res, i) =
         match x with
         | `Normal(("_",a),true,c,d) ->
             (`Normal(("_default_"^string_of_int i,a),true,c,d,false)::res, i+1)
         | `Normal(id, b,c,d) ->
             let occur_loc_id = fst id <> "_" && occur ("_loc_"^fst id) action in
-            (`Normal(id, b,c,d,occur_loc_id)::res, i)) l ([], 0))
+            (`Normal(id, b,c,d,occur_loc_id)::res, i)
       in
-      let occur_loc = occur "_loc" action in
-      (_loc, occur_loc, def, l, condition, action)
+      let l = fst (List.fold_right fn l ([], 0)) in
+      (_loc, occur "_loc" action, def, l, cond, action)
 
-and parser glr_at_rule alm = a:{'@' | '[' '@' "unshared" ']' }? r:(glr_rule alm) -> ((a <> None), r)
+and parser glr_at_rule alm =
+  | a:{'@' | '[' '@' "unshared" ']' }? r:(glr_rule alm) -> ((a <> None), r)
 
-and parser glr_rules = '|'? rs:{ r:(glr_at_rule false) _:'|'}* r:(glr_at_rule true)
-    -> r::rs
+and parser glr_rules =
+  | '|'? rs:{ r:(glr_at_rule false) _:'|'}* r:(glr_at_rule true) -> r::rs
 
 let parser glr_binding =
-  name:lident args:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '=' r:glr_rules
-    -> `Parser(name,args,prio,ty,_loc_r,r)
+  | name:lident args:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '='
+    r:glr_rules ->
+      `Parser(name,args,prio,ty,_loc_r,r)
 
 let parser glr_bindings =
-  | cs:{_:and_kw let_binding}?[[]] -> List.map (fun b -> `Caml b) cs
-  | and_kw cs:{let_binding _:and_kw}?[[]] parser_kw b:glr_binding l:glr_bindings
-        -> (List.map (fun b -> `Caml b) cs) @ b::l
+  | cs:{_:and_kw let_binding}?[[]] ->
+      List.map (fun b -> `Caml b) cs
+  | and_kw cs:{let_binding _:and_kw}?[[]] parser_kw b:glr_binding
+    bs:glr_bindings ->
+      List.map (fun b -> `Caml b) cs @ b :: bs
 
 let parser extra_structure =
-  | let_kw parser_kw b:glr_binding l:glr_bindings -> build_str_item _loc (b::l)
+  | _:let_kw _:parser_kw b:glr_binding bs:glr_bindings ->
+      build_str_item _loc (b::bs)
+
+let parser parser_args =
+  | _:fun_kw (pattern_lvl(false,AtomPat))* '@' pattern "->"
 
 let parser extra_prefix_expressions =
-  | (args,prio):{
-      | _:parser_kw -> ([], None)
-      | _:fun_kw args:(pattern_lvl(false,AtomPat))* '@'
-        prio:pattern "->" _:parser_kw -> (args,Some prio)
-      | _:function_kw arg:pattern '@' prio:pattern "->" _:parser_kw ->
-         ([arg],Some prio)
-    } r:glr_rules ->
-    let r = match prio with
-      | None -> build_alternatives _loc_r r
-      | Some prio -> build_prio_alternatives _loc_r prio r
-    in
-    List.fold_right (Exp.fun_ ~loc:_loc Nolabel None) args r
+  | args:parser_args? _:parser_kw r:glr_rules ->
+      let (args, e) =
+        match args with
+        | Some(args, prio) -> (args, build_prio_alternatives _loc_r prio r)
+        | None             -> ([]  , build_alternatives      _loc_r      r)
+      in
+      List.fold_right (Exp.fun_ ~loc:_loc Nolabel None) args e
 
 let _ = add_reserved_id "parser"
