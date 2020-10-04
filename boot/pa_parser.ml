@@ -57,19 +57,19 @@ let new_regexp_apply loc nameo e1 =
   Exp.apply ~loc (Exp.ident fn) (name @ [(Nolabel, e1)])
 let mk_constr loc id arg =
   Exp.construct ~loc (mknoloc (Longident.parse id)) arg
+let mk_unit loc = mk_constr loc "()" None
+let or_unit loc eo = match eo with | Some e -> e | None -> mk_unit loc
 let mk_cons loc e1 e2 = mk_app loc (mk_id "List.cons") [e1; e2]
 let rec build_action loc occur_loc ids e =
-  let e1 =
+  let e =
     let fn e ((id, x), visible) =
       match ((find_locate ()), visible) with
       | (Some f, true) ->
           let args = ["str1"; "pos1"; "str2"; "pos2"] in
-          mk_fun loc args
-            (Exp.fun_ ~loc Nolabel None (mkpatt loc (id, x))
-               (let vb =
-                  Vb.mk (Pat.var (mknoloc ("_loc_" ^ id)))
-                    (mk_appv loc f ["str1"; "pos1"; "str2"; "pos2"]) in
-                Exp.let_ Nonrecursive [vb] e))
+          let pat_loc_id = Pat.var (mknoloc ("_loc_" ^ id)) in
+          let vb = Vb.mk pat_loc_id (mk_appv loc f args) in
+          let e = Exp.let_ Nonrecursive [vb] e in
+          mk_fun loc args (Exp.fun_ ~loc Nolabel None (mkpatt loc (id, x)) e)
       | (_, _) ->
           if (id = "_") && (x = None)
           then e
@@ -82,10 +82,9 @@ let rec build_action loc occur_loc ids e =
         "__loc__start__pos";
         "__loc__end__buf";
         "__loc__end__pos"] in
-      mk_fun loc args
-        (let vb = Vb.mk (Pat.var (mknoloc "_loc")) (mk_appv loc locate args) in
-         Exp.let_ Nonrecursive [vb] e1)
-  | (_, _) -> e1
+      let vb = Vb.mk (Pat.var (mknoloc "_loc")) (mk_appv loc locate args) in
+      mk_fun loc args (Exp.let_ Nonrecursive [vb] e)
+  | (_, _) -> e
 let apply_option loc opt e =
   let fn e f d =
     match d with
@@ -124,7 +123,7 @@ let default_action loc l =
     | `Normal ((id, _), _, _, _, _) -> Exp.ident ~loc (mk_lid id)
     | _ -> assert false in
   match List.map f (List.filter p l) with
-  | [] -> mk_constr loc "()" None
+  | [] -> mk_unit loc
   | e::[] -> e
   | l -> Exp.tuple ~loc l
 let from_opt ov d = match ov with | None -> d | Some v -> v
@@ -150,8 +149,7 @@ let build_rule (_loc, occur_loc, def, l, condition, action) =
             | Some cond ->
                 def
                   (Exp.ifthenelse ~loc:_loc cond a
-                     (Some
-                        (core_apply _loc "fail" [mk_constr _loc "()" None])))))) in
+                     (Some (core_apply _loc "fail" [mk_unit _loc])))))) in
   let rec fn ids l =
     match l with
     | [] ->
@@ -189,7 +187,7 @@ let apply_def_cond _loc r =
   | Some c ->
       def
         (Exp.ifthenelse ~loc:_loc c e
-           (Some (core_apply _loc "fail" [mk_constr _loc "()" None])))
+           (Some (core_apply _loc "fail" [mk_unit _loc])))
 let apply_def_cond_list loc r acc =
   let (def, cond, e) = build_rule r in
   match cond with
@@ -214,7 +212,7 @@ let apply_def_cond_prio loc arg r acc =
 let build_alternatives loc ls =
   let ls = List.map snd ls in
   match ls with
-  | [] -> core_apply loc "fail" [mk_constr loc "()" None]
+  | [] -> core_apply loc "fail" [mk_unit loc]
   | r::[] -> apply_def_cond loc r
   | _::_::_ ->
       let l =
@@ -333,9 +331,40 @@ let build_str_item _loc l =
   if str3 = []
   then str1 @ str2
   else str1 @ ((Str.value ~loc:_loc Recursive str3) :: str2)
-let glr_sequence = Earley_core.Earley.declare_grammar "glr_sequence"
-let glr_opt_expr = Earley_core.Earley.declare_grammar "glr_opt_expr"
-let glr_option = Earley_core.Earley.declare_grammar "glr_option"
+let build_re loc e opt =
+  let act =
+    mk_fun loc ["group"]
+      (from_opt opt (mk_app loc (mk_id "group") [Exp.constant (Const.int 0)])) in
+  let name =
+    match e.pexp_desc with
+    | Pexp_ident { txt = Lident id } ->
+        let id =
+          let l = String.length id in
+          if (l > 3) && ((String.sub id (l - 3) 3) = "_re")
+          then String.sub id 0 (l - 3)
+          else id in
+        Some (Exp.constant (Const.string id))
+    | _ -> None in
+  regexp_apply loc name e act
+let build_re_litteral loc s opt =
+  let opt =
+    from_opt opt (mk_app loc (mk_id "group") [Exp.constant (Const.int 0)]) in
+  let es = String.escaped s in
+  let act = mk_fun loc ["group"] opt in
+  regexp_apply loc (Some (Exp.constant (Const.string es)))
+    (Exp.constant (Const.string s)) act
+let build_new_re_litteral loc s opt =
+  let es = String.escaped s in
+  let s = "\\(" ^ (s ^ "\\)") in
+  let re =
+    new_regexp_apply loc (Some (Exp.constant (Const.string es)))
+      (Exp.constant (Const.string s)) in
+  match opt with
+  | None -> re
+  | Some e -> core_apply loc "apply" [mk_fun loc ["group"] e; re]
+let parser_atom = Earley_core.Earley.declare_grammar "parser_atom"
+let parser_param = Earley_core.Earley.declare_grammar "parser_param"
+let parser_modifier = Earley_core.Earley.declare_grammar "parser_modifier"
 let glr_ident = Earley_core.Earley.declare_grammar "glr_ident"
 let glr_left_member = Earley_core.Earley.declare_grammar "glr_left_member"
 let glr_let = Earley_core.Earley.declare_grammar "glr_let"
@@ -348,33 +377,51 @@ let (glr_at_rule, glr_at_rule__set__grammar) =
   Earley_core.Earley.grammar_family "glr_at_rule"
 let glr_rules = Earley_core.Earley.declare_grammar "glr_rules"
 let _ =
-  Earley_core.Earley.set_grammar glr_sequence
+  Earley_core.Earley.set_grammar parser_atom
     (Earley_core.Earley.alternatives
        (List.cons
-          (Earley_core.Earley.fsequence_ignore
-             (Earley_core.Earley.string "(" "(")
-             (Earley_core.Earley.fsequence expression
-                (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.string ")" ")")
-                   (Earley_core.Earley.empty (fun e -> (true, e))))))
+          (Earley_core.Earley.fsequence dash
+             (Earley_core.Earley.fsequence
+                (Earley_core.Earley.option None
+                   (Earley_core.Earley.apply (fun x -> Some x) parser_param))
+                (Earley_core.Earley.empty_pos
+                   (fun __loc__start__buf ->
+                      fun __loc__start__pos ->
+                        fun __loc__end__buf ->
+                          fun __loc__end__pos ->
+                            let _loc =
+                              locate __loc__start__buf __loc__start__pos
+                                __loc__end__buf __loc__end__pos in
+                            fun oe ->
+                              fun _default_0 ->
+                                ((oe = None),
+                                  (core_apply _loc "no_blank_test"
+                                     [or_unit _loc oe]))))))
           (List.cons
              (Earley_core.Earley.fsequence_ignore
-                (Earley_core.Earley.char '{' '{')
-                (Earley_core.Earley.fsequence_position glr_rules
-                   (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.char '}' '}')
-                      (Earley_core.Earley.empty
-                         (fun str1 ->
-                            fun pos1 ->
-                              fun str2 ->
-                                fun pos2 ->
-                                  fun r ->
-                                    let _loc_r = locate str1 pos1 str2 pos2 in
-                                    (true, (build_alternatives _loc_r r)))))))
+                (Earley_core.Earley.string "EOF" "EOF")
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x -> Some x)
+                         parser_param))
+                   (Earley_core.Earley.empty_pos
+                      (fun __loc__start__buf ->
+                         fun __loc__start__pos ->
+                           fun __loc__end__buf ->
+                             fun __loc__end__pos ->
+                               let _loc =
+                                 locate __loc__start__buf __loc__start__pos
+                                   __loc__end__buf __loc__end__pos in
+                               fun oe ->
+                                 ((oe = None),
+                                   (core_apply _loc "eof" [or_unit _loc oe]))))))
              (List.cons
                 (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.string "EOF" "EOF")
-                   (Earley_core.Earley.fsequence glr_opt_expr
+                   (Earley_core.Earley.string "EMPTY" "EMPTY")
+                   (Earley_core.Earley.fsequence
+                      (Earley_core.Earley.option None
+                         (Earley_core.Earley.apply (fun x -> Some x)
+                            parser_param))
                       (Earley_core.Earley.empty_pos
                          (fun __loc__start__buf ->
                             fun __loc__start__pos ->
@@ -385,31 +432,26 @@ let _ =
                                       __loc__start__pos __loc__end__buf
                                       __loc__end__pos in
                                   fun oe ->
-                                    ((oe <> None),
-                                      (core_apply _loc "eof"
-                                         [from_opt oe
-                                            (mk_constr _loc "()" None)]))))))
+                                    ((oe = None),
+                                      (core_apply _loc "empty"
+                                         [or_unit _loc oe]))))))
                 (List.cons
                    (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.string "EMPTY" "EMPTY")
-                      (Earley_core.Earley.fsequence glr_opt_expr
-                         (Earley_core.Earley.empty_pos
-                            (fun __loc__start__buf ->
-                               fun __loc__start__pos ->
-                                 fun __loc__end__buf ->
-                                   fun __loc__end__pos ->
-                                     let _loc =
-                                       locate __loc__start__buf
-                                         __loc__start__pos __loc__end__buf
-                                         __loc__end__pos in
-                                     fun oe ->
-                                       ((oe <> None),
-                                         (core_apply _loc "empty"
-                                            [from_opt oe
-                                               (mk_constr _loc "()" None)]))))))
+                      (Earley_core.Earley.string "FAIL" "FAIL")
+                      (Earley_core.Earley.empty_pos
+                         (fun __loc__start__buf ->
+                            fun __loc__start__pos ->
+                              fun __loc__end__buf ->
+                                fun __loc__end__pos ->
+                                  let _loc =
+                                    locate __loc__start__buf
+                                      __loc__start__pos __loc__end__buf
+                                      __loc__end__pos in
+                                  (true,
+                                    (core_apply _loc "fail" [mk_unit _loc])))))
                    (List.cons
                       (Earley_core.Earley.fsequence_ignore
-                         (Earley_core.Earley.string "FAIL" "FAIL")
+                         (Earley_core.Earley.string "DEBUG" "DEBUG")
                          (Earley_core.Earley.fsequence expr_arg
                             (Earley_core.Earley.empty_pos
                                (fun __loc__start__buf ->
@@ -421,58 +463,69 @@ let _ =
                                             __loc__start__pos __loc__end__buf
                                             __loc__end__pos in
                                         fun e ->
-                                          (false,
-                                            (core_apply _loc "fail" [e]))))))
+                                          (true,
+                                            (core_apply _loc "debug" [e]))))))
                       (List.cons
                          (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string "DEBUG" "DEBUG")
+                            (Earley_core.Earley.string "CHR" "CHR")
                             (Earley_core.Earley.fsequence expr_arg
-                               (Earley_core.Earley.empty_pos
-                                  (fun __loc__start__buf ->
-                                     fun __loc__start__pos ->
-                                       fun __loc__end__buf ->
-                                         fun __loc__end__pos ->
-                                           let _loc =
-                                             locate __loc__start__buf
-                                               __loc__start__pos
-                                               __loc__end__buf
-                                               __loc__end__pos in
-                                           fun e ->
-                                             (false,
-                                               (core_apply _loc "debug" [e]))))))
+                               (Earley_core.Earley.fsequence
+                                  (Earley_core.Earley.option None
+                                     (Earley_core.Earley.apply
+                                        (fun x -> Some x) parser_param))
+                                  (Earley_core.Earley.empty_pos
+                                     (fun __loc__start__buf ->
+                                        fun __loc__start__pos ->
+                                          fun __loc__end__buf ->
+                                            fun __loc__end__pos ->
+                                              let _loc =
+                                                locate __loc__start__buf
+                                                  __loc__start__pos
+                                                  __loc__end__buf
+                                                  __loc__end__pos in
+                                              fun oe ->
+                                                fun e ->
+                                                  ((oe = None),
+                                                    (core_apply _loc "char"
+                                                       [e; from_opt oe e])))))))
                          (List.cons
                             (Earley_core.Earley.fsequence_ignore
-                               (Earley_core.Earley.string "ANY" "ANY")
-                               (Earley_core.Earley.empty
-                                  (true, (mk_id "Earley_core.Earley.any"))))
+                               (Earley_core.Earley.string "STR" "STR")
+                               (Earley_core.Earley.fsequence expr_arg
+                                  (Earley_core.Earley.fsequence
+                                     (Earley_core.Earley.option None
+                                        (Earley_core.Earley.apply
+                                           (fun x -> Some x) parser_param))
+                                     (Earley_core.Earley.empty_pos
+                                        (fun __loc__start__buf ->
+                                           fun __loc__start__pos ->
+                                             fun __loc__end__buf ->
+                                               fun __loc__end__pos ->
+                                                 let _loc =
+                                                   locate __loc__start__buf
+                                                     __loc__start__pos
+                                                     __loc__end__buf
+                                                     __loc__end__pos in
+                                                 fun oe ->
+                                                   fun e ->
+                                                     ((oe = None),
+                                                       (core_apply _loc
+                                                          "string"
+                                                          [e; from_opt oe e])))))))
                             (List.cons
                                (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string "CHR" "CHR")
-                                  (Earley_core.Earley.fsequence expr_arg
-                                     (Earley_core.Earley.fsequence
-                                        glr_opt_expr
-                                        (Earley_core.Earley.empty_pos
-                                           (fun __loc__start__buf ->
-                                              fun __loc__start__pos ->
-                                                fun __loc__end__buf ->
-                                                  fun __loc__end__pos ->
-                                                    let _loc =
-                                                      locate
-                                                        __loc__start__buf
-                                                        __loc__start__pos
-                                                        __loc__end__buf
-                                                        __loc__end__pos in
-                                                    fun oe ->
-                                                      fun e ->
-                                                        ((oe <> None),
-                                                          (core_apply _loc
-                                                             "char"
-                                                             [e;
-                                                             from_opt oe e])))))))
+                                  (Earley_core.Earley.string "ANY" "ANY")
+                                  (Earley_core.Earley.empty
+                                     (false,
+                                       (mk_id "Earley_core.Earley.any"))))
                                (List.cons
-                                  (Earley_core.Earley.fsequence char_litteral
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.string "BLANK"
+                                        "BLANK")
                                      (Earley_core.Earley.fsequence
-                                        glr_opt_expr
+                                        (Earley_core.Earley.option None
+                                           (Earley_core.Earley.apply
+                                              (fun x -> Some x) parser_param))
                                         (Earley_core.Earley.empty_pos
                                            (fun __loc__start__buf ->
                                               fun __loc__start__pos ->
@@ -485,24 +538,20 @@ let _ =
                                                         __loc__end__buf
                                                         __loc__end__pos in
                                                     fun oe ->
-                                                      fun c ->
-                                                        let e =
-                                                          Exp.constant
-                                                            ~loc:_loc
-                                                            (Const.char c) in
-                                                        ((oe <> None),
-                                                          (core_apply _loc
-                                                             "char"
-                                                             [e;
-                                                             from_opt oe e]))))))
+                                                      ((oe = None),
+                                                        (core_apply _loc
+                                                           "with_blank_test"
+                                                           [or_unit _loc oe]))))))
                                   (List.cons
                                      (Earley_core.Earley.fsequence_ignore
-                                        (Earley_core.Earley.string "STR"
-                                           "STR")
+                                        (Earley_core.Earley.string "RE" "RE")
                                         (Earley_core.Earley.fsequence
                                            expr_arg
                                            (Earley_core.Earley.fsequence
-                                              glr_opt_expr
+                                              (Earley_core.Earley.option None
+                                                 (Earley_core.Earley.apply
+                                                    (fun x -> Some x)
+                                                    parser_param))
                                               (Earley_core.Earley.empty_pos
                                                  (fun __loc__start__buf ->
                                                     fun __loc__start__pos ->
@@ -517,19 +566,17 @@ let _ =
                                                               __loc__end__pos in
                                                           fun oe ->
                                                             fun e ->
-                                                              ((oe <> None),
-                                                                (core_apply
-                                                                   _loc
-                                                                   "string"
-                                                                   [e;
-                                                                   from_opt
-                                                                    oe e])))))))
+                                                              (false,
+                                                                (build_re
+                                                                   _loc e oe)))))))
                                      (List.cons
-                                        (Earley_core.Earley.fsequence_ignore
-                                           (Earley_core.Earley.string "ERROR"
-                                              "ERROR")
+                                        (Earley_core.Earley.fsequence
+                                           char_litteral
                                            (Earley_core.Earley.fsequence
-                                              expr_arg
+                                              (Earley_core.Earley.option None
+                                                 (Earley_core.Earley.apply
+                                                    (fun x -> Some x)
+                                                    parser_param))
                                               (Earley_core.Earley.empty_pos
                                                  (fun __loc__start__buf ->
                                                     fun __loc__start__pos ->
@@ -542,22 +589,29 @@ let _ =
                                                               __loc__start__pos
                                                               __loc__end__buf
                                                               __loc__end__pos in
-                                                          fun e ->
-                                                            (true,
-                                                              (core_apply
-                                                                 _loc
-                                                                 "error_message"
-                                                                 [Exp.fun_
-                                                                    Nolabel
-                                                                    None
-                                                                    (
-                                                                    Pat.any
-                                                                    ()) e]))))))
+                                                          fun oe ->
+                                                            fun c ->
+                                                              let e =
+                                                                Exp.constant
+                                                                  ~loc:_loc
+                                                                  (Const.char
+                                                                    c) in
+                                                              ((oe = None),
+                                                                (core_apply
+                                                                   _loc
+                                                                   "char"
+                                                                   [e;
+                                                                   from_opt
+                                                                    oe e]))))))
                                         (List.cons
                                            (Earley_core.Earley.fsequence
                                               string_litteral
                                               (Earley_core.Earley.fsequence
-                                                 glr_opt_expr
+                                                 (Earley_core.Earley.option
+                                                    None
+                                                    (Earley_core.Earley.apply
+                                                       (fun x -> Some x)
+                                                       parser_param))
                                                  (Earley_core.Earley.empty_pos
                                                     (fun __loc__start__buf ->
                                                        fun __loc__start__pos
@@ -578,114 +632,58 @@ let _ =
                                                                  ((s, _) as
                                                                     _default_0)
                                                                  ->
-                                                                 if
-                                                                   (String.length
-                                                                    s) = 0
-                                                                 then
-                                                                   Earley.give_up
-                                                                    ();
-                                                                 (let s =
-                                                                    Exp.constant
+                                                                 let e =
+                                                                   Exp.constant
                                                                     (Const.string
                                                                     s) in
-                                                                  let e =
-                                                                    from_opt
-                                                                    oe s in
-                                                                  ((oe <>
-                                                                    None),
-                                                                    (
-                                                                    core_apply
+                                                                 ((oe = None),
+                                                                   (core_apply
                                                                     _loc
                                                                     "string"
-                                                                    [s; e])))))))
+                                                                    [e;
+                                                                    from_opt
+                                                                    oe e]))))))
                                            (List.cons
-                                              (Earley_core.Earley.fsequence_ignore
-                                                 (Earley_core.Earley.string
-                                                    "RE" "RE")
+                                              (Earley_core.Earley.fsequence
+                                                 regexp_litteral
                                                  (Earley_core.Earley.fsequence
-                                                    expr_arg
-                                                    (Earley_core.Earley.fsequence
-                                                       glr_opt_expr
-                                                       (Earley_core.Earley.empty_pos
-                                                          (fun
-                                                             __loc__start__buf
-                                                             ->
-                                                             fun
-                                                               __loc__start__pos
-                                                               ->
-                                                               fun
-                                                                 __loc__end__buf
-                                                                 ->
-                                                                 fun
-                                                                   __loc__end__pos
-                                                                   ->
-                                                                   let _loc =
-                                                                    locate
+                                                    (Earley_core.Earley.option
+                                                       None
+                                                       (Earley_core.Earley.apply
+                                                          (fun x -> Some x)
+                                                          parser_param))
+                                                    (Earley_core.Earley.empty_pos
+                                                       (fun __loc__start__buf
+                                                          ->
+                                                          fun
+                                                            __loc__start__pos
+                                                            ->
+                                                            fun
+                                                              __loc__end__buf
+                                                              ->
+                                                              fun
+                                                                __loc__end__pos
+                                                                ->
+                                                                let _loc =
+                                                                  locate
                                                                     __loc__start__buf
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
-                                                                   fun opt ->
-                                                                    fun e ->
-                                                                    let act =
-                                                                    mk_fun
-                                                                    _loc
-                                                                    ["group"]
-                                                                    (from_opt
-                                                                    opt
-                                                                    (mk_app
-                                                                    _loc
-                                                                    (mk_id
-                                                                    "group")
-                                                                    [
-                                                                    Exp.constant
-                                                                    (Const.int
-                                                                    0)])) in
-                                                                    match 
-                                                                    e.pexp_desc
-                                                                    with
-                                                                    | 
-                                                                    Pexp_ident
-                                                                    {
-                                                                    txt =
-                                                                    Lident id
-                                                                    } ->
-                                                                    let id =
-                                                                    let l =
-                                                                    String.length
-                                                                    id in
-                                                                    if
-                                                                    (l > 3)
-                                                                    &&
-                                                                    ((String.sub
-                                                                    id
-                                                                    (l - 3) 3)
-                                                                    = "_re")
-                                                                    then
-                                                                    String.sub
-                                                                    id 0
-                                                                    (l - 3)
-                                                                    else id in
-                                                                    (true,
-                                                                    (regexp_apply
-                                                                    _loc
-                                                                    (Some
-                                                                    (Exp.constant
-                                                                    (Const.string
-                                                                    id))) e
-                                                                    act))
-                                                                    | 
-                                                                    _ ->
-                                                                    (true,
-                                                                    (regexp_apply
-                                                                    _loc None
-                                                                    e act)))))))
+                                                                fun oe ->
+                                                                  fun s ->
+                                                                    (false,
+                                                                    (build_re_litteral
+                                                                    _loc s oe))))))
                                               (List.cons
-                                                 (Earley_core.Earley.fsequence_ignore
-                                                    (Earley_core.Earley.string
-                                                       "BLANK" "BLANK")
+                                                 (Earley_core.Earley.fsequence
+                                                    new_regexp_litteral
                                                     (Earley_core.Earley.fsequence
-                                                       glr_opt_expr
+                                                       (Earley_core.Earley.option
+                                                          None
+                                                          (Earley_core.Earley.apply
+                                                             (fun x -> Some x)
+                                                             parser_param))
                                                        (Earley_core.Earley.empty_pos
                                                           (fun
                                                              __loc__start__buf
@@ -706,220 +704,94 @@ let _ =
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
                                                                    fun oe ->
-                                                                    let e =
-                                                                    from_opt
-                                                                    oe
-                                                                    (mk_constr
-                                                                    _loc "()"
-                                                                    None) in
-                                                                    ((oe <>
-                                                                    None),
-                                                                    (core_apply
-                                                                    _loc
-                                                                    "with_blank_test"
-                                                                    [e]))))))
+                                                                    fun s ->
+                                                                    (false,
+                                                                    (build_new_re_litteral
+                                                                    _loc s oe))))))
                                                  (List.cons
                                                     (Earley_core.Earley.fsequence
-                                                       dash
-                                                       (Earley_core.Earley.fsequence
-                                                          glr_opt_expr
-                                                          (Earley_core.Earley.empty_pos
-                                                             (fun
-                                                                __loc__start__buf
-                                                                ->
-                                                                fun
-                                                                  __loc__start__pos
-                                                                  ->
-                                                                  fun
-                                                                    __loc__end__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                    ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos in
-                                                                    fun oe ->
-                                                                    fun
-                                                                    _default_0
-                                                                    ->
-                                                                    let e =
-                                                                    from_opt
-                                                                    oe
-                                                                    (mk_constr
-                                                                    _loc "()"
-                                                                    None) in
-                                                                    ((oe <>
-                                                                    None),
-                                                                    (core_apply
-                                                                    _loc
-                                                                    "no_blank_test"
-                                                                    [e]))))))
-                                                    (List.cons
-                                                       (Earley_core.Earley.fsequence
-                                                          regexp_litteral
-                                                          (Earley_core.Earley.fsequence
-                                                             glr_opt_expr
-                                                             (Earley_core.Earley.empty_pos
-                                                                (fun
-                                                                   __loc__start__buf
+                                                       value_path
+                                                       (Earley_core.Earley.empty_pos
+                                                          (fun
+                                                             __loc__start__buf
+                                                             ->
+                                                             fun
+                                                               __loc__start__pos
+                                                               ->
+                                                               fun
+                                                                 __loc__end__buf
+                                                                 ->
+                                                                 fun
+                                                                   __loc__end__pos
                                                                    ->
-                                                                   fun
-                                                                    __loc__start__pos
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                    ->
-                                                                    let _loc
-                                                                    =
+                                                                   let _loc =
                                                                     locate
                                                                     __loc__start__buf
                                                                     __loc__start__pos
                                                                     __loc__end__buf
                                                                     __loc__end__pos in
-                                                                    fun oe ->
-                                                                    fun s ->
-                                                                    let opt =
-                                                                    from_opt
-                                                                    oe
-                                                                    (mk_app
-                                                                    _loc
-                                                                    (mk_id
-                                                                    "group")
-                                                                    [
-                                                                    Exp.constant
-                                                                    (Const.int
-                                                                    0)]) in
-                                                                    let es =
-                                                                    String.escaped
-                                                                    s in
-                                                                    let act =
-                                                                    mk_fun
-                                                                    _loc
-                                                                    ["group"]
-                                                                    opt in
-                                                                    (true,
-                                                                    (regexp_apply
-                                                                    _loc
-                                                                    (Some
-                                                                    (Exp.constant
-                                                                    (Const.string
-                                                                    es)))
-                                                                    (Exp.constant
-                                                                    (Const.string
-                                                                    s)) act))))))
-                                                       (List.cons
-                                                          (Earley_core.Earley.fsequence
-                                                             new_regexp_litteral
-                                                             (Earley_core.Earley.fsequence
-                                                                glr_opt_expr
-                                                                (Earley_core.Earley.empty_pos
-                                                                   (fun
-                                                                    __loc__start__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__start__pos
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                    ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos in
-                                                                    fun opt
-                                                                    ->
-                                                                    fun s ->
-                                                                    let es =
-                                                                    String.escaped
-                                                                    s in
-                                                                    let s =
-                                                                    "\\(" ^
-                                                                    (s ^
-                                                                    "\\)") in
-                                                                    let re =
-                                                                    new_regexp_apply
-                                                                    _loc
-                                                                    (Some
-                                                                    (Exp.constant
-                                                                    (Const.string
-                                                                    es)))
-                                                                    (Exp.constant
-                                                                    (Const.string
-                                                                    s)) in
-                                                                    match opt
-                                                                    with
-                                                                    | 
-                                                                    None ->
-                                                                    (true,
-                                                                    re)
-                                                                    | 
-                                                                    Some e ->
-                                                                    (true,
-                                                                    (core_apply
-                                                                    _loc
-                                                                    "apply"
-                                                                    [
-                                                                    mk_fun
-                                                                    _loc
-                                                                    ["group"]
-                                                                    e;
-                                                                    re]))))))
-                                                          (List.cons
-                                                             (Earley_core.Earley.fsequence
-                                                                value_path
-                                                                (Earley_core.Earley.empty_pos
-                                                                   (fun
-                                                                    __loc__start__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__start__pos
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__buf
-                                                                    ->
-                                                                    fun
-                                                                    __loc__end__pos
-                                                                    ->
-                                                                    let _loc
-                                                                    =
-                                                                    locate
-                                                                    __loc__start__buf
-                                                                    __loc__start__pos
-                                                                    __loc__end__buf
-                                                                    __loc__end__pos in
-                                                                    fun id ->
-                                                                    (true,
+                                                                   fun id ->
+                                                                    (false,
                                                                     (Exp.ident
                                                                     ~loc:_loc
                                                                     (mkloc id
                                                                     _loc))))))
-                                                             [])))))))))))))))))))
+                                                    (List.cons
+                                                       (Earley_core.Earley.fsequence_ignore
+                                                          (Earley_core.Earley.string
+                                                             "(" "(")
+                                                          (Earley_core.Earley.fsequence
+                                                             expression
+                                                             (Earley_core.Earley.fsequence_ignore
+                                                                (Earley_core.Earley.string
+                                                                   ")" ")")
+                                                                (Earley_core.Earley.empty
+                                                                   (fun e ->
+                                                                    (false,
+                                                                    e))))))
+                                                       (List.cons
+                                                          (Earley_core.Earley.fsequence_ignore
+                                                             (Earley_core.Earley.char
+                                                                '{' '{')
+                                                             (Earley_core.Earley.fsequence
+                                                                glr_rules
+                                                                (Earley_core.Earley.fsequence_ignore
+                                                                   (Earley_core.Earley.char
+                                                                    '}' '}')
+                                                                   (Earley_core.Earley.empty_pos
+                                                                    (fun
+                                                                    __loc__start__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__start__pos
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__buf
+                                                                    ->
+                                                                    fun
+                                                                    __loc__end__pos
+                                                                    ->
+                                                                    let _loc
+                                                                    =
+                                                                    locate
+                                                                    __loc__start__buf
+                                                                    __loc__start__pos
+                                                                    __loc__end__buf
+                                                                    __loc__end__pos in
+                                                                    fun r ->
+                                                                    (false,
+                                                                    (build_alternatives
+                                                                    _loc r)))))))
+                                                          []))))))))))))))))))
 let _ =
-  Earley_core.Earley.set_grammar glr_opt_expr
-    (Earley_core.Earley.option None
-       (Earley_core.Earley.apply (fun x -> Some x)
+  Earley_core.Earley.set_grammar parser_param
+    (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.char '[' '[')
+       (Earley_core.Earley.fsequence expression
           (Earley_core.Earley.fsequence_ignore
-             (Earley_core.Earley.char '[' '[')
-             (Earley_core.Earley.fsequence expression
-                (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.char ']' ']')
-                   (Earley_core.Earley.empty (fun _default_0 -> _default_0)))))))
+             (Earley_core.Earley.char ']' ']')
+             (Earley_core.Earley.empty (fun _default_0 -> _default_0)))))
 let _ =
-  Earley_core.Earley.set_grammar glr_option
+  Earley_core.Earley.set_grammar parser_modifier
     (Earley_core.Earley.alternatives
        (List.cons
           (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
@@ -927,7 +799,10 @@ let _ =
           (List.cons
              (Earley_core.Earley.fsequence_ignore
                 (Earley_core.Earley.char '*' '*')
-                (Earley_core.Earley.fsequence glr_opt_expr
+                (Earley_core.Earley.fsequence
+                   (Earley_core.Earley.option None
+                      (Earley_core.Earley.apply (fun x -> Some x)
+                         parser_param))
                    (Earley_core.Earley.fsequence
                       (Earley_core.Earley.option None
                          (Earley_core.Earley.apply (fun x -> Some x)
@@ -937,7 +812,10 @@ let _ =
              (List.cons
                 (Earley_core.Earley.fsequence_ignore
                    (Earley_core.Earley.char '+' '+')
-                   (Earley_core.Earley.fsequence glr_opt_expr
+                   (Earley_core.Earley.fsequence
+                      (Earley_core.Earley.option None
+                         (Earley_core.Earley.apply (fun x -> Some x)
+                            parser_param))
                       (Earley_core.Earley.fsequence
                          (Earley_core.Earley.option None
                             (Earley_core.Earley.apply (fun x -> Some x)
@@ -947,7 +825,10 @@ let _ =
                 (List.cons
                    (Earley_core.Earley.fsequence_ignore
                       (Earley_core.Earley.char '?' '?')
-                      (Earley_core.Earley.fsequence glr_opt_expr
+                      (Earley_core.Earley.fsequence
+                         (Earley_core.Earley.option None
+                            (Earley_core.Earley.apply (fun x -> Some x)
+                               parser_param))
                          (Earley_core.Earley.fsequence
                             (Earley_core.Earley.option None
                                (Earley_core.Earley.apply (fun x -> Some x)
@@ -982,15 +863,17 @@ let _ =
     (Earley_core.Earley.apply (fun f -> f [])
        (Earley_core.Earley.fixpoint1' (fun l -> l)
           (Earley_core.Earley.fsequence glr_ident
-             (Earley_core.Earley.fsequence glr_sequence
-                (Earley_core.Earley.fsequence glr_option
+             (Earley_core.Earley.fsequence parser_atom
+                (Earley_core.Earley.fsequence parser_modifier
                    (Earley_core.Earley.empty
                       (fun opt ->
-                         fun ((cst, s) as _default_0) ->
+                         fun ((boring, s) as _default_0) ->
                            fun ((cst', id) as _default_1) ->
                              `Normal
-                               (id, (from_opt cst' ((opt <> `Once) || cst)),
-                                 s, opt))))))
+                               (id,
+                                 (from_opt cst'
+                                    ((opt <> `Once) || (not boring))), s,
+                                 opt))))))
           (fun x -> fun f -> fun l -> f (List.cons x l))))
 let _ =
   Earley_core.Earley.set_grammar glr_let
@@ -1041,8 +924,7 @@ let _ =
                   (Earley_core.Earley.string "->>" "->>")
                   (Earley_core.Earley.fsequence (glr_rule alm)
                      (Earley_core.Earley.empty
-                        (fun r ->
-                           let (a, b, c) = build_rule r in DepSeq (a, b, c)))))
+                        (fun r -> DepSeq (build_rule r)))))
                (List.cons
                   (Earley_core.Earley.fsequence_ignore
                      (Earley_core.Earley.string "->" "->")
@@ -1052,8 +934,7 @@ let _ =
                          else expression_lvl (Let, Seq))
                         (Earley_core.Earley.fsequence no_semi
                            (Earley_core.Earley.empty
-                              (fun _default_0 -> fun action -> Normal action)))))
-                  []))))
+                              (fun _default_0 -> fun a -> Normal a))))) []))))
 let _ =
   glr_rule__set__grammar
     (fun alm ->
@@ -1070,40 +951,29 @@ let _ =
                                 locate __loc__start__buf __loc__start__pos
                                   __loc__end__buf __loc__end__pos in
                               fun action ->
-                                fun condition ->
+                                fun cond ->
                                   fun l ->
                                     fun def ->
+                                      let fn x (res, i) =
+                                        match x with
+                                        | `Normal (("_", a), true, c, d) ->
+                                            (((`Normal
+                                                 ((("_default_" ^
+                                                      (string_of_int i)), a),
+                                                   true, c, d, false)) ::
+                                              res), (i + 1))
+                                        | `Normal (id, b, c, d) ->
+                                            let occur_loc_id =
+                                              ((fst id) <> "_") &&
+                                                (occur ("_loc_" ^ (fst id))
+                                                   action) in
+                                            (((`Normal
+                                                 (id, b, c, d, occur_loc_id))
+                                              :: res), i) in
                                       let l =
-                                        fst
-                                          (List.fold_right
-                                             (fun x ->
-                                                fun (res, i) ->
-                                                  match x with
-                                                  | `Normal
-                                                      (("_", a), true, c, d)
-                                                      ->
-                                                      (((`Normal
-                                                           ((("_default_" ^
-                                                                (string_of_int
-                                                                   i)), a),
-                                                             true, c, d,
-                                                             false)) :: res),
-                                                        (i + 1))
-                                                  | `Normal (id, b, c, d) ->
-                                                      let occur_loc_id =
-                                                        ((fst id) <> "_") &&
-                                                          (occur
-                                                             ("_loc_" ^
-                                                                (fst id))
-                                                             action) in
-                                                      (((`Normal
-                                                           (id, b, c, d,
-                                                             occur_loc_id))
-                                                        :: res), i)) l
-                                             ([], 0)) in
-                                      let occur_loc = occur "_loc" action in
-                                      (_loc, occur_loc, def, l, condition,
-                                        action)))))))
+                                        fst (List.fold_right fn l ([], 0)) in
+                                      (_loc, (occur "_loc" action), def, l,
+                                        cond, action)))))))
 let _ =
   glr_at_rule__set__grammar
     (fun alm ->
@@ -1145,6 +1015,8 @@ let _ =
           (Earley_core.Earley.fsequence (glr_at_rule true)
              (Earley_core.Earley.empty
                 (fun r -> fun rs -> fun _default_0 -> r :: rs)))))
+[@@@ocaml.text
+  " Grammar for a single parser atom (including composite atoms such a a local\n    alternative given in braces). The semantic action is a pair [(boring, e)],\n    where [boring] is a boolean indicating whether the denoted parser produces\n    a boring value (i.e., an uninteresting result),  and [e] is the parser for\n    the atom (as an OCaml expression). "]
 let glr_binding = Earley_core.Earley.declare_grammar "glr_binding"
 let _ =
   Earley_core.Earley.set_grammar glr_binding
@@ -1202,13 +1074,13 @@ let _ =
                    (Earley_core.Earley.fsequence glr_binding
                       (Earley_core.Earley.fsequence glr_bindings
                          (Earley_core.Earley.empty
-                            (fun l ->
+                            (fun bs ->
                                fun b ->
                                  fun _default_0 ->
                                    fun cs ->
                                      fun _default_1 ->
                                        (List.map (fun b -> `Caml b) cs) @ (b
-                                         :: l))))))))
+                                         :: bs))))))))
           (List.cons
              (Earley_core.Earley.fsequence
                 (Earley_core.Earley.option []
@@ -1221,8 +1093,8 @@ let _ =
 let extra_structure = Earley_core.Earley.declare_grammar "extra_structure"
 let _ =
   Earley_core.Earley.set_grammar extra_structure
-    (Earley_core.Earley.fsequence let_kw
-       (Earley_core.Earley.fsequence parser_kw
+    (Earley_core.Earley.fsequence_ignore let_kw
+       (Earley_core.Earley.fsequence_ignore parser_kw
           (Earley_core.Earley.fsequence glr_binding
              (Earley_core.Earley.fsequence glr_bindings
                 (Earley_core.Earley.empty_pos
@@ -1233,71 +1105,58 @@ let _ =
                             let _loc =
                               locate __loc__start__buf __loc__start__pos
                                 __loc__end__buf __loc__end__pos in
-                            fun l ->
-                              fun b ->
-                                fun _default_0 ->
-                                  fun _default_1 ->
-                                    build_str_item _loc (b :: l)))))))
+                            fun bs -> fun b -> build_str_item _loc (b :: bs)))))))
+let parser_args = Earley_core.Earley.declare_grammar "parser_args"
+let _ =
+  Earley_core.Earley.set_grammar parser_args
+    (Earley_core.Earley.fsequence_ignore fun_kw
+       (Earley_core.Earley.fsequence
+          (Earley_core.Earley.apply (fun f -> f [])
+             (Earley_core.Earley.fixpoint' (fun l -> l)
+                (pattern_lvl (false, AtomPat))
+                (fun x -> fun f -> fun l -> f (List.cons x l))))
+          (Earley_core.Earley.fsequence_ignore
+             (Earley_core.Earley.char '@' '@')
+             (Earley_core.Earley.fsequence pattern
+                (Earley_core.Earley.fsequence_ignore
+                   (Earley_core.Earley.string "->" "->")
+                   (Earley_core.Earley.empty
+                      (fun _default_0 ->
+                         fun _default_1 -> (_default_1, _default_0))))))))
 let extra_prefix_expressions =
   Earley_core.Earley.declare_grammar "extra_prefix_expressions"
 let _ =
   Earley_core.Earley.set_grammar extra_prefix_expressions
     (Earley_core.Earley.fsequence
-       (Earley_core.Earley.alternatives
-          (List.cons
-             (Earley_core.Earley.fsequence_ignore function_kw
-                (Earley_core.Earley.fsequence pattern
-                   (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.char '@' '@')
-                      (Earley_core.Earley.fsequence pattern
-                         (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.string "->" "->")
-                            (Earley_core.Earley.fsequence_ignore parser_kw
-                               (Earley_core.Earley.empty
-                                  (fun prio ->
-                                     fun arg -> ([arg], (Some prio))))))))))
-             (List.cons
-                (Earley_core.Earley.fsequence_ignore parser_kw
-                   (Earley_core.Earley.empty ([], None)))
-                (List.cons
-                   (Earley_core.Earley.fsequence_ignore fun_kw
-                      (Earley_core.Earley.fsequence
-                         (Earley_core.Earley.apply (fun f -> f [])
-                            (Earley_core.Earley.fixpoint' (fun l -> l)
-                               (pattern_lvl (false, AtomPat))
-                               (fun x -> fun f -> fun l -> f (List.cons x l))))
-                         (Earley_core.Earley.fsequence_ignore
-                            (Earley_core.Earley.char '@' '@')
-                            (Earley_core.Earley.fsequence pattern
-                               (Earley_core.Earley.fsequence_ignore
-                                  (Earley_core.Earley.string "->" "->")
-                                  (Earley_core.Earley.fsequence_ignore
-                                     parser_kw
-                                     (Earley_core.Earley.empty
-                                        (fun prio ->
-                                           fun args -> (args, (Some prio))))))))))
-                   []))))
-       (Earley_core.Earley.fsequence_position glr_rules
-          (Earley_core.Earley.empty_pos
-             (fun __loc__start__buf ->
-                fun __loc__start__pos ->
-                  fun __loc__end__buf ->
-                    fun __loc__end__pos ->
-                      let _loc =
-                        locate __loc__start__buf __loc__start__pos
-                          __loc__end__buf __loc__end__pos in
-                      fun str1 ->
-                        fun pos1 ->
-                          fun str2 ->
-                            fun pos2 ->
-                              fun r ->
-                                let _loc_r = locate str1 pos1 str2 pos2 in
-                                fun ((args, prio) as _default_0) ->
-                                  let r =
-                                    match prio with
-                                    | None -> build_alternatives _loc_r r
-                                    | Some prio ->
-                                        build_prio_alternatives _loc_r prio r in
-                                  List.fold_right
-                                    (Exp.fun_ ~loc:_loc Nolabel None) args r))))
+       (Earley_core.Earley.option None
+          (Earley_core.Earley.apply (fun x -> Some x) parser_args))
+       (Earley_core.Earley.fsequence_ignore parser_kw
+          (Earley_core.Earley.fsequence_position glr_rules
+             (Earley_core.Earley.empty_pos
+                (fun __loc__start__buf ->
+                   fun __loc__start__pos ->
+                     fun __loc__end__buf ->
+                       fun __loc__end__pos ->
+                         let _loc =
+                           locate __loc__start__buf __loc__start__pos
+                             __loc__end__buf __loc__end__pos in
+                         fun str1 ->
+                           fun pos1 ->
+                             fun str2 ->
+                               fun pos2 ->
+                                 fun r ->
+                                   let _loc_r = locate str1 pos1 str2 pos2 in
+                                   fun args ->
+                                     let (args, e) =
+                                       match args with
+                                       | Some (args, prio) ->
+                                           (args,
+                                             (build_prio_alternatives _loc_r
+                                                prio r))
+                                       | None ->
+                                           ([],
+                                             (build_alternatives _loc_r r)) in
+                                     List.fold_right
+                                       (Exp.fun_ ~loc:_loc Nolabel None) args
+                                       e)))))
 let _ = add_reserved_id "parser"
