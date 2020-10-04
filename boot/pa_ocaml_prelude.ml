@@ -5,29 +5,20 @@ open Asttypes
 open Parsetree
 open Pa_lexing
 open Ast_helper
-let file : string option ref = ref None
-let print_location ch { Location.loc_start = s; Location.loc_end = e } =
-  let open Lexing in
-    Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
-      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
-let string_location { Location.loc_start = s; Location.loc_end = e } =
-  let open Lexing in
-    Printf.sprintf "Position %d:%d to %d:%d%!" s.pos_lnum
-      (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
+let print_location ch loc =
+  let (s, e) = let open Location in ((loc.loc_start), (loc.loc_end)) in
+  Printf.fprintf ch "Position %d:%d to %d:%d%!" s.pos_lnum
+    (s.pos_cnum - s.pos_bol) e.pos_lnum (e.pos_cnum - e.pos_bol)
 let lexing_position str pos =
-  let loff = line_offset str in
-  let open Lexing in
-    {
-      pos_fname = (filename str);
-      pos_lnum = (line_num str);
-      pos_cnum = (loff + pos);
-      pos_bol = loff
-    }
-let locate str pos str' pos' =
-  let open Lexing in
-    let s = lexing_position str pos in
-    let e = lexing_position str' pos' in
-    let open Location in { loc_start = s; loc_end = e; loc_ghost = false }
+  let pos_fname = filename str in
+  let pos_lnum = line_num str in
+  let pos_bol = line_offset str in
+  let pos_cnum = pos_bol + pos in
+  let open Lexing in { pos_fname; pos_lnum; pos_cnum; pos_bol }
+let locate str1 pos1 str2 pos2 =
+  let loc_start = lexing_position str1 pos1 in
+  let loc_end = lexing_position str2 pos2 in
+  let open Location in { loc_start; loc_end; loc_ghost = false }
 let debug_attach = ref false
 type expression_prio =
   | Seq 
@@ -321,12 +312,7 @@ let attach_str =
   attach_gen
     (fun loc -> fun (str, pl) -> Str.attribute ~loc (Attr.mk ~loc str pl))
 let union_re l =
-  let l = List.map (fun s -> "\\(" ^ (s ^ "\\)")) l in String.concat "\\|" l
-let arrow_re = Earley_core.Earley.declare_grammar "arrow_re"
-let _ =
-  Earley_core.Earley.set_grammar arrow_re
-    (Earley_str.regexp ~name:"\\\\(->\\\\)\\\\|\\\\(\\226\\134\\146\\\\)"
-       "\\(->\\)\\|\\(\226\134\146\\)" (fun group -> group 0))
+  String.concat "\\|" (List.map (fun s -> "\\(" ^ (s ^ "\\)")) l)
 let infix_symb_re prio =
   match prio with
   | Prod ->
@@ -360,7 +346,6 @@ let prefix_symb_re prio =
   | Prefix ->
       union_re ["[!][!$%&*+./:<=>?@^|~-]*"; "[~?][!$%&*+./:<=>?@^|~-]+"]
   | _ -> assert false
-let prefix_prios = [Opp; Prefix]
 let (infix_symbol, infix_symbol__set__grammar) =
   Earley_core.Earley.grammar_family "infix_symbol"
 let _ =
@@ -378,8 +363,9 @@ let _ =
                        (Earley_core.Earley.empty
                           (fun _default_0 ->
                              fun sym ->
-                               if is_reserved_symb sym then give_up (); sym))))
-                 []
+                               if is_reserved_symb sym
+                               then give_up ()
+                               else sym)))) []
              else [])
             (List.append
                (if prio = Cons
@@ -400,8 +386,9 @@ let _ =
             (Earley_core.Earley.empty
                (fun _default_0 ->
                   fun sym ->
-                    if (is_reserved_symb sym) || (sym = "!=") then give_up ();
-                    sym))))
+                    if (is_reserved_symb sym) || (sym = "!=")
+                    then give_up ()
+                    else sym))))
 let mutable_flag = Earley_core.Earley.declare_grammar "mutable_flag"
 let _ =
   Earley_core.Earley.set_grammar mutable_flag
@@ -452,5 +439,3 @@ let _ =
           (List.cons
              (Earley_core.Earley.fsequence to_kw
                 (Earley_core.Earley.empty (fun _default_0 -> Upto))) [])))
-let start_pos loc = loc.Location.loc_start
-let end_pos loc = loc.Location.loc_end

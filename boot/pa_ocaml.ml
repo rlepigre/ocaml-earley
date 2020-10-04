@@ -1083,7 +1083,8 @@ let _ =
                          (Earley_core.Earley.fsequence ty_opt_label
                             (Earley_core.Earley.fsequence
                                (typexpr_lvl ProdType)
-                               (Earley_core.Earley.fsequence arrow_re
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "->" "->")
                                   (Earley_core.Earley.fsequence
                                      (typexpr_lvl Arr)
                                      (Earley_core.Earley.empty_pos
@@ -1097,11 +1098,10 @@ let _ =
                                                      __loc__end__buf
                                                      __loc__end__pos in
                                                  fun te' ->
-                                                   fun _default_0 ->
-                                                     fun te ->
-                                                       fun ln ->
-                                                         Typ.arrow ~loc:_loc
-                                                           ln te te')))))))
+                                                   fun te ->
+                                                     fun ln ->
+                                                       Typ.arrow ~loc:_loc ln
+                                                         te te')))))))
                        (List.cons
                           ((fun (allow_par, lvl) -> lvl <= Arr),
                             (Earley_core.Earley.fsequence label_name
@@ -1109,7 +1109,8 @@ let _ =
                                   (Earley_core.Earley.char ':' ':')
                                   (Earley_core.Earley.fsequence
                                      (typexpr_lvl ProdType)
-                                     (Earley_core.Earley.fsequence arrow_re
+                                     (Earley_core.Earley.fsequence_ignore
+                                        (Earley_core.Earley.string "->" "->")
                                         (Earley_core.Earley.fsequence
                                            (typexpr_lvl Arr)
                                            (Earley_core.Earley.empty_pos
@@ -1124,18 +1125,18 @@ let _ =
                                                            __loc__end__buf
                                                            __loc__end__pos in
                                                        fun te' ->
-                                                         fun _default_0 ->
-                                                           fun te ->
-                                                             fun ln ->
-                                                               Typ.arrow
-                                                                 ~loc:_loc
-                                                                 (Labelled ln)
-                                                                 te te'))))))))
+                                                         fun te ->
+                                                           fun ln ->
+                                                             Typ.arrow
+                                                               ~loc:_loc
+                                                               (Labelled ln)
+                                                               te te'))))))))
                           (List.cons
                              ((fun (allow_par, lvl) -> lvl <= Arr),
                                (Earley_core.Earley.fsequence
                                   (typexpr_lvl ProdType)
-                                  (Earley_core.Earley.fsequence arrow_re
+                                  (Earley_core.Earley.fsequence_ignore
+                                     (Earley_core.Earley.string "->" "->")
                                      (Earley_core.Earley.fsequence
                                         (typexpr_lvl Arr)
                                         (Earley_core.Earley.empty_pos
@@ -1150,10 +1151,9 @@ let _ =
                                                         __loc__end__buf
                                                         __loc__end__pos in
                                                     fun te' ->
-                                                      fun _default_0 ->
-                                                        fun te ->
-                                                          Typ.arrow ~loc:_loc
-                                                            Nolabel te te'))))))
+                                                      fun te ->
+                                                        Typ.arrow ~loc:_loc
+                                                          Nolabel te te'))))))
                              (List.cons
                                 ((fun _ -> true),
                                   (Earley_core.Earley.fsequence_position
@@ -1740,15 +1740,15 @@ let _ =
                            (Earley_core.Earley.fsequence field_decl_list
                               (Earley_core.Earley.fsequence_ignore
                                  (Earley_core.Earley.char '}' '}')
-                                 (Earley_core.Earley.fsequence arrow_re
+                                 (Earley_core.Earley.fsequence_ignore
+                                    (Earley_core.Earley.string "->" "->")
                                     (Earley_core.Earley.fsequence
                                        (typexpr_lvl (next_type_prio Arr))
                                        (Earley_core.Earley.empty
                                           (fun te ->
-                                             fun _default_0 ->
-                                               fun fds ->
-                                                 ((Pcstr_record fds),
-                                                   (Some te))))))))))
+                                             fun fds ->
+                                               ((Pcstr_record fds),
+                                                 (Some te))))))))))
                      (List.cons
                         (Earley_core.Earley.fsequence
                            (Earley_core.Earley.option None
@@ -1826,12 +1826,12 @@ let _ =
                                                       fun f ->
                                                         fun l ->
                                                           f (List.cons x l))))
-                                             (Earley_core.Earley.fsequence
-                                                arrow_re
+                                             (Earley_core.Earley.fsequence_ignore
+                                                (Earley_core.Earley.string
+                                                   "->" "->")
                                                 (Earley_core.Earley.empty
-                                                   (fun _default_0 ->
-                                                      fun tes ->
-                                                        fun te -> te :: tes))))))
+                                                   (fun tes ->
+                                                      fun te -> te :: tes))))))
                                     (Earley_core.Earley.fsequence
                                        (typexpr_lvl (next_type_prio Arr))
                                        (Earley_core.Earley.empty
@@ -4529,7 +4529,8 @@ let _ =
                      (Earley_core.Earley.fsequence expression
                         (Earley_core.Earley.empty
                            (fun _default_0 -> _default_0))))))
-            (Earley_core.Earley.fsequence arrow_re
+            (Earley_core.Earley.fsequence_ignore
+               (Earley_core.Earley.string "->" "->")
                (Earley_core.Earley.fsequence
                   (Earley_core.Earley.alternatives
                      (List.cons
@@ -4547,9 +4548,7 @@ let _ =
                                        Exp.unreachable ~loc:_loc ())))
                         (List.cons (expression_lvl (alm, lvl)) [])))
                   (Earley_core.Earley.empty
-                     (fun e ->
-                        fun _default_0 ->
-                          fun guard -> fun pat -> Exp.case pat ?guard e))))))
+                     (fun e -> fun guard -> fun pat -> Exp.case pat ?guard e))))))
 let _ =
   set_grammar match_cases
     (Earley_core.Earley.alternatives
@@ -4871,7 +4870,8 @@ let _ =
                                                     fun p -> (p, _loc))))
                                      (fun x ->
                                         fun f -> fun l -> f (List.cons x l))))
-                               (Earley_core.Earley.fsequence arrow_re
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "->" "->")
                                   (Earley_core.Earley.fsequence class_expr
                                      (Earley_core.Earley.empty_pos
                                         (fun __loc__start__buf ->
@@ -4884,11 +4884,10 @@ let _ =
                                                      __loc__end__buf
                                                      __loc__end__pos in
                                                  fun ce ->
-                                                   fun _default_0 ->
-                                                     fun ps ->
-                                                       fun _default_1 ->
-                                                         apply_params_cls
-                                                           _loc ps ce))))))
+                                                   fun ps ->
+                                                     fun _default_0 ->
+                                                       apply_params_cls _loc
+                                                         ps ce))))))
                          (List.cons
                             (Earley_core.Earley.fsequence let_kw
                                (Earley_core.Earley.fsequence rec_flag
@@ -5943,7 +5942,8 @@ let _ =
                                             locate str1 pos1 str2 pos2 in
                                           (lbl, _loc_lbl))))
                          (fun x -> fun f -> fun l -> f (List.cons x l))))
-                   (Earley_core.Earley.fsequence arrow_re
+                   (Earley_core.Earley.fsequence_ignore
+                      (Earley_core.Earley.string "->" "->")
                       (Earley_core.Earley.empty_pos
                          (fun __loc__start__buf ->
                             fun __loc__start__pos ->
@@ -5953,14 +5953,13 @@ let _ =
                                     locate __loc__start__buf
                                       __loc__start__pos __loc__end__buf
                                       __loc__end__pos in
-                                  fun _default_0 ->
-                                    fun l ->
-                                      fun _default_1 ->
-                                        (Seq, false,
-                                          (fun e ->
-                                             fun (_loc, _) ->
-                                               Exp.mk ~loc:_loc
-                                                 (apply_params _loc l e).pexp_desc))))))))
+                                  fun l ->
+                                    fun _default_0 ->
+                                      (Seq, false,
+                                        (fun e ->
+                                           fun (_loc, _) ->
+                                             Exp.mk ~loc:_loc
+                                               (apply_params _loc l e).pexp_desc))))))))
            (List.cons
               ((fun (alm, lvl) -> (allow_let alm) && (lvl < App)),
                 (Earley_core.Earley.fsequence_ignore let_kw
@@ -7673,7 +7672,8 @@ let _ =
                 (List.cons
                    (Earley_core.Earley.fsequence functor_kw
                       (Earley_core.Earley.fsequence functor_parameter
-                         (Earley_core.Earley.fsequence arrow_re
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string "->" "->")
                             (Earley_core.Earley.fsequence module_expr
                                (Earley_core.Earley.empty_pos
                                   (fun __loc__start__buf ->
@@ -7686,11 +7686,10 @@ let _ =
                                                __loc__end__buf
                                                __loc__end__pos in
                                            fun me ->
-                                             fun _default_0 ->
-                                               fun p ->
-                                                 fun _default_1 ->
-                                                   Mod.functor_ ~loc:_loc
-                                                     (snd p) me))))))
+                                             fun p ->
+                                               fun _default_0 ->
+                                                 Mod.functor_ ~loc:_loc
+                                                   (snd p) me))))))
                    (List.cons
                       (Earley_core.Earley.fsequence_ignore
                          (Earley_core.Earley.char '(' '(')
@@ -7830,7 +7829,8 @@ let _ =
                 (List.cons
                    (Earley_core.Earley.fsequence functor_kw
                       (Earley_core.Earley.fsequence functor_parameter
-                         (Earley_core.Earley.fsequence arrow_re
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string "->" "->")
                             (Earley_core.Earley.fsequence module_type
                                (Earley_core.Earley.fsequence no_with
                                   (Earley_core.Earley.empty_pos
@@ -7845,12 +7845,10 @@ let _ =
                                                   __loc__end__pos in
                                               fun _default_0 ->
                                                 fun me ->
-                                                  fun _default_1 ->
-                                                    fun p ->
-                                                      fun _default_2 ->
-                                                        Mty.functor_
-                                                          ~loc:_loc (
-                                                          snd p) me)))))))
+                                                  fun p ->
+                                                    fun _default_1 ->
+                                                      Mty.functor_ ~loc:_loc
+                                                        (snd p) me)))))))
                    (List.cons
                       (Earley_core.Earley.fsequence_ignore
                          (Earley_core.Earley.char '(' '(')

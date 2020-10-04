@@ -1044,16 +1044,16 @@ let _ =
                         (fun r ->
                            let (a, b, c) = build_rule r in DepSeq (a, b, c)))))
                (List.cons
-                  (Earley_core.Earley.fsequence arrow_re
+                  (Earley_core.Earley.fsequence_ignore
+                     (Earley_core.Earley.string "->" "->")
                      (Earley_core.Earley.fsequence
                         (if alm
                          then expression
                          else expression_lvl (Let, Seq))
                         (Earley_core.Earley.fsequence no_semi
                            (Earley_core.Earley.empty
-                              (fun _default_0 ->
-                                 fun action ->
-                                   fun _default_1 -> Normal action))))) []))))
+                              (fun _default_0 -> fun action -> Normal action)))))
+                  []))))
 let _ =
   glr_rule__set__grammar
     (fun alm ->
@@ -1250,7 +1250,8 @@ let _ =
                    (Earley_core.Earley.fsequence_ignore
                       (Earley_core.Earley.char '@' '@')
                       (Earley_core.Earley.fsequence pattern
-                         (Earley_core.Earley.fsequence_ignore arrow_re
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.string "->" "->")
                             (Earley_core.Earley.fsequence_ignore parser_kw
                                (Earley_core.Earley.empty
                                   (fun prio ->
@@ -1268,7 +1269,8 @@ let _ =
                          (Earley_core.Earley.fsequence_ignore
                             (Earley_core.Earley.char '@' '@')
                             (Earley_core.Earley.fsequence pattern
-                               (Earley_core.Earley.fsequence_ignore arrow_re
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.string "->" "->")
                                   (Earley_core.Earley.fsequence_ignore
                                      parser_kw
                                      (Earley_core.Earley.empty
