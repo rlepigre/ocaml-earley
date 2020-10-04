@@ -492,7 +492,7 @@ and parser glr_cond = {_:when_kw e:expression}?
 
 and parser glr_action alm =
   | "->>" r:(glr_rule alm) -> let (a,b,c) = build_rule r in DepSeq (a,b,c)
-  | arrow_re action:(if alm then expression else expression_lvl (Let, Seq)) no_semi -> Normal action
+  | "->" action:(if alm then expression else expression_lvl (Let, Seq)) no_semi -> Normal action
   | EMPTY -> Default
 
 and parser glr_rule alm =
@@ -529,8 +529,8 @@ let parser extra_prefix_expressions =
   | (args,prio):{
       | _:parser_kw -> ([], None)
       | _:fun_kw args:(pattern_lvl(false,AtomPat))* '@'
-        prio:pattern _:arrow_re _:parser_kw -> (args,Some prio)
-      | _:function_kw arg:pattern '@' prio:pattern _:arrow_re _:parser_kw ->
+        prio:pattern "->" _:parser_kw -> (args,Some prio)
+      | _:function_kw arg:pattern '@' prio:pattern "->" _:parser_kw ->
          ([arg],Some prio)
     } r:glr_rules ->
     let r = match prio with

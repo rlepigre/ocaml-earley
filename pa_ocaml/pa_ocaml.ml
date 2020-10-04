@@ -341,15 +341,15 @@ let _ = set_typexpr_lvl (fun @(allow_par, lvl) ->
        when allow_par
     -> { te with ptyp_attributes = at }
 
-  | ln:ty_opt_label te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | ln:ty_opt_label te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc ln te te'
 
-  | ln:label_name ':' te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | ln:label_name ':' te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc (Labelled ln) te te'
 
-  | te:(typexpr_lvl ProdType) arrow_re te':(typexpr_lvl Arr)
+  | te:(typexpr_lvl ProdType) "->" te':(typexpr_lvl Arr)
        when lvl <= Arr
     -> Typ.arrow ~loc:_loc Nolabel te te'
 
@@ -439,10 +439,10 @@ let parser constr_decl with_bar =
              | of_kw '{' fds:field_decl_list '}' -> (Pcstr_record fds, None)
              | ':' tes:{te:(typexpr_lvl (next_type_prio ProdType))
                         tes:{_:'*' (typexpr_lvl (next_type_prio ProdType))}*
-                        arrow_re -> (te::tes)}?[[]]
+                        "->" -> (te::tes)}?[[]]
                    te:(typexpr_lvl (next_type_prio Arr)) ->
                 (Pcstr_tuple tes, Some te)
-             | ':' '{' fds:field_decl_list '}' arrow_re
+             | ':' '{' fds:field_decl_list '}' "->"
                    te:(typexpr_lvl (next_type_prio Arr)) ->
                 (Pcstr_record fds, Some te)
              } a:post_item_attributes
@@ -953,7 +953,7 @@ let _ = set_grammar let_binding (
   )
 
 let parser match_case alm lvl =
-  | pat:pattern guard:{_:when_kw expression}? arrow_re
+  | pat:pattern guard:{_:when_kw expression}? "->"
                  e:{(expression_lvl (alm, lvl))
                    | "." -> Exp.unreachable ~loc:_loc () } ->
       Exp.case pat ?guard e
@@ -1005,7 +1005,7 @@ let parser class_expr_base =
       Cl.mk ~loc:_loc ce.pcl_desc
   | '(' ce:class_expr STR(":") ct:class_type ')' ->
       Cl.constraint_ ~loc:_loc ce ct
-  | fun_kw ps:{p:(parameter false) -> (p, _loc)}+ arrow_re ce:class_expr ->
+  | fun_kw ps:{p:(parameter false) -> (p, _loc)}+ "->" ce:class_expr ->
       apply_params_cls _loc ps ce
   | let_kw r:rec_flag lbs:let_binding in_kw ce:class_expr ->
       Cl.let_ ~loc:_loc r lbs ce
@@ -1130,7 +1130,7 @@ let parser functor_parameter =
   | '(' mn:module_name ':' mt:module_type ')' -> (_loc, Named(mn, mt))
 
 let parser left_expr @(alm,lvl) =
-  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* arrow_re
+  | fun_kw l:{lbl:(parameter true) -> lbl,_loc_lbl}* "->"
     when allow_let alm && lvl < App ->
       (Seq, false, (fun e (_loc,_) ->
         Exp.mk ~loc:_loc (apply_params _loc l e).pexp_desc))
@@ -1400,7 +1400,7 @@ let parser module_expr_base =
     ms:{ms:structure -> ms @ attach_str _loc}
     {end_kw ->  pop_comments ()} ->
       Mod.structure ~loc:_loc ms
-  | functor_kw p:functor_parameter arrow_re me:module_expr ->
+  | functor_kw p:functor_parameter "->" me:module_expr ->
       Mod.functor_ ~loc:_loc (snd p) me
   | '(' me:module_expr mt:{':' mt:module_type}? ')' ->
       begin
@@ -1429,7 +1429,7 @@ let parser module_type_base =
     ms:{ms:signature -> ms @ attach_sig _loc}
     {end_kw -> pop_comments () } ->
       Mty.signature ~loc:_loc ms
-  | functor_kw p:functor_parameter arrow_re me:module_type no_with ->
+  | functor_kw p:functor_parameter "->" me:module_type no_with ->
       Mty.functor_ ~loc:_loc (snd p) me
   | '(' mt:module_type ')'
   | module_kw type_kw of_kw me:module_expr ->

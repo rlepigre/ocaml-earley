@@ -1,11 +1,8 @@
 (* Copyright 2016-2020 Christophe Raffalli & Rodolphe Lepigre. *)
 
 open Earley_core
-open Pa_ocaml_prelude
-open Pa_ocaml
 open Input
-open Earley
-open Format
+open Pa_ocaml
 open Pa_lexing
 
 let define_directive =
@@ -129,6 +126,7 @@ let _ =
         "Debug ocamldoc comments attachment.") ]
   in
   let usage = Printf.sprintf "usage: %s [options] file" Sys.argv.(0) in
+  let file = ref None in
   Arg.parse spec (fun s -> file := Some(s)) usage;
   let ast =
     let (filename, ic) =

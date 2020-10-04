@@ -8,33 +8,24 @@ open Parsetree
 open Pa_lexing
 open Ast_helper
 
-let file  : string option ref = ref None
-
-let print_location ch {Location.loc_start = s ; Location.loc_end = e} =
-  let open Lexing in
+let print_location ch loc =
+  let (s, e) = Location.(loc.loc_start, loc.loc_end) in
   Printf.fprintf ch "Position %d:%d to %d:%d%!"
     s.pos_lnum (s.pos_cnum - s.pos_bol)
     e.pos_lnum (e.pos_cnum - e.pos_bol)
 
-let string_location {Location.loc_start = s ; Location.loc_end = e} =
-  let open Lexing in
-  Printf.sprintf "Position %d:%d to %d:%d%!"
-    s.pos_lnum (s.pos_cnum - s.pos_bol)
-    e.pos_lnum (e.pos_cnum - e.pos_bol)
-
 let lexing_position str pos =
-  let loff = line_offset str in
-  Lexing.({ pos_fname = filename str
-          ; pos_lnum  = line_num str
-          ; pos_cnum  = loff + pos
-          ; pos_bol   = loff })
+  let pos_fname = filename str in
+  let pos_lnum  = line_num str in
+  let pos_bol   = line_offset str in
+  let pos_cnum  = pos_bol + pos in
+  Lexing.{pos_fname; pos_lnum; pos_cnum; pos_bol}
 
 (* Location function. *)
-let locate str pos str' pos' =
-  Lexing.(
-    let s = lexing_position str pos in
-    let e = lexing_position str' pos' in
-    Location.({loc_start = s; loc_end = e; loc_ghost = false}))
+let locate str1 pos1 str2 pos2 =
+  let loc_start = lexing_position str1 pos1 in
+  let loc_end   = lexing_position str2 pos2 in
+  Location.{loc_start; loc_end; loc_ghost = false}
 
 #define LOCATE locate
 
@@ -45,8 +36,8 @@ type expression_prio =
   | Cons | Sum | Prod | Pow | Opp | App | Dash | Dot | Prefix | Atom
 
 let expression_prios =
-  [ Seq ; Aff ; Tupl ; Disj ; Conj ; Eq ; Append
-  ; Cons ; Sum ; Prod ; Pow ; Opp ; App ; Dash ; Dot ; Prefix ; Atom]
+  [Seq; Aff; Tupl; Disj; Conj; Eq; Append; Cons; Sum; Prod; Pow; Opp; App;
+   Dash; Dot; Prefix; Atom]
 
 let next_exp = function
   | Seq -> If
@@ -80,8 +71,7 @@ let allow_let = function
   | _ -> false
 
 let string_exp (b,lvl) =
-  (match b with NoMatch -> "" | Match -> "m_" | Let -> "l_"
-  ) ^
+  (match b with NoMatch -> "" | Match -> "m_" | Let -> "l_") ^
   (match lvl with
   | Seq -> "Seq"
   | If -> "If"
@@ -103,71 +93,71 @@ let string_exp (b,lvl) =
   | Atom -> "Atom")
 
 
-  let ((expression_lvl : alm * expression_prio -> expression grammar)
-      , set_expression_lvl)
-    = grammar_family ~param_to_string:string_exp "expression_lvl"
-  let expression = expression_lvl (Match, Seq)
-  let structure_item : structure_item list grammar
-    = declare_grammar "structure_item"
-  let signature_item : signature_item list grammar
-    = declare_grammar "signature_item"
-  let (parameter : bool -> [`Arg of arg_label * expression option * pattern
-                           | `Type of string Location.loc ]
-                             grammar), set_parameter = grammar_family "parameter"
+let ((expression_lvl : alm * expression_prio -> expression grammar)
+    , set_expression_lvl)
+  = grammar_family ~param_to_string:string_exp "expression_lvl"
+let expression = expression_lvl (Match, Seq)
+let structure_item : structure_item list grammar
+  = declare_grammar "structure_item"
+let signature_item : signature_item list grammar
+  = declare_grammar "signature_item"
+let (parameter : bool -> [`Arg of arg_label * expression option * pattern
+                         | `Type of string Location.loc ]
+                           grammar), set_parameter = grammar_family "parameter"
 
-  let structure = structure_item
+let structure = structure_item
 
-  let parser signature =
-      l : {s:signature_item}* -> List.flatten l
+let parser signature =
+    l : {s:signature_item}* -> List.flatten l
 
-  type type_prio = TopType | As | Arr | ProdType | DashType | AppType | AtomType
+type type_prio = TopType | As | Arr | ProdType | DashType | AppType | AtomType
 
-  let type_prios = [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
-  let type_prio_to_string (_, lvl) = match lvl with
-    | TopType -> "TopType" | As -> "As" | Arr -> "Arr" | ProdType -> "ProdType"
-    | DashType -> "DashType" | AppType -> "AppType" | AtomType -> "AtomType"
-  let next_type_prio = function
-    | TopType -> As
-    | As -> Arr
-    | Arr -> ProdType
-    | ProdType -> DashType
-    | DashType -> AppType
-    | AppType -> AtomType
-    | AtomType -> AtomType
+let type_prios = [TopType; As; Arr; ProdType; DashType; AppType; AtomType]
+let type_prio_to_string (_, lvl) = match lvl with
+  | TopType -> "TopType" | As -> "As" | Arr -> "Arr" | ProdType -> "ProdType"
+  | DashType -> "DashType" | AppType -> "AppType" | AtomType -> "AtomType"
+let next_type_prio = function
+  | TopType -> As
+  | As -> Arr
+  | Arr -> ProdType
+  | ProdType -> DashType
+  | DashType -> AppType
+  | AppType -> AtomType
+  | AtomType -> AtomType
 
-  let (typexpr_lvl_raw : (bool * type_prio) -> core_type grammar), set_typexpr_lvl =
-    grammar_prio ~param_to_string:type_prio_to_string "typexpr_lvl"
-  let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
-  let typexpr_nopar = typexpr_lvl_raw (false, TopType)
-  let typexpr = typexpr_lvl TopType
-  type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
-  let topPat = AltPat
-  let pat_prio_to_string (_, lvl) = match lvl with
-    | AltPat -> "AltPat" | TupPat -> "TupPat" | ConsPat -> "ConsPat"
-    | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
-  let next_pat_prio = function
-    | AltPat -> TupPat
-    | TupPat -> ConsPat
-    | ConsPat -> ConstrPat
-    | ConstrPat -> AtomPat
-    | AtomPat -> assert false
-  let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl =
-    grammar_prio ~param_to_string:pat_prio_to_string "pattern_lvl"
-  let pattern = pattern_lvl (true,topPat)
+let (typexpr_lvl_raw : (bool * type_prio) -> core_type grammar), set_typexpr_lvl =
+  grammar_prio ~param_to_string:type_prio_to_string "typexpr_lvl"
+let typexpr_lvl lvl = typexpr_lvl_raw (true, lvl)
+let typexpr_nopar = typexpr_lvl_raw (false, TopType)
+let typexpr = typexpr_lvl TopType
+type pattern_prio = AltPat | TupPat | ConsPat | ConstrPat | AtomPat
+let topPat = AltPat
+let pat_prio_to_string (_, lvl) = match lvl with
+  | AltPat -> "AltPat" | TupPat -> "TupPat" | ConsPat -> "ConsPat"
+  | ConstrPat -> "ConstrPat" | AtomPat -> "AtomPat"
+let next_pat_prio = function
+  | AltPat -> TupPat
+  | TupPat -> ConsPat
+  | ConsPat -> ConstrPat
+  | ConstrPat -> AtomPat
+  | AtomPat -> assert false
+let (pattern_lvl : bool * pattern_prio -> pattern grammar), set_pattern_lvl =
+  grammar_prio ~param_to_string:pat_prio_to_string "pattern_lvl"
+let pattern = pattern_lvl (true,topPat)
 
-  let let_binding : value_binding list grammar = declare_grammar "let_binding"
-  let class_body : class_structure grammar = declare_grammar "class_body"
-  let class_expr : class_expr grammar = declare_grammar "class_expr"
-  let value_path : Longident.t grammar = declare_grammar "value_path"
+let let_binding : value_binding list grammar = declare_grammar "let_binding"
+let class_body : class_structure grammar = declare_grammar "class_body"
+let class_expr : class_expr grammar = declare_grammar "class_expr"
+let value_path : Longident.t grammar = declare_grammar "value_path"
 
-  type record_field = Longident.t Asttypes.loc * Parsetree.expression
+type record_field = Longident.t Asttypes.loc * Parsetree.expression
 
-  let constr_decl_list : constructor_declaration list grammar = declare_grammar "constr_decl_list"
-  let field_decl_list : label_declaration list grammar = declare_grammar "field_decl_list"
-  let record_list : record_field list grammar = declare_grammar "record_list"
-  let match_cases : case list grammar = declare_grammar "match_cases"
-  let module_expr : module_expr grammar = declare_grammar "module_expr"
-  let module_type : module_type grammar = declare_grammar "module_type"
+let constr_decl_list : constructor_declaration list grammar = declare_grammar "constr_decl_list"
+let field_decl_list : label_declaration list grammar = declare_grammar "field_decl_list"
+let record_list : record_field list grammar = declare_grammar "record_list"
+let match_cases : case list grammar = declare_grammar "match_cases"
+let module_expr : module_expr grammar = declare_grammar "module_expr"
+let module_type : module_type grammar = declare_grammar "module_type"
 
 let parse_string' g e' =
   try
@@ -285,55 +275,50 @@ let attach_sig =
 let attach_str =
   attach_gen (fun loc (str,pl)  -> Str.attribute ~loc (Attr.mk ~loc str pl))
 
-
-
 (****************************************************************************
  * Basic syntactic elements (identifiers and litterals)                      *
  ****************************************************************************)
-let union_re l =
-  let l = List.map (fun s -> "\\(" ^ s ^ "\\)") l in
-  String.concat "\\|" l
 
-let parser arrow_re = ''\(->\)\|\(→\)''
+let union_re l =
+  String.concat "\\|" (List.map (fun s -> "\\(" ^ s ^ "\\)") l)
 
 let infix_symb_re prio =
   match prio with
-  | Prod -> union_re ["[/%][!$%&*+./:<=>?@^|~-]*";
-                      "[*]\\([!$%&+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*\\)?";
+  | Prod   -> union_re ["[/%][!$%&*+./:<=>?@^|~-]*";
+                        "[*]\\([!$%&+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*\\)?";
                         "mod\\b"; "land\\b"; "lor\\b"; "lxor\\b"]
-  | Sum -> "[+-][!$%&*+./:<=>?@^|~-]*"
+  | Sum    -> "[+-][!$%&*+./:<=>?@^|~-]*"
   | Append -> "[@^][!$%&*+./:<=>?@^|~-]*"
-  | Cons -> "::"
-  | Aff -> union_re [":=[!$%&*+./:<=>?@^|~-]*";
-                     "<-[!$%&*+./:<=>?@^|~-]*"]
-  | Eq -> union_re ["[<][!$%&*+./:<=>?@^|~]?[!$%&*+./:<=>?@^|~-]*";
-                    "[&][!$%*+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*";
-                    "|[!$%&*+./:<=>?@^~-][!$%&*+./:<=>?@^|~-]*";
-                    "[=>$][!$%&*+./:<=>?@^|~-]*"; "!="]
-  | Conj -> union_re ["[&][&][!$%&*+./:<=>?@^|~-]*"; "[&]"]
-  | Disj -> union_re ["or\\b"; "||[!$%&*+./:<=>?@^|~-]*"]
-  | Pow -> union_re ["lsl\\b"; "lsr\\b"; "asr\\b"; "[*][*][!$%&*+./:<=>?@^|~-]*"]
-  | _ -> assert false
+  | Cons   -> "::"
+  | Aff    -> union_re [":=[!$%&*+./:<=>?@^|~-]*";
+                        "<-[!$%&*+./:<=>?@^|~-]*"]
+  | Eq     -> union_re ["[<][!$%&*+./:<=>?@^|~]?[!$%&*+./:<=>?@^|~-]*";
+                        "[&][!$%*+./:<=>?@^|~-][!$%&*+./:<=>?@^|~-]*";
+                        "|[!$%&*+./:<=>?@^~-][!$%&*+./:<=>?@^|~-]*";
+                        "[=>$][!$%&*+./:<=>?@^|~-]*"; "!="]
+  | Conj   -> union_re ["[&][&][!$%&*+./:<=>?@^|~-]*"; "[&]"]
+  | Disj   -> union_re ["or\\b"; "||[!$%&*+./:<=>?@^|~-]*"]
+  | Pow    -> union_re ["lsl\\b"; "lsr\\b"; "asr\\b";
+                        "[*][*][!$%&*+./:<=>?@^|~-]*"]
+  | _      -> assert false
 
 let infix_prios = [ Prod; Sum; Append; Cons; Aff; Eq; Conj; Disj; Pow]
 
 let prefix_symb_re prio =
   match prio with
-  | Opp -> union_re ["-[.]?"; "+[.]?"]
-  | Prefix ->
-     union_re ["[!][!$%&*+./:<=>?@^|~-]*";
-               "[~?][!$%&*+./:<=>?@^|~-]+"]
-  | _ -> assert false
-
-let prefix_prios = [ Opp; Prefix ]
+  | Opp    -> union_re ["-[.]?"; "+[.]?"]
+  | Prefix -> union_re ["[!][!$%&*+./:<=>?@^|~-]*";
+                        "[~?][!$%&*+./:<=>?@^|~-]+"]
+  | _      -> assert false
 
 let parser infix_symbol prio =
-  | "::" when prio = Cons -> "::"
+  | "::"                                   when prio =  Cons -> "::"
   | sym:RE(infix_symb_re prio) not_special when prio <> Cons ->
-     (if is_reserved_symb sym then give_up (); sym)
+      if is_reserved_symb sym then give_up () else sym
 
 let parser prefix_symbol prio =
-    sym:RE(prefix_symb_re prio) not_special -> (if is_reserved_symb sym || sym = "!=" then give_up (); sym)
+  | sym:RE(prefix_symb_re prio) not_special ->
+      if is_reserved_symb sym || sym = "!=" then give_up () else sym
 
 (****************************************************************************
  * Several flags                                                            *
@@ -358,9 +343,3 @@ let parser rec_flag =
 let parser downto_flag =
   | to_kw     -> Upto
   | downto_kw -> Downto
-
-let start_pos loc =
-  loc.Location.loc_start
-
-let end_pos loc =
-  loc.Location.loc_end
