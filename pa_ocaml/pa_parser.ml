@@ -106,7 +106,9 @@ let rec build_action loc occur_loc ids e =
       mk_fun loc args (Exp.let_ Nonrecursive [vb] e)
   | (_           , _   ) -> e
 
-let apply_option loc opt e =
+type modifier = Star | Plus | Maybe
+
+let apply_option loc (opt : (modifier * expression option) option) (g : bool) e =
   let fn e f d =
     match d with
     | None   ->
@@ -137,27 +139,23 @@ let apply_option loc opt e =
     | Some d ->
         core_apply loc f [d; e]
   in
-  let kn e = function
-    | None   -> e
-    | Some _ -> core_apply loc "greedy" [e]
-  in
+  let kn e g = if g then core_apply loc "greedy" [e] else e in
   match opt with
-  | `Once           -> e
-  | `Option(d,g)    -> kn (fn e "option" d) g
-  | `Greedy         -> core_apply loc "greedy" [e]
-  | `Fixpoint(d,g)  -> kn (gn e "fixpoint" d) g
-  | `Fixpoint1(d,g) -> kn (gn e "fixpoint1" d) g
+  | None             -> kn e g
+  | Some((Maybe, d)) -> kn (fn e "option" d) g
+  | Some((Star , d)) -> kn (gn e "fixpoint" d) g
+  | Some((Plus , d)) -> kn (gn e "fixpoint1" d) g
 
 
 let default_action loc l =
   let p x =
     match x with
-    | `Normal((("_", _), false, _, _, _)) -> false
+    | `Normal((("_", _), false, _, _, _, _)) -> false
     | _                                   -> true
   in
   let f x =
     match x with
-    | `Normal((id, _), _, _, _, _) -> Exp.ident ~loc (mk_lid id)
+    | `Normal((id, _), _, _, _, _, _) -> Exp.ident ~loc (mk_lid id)
     | _                            -> assert false
   in
   match List.map f (List.filter p l) with
@@ -200,16 +198,16 @@ let build_rule (_loc,occur_loc,def, l, condition, action) =
            | _ -> "empty"
          in
          core_apply _loc f [a]
-      | [`Normal(id,_,e,opt,occur_loc_id)] when
+      | [`Normal(id,_,e,opt,g,occur_loc_id)] when
          (match action.pexp_desc with
           | Pexp_ident({ txt = Lident id'}) when ids = [] && fst id = id' -> true
           | _ -> false)
         ->
          assert (not occur_loc);
          assert (not occur_loc_id);
-         apply_option _loc opt e
-      | `Normal(id,_,e,opt,occur_loc_id) :: ls ->
-         let e = apply_option _loc opt e in
+         apply_option _loc opt g e
+      | `Normal(id,_,e,opt,g,occur_loc_id) :: ls ->
+         let e = apply_option _loc opt g e in
          let a = fn ((id,occur_loc_id)::ids) ls in
          let fn = match find_locate (), occur_loc_id with
            | Some _, true -> "fsequence_position"
@@ -418,6 +416,31 @@ let build_new_re_litteral loc s opt =
   | None   -> re
   | Some e -> core_apply loc "apply" [mk_fun loc ["group"] e; re]
 
+let build_rule_element p (boring, e) m g =
+  let (cst, id) =
+    match p with
+    | None                      -> (None, ("_", None))
+    | Some(p)                   ->
+    match p.ppat_desc with
+    | Ppat_alias(p, {txt = id}) -> (Some(true     ), (id , Some(p)))
+    | Ppat_var({txt = id})      -> (Some(id <> "_"), (id , None   ))
+    | Ppat_any                  -> (Some(false    ), ("_", None   ))
+    | _                         -> (Some(true     ), ("_", Some(p)))
+  in
+  `Normal(id, (from_opt cst (m <> None || not boring)), e, m, g)
+
+let build_rule_data loc def lhs cond action =
+  let fn x (res, i) =
+    match x with
+    | `Normal(("_",a),true,c,d,e) ->
+        (`Normal(("_default_"^string_of_int i,a),true,c,d,e,false)::res, i+1)
+    | `Normal(id, b,c,d,e) ->
+        let occur_loc_id = fst id <> "_" && occur ("_loc_"^fst id) action in
+        (`Normal(id, b,c,d,e,occur_loc_id)::res, i)
+  in
+  let lhs = fst (List.fold_right fn lhs ([], 0)) in
+  (loc, occur "_loc" action, def, lhs, cond, action)
+
 (** Grammar for a single parser atom (including composite atoms such a a local
     alternative given in braces). The semantic action is a pair [(boring, e)],
     where [boring] is a boolean indicating whether the denoted parser produces
@@ -460,93 +483,101 @@ let parser parser_atom =
   | "(" e:expression ")" ->
       (false, e)
   (* Full grammar as an atom. *)
-  | '{' r:glr_rules '}' ->
+  | '{' r:parser_rules '}' ->
       (false, build_alternatives _loc r)
   (* Special atom to forbid blanks. *)
   | dash oe:parser_param? ->
       (oe = None, core_apply _loc "no_blank_test" [or_unit _loc oe])
 
-and parser parser_param = '[' expression ']'
+(** Grammar for an expression in square brackets, used for parameters. *)
+and parser parser_param =
+  | '[' expression ']'
 
+(** Grammar for a modifier (e.g., Kleene star) and an optional parameter. *)
 and parser parser_modifier =
-  | '*' e:parser_param? g:'$'? -> `Fixpoint(e,g)
-  | '+' e:parser_param? g:'$'? -> `Fixpoint1(e,g)
-  | '?' e:parser_param? g:'$'? -> `Option(e,g)
-  | '$'                        -> `Greedy
-  | EMPTY                      -> `Once
+  | {'*' -> Star | '+' -> Plus | '?' -> Maybe} parser_param?
 
-and parser glr_ident =
-  | p:(pattern_lvl (true, ConstrPat)) ':' ->
-      begin
-        match p.ppat_desc with
-        | Ppat_alias(p, {txt = id}) -> (Some(true     ), (id , Some(p)))
-        | Ppat_var({txt = id})      -> (Some(id <> "_"), (id , None   ))
-        | Ppat_any                  -> (Some(false    ), ("_", None   ))
-        | _                         -> (Some(true     ), ("_", Some(p)))
-      end
+(** Grammar for an optional greedy modifier. *)
+and parser parser_greedy =
+  | '$'[true]?[false]
+
+(** Grammar for a naming pattern (for parser elements). *)
+and parser parser_pattern =
+  | (pattern_lvl (true, ConstrPat)) ':'
+
+(** Grammar for a full parsing rule element. *)
+and parser parser_rule_element =
+  | p:parser_pattern? e:parser_atom m:parser_modifier? g:parser_greedy ->
+      build_rule_element p e m g
+
+(** Grammar for a full parsing rule LHS. *)
+and parser parser_rule_lhs = parser_rule_element+
+
+(** Grammar for a sequence of let-bindings (allowed before rules). *)
+and parser parser_rule_let_bindings =
+  | let_kw r:rec_flag b:let_binding in_kw l:parser_rule_let_bindings ->
+      fun x -> Exp.let_ ~loc:_loc r b (l x)
   | EMPTY ->
-      (None, ("_", None))
+      fun x -> x
 
-and parser glr_left_member =
-   {(cst',id):glr_ident (boring,s):parser_atom opt:parser_modifier ->
-     `Normal(id, (from_opt cst' (opt <> `Once || not boring)),s,opt) }+
+(** Grammar for a parsing rule guard. *)
+and parser parser_rule_guard = _:when_kw expression
 
-and parser glr_let =
-  | let_kw r:rec_flag lbs:let_binding in_kw l:glr_let ->
-      (fun x -> Exp.let_ ~loc:_loc r lbs (l x))
-  | EMPTY ->
-      (fun x -> x)
-
-and parser glr_cond = {_:when_kw e:expression}?
-
-and parser glr_action alm =
-  | "->>" r:(glr_rule alm) ->
+(** Grammar for a parsing rule semantic action. *)
+and parser parser_rule_action alm =
+  | "->>" r:(parser_rule alm) ->
       DepSeq(build_rule r)
   | "->" a:(if alm then expression else expression_lvl (Let, Seq)) no_semi ->
       Normal(a)
   | EMPTY ->
       Default
 
-and parser glr_rule alm =
-  | def:glr_let l:glr_left_member cond:glr_cond action:(glr_action alm) ->
-      let fn x (res, i) =
-        match x with
-        | `Normal(("_",a),true,c,d) ->
-            (`Normal(("_default_"^string_of_int i,a),true,c,d,false)::res, i+1)
-        | `Normal(id, b,c,d) ->
-            let occur_loc_id = fst id <> "_" && occur ("_loc_"^fst id) action in
-            (`Normal(id, b,c,d,occur_loc_id)::res, i)
-      in
-      let l = fst (List.fold_right fn l ([], 0)) in
-      (_loc, occur "_loc" action, def, l, cond, action)
+(** Grammar for a full parsing rule. *)
+and parser parser_rule alm =
+  | def:parser_rule_let_bindings lhs:parser_rule_lhs cond:parser_rule_guard?
+    action:(parser_rule_action alm) ->
+      build_rule_data _loc def lhs cond action
 
-and parser glr_at_rule alm =
-  | a:{'@' | '[' '@' "unshared" ']' }? r:(glr_rule alm) -> ((a <> None), r)
+(** Grammar for an optional tag that disables sharing. *)
+and parser parser_rule_unshared =
+  | {'@' | '[' '@' "unshared" ']'} -> true
+  | EMPTY                          -> false
 
-and parser glr_rules =
-  | '|'? rs:{ r:(glr_at_rule false) _:'|'}* r:(glr_at_rule true) -> r::rs
+(** Grammar for a parsing rule possibly marked as non-sharable. *)
+and parser parser_full_rule alm =
+  | parser_rule_unshared (parser_rule alm)
 
-let parser glr_binding =
-  | name:lident args:pattern* prio:{_:'@' pattern}? ty:{':' typexpr}? '='
-    r:glr_rules ->
+(** Grammar for an alternative between several rules (main entry point). *)
+and parser parser_rules =
+  | '|'? rs:{(parser_full_rule false) '|'}* r:(parser_full_rule true) ->
+      r::rs (* FIXME preserve order. *)
+
+(** Grammar for a parser definition binding. *)
+let parser parser_binding =
+  | name:lident args:pattern* prio:{'@' pattern}? ty:{':' typexpr}? '='
+    r:parser_rules ->
       `Parser(name,args,prio,ty,_loc_r,r)
 
-let parser glr_bindings =
+(** Grammar for a sequence of definition bindings, starting with a parser. *)
+let parser parser_bindings =
   | cs:{_:and_kw let_binding}?[[]] ->
       List.map (fun b -> `Caml b) cs
-  | and_kw cs:{let_binding _:and_kw}?[[]] parser_kw b:glr_binding
-    bs:glr_bindings ->
+  | and_kw cs:{let_binding _:and_kw}?[[]] parser_kw b:parser_binding
+    bs:parser_bindings ->
       List.map (fun b -> `Caml b) cs @ b :: bs
 
+(** New entry point in structures: parser definition. *)
 let parser extra_structure =
-  | _:let_kw _:parser_kw b:glr_binding bs:glr_bindings ->
+  | _:let_kw _:parser_kw b:parser_binding bs:parser_bindings ->
       build_str_item _loc (b::bs)
 
+(** Special form of function wrapper for parser expressions. *)
 let parser parser_args =
   | _:fun_kw (pattern_lvl(false,AtomPat))* '@' pattern "->"
 
+(** New entry point in expressions: parser expression. *)
 let parser extra_prefix_expressions =
-  | args:parser_args? _:parser_kw r:glr_rules ->
+  | args:parser_args? _:parser_kw r:parser_rules ->
       let (args, e) =
         match args with
         | Some(args, prio) -> (args, build_prio_alternatives _loc_r prio r)
