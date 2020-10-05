@@ -85,7 +85,12 @@ let rec build_action loc occur_loc ids e =
       let vb = Vb.mk (Pat.var (mknoloc "_loc")) (mk_appv loc locate args) in
       mk_fun loc args (Exp.let_ Nonrecursive [vb] e)
   | (_, _) -> e
-let apply_option loc opt e =
+type modifier =
+  | Star 
+  | Plus 
+  | Maybe 
+let apply_option loc (opt : (modifier * expression option) option) (g : bool)
+  e =
   let fn e f d =
     match d with
     | None ->
@@ -108,19 +113,18 @@ let apply_option loc opt e =
           core_apply loc (f ^ "'") [id; e; fn] in
         core_apply loc "apply" [f_app_nil; arg2]
     | Some d -> core_apply loc f [d; e] in
-  let kn e = function | None -> e | Some _ -> core_apply loc "greedy" [e] in
+  let kn e g = if g then core_apply loc "greedy" [e] else e in
   match opt with
-  | `Once -> e
-  | `Option (d, g) -> kn (fn e "option" d) g
-  | `Greedy -> core_apply loc "greedy" [e]
-  | `Fixpoint (d, g) -> kn (gn e "fixpoint" d) g
-  | `Fixpoint1 (d, g) -> kn (gn e "fixpoint1" d) g
+  | None -> kn e g
+  | Some (Maybe, d) -> kn (fn e "option" d) g
+  | Some (Star, d) -> kn (gn e "fixpoint" d) g
+  | Some (Plus, d) -> kn (gn e "fixpoint1" d) g
 let default_action loc l =
   let p x =
-    match x with | `Normal (("_", _), false, _, _, _) -> false | _ -> true in
+    match x with | `Normal (("_", _), false, _, _, _, _) -> false | _ -> true in
   let f x =
     match x with
-    | `Normal ((id, _), _, _, _, _) -> Exp.ident ~loc (mk_lid id)
+    | `Normal ((id, _), _, _, _, _, _) -> Exp.ident ~loc (mk_lid id)
     | _ -> assert false in
   match List.map f (List.filter p l) with
   | [] -> mk_unit loc
@@ -159,16 +163,16 @@ let build_rule (_loc, occur_loc, def, l, condition, action) =
           | (Some _, true) -> "empty_pos"
           | _ -> "empty" in
         core_apply _loc f [a]
-    | (`Normal (id, _, e, opt, occur_loc_id))::[] when
+    | (`Normal (id, _, e, opt, g, occur_loc_id))::[] when
         match action.pexp_desc with
         | Pexp_ident { txt = Lident id' } when (ids = []) && ((fst id) = id')
             -> true
         | _ -> false ->
         (assert (not occur_loc);
          assert (not occur_loc_id);
-         apply_option _loc opt e)
-    | (`Normal (id, _, e, opt, occur_loc_id))::ls ->
-        let e = apply_option _loc opt e in
+         apply_option _loc opt g e)
+    | (`Normal (id, _, e, opt, g, occur_loc_id))::ls ->
+        let e = apply_option _loc opt g e in
         let a = fn ((id, occur_loc_id) :: ids) ls in
         let fn =
           match ((find_locate ()), occur_loc_id) with
@@ -362,20 +366,51 @@ let build_new_re_litteral loc s opt =
   match opt with
   | None -> re
   | Some e -> core_apply loc "apply" [mk_fun loc ["group"] e; re]
+let build_rule_element p (boring, e) m g =
+  let (cst, id) =
+    match p with
+    | None -> (None, ("_", None))
+    | Some p ->
+        (match p.ppat_desc with
+         | Ppat_alias (p, { txt = id }) -> ((Some true), (id, (Some p)))
+         | Ppat_var { txt = id } -> ((Some (id <> "_")), (id, None))
+         | Ppat_any -> ((Some false), ("_", None))
+         | _ -> ((Some true), ("_", (Some p)))) in
+  `Normal (id, (from_opt cst ((m <> None) || (not boring))), e, m, g)
+let build_rule_data loc def lhs cond action =
+  let fn x (res, i) =
+    match x with
+    | `Normal (("_", a), true, c, d, e) ->
+        (((`Normal
+             ((("_default_" ^ (string_of_int i)), a), true, c, d, e, false))
+          :: res), (i + 1))
+    | `Normal (id, b, c, d, e) ->
+        let occur_loc_id =
+          ((fst id) <> "_") && (occur ("_loc_" ^ (fst id)) action) in
+        (((`Normal (id, b, c, d, e, occur_loc_id)) :: res), i) in
+  let lhs = fst (List.fold_right fn lhs ([], 0)) in
+  (loc, (occur "_loc" action), def, lhs, cond, action)
 let parser_atom = Earley_core.Earley.declare_grammar "parser_atom"
 let parser_param = Earley_core.Earley.declare_grammar "parser_param"
 let parser_modifier = Earley_core.Earley.declare_grammar "parser_modifier"
-let glr_ident = Earley_core.Earley.declare_grammar "glr_ident"
-let glr_left_member = Earley_core.Earley.declare_grammar "glr_left_member"
-let glr_let = Earley_core.Earley.declare_grammar "glr_let"
-let glr_cond = Earley_core.Earley.declare_grammar "glr_cond"
-let (glr_action, glr_action__set__grammar) =
-  Earley_core.Earley.grammar_family "glr_action"
-let (glr_rule, glr_rule__set__grammar) =
-  Earley_core.Earley.grammar_family "glr_rule"
-let (glr_at_rule, glr_at_rule__set__grammar) =
-  Earley_core.Earley.grammar_family "glr_at_rule"
-let glr_rules = Earley_core.Earley.declare_grammar "glr_rules"
+let parser_greedy = Earley_core.Earley.declare_grammar "parser_greedy"
+let parser_pattern = Earley_core.Earley.declare_grammar "parser_pattern"
+let parser_rule_element =
+  Earley_core.Earley.declare_grammar "parser_rule_element"
+let parser_rule_lhs = Earley_core.Earley.declare_grammar "parser_rule_lhs"
+let parser_rule_let_bindings =
+  Earley_core.Earley.declare_grammar "parser_rule_let_bindings"
+let parser_rule_guard =
+  Earley_core.Earley.declare_grammar "parser_rule_guard"
+let (parser_rule_action, parser_rule_action__set__grammar) =
+  Earley_core.Earley.grammar_family "parser_rule_action"
+let (parser_rule, parser_rule__set__grammar) =
+  Earley_core.Earley.grammar_family "parser_rule"
+let parser_rule_unshared =
+  Earley_core.Earley.declare_grammar "parser_rule_unshared"
+let (parser_full_rule, parser_full_rule__set__grammar) =
+  Earley_core.Earley.grammar_family "parser_full_rule"
+let parser_rules = Earley_core.Earley.declare_grammar "parser_rules"
 let _ =
   Earley_core.Earley.set_grammar parser_atom
     (Earley_core.Earley.alternatives
@@ -754,7 +789,7 @@ let _ =
                                                              (Earley_core.Earley.char
                                                                 '{' '{')
                                                              (Earley_core.Earley.fsequence
-                                                                glr_rules
+                                                                parser_rules
                                                                 (Earley_core.Earley.fsequence_ignore
                                                                    (Earley_core.Earley.char
                                                                     '}' '}')
@@ -792,91 +827,53 @@ let _ =
              (Earley_core.Earley.empty (fun _default_0 -> _default_0)))))
 let _ =
   Earley_core.Earley.set_grammar parser_modifier
-    (Earley_core.Earley.alternatives
-       (List.cons
-          (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-             (Earley_core.Earley.empty `Once))
+    (Earley_core.Earley.fsequence
+       (Earley_core.Earley.alternatives
           (List.cons
              (Earley_core.Earley.fsequence_ignore
-                (Earley_core.Earley.char '*' '*')
-                (Earley_core.Earley.fsequence
-                   (Earley_core.Earley.option None
-                      (Earley_core.Earley.apply (fun x -> Some x)
-                         parser_param))
-                   (Earley_core.Earley.fsequence
-                      (Earley_core.Earley.option None
-                         (Earley_core.Earley.apply (fun x -> Some x)
-                            (Earley_core.Earley.char '$' '$')))
-                      (Earley_core.Earley.empty
-                         (fun g -> fun e -> `Fixpoint (e, g))))))
+                (Earley_core.Earley.char '?' '?')
+                (Earley_core.Earley.empty Maybe))
              (List.cons
                 (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.char '+' '+')
-                   (Earley_core.Earley.fsequence
-                      (Earley_core.Earley.option None
-                         (Earley_core.Earley.apply (fun x -> Some x)
-                            parser_param))
-                      (Earley_core.Earley.fsequence
-                         (Earley_core.Earley.option None
-                            (Earley_core.Earley.apply (fun x -> Some x)
-                               (Earley_core.Earley.char '$' '$')))
-                         (Earley_core.Earley.empty
-                            (fun g -> fun e -> `Fixpoint1 (e, g))))))
+                   (Earley_core.Earley.char '*' '*')
+                   (Earley_core.Earley.empty Star))
                 (List.cons
                    (Earley_core.Earley.fsequence_ignore
-                      (Earley_core.Earley.char '?' '?')
-                      (Earley_core.Earley.fsequence
-                         (Earley_core.Earley.option None
-                            (Earley_core.Earley.apply (fun x -> Some x)
-                               parser_param))
-                         (Earley_core.Earley.fsequence
-                            (Earley_core.Earley.option None
-                               (Earley_core.Earley.apply (fun x -> Some x)
-                                  (Earley_core.Earley.char '$' '$')))
-                            (Earley_core.Earley.empty
-                               (fun g -> fun e -> `Option (e, g))))))
-                   (List.cons
-                      (Earley_core.Earley.fsequence_ignore
-                         (Earley_core.Earley.char '$' '$')
-                         (Earley_core.Earley.empty `Greedy)) []))))))
+                      (Earley_core.Earley.char '+' '+')
+                      (Earley_core.Earley.empty Plus)) []))))
+       (Earley_core.Earley.fsequence
+          (Earley_core.Earley.option None
+             (Earley_core.Earley.apply (fun x -> Some x) parser_param))
+          (Earley_core.Earley.empty
+             (fun _default_0 -> fun _default_1 -> (_default_1, _default_0)))))
 let _ =
-  Earley_core.Earley.set_grammar glr_ident
-    (Earley_core.Earley.alternatives
-       (List.cons
-          (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
-             (Earley_core.Earley.empty (None, ("_", None))))
-          (List.cons
-             (Earley_core.Earley.fsequence (pattern_lvl (true, ConstrPat))
-                (Earley_core.Earley.fsequence_ignore
-                   (Earley_core.Earley.char ':' ':')
-                   (Earley_core.Earley.empty
-                      (fun p ->
-                         match p.ppat_desc with
-                         | Ppat_alias (p, { txt = id }) ->
-                             ((Some true), (id, (Some p)))
-                         | Ppat_var { txt = id } ->
-                             ((Some (id <> "_")), (id, None))
-                         | Ppat_any -> ((Some false), ("_", None))
-                         | _ -> ((Some true), ("_", (Some p))))))) [])))
+  Earley_core.Earley.set_grammar parser_greedy
+    (Earley_core.Earley.option false (Earley_core.Earley.char '$' true))
 let _ =
-  Earley_core.Earley.set_grammar glr_left_member
+  Earley_core.Earley.set_grammar parser_pattern
+    (Earley_core.Earley.fsequence (pattern_lvl (true, ConstrPat))
+       (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.char ':' ':')
+          (Earley_core.Earley.empty (fun _default_0 -> _default_0))))
+let _ =
+  Earley_core.Earley.set_grammar parser_rule_element
+    (Earley_core.Earley.fsequence
+       (Earley_core.Earley.option None
+          (Earley_core.Earley.apply (fun x -> Some x) parser_pattern))
+       (Earley_core.Earley.fsequence parser_atom
+          (Earley_core.Earley.fsequence
+             (Earley_core.Earley.option None
+                (Earley_core.Earley.apply (fun x -> Some x) parser_modifier))
+             (Earley_core.Earley.fsequence parser_greedy
+                (Earley_core.Earley.empty
+                   (fun g ->
+                      fun m -> fun e -> fun p -> build_rule_element p e m g))))))
+let _ =
+  Earley_core.Earley.set_grammar parser_rule_lhs
     (Earley_core.Earley.apply (fun f -> f [])
-       (Earley_core.Earley.fixpoint1' (fun l -> l)
-          (Earley_core.Earley.fsequence glr_ident
-             (Earley_core.Earley.fsequence parser_atom
-                (Earley_core.Earley.fsequence parser_modifier
-                   (Earley_core.Earley.empty
-                      (fun opt ->
-                         fun ((boring, s) as _default_0) ->
-                           fun ((cst', id) as _default_1) ->
-                             `Normal
-                               (id,
-                                 (from_opt cst'
-                                    ((opt <> `Once) || (not boring))), s,
-                                 opt))))))
+       (Earley_core.Earley.fixpoint1' (fun l -> l) parser_rule_element
           (fun x -> fun f -> fun l -> f (List.cons x l))))
 let _ =
-  Earley_core.Earley.set_grammar glr_let
+  Earley_core.Earley.set_grammar parser_rule_let_bindings
     (Earley_core.Earley.alternatives
        (List.cons
           (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
@@ -886,7 +883,8 @@ let _ =
                 (Earley_core.Earley.fsequence rec_flag
                    (Earley_core.Earley.fsequence let_binding
                       (Earley_core.Earley.fsequence in_kw
-                         (Earley_core.Earley.fsequence glr_let
+                         (Earley_core.Earley.fsequence
+                            parser_rule_let_bindings
                             (Earley_core.Earley.empty_pos
                                (fun __loc__start__buf ->
                                   fun __loc__start__pos ->
@@ -898,21 +896,19 @@ let _ =
                                             __loc__end__pos in
                                         fun l ->
                                           fun _default_0 ->
-                                            fun lbs ->
+                                            fun b ->
                                               fun r ->
                                                 fun _default_1 ->
                                                   fun x ->
-                                                    Exp.let_ ~loc:_loc r lbs
+                                                    Exp.let_ ~loc:_loc r b
                                                       (l x)))))))) [])))
 let _ =
-  Earley_core.Earley.set_grammar glr_cond
-    (Earley_core.Earley.option None
-       (Earley_core.Earley.apply (fun x -> Some x)
-          (Earley_core.Earley.fsequence_ignore when_kw
-             (Earley_core.Earley.fsequence expression
-                (Earley_core.Earley.empty (fun e -> e))))))
+  Earley_core.Earley.set_grammar parser_rule_guard
+    (Earley_core.Earley.fsequence_ignore when_kw
+       (Earley_core.Earley.fsequence expression
+          (Earley_core.Earley.empty (fun _default_0 -> _default_0))))
 let _ =
-  glr_action__set__grammar
+  parser_rule_action__set__grammar
     (fun alm ->
        Earley_core.Earley.alternatives
          (List.cons
@@ -922,7 +918,7 @@ let _ =
             (List.cons
                (Earley_core.Earley.fsequence_ignore
                   (Earley_core.Earley.string "->>" "->>")
-                  (Earley_core.Earley.fsequence (glr_rule alm)
+                  (Earley_core.Earley.fsequence (parser_rule alm)
                      (Earley_core.Earley.empty
                         (fun r -> DepSeq (build_rule r)))))
                (List.cons
@@ -936,12 +932,15 @@ let _ =
                            (Earley_core.Earley.empty
                               (fun _default_0 -> fun a -> Normal a))))) []))))
 let _ =
-  glr_rule__set__grammar
+  parser_rule__set__grammar
     (fun alm ->
-       Earley_core.Earley.fsequence glr_let
-         (Earley_core.Earley.fsequence glr_left_member
-            (Earley_core.Earley.fsequence glr_cond
-               (Earley_core.Earley.fsequence (glr_action alm)
+       Earley_core.Earley.fsequence parser_rule_let_bindings
+         (Earley_core.Earley.fsequence parser_rule_lhs
+            (Earley_core.Earley.fsequence
+               (Earley_core.Earley.option None
+                  (Earley_core.Earley.apply (fun x -> Some x)
+                     parser_rule_guard))
+               (Earley_core.Earley.fsequence (parser_rule_action alm)
                   (Earley_core.Earley.empty_pos
                      (fun __loc__start__buf ->
                         fun __loc__start__pos ->
@@ -952,54 +951,44 @@ let _ =
                                   __loc__end__buf __loc__end__pos in
                               fun action ->
                                 fun cond ->
-                                  fun l ->
+                                  fun lhs ->
                                     fun def ->
-                                      let fn x (res, i) =
-                                        match x with
-                                        | `Normal (("_", a), true, c, d) ->
-                                            (((`Normal
-                                                 ((("_default_" ^
-                                                      (string_of_int i)), a),
-                                                   true, c, d, false)) ::
-                                              res), (i + 1))
-                                        | `Normal (id, b, c, d) ->
-                                            let occur_loc_id =
-                                              ((fst id) <> "_") &&
-                                                (occur ("_loc_" ^ (fst id))
-                                                   action) in
-                                            (((`Normal
-                                                 (id, b, c, d, occur_loc_id))
-                                              :: res), i) in
-                                      let l =
-                                        fst (List.fold_right fn l ([], 0)) in
-                                      (_loc, (occur "_loc" action), def, l,
-                                        cond, action)))))))
+                                      build_rule_data _loc def lhs cond
+                                        action))))))
 let _ =
-  glr_at_rule__set__grammar
+  Earley_core.Earley.set_grammar parser_rule_unshared
+    (Earley_core.Earley.alternatives
+       (List.cons
+          (Earley_core.Earley.fsequence_ignore (Earley_core.Earley.empty ())
+             (Earley_core.Earley.empty false))
+          (List.cons
+             (Earley_core.Earley.fsequence
+                (Earley_core.Earley.alternatives
+                   (List.cons
+                      (Earley_core.Earley.fsequence_ignore
+                         (Earley_core.Earley.char '[' '[')
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.char '@' '@')
+                            (Earley_core.Earley.fsequence_ignore
+                               (Earley_core.Earley.string "unshared"
+                                  "unshared")
+                               (Earley_core.Earley.fsequence_ignore
+                                  (Earley_core.Earley.char ']' ']')
+                                  (Earley_core.Earley.empty ())))))
+                      (List.cons
+                         (Earley_core.Earley.fsequence_ignore
+                            (Earley_core.Earley.char '@' '@')
+                            (Earley_core.Earley.empty ())) [])))
+                (Earley_core.Earley.empty (fun _default_0 -> true))) [])))
+let _ =
+  parser_full_rule__set__grammar
     (fun alm ->
-       Earley_core.Earley.fsequence
-         (Earley_core.Earley.option None
-            (Earley_core.Earley.apply (fun x -> Some x)
-               (Earley_core.Earley.alternatives
-                  (List.cons
-                     (Earley_core.Earley.fsequence_ignore
-                        (Earley_core.Earley.char '[' '[')
-                        (Earley_core.Earley.fsequence_ignore
-                           (Earley_core.Earley.char '@' '@')
-                           (Earley_core.Earley.fsequence_ignore
-                              (Earley_core.Earley.string "unshared"
-                                 "unshared")
-                              (Earley_core.Earley.fsequence_ignore
-                                 (Earley_core.Earley.char ']' ']')
-                                 (Earley_core.Earley.empty ())))))
-                     (List.cons
-                        (Earley_core.Earley.fsequence_ignore
-                           (Earley_core.Earley.char '@' '@')
-                           (Earley_core.Earley.empty ())) [])))))
-         (Earley_core.Earley.fsequence (glr_rule alm)
-            (Earley_core.Earley.empty (fun r -> fun a -> ((a <> None), r)))))
+       Earley_core.Earley.fsequence parser_rule_unshared
+         (Earley_core.Earley.fsequence (parser_rule alm)
+            (Earley_core.Earley.empty
+               (fun _default_0 -> fun _default_1 -> (_default_1, _default_0)))))
 let _ =
-  Earley_core.Earley.set_grammar glr_rules
+  Earley_core.Earley.set_grammar parser_rules
     (Earley_core.Earley.fsequence
        (Earley_core.Earley.option None
           (Earley_core.Earley.apply (fun x -> Some x)
@@ -1007,19 +996,38 @@ let _ =
        (Earley_core.Earley.fsequence
           (Earley_core.Earley.apply (fun f -> f [])
              (Earley_core.Earley.fixpoint' (fun l -> l)
-                (Earley_core.Earley.fsequence (glr_at_rule false)
+                (Earley_core.Earley.fsequence (parser_full_rule false)
                    (Earley_core.Earley.fsequence_ignore
                       (Earley_core.Earley.char '|' '|')
-                      (Earley_core.Earley.empty (fun r -> r))))
+                      (Earley_core.Earley.empty
+                         (fun _default_0 -> _default_0))))
                 (fun x -> fun f -> fun l -> f (List.cons x l))))
-          (Earley_core.Earley.fsequence (glr_at_rule true)
+          (Earley_core.Earley.fsequence (parser_full_rule true)
              (Earley_core.Earley.empty
                 (fun r -> fun rs -> fun _default_0 -> r :: rs)))))
 [@@@ocaml.text
   " Grammar for a single parser atom (including composite atoms such a a local\n    alternative given in braces). The semantic action is a pair [(boring, e)],\n    where [boring] is a boolean indicating whether the denoted parser produces\n    a boring value (i.e., an uninteresting result),  and [e] is the parser for\n    the atom (as an OCaml expression). "]
-let glr_binding = Earley_core.Earley.declare_grammar "glr_binding"
+[@@@ocaml.text
+  " Grammar for an expression in square brackets, used for parameters. "]
+[@@@ocaml.text
+  " Grammar for a modifier (e.g., Kleene star) and an optional parameter. "]
+[@@@ocaml.text " Grammar for an optional greedy modifier. "]
+[@@@ocaml.text " Grammar for a naming pattern (for parser elements). "]
+[@@@ocaml.text " Grammar for a full parsing rule element. "]
+[@@@ocaml.text " Grammar for a full parsing rule LHS. "]
+[@@@ocaml.text
+  " Grammar for a sequence of let-bindings (allowed before rules). "]
+[@@@ocaml.text " Grammar for a parsing rule guard. "]
+[@@@ocaml.text " Grammar for a parsing rule semantic action. "]
+[@@@ocaml.text " Grammar for a full parsing rule. "]
+[@@@ocaml.text " Grammar for an optional tag that disables sharing. "]
+[@@@ocaml.text
+  " Grammar for a parsing rule possibly marked as non-sharable. "]
+[@@@ocaml.text
+  " Grammar for an alternative between several rules (main entry point). "]
+let parser_binding = Earley_core.Earley.declare_grammar "parser_binding"
 let _ =
-  Earley_core.Earley.set_grammar glr_binding
+  Earley_core.Earley.set_grammar parser_binding
     (Earley_core.Earley.fsequence lident
        (Earley_core.Earley.fsequence
           (Earley_core.Earley.apply (fun f -> f [])
@@ -1043,7 +1051,7 @@ let _ =
                                (fun _default_0 -> _default_0))))))
                 (Earley_core.Earley.fsequence_ignore
                    (Earley_core.Earley.char '=' '=')
-                   (Earley_core.Earley.fsequence_position glr_rules
+                   (Earley_core.Earley.fsequence_position parser_rules
                       (Earley_core.Earley.empty
                          (fun str1 ->
                             fun pos1 ->
@@ -1058,9 +1066,10 @@ let _ =
                                             `Parser
                                               (name, args, prio, ty, _loc_r,
                                                 r)))))))))
-let glr_bindings = Earley_core.Earley.declare_grammar "glr_bindings"
+[@@@ocaml.text " Grammar for a parser definition binding. "]
+let parser_bindings = Earley_core.Earley.declare_grammar "parser_bindings"
 let _ =
-  Earley_core.Earley.set_grammar glr_bindings
+  Earley_core.Earley.set_grammar parser_bindings
     (Earley_core.Earley.alternatives
        (List.cons
           (Earley_core.Earley.fsequence and_kw
@@ -1071,8 +1080,8 @@ let _ =
                          (Earley_core.Earley.empty
                             (fun _default_0 -> _default_0)))))
                 (Earley_core.Earley.fsequence parser_kw
-                   (Earley_core.Earley.fsequence glr_binding
-                      (Earley_core.Earley.fsequence glr_bindings
+                   (Earley_core.Earley.fsequence parser_binding
+                      (Earley_core.Earley.fsequence parser_bindings
                          (Earley_core.Earley.empty
                             (fun bs ->
                                fun b ->
@@ -1090,13 +1099,15 @@ let _ =
                             (fun _default_0 -> _default_0)))))
                 (Earley_core.Earley.empty
                    (fun cs -> List.map (fun b -> `Caml b) cs))) [])))
+[@@@ocaml.text
+  " Grammar for a sequence of definition bindings, starting with a parser. "]
 let extra_structure = Earley_core.Earley.declare_grammar "extra_structure"
 let _ =
   Earley_core.Earley.set_grammar extra_structure
     (Earley_core.Earley.fsequence_ignore let_kw
        (Earley_core.Earley.fsequence_ignore parser_kw
-          (Earley_core.Earley.fsequence glr_binding
-             (Earley_core.Earley.fsequence glr_bindings
+          (Earley_core.Earley.fsequence parser_binding
+             (Earley_core.Earley.fsequence parser_bindings
                 (Earley_core.Earley.empty_pos
                    (fun __loc__start__buf ->
                       fun __loc__start__pos ->
@@ -1106,6 +1117,7 @@ let _ =
                               locate __loc__start__buf __loc__start__pos
                                 __loc__end__buf __loc__end__pos in
                             fun bs -> fun b -> build_str_item _loc (b :: bs)))))))
+[@@@ocaml.text " New entry point in structures: parser definition. "]
 let parser_args = Earley_core.Earley.declare_grammar "parser_args"
 let _ =
   Earley_core.Earley.set_grammar parser_args
@@ -1123,6 +1135,7 @@ let _ =
                    (Earley_core.Earley.empty
                       (fun _default_0 ->
                          fun _default_1 -> (_default_1, _default_0))))))))
+[@@@ocaml.text " Special form of function wrapper for parser expressions. "]
 let extra_prefix_expressions =
   Earley_core.Earley.declare_grammar "extra_prefix_expressions"
 let _ =
@@ -1131,7 +1144,7 @@ let _ =
        (Earley_core.Earley.option None
           (Earley_core.Earley.apply (fun x -> Some x) parser_args))
        (Earley_core.Earley.fsequence_ignore parser_kw
-          (Earley_core.Earley.fsequence_position glr_rules
+          (Earley_core.Earley.fsequence_position parser_rules
              (Earley_core.Earley.empty_pos
                 (fun __loc__start__buf ->
                    fun __loc__start__pos ->
@@ -1159,4 +1172,5 @@ let _ =
                                      List.fold_right
                                        (Exp.fun_ ~loc:_loc Nolabel None) args
                                        e)))))
+[@@@ocaml.text " New entry point in expressions: parser expression. "]
 let _ = add_reserved_id "parser"
