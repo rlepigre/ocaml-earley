@@ -277,6 +277,8 @@ let reserved_symbs =
 let (is_reserved_id  , add_reserved_id  ) = make_reserved reserved_ids
 let (is_reserved_symb, add_reserved_symb) = make_reserved reserved_symbs
 
+let _ = add_reserved_id "parser"
+
 let not_special =
   let special = "!$%&*+./:<=>?@^|~-" in
   let cs = ref Charset.empty in
@@ -459,3 +461,14 @@ let regexp_litteral : string Earley.grammar =
 
 let new_regexp_litteral : string Earley.grammar =
   Earley.no_blank_layout (parser "{#" regexp "#}")
+
+let dash =
+  let fn str pos =
+    let (c,str',pos') = Input.read str pos in
+    if c = '-' then
+      let (c',_,_) = Input.read str' pos' in
+      if c' = '>' then Earley.give_up ()
+      else ((), str', pos')
+    else Earley.give_up ()
+  in
+  Earley.black_box fn (Charset.singleton '-') false "-"

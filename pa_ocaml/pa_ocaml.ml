@@ -1240,13 +1240,12 @@ and infix_expr lvl =
              -> mk_binary_op (merge2 _loc_e _l) e' op _loc_op acc) ls e)
 
 let parser prefix_expression =
-  | function_kw l:match_cases
-    -> Exp.function_ ~loc:_loc l
-  | match_kw e:expression with_kw l:match_cases
-    -> Exp.match_ ~loc:_loc e l
-  | try_kw e:expression with_kw l:match_cases
-    -> Exp.try_ ~loc:_loc e l
-  | e:Pa_parser.extra_prefix_expressions
+  | function_kw l:match_cases                   -> Exp.function_ ~loc:_loc l
+  | match_kw e:expression with_kw l:match_cases -> Exp.match_ ~loc:_loc e l
+  | try_kw e:expression with_kw l:match_cases   -> Exp.try_ ~loc:_loc e l
+  | pe:Parser_spec_parser.parser_expression     ->
+      Compile_parser.parser_expr pe
+
 
 let parser right_expression @lvl =
   | id:value_path when lvl <= Atom ->
@@ -1516,8 +1515,9 @@ let parser structure_item_aux =
   | _:ext_attributes -> []
   | _:ext_attributes e:expression -> attach_str _loc @ [Str.eval ~loc:_loc_e e]
   | s1:structure_item_aux double_semi_col?[()] _:ext_attributes f:{
-             | e:(Pa_parser.extra_structure) ->
-                 (fun s1 -> List.rev_append e (List.rev_append (attach_str _loc_e) s1))
+             | pbs:Parser_spec_parser.parser_structure ->
+                 let e = Compile_parser.parser_bindings pbs in
+                 (fun s1 -> List.rev_append e (List.rev_append (attach_str _loc_pbs) s1))
              | s2:structure_item_base ->
                   (fun s1 -> s2 :: (List.rev_append (attach_str _loc_s2) s1)) } -> f s1
   | s1:structure_item_aux double_semi_col _:ext_attributes e:expression

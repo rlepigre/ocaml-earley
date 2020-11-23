@@ -3,5 +3,6 @@
   (public_name pa_ocaml)
   (package earley)
   (modules :standard)
-  (preprocess (action (run pa_ocaml.boot %{input-file})))
+  (preprocess (per_module ((action (run pa_ocaml.boot %{input-file}))
+   pa_ocaml_prelude pa_ocaml pa_lexing parser_spec_parser)))
   (libraries earley.core earley.str ocaml_ast))
