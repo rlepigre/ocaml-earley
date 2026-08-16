@@ -1,8 +1,16 @@
+(library
+  (name earley_ocaml)
+  (public_name earley.ocaml)
+  (wrapped false)
+  (modules :standard \ pa_main)
+  (preprocess (per_module ((action (run pa_ocaml.boot %{input-file}))
+   pa_ocaml_prelude pa_ocaml pa_lexing parser_spec_parser)))
+  (libraries earley.core earley.str earley.ocaml_ast))
+
 (executable
   (name pa_main)
   (public_name pa_ocaml)
   (package earley)
-  (modules :standard)
-  (preprocess (per_module ((action (run pa_ocaml.boot %{input-file}))
-   pa_ocaml_prelude pa_ocaml pa_lexing parser_spec_parser)))
-  (libraries earley.core earley.str ocaml_ast))
+  (modules pa_main)
+  (preprocess (action (run pa_ocaml.boot %{input-file})))
+  (libraries earley.core earley.str earley.ocaml))
