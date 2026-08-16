@@ -1,5 +1,3 @@
-*~
 _build
-.merlin
 boot_*.tar
 earley.install

@@ -12,7 +12,7 @@ type parser_modifier =
   | Ppmod_opt
 
 (** Parser elements that are sequenced to form rules. *)
-type parser_element = { 
+type parser_element = {
   ppelt_desc: parser_element_desc;
   (** Parser atom contained in the element. *)
   ppelt_loc: Location.t;

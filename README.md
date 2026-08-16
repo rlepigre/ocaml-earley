@@ -1,11 +1,5 @@
-[![Build Status](https://travis-ci.org/rlepigre/ocaml-earley.svg?branch=master)](https://travis-ci.org/rlepigre/ocaml-earley)
-
-# Dependencies
-
- * OCaml (at least 4.07.0)
- * Dune (at least 2.7)
- * stdlib-shims (at least 0.1)
- * GNU Make
+Earley OCaml Library
+====================
 
 # Installation procedure
 
