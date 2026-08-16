@@ -4,5 +4,4 @@
  (flags (:standard -w -9-20))
  (modules :standard)
  (modules_without_implementation asttypes parsetree)
- (wrapped false)
- (libraries stdlib-shims))
+ (wrapped false))
